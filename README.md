@@ -87,7 +87,7 @@ hermes update       # Update to the latest version
 hermes doctor       # Diagnose any issues
 ```
 
-📖 **Documentation:** See [Hermes Agent docs](https://hermes-agent.nousresearch.com/docs/) for reference (Autolycus is API-compatible).
+📖 **Documentation:** See [Hermes Agent docs](https://hermes-agent.nousresearch.com/docs/) for reference (Autolycus is (or, more accurately, aims to be) API-compatible).
 
 ## CLI vs Messaging Quick Reference
 
