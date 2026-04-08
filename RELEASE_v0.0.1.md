@@ -13,11 +13,11 @@
 
 ---
 
-## Release Notes — Autolycus v0.0.1
+## Release Notes — Autolycus v_0.0.1
 
 **Release Date:** April 2026  
 **Platform:** FreeBSD only (prototype)  
-**License:** GPL v2
+**License:** GPL v2.1
 
 ### About This Release
 
