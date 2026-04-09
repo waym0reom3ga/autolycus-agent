@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/waym0reom3ga/autolycus-agent"><img src="https://img.shields.io/badge/GitHub-waym0reom3ga/autolycus--agent-6e5494?style=for-the-badge&logo=github" alt="GitHub"></a>
-  <a href="https://github.com/waym0reom3ga/autolycus-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL%20v2-blue?style=for-the-badge" alt="License: GPL v2"></a>
+  <a href="https://github.com/waym0reom3ga/autolycus-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-LGPL%20v2.1-blue?style=for-the-badge" alt="License: LGPL v2.1"></a>
   <img src="https://img.shields.io/badge/FreeBSD-AB1D2E?style=for-the-badge&logo=freebsd&logoColor=white" alt="FreeBSD Only">
   <img src="https://img.shields.io/badge/Technetia%20Inc-0066cc?style=for-the-badge" alt="Technetia Inc">
 </p>
@@ -190,7 +190,7 @@ python -m pytest tests/ -q
 
 ## License
 
-GPL v2 — see [LICENSE](LICENSE).
+LGPL v2.1 — see [LICENSE](LICENSE).
 
 An independent project by **Technetia Inc**.  
 Built on the Hermes Agent architecture.
