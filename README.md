@@ -13,13 +13,13 @@
 
 > ⚠️ **PROTOTYPE / FreeBSD ONLY** — This is an unworking prototype designed exclusively for FreeBSD systems. Not production-ready. An independent project by **Technetia Inc**. Not affiliated with Nous Research or the original Hermes Agent.
 
-**The self-improving AI agent.** It's the only agent (apart from Hermes) with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
+**The self-improving AI agent.** It's the only agent (apart from Hermes) with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on FreeBSD, FreeBSD, or FreeBSD. As long as it's FreeBSD, it might work. It's not tied to your laptop — talk to it from Telegram while it works on FreeBSD.
 
-Use any model you want — [Nous Portal](https://portal.nousresearch.com), [OpenRouter](https://openrouter.ai) (200+ models), [z.ai/GLM](https://z.ai), [Kimi/Moonshot](https://platform.moonshot.ai), [MiniMax](https://www.minimax.io), OpenAI, or your own endpoint. Switch with `hermes model` — no code changes, no lock-in.
+Use any model you want — A local lmstudio or ollama server, or some hosted services: [Nous Portal](https://portal.nousresearch.com), [OpenRouter](https://openrouter.ai) (200+ models), [z.ai/GLM](https://z.ai), [Kimi/Moonshot](https://platform.moonshot.ai), [MiniMax](https://www.minimax.io), OpenAI, or your own endpoint. Switch with `hermes model` — no code changes, no lock-in, not even a way to login or register! We don't keep tabs on what you do, we're busy enough.
 
 <table>
 <tr><td><b>A real terminal interface</b></td><td>Full TUI with multiline editing, slash-command autocomplete, conversation history, interrupt-and-redirect, and streaming tool output.</td></tr>
-<tr><td><b>Lives where you do</b></td><td>Telegram, Discord, Slack, WhatsApp, Signal, and CLI — all from a single gateway process. Cross-platform conversation continuity.</td></tr>
+<tr><td><b>Lives where you do</b></td><td>Telegram (someday), (Discord, Slack, WhatsApp, Signal probably never) and the good old trusty CLI — all from a single gateway process. Cross-platform conversation continuity is the dream</td></tr>
 <tr><td><b>A closed learning loop</b></td><td>Agent-curated memory with periodic nudges. Autonomous skill creation after complex tasks. Skills self-improve during use. FTS5 session search with LLM summarization for cross-session recall. <a href="https://github.com/plastic-labs/honcho">Honcho</a> dialectic user modeling. Compatible with the <a href="https://agentskills.io">agentskills.io</a> open standard.</td></tr>
 <tr><td><b>Scheduled automations</b></td><td>Built-in cron scheduler with delivery to any platform. Daily reports, nightly backups, weekly audits — all in natural language, running unattended.</td></tr>
 <tr><td><b>Delegates and parallelizes</b></td><td>Spawn isolated subagents for parallel workstreams. Write Python scripts that call tools via RPC, collapsing multi-step pipelines into zero-context-cost turns.</td></tr>
@@ -35,7 +35,7 @@ Use any model you want — [Nous Portal](https://portal.nousresearch.com), [Open
 
 ### Prerequisites
 
-- FreeBSD 13+ 
+- Built on FreeBSD 15.0 (your mileage might vary)
 - Rust/Cargo installed (`pkg install rust`)
 - Python 3.11+ (`pkg install python311`)
 
