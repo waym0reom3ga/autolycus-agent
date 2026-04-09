@@ -200,8 +200,9 @@ if _config_path.exists():
 
 # Validate config structure early — log warnings so gateway operators see problems
 try:
-    from hermes_cli.config import print_config_warnings
+    from hermes_cli.config import print_config_warnings, print_platform_warnings
     print_config_warnings()
+    print_platform_warnings()
 except Exception:
     pass
 

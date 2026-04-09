@@ -26,6 +26,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from tools.tool_backend_helpers import managed_nous_tools_enabled as _managed_nous_tools_enabled
 
 _IS_WINDOWS = platform.system() == "Windows"
+_IS_FREEBSD = platform.system() == "FreeBSD"
 _ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # Env var names written to .env that aren't in OPTIONAL_ENV_VARS
 # (managed by setup/provider flows directly).
@@ -1482,6 +1483,49 @@ def validate_config_structure(config: Optional[Dict[str, Any]] = None) -> List["
     return issues
 
 
+def print_platform_warnings() -> None:
+    """Print platform-specific warnings to stderr at startup.
+
+    Warns users about features that don't work on their platform (e.g.,
+    voice tools on FreeBSD, PTY limitations). Prints nothing if all
+    features are available.
+    """
+    import sys
+
+    if not _IS_FREEBSD:
+        return
+
+    # Check for voice tool dependencies
+    warnings = []
+
+    try:
+        import faster_whisper
+    except ImportError:
+        warnings.append(
+            "Voice transcription (faster-whisper) is unavailable on FreeBSD. "
+            "Use cloud STT instead: set GROQ_API_KEY or VOICE_TOOLS_OPENAI_KEY."
+        )
+
+    # Check for clipboard support
+    try:
+        import xclip  # type: ignore
+    except ImportError:
+        try:
+            subprocess.run(["xclip", "--version"], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            warnings.append(
+                "Clipboard tools require xclip or xsel. Install with: pkg install xclip"
+            )
+
+    if not warnings:
+        return
+
+    lines = ["\033[33m⚠ FreeBSD platform limitations:\033[0m"]
+    for w in warnings:
+        lines.append(f"  • {w}")
+    sys.stderr.write("\n".join(lines) + "\n\n")
+
+
 def print_config_warnings(config: Optional[Dict[str, Any]] = None) -> None:
     """Print config structure warnings to stderr at startup.
 
@@ -1905,9 +1949,9 @@ def load_config() -> Dict[str, Any]:
     import copy
     ensure_hermes_home()
     config_path = get_config_path()
-    
+
     config = copy.deepcopy(DEFAULT_CONFIG)
-    
+
     if config_path.exists():
         try:
             with open(config_path, encoding="utf-8") as f:
@@ -1923,8 +1967,59 @@ def load_config() -> Dict[str, Any]:
             config = _deep_merge(config, user_config)
         except Exception as e:
             print(f"Warning: Failed to load config: {e}")
-    
+
+    # Inject inline API keys from user-config providers into environment
+    # This allows downstream code that reads env vars to work correctly
+    _inject_provider_api_keys_into_env(config.get("providers", {}))
+
     return _expand_env_vars(_normalize_root_model_keys(_normalize_max_turns_config(config)))
+
+
+def _inject_provider_api_keys_into_env(providers: Dict[str, Any]) -> None:
+    """Inject inline API keys from user-config providers into os.environ.
+
+    User-config providers can specify api_key directly in config.yaml:
+        providers:
+          openai:
+            base_url: http://localhost:1234/v1
+            api_key: mykey
+
+    This function maps those to environment variables so downstream code
+    that reads env vars (e.g., credential_pool, OpenAI client) works correctly.
+
+    Mapping: provider name -> standard env var name
+      openai -> OPENAI_API_KEY
+      anthropic -> ANTHROPIC_API_KEY
+      etc.
+    """
+    if not providers or not isinstance(providers, dict):
+        return
+
+    # Map provider names to their primary API key env var
+    PROVIDER_TO_ENV_VAR = {
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+        "zai": "GLM_API_KEY",
+        "kimi-for-coding": "KIMI_API_KEY",
+        "minimax": "MINIMAX_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+        "alibaba": "DASHSCOPE_API_KEY",
+        "vercel": "AI_GATEWAY_API_KEY",
+        "opencode": "OPENCODE_ZEN_API_KEY",
+        "huggingface": "HF_TOKEN",
+    }
+
+    for provider_name, provider_config in providers.items():
+        if not isinstance(provider_config, dict):
+            continue
+        api_key = provider_config.get("api_key")
+        if not api_key:
+            continue
+        # Only set env var if not already set (respect existing values)
+        env_var = PROVIDER_TO_ENV_VAR.get(provider_name.lower())
+        if env_var and not os.environ.get(env_var):
+            os.environ[env_var] = str(api_key)
 
 
 _SECURITY_COMMENT = """
