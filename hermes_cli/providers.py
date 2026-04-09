@@ -23,8 +23,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from utils import base_url_host_matches, base_url_hostname
-
 logger = logging.getLogger(__name__)
 
 
@@ -60,24 +58,6 @@ HERMES_OVERLAYS: Dict[str, HermesOverlay] = {
         auth_type="oauth_external",
         base_url_override="https://chatgpt.com/backend-api/codex",
     ),
-    "qwen-oauth": HermesOverlay(
-        transport="openai_chat",
-        auth_type="oauth_external",
-        base_url_override="https://portal.qwen.ai/v1",
-        base_url_env_var="HERMES_QWEN_BASE_URL",
-    ),
-    "google-gemini-cli": HermesOverlay(
-        transport="openai_chat",
-        auth_type="oauth_external",
-        base_url_override="cloudcode-pa://google",
-    ),
-    "lmstudio": HermesOverlay(
-        transport="openai_chat",
-        auth_type="api_key",
-        extra_env_vars=("LM_API_KEY",),
-        base_url_override="http://127.0.0.1:1234/v1",
-        base_url_env_var="LM_BASE_URL",
-    ),
     "copilot-acp": HermesOverlay(
         transport="codex_responses",
         auth_type="external_process",
@@ -101,23 +81,12 @@ HERMES_OVERLAYS: Dict[str, HermesOverlay] = {
         transport="openai_chat",
         base_url_env_var="KIMI_BASE_URL",
     ),
-    "stepfun": HermesOverlay(
-        transport="openai_chat",
-        extra_env_vars=("STEPFUN_API_KEY",),
-        base_url_override="https://api.stepfun.ai/step_plan/v1",
-        base_url_env_var="STEPFUN_BASE_URL",
-    ),
     "minimax": HermesOverlay(
-        transport="anthropic_messages",
+        transport="openai_chat",
         base_url_env_var="MINIMAX_BASE_URL",
     ),
-    "minimax-oauth": HermesOverlay(
-        transport="anthropic_messages",
-        auth_type="oauth_external",
-        base_url_override="https://api.minimax.io/anthropic",
-    ),
     "minimax-cn": HermesOverlay(
-        transport="anthropic_messages",
+        transport="openai_chat",
         base_url_env_var="MINIMAX_CN_BASE_URL",
     ),
     "deepseek": HermesOverlay(
@@ -127,10 +96,6 @@ HERMES_OVERLAYS: Dict[str, HermesOverlay] = {
     "alibaba": HermesOverlay(
         transport="openai_chat",
         base_url_env_var="DASHSCOPE_BASE_URL",
-    ),
-    "alibaba-coding-plan": HermesOverlay(
-        transport="openai_chat",
-        base_url_env_var="ALIBABA_CODING_PLAN_BASE_URL",
     ),
     "vercel": HermesOverlay(
         transport="openai_chat",
@@ -156,49 +121,6 @@ HERMES_OVERLAYS: Dict[str, HermesOverlay] = {
         is_aggregator=True,
         base_url_env_var="HF_BASE_URL",
     ),
-    "xai": HermesOverlay(
-        transport="codex_responses",
-        base_url_override="https://api.x.ai/v1",
-        base_url_env_var="XAI_BASE_URL",
-    ),
-    "nvidia": HermesOverlay(
-        transport="openai_chat",
-        base_url_override="https://integrate.api.nvidia.com/v1",
-        base_url_env_var="NVIDIA_BASE_URL",
-    ),
-    "xiaomi": HermesOverlay(
-        transport="openai_chat",
-        base_url_env_var="XIAOMI_BASE_URL",
-    ),
-    "tencent-tokenhub": HermesOverlay(
-        transport="openai_chat",
-        base_url_env_var="TOKENHUB_BASE_URL",
-    ),
-    "arcee": HermesOverlay(
-        transport="openai_chat",
-        base_url_override="https://api.arcee.ai/api/v1",
-        base_url_env_var="ARCEE_BASE_URL",
-    ),
-    "gmi": HermesOverlay(
-        transport="openai_chat",
-        extra_env_vars=("GMI_API_KEY",),
-        base_url_override="https://api.gmi-serving.com/v1",
-        base_url_env_var="GMI_BASE_URL",
-    ),
-    "ollama-cloud": HermesOverlay(
-        transport="openai_chat",
-        base_url_env_var="OLLAMA_BASE_URL",
-    ),
-    # Azure Foundry: supports both OpenAI-style and Anthropic-style endpoints.
-    # The transport is determined at runtime from config.yaml model.api_mode.
-    "azure-foundry": HermesOverlay(
-        transport="openai_chat",  # default; overridden by api_mode in config
-        base_url_env_var="AZURE_FOUNDRY_BASE_URL",
-    ),
-    "bedrock": HermesOverlay(
-        transport="bedrock_converse",
-        auth_type="aws_sdk",
-    ),
 }
 
 
@@ -219,6 +141,11 @@ class ProviderDef:
     auth_type: str = "api_key"
     doc: str = ""
     source: str = ""                      # "models.dev", "hermes", "user-config"
+    inline_api_key: str = ""              # Direct API key from user config (takes precedence over env vars)
+
+    @property
+    def is_user_defined(self) -> bool:
+        return self.source == "user-config"
 
 
 # -- Aliases ------------------------------------------------------------------
@@ -235,26 +162,10 @@ ALIASES: Dict[str, str] = {
     "z.ai": "zai",
     "zhipu": "zai",
 
-    # xai
-    "x-ai": "xai",
-    "x.ai": "xai",
-    "grok": "xai",
-
-    # nvidia
-    "nim": "nvidia",
-    "nvidia-nim": "nvidia",
-    "build-nvidia": "nvidia",
-    "nemotron": "nvidia",
-
     # kimi-for-coding (models.dev ID)
     "kimi": "kimi-for-coding",
     "kimi-coding": "kimi-for-coding",
-    "kimi-coding-cn": "kimi-for-coding",
     "moonshot": "kimi-for-coding",
-
-    # stepfun
-    "step": "stepfun",
-    "stepfun-coding-plan": "stepfun",
 
     # minimax-cn
     "minimax-china": "minimax-cn",
@@ -295,49 +206,17 @@ ALIASES: Dict[str, str] = {
     "aliyun": "alibaba",
     "qwen": "alibaba",
     "alibaba-cloud": "alibaba",
-    "alibaba_coding": "alibaba-coding-plan",
-    "alibaba-coding": "alibaba-coding-plan",
-    "alibaba_coding_plan": "alibaba-coding-plan",
-
-    # google-gemini-cli (OAuth + Code Assist)
-    "gemini-cli": "google-gemini-cli",
-    "gemini-oauth": "google-gemini-cli",
-
 
     # huggingface
     "hf": "huggingface",
     "hugging-face": "huggingface",
     "huggingface-hub": "huggingface",
 
-    # xiaomi
-    "mimo": "xiaomi",
-    "xiaomi-mimo": "xiaomi",
-
-    # tencent
-    "tencent": "tencent-tokenhub",
-    "tokenhub": "tencent-tokenhub",
-    "tencent-cloud": "tencent-tokenhub",
-    "tencentmaas": "tencent-tokenhub",
-
-    # bedrock
-    "aws": "bedrock",
-    "aws-bedrock": "bedrock",
-    "amazon-bedrock": "bedrock",
-    "amazon": "bedrock",
-
-    # arcee
-    "arcee-ai": "arcee",
-    "arceeai": "arcee",
-
-    # gmi
-    "gmi-cloud": "gmi",
-    "gmicloud": "gmi",
-
     # Local server aliases → virtual "local" concept (resolved via user config)
     "lmstudio": "lmstudio",
     "lm-studio": "lmstudio",
     "lm_studio": "lmstudio",
-    "ollama": "custom",  # bare "ollama" = local; use "ollama-cloud" for cloud
+    "ollama": "ollama-cloud",
     "vllm": "local",
     "llamacpp": "local",
     "llama.cpp": "local",
@@ -353,14 +232,7 @@ _LABEL_OVERRIDES: Dict[str, str] = {
     "nous": "Nous Portal",
     "openai-codex": "OpenAI Codex",
     "copilot-acp": "GitHub Copilot ACP",
-    "stepfun": "StepFun Step Plan",
-    "xiaomi": "Xiaomi MiMo",
-    "gmi": "GMI Cloud",
-    "tencent-tokenhub": "Tencent TokenHub",
-    "lmstudio": "LM Studio",
     "local": "Local endpoint",
-    "bedrock": "AWS Bedrock",
-    "ollama-cloud": "Ollama Cloud",
 }
 
 
@@ -370,7 +242,6 @@ TRANSPORT_TO_API_MODE: Dict[str, str] = {
     "openai_chat": "chat_completions",
     "anthropic_messages": "anthropic_messages",
     "codex_responses": "codex_responses",
-    "bedrock_converse": "bedrock_converse",
 }
 
 
@@ -386,17 +257,19 @@ def normalize_provider(name: str) -> str:
     return ALIASES.get(key, key)
 
 
+def get_overlay(provider_id: str) -> Optional[HermesOverlay]:
+    """Get Hermes overlay for a provider, if one exists."""
+    canonical = normalize_provider(provider_id)
+    return HERMES_OVERLAYS.get(canonical)
+
+
 def get_provider(name: str) -> Optional[ProviderDef]:
-    """Look up a built-in provider by id or alias.
+    """Look up a provider by id or alias, merging all data sources.
 
     Resolution order:
       1. Hermes overlays (for providers not in models.dev: nous, openai-codex, etc.)
       2. models.dev catalog + Hermes overlay
-
-    User-defined providers from config.yaml (``providers:`` / ``custom_providers:``)
-    are resolved by :func:`resolve_provider_full`, which layers ``resolve_user_provider``
-    and ``resolve_custom_provider`` on top of this function. Callers that need
-    user-config support should use ``resolve_provider_full`` instead.
+      3. User-defined providers from config (TODO: Phase 4)
 
     Returns a fully-resolved ProviderDef or None.
     """
@@ -472,6 +345,36 @@ def get_label(provider_id: str) -> str:
     return canonical
 
 
+# For direct import compat, expose as module-level dict
+# Built on demand by get_label() calls
+LABELS: Dict[str, str] = {
+    # Static entries for backward compat — get_label() is the proper API
+    "openrouter": "OpenRouter",
+    "nous": "Nous Portal",
+    "openai-codex": "OpenAI Codex",
+    "copilot-acp": "GitHub Copilot ACP",
+    "github-copilot": "GitHub Copilot",
+    "anthropic": "Anthropic",
+    "zai": "Z.AI / GLM",
+    "kimi-for-coding": "Kimi / Moonshot",
+    "minimax": "MiniMax",
+    "minimax-cn": "MiniMax (China)",
+    "deepseek": "DeepSeek",
+    "alibaba": "Alibaba Cloud (DashScope)",
+    "vercel": "Vercel AI Gateway",
+    "opencode": "OpenCode Zen",
+    "opencode-go": "OpenCode Go",
+    "kilo": "Kilo Gateway",
+    "huggingface": "Hugging Face",
+    "local": "Local endpoint",
+    "custom": "Custom endpoint",
+    # Legacy Hermes IDs (point to same providers)
+    "ai-gateway": "Vercel AI Gateway",
+    "kilocode": "Kilo Gateway",
+    "copilot": "GitHub Copilot",
+    "kimi-coding": "Kimi / Moonshot",
+    "opencode-zen": "OpenCode Zen",
+}
 
 
 def is_aggregator(provider: str) -> bool:
@@ -490,34 +393,15 @@ def determine_api_mode(provider: str, base_url: str = "") -> str:
     """
     pdef = get_provider(provider)
     if pdef is not None:
-        # Even for known providers, check URL heuristics for special endpoints
-        # (e.g. kimi /coding endpoint needs anthropic_messages even on 'custom')
-        if base_url:
-            url_lower = base_url.rstrip("/").lower()
-            if "api.kimi.com/coding" in url_lower:
-                return "anthropic_messages"
-            if url_lower.endswith("/anthropic") or "api.anthropic.com" in url_lower:
-                return "anthropic_messages"
-            if "api.openai.com" in url_lower:
-                return "codex_responses"
         return TRANSPORT_TO_API_MODE.get(pdef.transport, "chat_completions")
-
-    # Direct provider checks for providers not in HERMES_OVERLAYS
-    if provider == "bedrock":
-        return "bedrock_converse"
 
     # URL-based heuristics for custom / unknown providers
     if base_url:
         url_lower = base_url.rstrip("/").lower()
-        hostname = base_url_hostname(base_url)
-        if url_lower.endswith("/anthropic") or hostname == "api.anthropic.com":
+        if url_lower.endswith("/anthropic") or "api.anthropic.com" in url_lower:
             return "anthropic_messages"
-        if hostname == "api.kimi.com" and "/coding" in url_lower:
-            return "anthropic_messages"
-        if hostname == "api.openai.com":
+        if "api.openai.com" in url_lower:
             return "codex_responses"
-        if hostname.startswith("bedrock-runtime.") and base_url_host_matches(base_url, "amazonaws.com"):
-            return "bedrock_converse"
 
     return "chat_completions"
 
@@ -545,6 +429,7 @@ def resolve_user_provider(name: str, user_config: Dict[str, Any]) -> Optional[Pr
     display_name = entry.get("name", "") or name
     api_url = entry.get("api", "") or entry.get("url", "") or entry.get("base_url", "") or ""
     key_env = entry.get("key_env", "") or ""
+    inline_api_key = entry.get("api_key", "") or ""  # Direct API key in config (for user-config providers)
     transport = entry.get("transport", "openai_chat") or "openai_chat"
 
     env_vars: List[str] = []
@@ -560,129 +445,51 @@ def resolve_user_provider(name: str, user_config: Dict[str, Any]) -> Optional[Pr
         is_aggregator=False,
         auth_type="api_key",
         source="user-config",
+        inline_api_key=inline_api_key,  # Direct API key from config.yaml
     )
-
-
-def custom_provider_slug(display_name: str) -> str:
-    """Build a canonical slug for a custom_providers entry.
-
-    Matches the convention used by runtime_provider and credential_pool
-    (``custom:<normalized-name>``).  Centralised here so all call-sites
-    produce identical slugs.
-    """
-    return "custom:" + display_name.strip().lower().replace(" ", "-")
-
-
-def resolve_custom_provider(
-    name: str,
-    custom_providers: Optional[List[Dict[str, Any]]],
-) -> Optional[ProviderDef]:
-    """Resolve a provider from the user's config.yaml ``custom_providers`` list."""
-    if not custom_providers or not isinstance(custom_providers, list):
-        return None
-
-    requested = (name or "").strip().lower()
-    if not requested:
-        return None
-
-    # If the stored provider is the bare string "custom" (corrupt state
-    # from a prior model-switch bug), fall back to the first custom
-    # provider entry so existing configs self-heal.  (GH #17478)
-    bare_custom_fallback = requested == "custom"
-    first_valid = None
-
-    for entry in custom_providers:
-        if not isinstance(entry, dict):
-            continue
-
-        display_name = (entry.get("name") or "").strip()
-        api_url = (
-            entry.get("base_url", "")
-            or entry.get("url", "")
-            or entry.get("api", "")
-            or ""
-        ).strip()
-        if not display_name or not api_url:
-            continue
-
-        # Stash the first valid entry for bare-"custom" fallback
-        if first_valid is None:
-            first_valid = (display_name, api_url)
-
-        slug = custom_provider_slug(display_name)
-        if requested not in {display_name.lower(), slug}:
-            continue
-
-        return ProviderDef(
-            id=slug,
-            name=display_name,
-            transport="openai_chat",
-            api_key_env_vars=(),
-            base_url=api_url,
-            is_aggregator=False,
-            auth_type="api_key",
-            source="user-config",
-        )
-
-    # Self-heal: bare "custom" matched nothing — return first valid entry
-    if bare_custom_fallback and first_valid:
-        dname, aurl = first_valid
-        slug = custom_provider_slug(dname)
-        return ProviderDef(
-            id=slug,
-            name=dname,
-            transport="openai_chat",
-            api_key_env_vars=(),
-            base_url=aurl,
-            is_aggregator=False,
-            auth_type="api_key",
-            source="user-config",
-        )
-
-    return None
 
 
 def resolve_provider_full(
     name: str,
     user_providers: Optional[Dict[str, Any]] = None,
-    custom_providers: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[ProviderDef]:
-    """Full resolution chain: built-in → models.dev → user config.
+    """Full resolution chain: user config → built-in → models.dev.
 
     This is the main entry point for --provider flag resolution.
+
+    User-defined providers take precedence over built-in aliases to allow
+    users to override provider behavior (e.g., using 'openai' for a local
+    LM Studio endpoint instead of routing through OpenRouter).
 
     Args:
         name: Provider name or alias.
         user_providers: The ``providers:`` dict from config.yaml (optional).
-        custom_providers: The ``custom_providers:`` list from config.yaml (optional).
 
     Returns:
         ProviderDef if found, else None.
     """
-    canonical = normalize_provider(name)
-
-    # 1. Built-in (models.dev + overlays)
-    pdef = get_provider(canonical)
-    if pdef is not None:
-        return pdef
-
-    # 2. User-defined providers from config
+    # 1. User-defined providers FIRST (before alias normalization)
+    # This allows users to override built-in aliases like 'openai' -> 'openrouter'
     if user_providers:
-        # Try canonical name
-        user_pdef = resolve_user_provider(canonical, user_providers)
-        if user_pdef is not None:
-            return user_pdef
-        # Try original name (in case alias didn't match)
+        # Try original name first (case-insensitive)
         user_pdef = resolve_user_provider(name.strip().lower(), user_providers)
         if user_pdef is not None:
             return user_pdef
 
-    # 2b. Saved custom providers from config
-    custom_pdef = resolve_custom_provider(name, custom_providers)
-    if custom_pdef is not None:
-        return custom_pdef
+    canonical = normalize_provider(name)
 
-    # 3. Try models.dev directly (for providers not in our ALIASES)
+    # 2. User-defined providers with canonical name
+    if user_providers:
+        user_pdef = resolve_user_provider(canonical, user_providers)
+        if user_pdef is not None:
+            return user_pdef
+
+    # 3. Built-in (models.dev + overlays)
+    pdef = get_provider(canonical)
+    if pdef is not None:
+        return pdef
+
+    # 4. Try models.dev directly (for providers not in our ALIASES)
     try:
         from agent.models_dev import get_provider_info as _mdev_provider
         mdev_info = _mdev_provider(canonical)
