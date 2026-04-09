@@ -151,23 +151,23 @@ class SkinConfig:
 _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
     "default": {
         "name": "default",
-        "description": "Autolycus — teal and blue for FreeBSD",
+        "description": "Autolycus — high-contrast teal and blue for FreeBSD (colorblind-friendly)",
         "colors": {
-            "banner_border": "#4169E1",
-            "banner_title": "#00CED1",
-            "banner_accent": "#00CED1",
-            "banner_dim": "#5F9EA0",
-            "banner_text": "#E0FFFF",
-            "ui_accent": "#00CED1",
-            "ui_label": "#4dd0e1",
-            "ui_ok": "#4caf50",
-            "ui_error": "#ef5350",
-            "ui_warn": "#ffa726",
-            "prompt": "#E0FFFF",
-            "input_rule": "#4169E1",
-            "response_border": "#00CED1",
-            "session_label": "#5F9EA0",
-            "session_border": "#8B8682",
+            "banner_border": "#0a3d62",      # Dark navy border for contrast
+            "banner_title": "#00d4aa",       # Bright teal title
+            "banner_accent": "#00d4aa",      # Bright teal accent
+            "banner_dim": "#1a5f7a",         # Medium blue-gray dim text
+            "banner_text": "#ffffff",        # White text for max contrast
+            "ui_accent": "#00d4aa",          # Bright teal UI accent
+            "ui_label": "#00b894",           # Slightly darker teal labels
+            "ui_ok": "#00b862",              # Green for success
+            "ui_error": "#e74c3c",           # Red for errors
+            "ui_warn": "#ff8c00",            # Orange for warnings (replaces yellow)
+            "prompt": "#ffffff",             # White prompt text
+            "input_rule": "#0a3d62",         # Dark navy input rule
+            "response_border": "#00d4aa",    # Bright teal response border
+            "session_label": "#1a5f7a",      # Medium blue-gray session label
+            "session_border": "#0a3d62",     # Dark navy session border
         },
         "spinner": {
             # Empty = use hardcoded defaults in display.py
