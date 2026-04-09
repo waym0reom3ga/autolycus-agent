@@ -13,7 +13,7 @@
 
 > ⚠️ **PROTOTYPE / FreeBSD ONLY** — This is an unworking prototype designed exclusively for FreeBSD systems. Not production-ready. An independent project by **Technetia Inc**. Not affiliated with Nous Research or the original Hermes Agent.
 
-**The self-improving AI agent.** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
+**The self-improving AI agent.** It's the only agent (apart from Hermes) with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
 
 Use any model you want — [Nous Portal](https://portal.nousresearch.com), [OpenRouter](https://openrouter.ai) (200+ models), [z.ai/GLM](https://z.ai), [Kimi/Moonshot](https://platform.moonshot.ai), [MiniMax](https://www.minimax.io), OpenAI, or your own endpoint. Switch with `hermes model` — no code changes, no lock-in.
 
@@ -194,4 +194,3 @@ LGPL v2.1 — see [LICENSE](LICENSE).
 
 An independent project by **Technetia Inc**.  
 Built on the Hermes Agent architecture.
-# Test access verification
