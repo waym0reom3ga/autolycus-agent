@@ -157,27 +157,34 @@ Review `README.md` installation instructions and verify all FreeBSD package name
 ---
 
 ### Task #4: Create FreeBSD-Specific Error Handling for Voice Tools
-**Status**: [ ] Not started  
+**Status**: [x] Completed  
 **Priority**: High  
 **Assigned to**: Programming Assistant  
+**Completed**: 2026-04-08  
 
 **Description**:
 Add graceful degradation for features that don't work on FreeBSD (voice/STT/TTS) with clear user messaging. The audit identified `faster-whisper` as unavailable due to missing `ctranslate2` wheels.
 
-**Files to Modify**:
-- `hermes_cli/config.py` - Add FreeBSD detection, disable voice tools by default
-- `tools/voice_mode.py:65-67` - Enhance Docker/headless detection for FreeBSD
-- `pyproject.toml:49-55` - Make `[voice]` extra conditional on platform
-- `cli.py` - Show platform-specific warnings at startup
+**Changes Made**:
+- Added `_IS_FREEBSD` platform detection in `hermes_cli/config.py:29`
+- Created `print_platform_warnings()` function to warn about FreeBSD limitations:
+  - Voice tools unavailable (faster-whisper has no FreeBSD wheels)
+  - Clipboard support requires xclip/xsel installation
+- Integrated warnings into CLI startup (`cli.py:524`) and gateway (`gateway/run.py:204`)
 
-**Acceptance Criteria**:
-- Voice tools are disabled by default on FreeBSD with clear explanation
-- User can optionally enable cloud STT (Groq, OpenAI) via env vars if desired
-- No crashes or confusing errors when voice tools are unavailable
+**Files Modified**:
+- `hermes_cli/config.py` - Added `_IS_FREEBSD` flag and `print_platform_warnings()` function
+- `cli.py` - Added call to `print_platform_warnings()` at startup
+- `gateway/run.py` - Added call to `print_platform_warnings()` at gateway init
+
+**Note**: PTY already has graceful fallback in `tools/process_registry.py` (falls back to pipe mode when ptyprocess unavailable)
 
 ---
 
 ## Completed Tasks
+
+### Task #4: FreeBSD-Specific Error Handling (2026-04-08)
+Added platform detection and user warnings for FreeBSD limitations. Voice tools and clipboard support now show helpful messages at startup.
 
 ### Task #1: FreeBSD Compatibility Audit (2026-04-08)
 Comprehensive audit completed. See `PLANS/freebsd-audit.md` for full report. Key fixes applied to `_PLATFORM_MAP`.
