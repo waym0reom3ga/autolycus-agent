@@ -1,8 +1,10 @@
 """Local execution environment with interrupt support and non-blocking I/O."""
 
 import glob
+import logging
 import os
 import platform
+import select
 import shutil
 import signal
 import subprocess
@@ -10,6 +12,10 @@ import threading
 import time
 
 _IS_WINDOWS = platform.system() == "Windows"
+
+logger = logging.getLogger(__name__)
+
+from ptyprocess import PtyProcessUnicode, PtyProcessError
 
 from tools.environments.base import BaseEnvironment
 from tools.environments.persistent_shell import PersistentShellMixin
@@ -379,10 +385,26 @@ class LocalEnvironment(PersistentShellMixin, BaseEnvironment):
     def _execute_oneshot(self, command: str, cwd: str = "", *,
                          timeout: int | None = None,
                          stdin_data: str | None = None) -> dict:
+        """Execute a single command using ptyprocess for reliable cross-platform behavior.
+
+        Uses ptyprocess to allocate a pseudo-terminal, which ensures proper handling
+        of interactive shells across all platforms including FreeBSD where os.setsid()
+        with subprocess can hang on non-TTY stdin.
+
+        Args:
+            command: The shell command to execute
+            cwd: Working directory (defaults to self.cwd)
+            timeout: Command timeout in seconds (defaults to self.timeout)
+            stdin_data: Optional data to write to stdin before executing
+
+        Returns:
+            dict with "output" and "returncode" keys
+        """
         work_dir = cwd or self.cwd or os.getcwd()
         effective_timeout = timeout or self.timeout
         exec_command, sudo_stdin = self._prepare_command(command)
 
+        # Combine stdin data (sudo password + user-provided stdin)
         if sudo_stdin is not None and stdin_data is not None:
             effective_stdin = sudo_stdin + stdin_data
         elif sudo_stdin is not None:
@@ -405,82 +427,95 @@ class LocalEnvironment(PersistentShellMixin, BaseEnvironment):
         )
         run_env = _make_run_env(self.env)
 
-        proc = subprocess.Popen(
-            [user_shell, "-lic", fenced_cmd],
-            text=True,
-            cwd=work_dir,
-            env=run_env,
-            encoding="utf-8",
-            errors="replace",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.PIPE if effective_stdin is not None else subprocess.DEVNULL,
-            preexec_fn=None if _IS_WINDOWS else os.setsid,
-        )
+        # Build the full command: bash -lc "fenced_cmd"
+        shell_args = [user_shell, "-lc", fenced_cmd]
 
-        if effective_stdin is not None:
-            def _write_stdin():
+        try:
+            # Spawn process via PTY for reliable cross-platform behavior
+            proc = PtyProcessUnicode.spawn(shell_args, env=run_env, cwd=work_dir)
+
+            # Write stdin data if provided (e.g., sudo password)
+            if effective_stdin is not None:
+                proc.write(effective_stdin.encode() if isinstance(effective_stdin, str) else effective_stdin)
+
+            _output_chunks: list[str] = []
+            deadline = time.monotonic() + effective_timeout
+
+            # Read output with timeout and interrupt support
+            while True:
+                # Check for user interruption
+                if is_interrupted():
+                    proc.kill(15)  # SIGTERM
+                    try:
+                        proc.expect([PtyProcessUnicode.EOF, b'', b''], timeout=2)
+                    except (PtyProcessError, IndexError):
+                        pass
+                    return {
+                        "output": "".join(_output_chunks) + "\n[Command interrupted — user sent a new message]",
+                        "returncode": 130,
+                    }
+
+                # Check for timeout
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    proc.kill(15)  # SIGTERM
+                    try:
+                        proc.expect([PtyProcessUnicode.EOF, b'', b''], timeout=2)
+                    except (PtyProcessError, IndexError):
+                        pass
+                    partial = "".join(_output_chunks)
+                    timeout_msg = f"\n[Command timed out after {effective_timeout}s]"
+                    return {
+                        "output": partial + timeout_msg if partial else timeout_msg.lstrip(),
+                        "returncode": 124,
+                    }
+
+                # Use select for non-blocking read with timeout
+                fd = proc.fileno()
                 try:
-                    proc.stdin.write(effective_stdin)
-                    proc.stdin.close()
-                except (BrokenPipeError, OSError):
-                    pass
-            threading.Thread(target=_write_stdin, daemon=True).start()
-
-        _output_chunks: list[str] = []
-
-        def _drain_stdout():
-            try:
-                for line in proc.stdout:
-                    _output_chunks.append(line)
-            except ValueError:
-                pass
-            finally:
-                try:
-                    proc.stdout.close()
-                except Exception:
-                    pass
-
-        reader = threading.Thread(target=_drain_stdout, daemon=True)
-        reader.start()
-        deadline = time.monotonic() + effective_timeout
-
-        while proc.poll() is None:
-            if is_interrupted():
-                try:
-                    if _IS_WINDOWS:
-                        proc.terminate()
-                    else:
-                        pgid = os.getpgid(proc.pid)
-                        os.killpg(pgid, signal.SIGTERM)
+                    rlist, _, _ = select.select([fd], [], [], min(remaining, 0.1))
+                    if rlist:
                         try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            os.killpg(pgid, signal.SIGKILL)
-                except (ProcessLookupError, PermissionError):
-                    proc.kill()
-                reader.join(timeout=2)
-                return {
-                    "output": "".join(_output_chunks) + "\n[Command interrupted — user sent a new message]",
-                    "returncode": 130,
-                }
-            if time.monotonic() > deadline:
-                try:
-                    if _IS_WINDOWS:
-                        proc.terminate()
-                    else:
-                        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-                except (ProcessLookupError, PermissionError):
-                    proc.kill()
-                reader.join(timeout=2)
-                partial = "".join(_output_chunks)
-                timeout_msg = f"\n[Command timed out after {effective_timeout}s]"
-                return {
-                    "output": partial + timeout_msg if partial else timeout_msg.lstrip(),
-                    "returncode": 124,
-                }
-            time.sleep(0.2)
+                            chunk = proc.read(4096)
+                            if chunk:
+                                _output_chunks.append(chunk)
+                        except EOFError:
+                            # EOF reached - process finished
+                            break
+                    elif not proc.isalive():
+                        # Process finished, drain remaining output
+                        try:
+                            while True:
+                                rlist, _, _ = select.select([fd], [], [], 0.1)
+                                if rlist:
+                                    try:
+                                        more = proc.read(4096)
+                                        if more:
+                                            _output_chunks.append(more)
+                                    except EOFError:
+                                        break
+                                else:
+                                    break
+                        except EOFError:
+                            pass
+                        break
+                except (OSError, IOError):
+                    # Process may have exited unexpectedly
+                    if not proc.isalive():
+                        break
+                    continue
 
-        reader.join(timeout=5)
+            # Get exit status - wait for process to fully terminate
+            try:
+                proc.wait()
+                returncode = proc.exitstatus if hasattr(proc, 'exitstatus') and proc.exitstatus is not None else 0
+            except (PtyProcessError, EOFError):
+                returncode = 124
+
+        except PtyProcessError as e:
+            # PTY spawn failed - very rare, but handle gracefully
+            logger.error(f"PTY spawn failed for command '{command}': {e}")
+            return {"output": f"[Error spawning shell process: {e}]", "returncode": 127}
+
         output = _extract_fenced_output("".join(_output_chunks))
-        return {"output": output, "returncode": proc.returncode}
+        return {"output": output, "returncode": returncode}

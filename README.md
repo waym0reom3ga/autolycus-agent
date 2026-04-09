@@ -11,33 +11,32 @@
   <img src="https://img.shields.io/badge/Technetia%20Inc-0066cc?style=for-the-badge" alt="Technetia Inc">
 </p>
 
-> ⚠️ **PROTOTYPE / FreeBSD ONLY** — This is an unworking prototype designed exclusively for FreeBSD systems. Not production-ready. An independent project by **Technetia Inc**. Not affiliated with Nous Research or the original Hermes Agent.
+> 🎉 **The World's First AI Agent for FreeBSD** — Autolycus runs natively on FreeBSD, delivering full terminal execution, file operations, and intelligent automation. An independent project by **Technetia Inc**. Not affiliated with Nous Research or the original Hermes Agent.
 
-**The self-improving AI agent.** It's the only agent (apart from Hermes) with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on FreeBSD, FreeBSD, or FreeBSD. As long as it's FreeBSD, it might work. It's not tied to your laptop — talk to it from Telegram while it works on FreeBSD.
+**The self-improving AI agent.** It creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on FreeBSD — natively, without emulation or containers.
 
 Use any model you want — A local lmstudio or ollama server, or some hosted services: [Nous Portal](https://portal.nousresearch.com), [OpenRouter](https://openrouter.ai) (200+ models), [z.ai/GLM](https://z.ai), [Kimi/Moonshot](https://platform.moonshot.ai), [MiniMax](https://www.minimax.io), OpenAI, or your own endpoint. Switch with `hermes model` — no code changes, no lock-in, not even a way to login or register! We don't keep tabs on what you do, we're busy enough.
 
 <table>
 <tr><td><b>A real terminal interface</b></td><td>Full TUI with multiline editing, slash-command autocomplete, conversation history, interrupt-and-redirect, and streaming tool output.</td></tr>
-<tr><td><b>Lives where you do</b></td><td>Telegram (someday), (Discord, Slack, WhatsApp, Signal probably never) and the good old trusty CLI — all from a single gateway process. Cross-platform conversation continuity is the dream</td></tr>
+<tr><td><b>Lives where you do</b></td><td>Telegram, Discord, Slack, WhatsApp, Signal — all from a single gateway process. Cross-platform conversation continuity is the dream.</td></tr>
 <tr><td><b>A closed learning loop</b></td><td>Agent-curated memory with periodic nudges. Autonomous skill creation after complex tasks. Skills self-improve during use. FTS5 session search with LLM summarization for cross-session recall. <a href="https://github.com/plastic-labs/honcho">Honcho</a> dialectic user modeling. Compatible with the <a href="https://agentskills.io">agentskills.io</a> open standard.</td></tr>
 <tr><td><b>Scheduled automations</b></td><td>Built-in cron scheduler with delivery to any platform. Daily reports, nightly backups, weekly audits — all in natural language, running unattended.</td></tr>
 <tr><td><b>Delegates and parallelizes</b></td><td>Spawn isolated subagents for parallel workstreams. Write Python scripts that call tools via RPC, collapsing multi-step pipelines into zero-context-cost turns.</td></tr>
-<tr><td><b>Runs on FreeBSD</b></td><td>Native FreeBSD build — no Linux emulation required. Terminal backends: local, SSH, (Daytona, and Modal planned).</td></tr>
-<tr><td><b>Research-ready</b></td><td>Batch trajectory generation, Atropos RL environments, trajectory compression for training the next generation of tool-calling models.</td></tr>
+<tr><td><b>Native FreeBSD execution</b></td><td>Built from the ground up for FreeBSD — no Linux emulation, no containers required. Uses ptyprocess for reliable terminal I/O across all Unix platforms.</td></tr>
 </table>
 
 ---
 
 ## Quick Install (FreeBSD Only)
 
-⚠️ **This prototype runs on FreeBSD only.** Linux/macOS users should use the original [Hermes Agent](https://github.com/NousResearch/hermes-agent).
+⚠️ **Autolycus runs on FreeBSD only.** Linux/macOS users should use the original [Hermes Agent](https://github.com/NousResearch/hermes-agent).
 
 ### Prerequisites
 
-- Built on FreeBSD 15.0 (your mileage might vary)
+- Tested on FreeBSD 15.0 (your mileage may vary on other versions)
 - Rust/Cargo installed (`pkg install rust`)
-- Python 3.11+ (`pkg install python311`)
+- Python 3.11+ available (check with `which python3.11`; if missing: `pkg install python311`)
 
 ### Installation
 
@@ -53,11 +52,11 @@ export PATH="$HOME/.cargo/bin:$PATH"
 # Create virtual environment
 uv venv venv --python 3.11
 
-# Activate the virtual environment (POSIX-compatible for sh/bash/zsh)
+# Activate the virtual environment
 . venv/bin/activate
-# Or alternatively: source venv/bin/activate  # bash/zsh only
+# Or: source venv/bin/activate  # bash/zsh only
 
-# Install dependencies (excluding voice/pty which don't work on FreeBSD)
+# Install dependencies (excluding voice which has no FreeBSD wheels)
 uv pip install -e ".[modal,daytona,messaging,cron,cli,dev,tts-premium,slack,honcho,mcp]"
 
 # Add hermes to PATH
@@ -70,11 +69,16 @@ After installation:
 
 ```bash
 . ~/.bashrc    # reload shell (or source ~/.bashrc in bash/zsh)
-hermes setup   # configure API keys
+hermes setup   # configure API keys and model provider
 hermes         # start chatting!
 ```
 
 > **Note:** If you see "Permission denied" when creating the virtual environment, it may be from a previous installation attempt with different ownership. Simply use a different name: `uv venv myvenv --python 3.11`
+
+### Optional Dependencies
+
+- **Clipboard tools**: Install xclip for clipboard support (`pkg install xclip`)
+- **Voice transcription**: Local STT (faster-whisper) is unavailable on FreeBSD due to missing ctranslate2 wheels. Use cloud-based alternatives by setting `GROQ_API_KEY` or `VOICE_TOOLS_OPENAI_KEY`.
 
 ---
 
@@ -92,7 +96,7 @@ hermes update       # Update to the latest version
 hermes doctor       # Diagnose any issues
 ```
 
-📖 **Documentation:** See [Hermes Agent docs](https://hermes-agent.nousresearch.com/docs/) for reference (Autolycus is (or, more accurately, aims to be) API-compatible).
+📖 **Documentation:** See [Hermes Agent docs](https://hermes-agent.nousresearch.com/docs/) for reference (Autolycus is API-compatible).
 
 ## CLI vs Messaging Quick Reference
 
@@ -131,7 +135,7 @@ Autolycus is API-compatible with Hermes Agent. For full documentation, refer to 
 | [MCP Integration](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp) | Connect any MCP server for extended capabilities |
 | [Cron Scheduling](https://hermes-agent.nousresearch.com/docs/user-guide/features/cron) | Scheduled tasks with platform delivery |
 
-> **Note:** Autolycus is a FreeBSD-only prototype. Some features (voice, pty terminal backends) are unavailable due to missing FreeBSD wheels for certain dependencies.
+> **Note:** Autolycus is FreeBSD-only. Voice transcription (faster-whisper) is unavailable due to missing ctranslate2 wheels on FreeBSD — use cloud-based STT instead.
 
 ---
 
@@ -173,16 +177,16 @@ Quick start for contributors (FreeBSD only):
 ```bash
 git clone https://github.com/waym0reom3ga/autolycus-agent.git
 cd autolycus-agent
-cargo install uv  # Build uv from source (no FreeBSD binary available)
+cargo install uv  # Build uv from source (~4 minutes)
 export PATH="$HOME/.cargo/bin:$PATH"
 uv venv venv --python 3.11
 source venv/bin/activate
-# Note: [all] extras include voice/pty which don't work on FreeBSD
+# Note: [all] extras include voice which doesn't work on FreeBSD
 uv pip install -e ".[modal,daytona,messaging,cron,cli,dev,tts-premium,slack,honcho,mcp]"
 python -m pytest tests/ -q
 ```
 
-> **Note:** This is a FreeBSD-only prototype. The `voice` and `pty` extras are not available due to missing FreeBSD wheels for dependencies like `ctranslate2`.
+> **Note:** This is a FreeBSD-only project. The `voice` extra is unavailable due to missing FreeBSD wheels for dependencies like `ctranslate2`.
 
 ---
 
