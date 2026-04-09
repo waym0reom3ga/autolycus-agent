@@ -46,13 +46,16 @@ Use any model you want — A local lmstudio or ollama server, or some hosted ser
 git clone https://github.com/waym0reom3ga/autolycus-agent.git
 cd autolycus-agent
 
-# Build uv from source (no FreeBSD binary available)
+# Build uv from source (~4 minute compile time, no FreeBSD binary available)
 cargo install uv
 export PATH="$HOME/.cargo/bin:$PATH"
 
 # Create virtual environment
 uv venv venv --python 3.11
-source venv/bin/activate
+
+# Activate the virtual environment (POSIX-compatible for sh/bash/zsh)
+. venv/bin/activate
+# Or alternatively: source venv/bin/activate  # bash/zsh only
 
 # Install dependencies (excluding voice/pty which don't work on FreeBSD)
 uv pip install -e ".[modal,daytona,messaging,cron,cli,dev,tts-premium,slack,honcho,mcp]"
@@ -66,10 +69,12 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 After installation:
 
 ```bash
-source ~/.bashrc    # reload shell
-hermes setup        # configure API keys
-hermes              # start chatting!
+. ~/.bashrc    # reload shell (or source ~/.bashrc in bash/zsh)
+hermes setup   # configure API keys
+hermes         # start chatting!
 ```
+
+> **Note:** If you see "Permission denied" when creating the virtual environment, it may be from a previous installation attempt with different ownership. Simply use a different name: `uv venv myvenv --python 3.11`
 
 ---
 
