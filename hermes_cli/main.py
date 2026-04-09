@@ -2593,9 +2593,9 @@ def cmd_config(args):
 
 def cmd_version(args):
     """Show version."""
-    print(f"Hermes Agent v{__version__} ({__release_date__})")
+    print(f"Autolycus Agent v.0.0.2")
     print(f"Project: {PROJECT_ROOT}")
-    
+
     # Show Python version
     print(f"Python: {sys.version.split()[0]}")
     

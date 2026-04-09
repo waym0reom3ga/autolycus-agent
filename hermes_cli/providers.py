@@ -141,6 +141,7 @@ class ProviderDef:
     auth_type: str = "api_key"
     doc: str = ""
     source: str = ""                      # "models.dev", "hermes", "user-config"
+    inline_api_key: str = ""              # Direct API key from user config (takes precedence over env vars)
 
     @property
     def is_user_defined(self) -> bool:
@@ -428,6 +429,7 @@ def resolve_user_provider(name: str, user_config: Dict[str, Any]) -> Optional[Pr
     display_name = entry.get("name", "") or name
     api_url = entry.get("api", "") or entry.get("url", "") or entry.get("base_url", "") or ""
     key_env = entry.get("key_env", "") or ""
+    inline_api_key = entry.get("api_key", "") or ""  # Direct API key in config (for user-config providers)
     transport = entry.get("transport", "openai_chat") or "openai_chat"
 
     env_vars: List[str] = []
@@ -443,6 +445,7 @@ def resolve_user_provider(name: str, user_config: Dict[str, Any]) -> Optional[Pr
         is_aggregator=False,
         auth_type="api_key",
         source="user-config",
+        inline_api_key=inline_api_key,  # Direct API key from config.yaml
     )
 
 
@@ -450,9 +453,13 @@ def resolve_provider_full(
     name: str,
     user_providers: Optional[Dict[str, Any]] = None,
 ) -> Optional[ProviderDef]:
-    """Full resolution chain: built-in → models.dev → user config.
+    """Full resolution chain: user config → built-in → models.dev.
 
     This is the main entry point for --provider flag resolution.
+
+    User-defined providers take precedence over built-in aliases to allow
+    users to override provider behavior (e.g., using 'openai' for a local
+    LM Studio endpoint instead of routing through OpenRouter).
 
     Args:
         name: Provider name or alias.
@@ -461,25 +468,28 @@ def resolve_provider_full(
     Returns:
         ProviderDef if found, else None.
     """
-    canonical = normalize_provider(name)
-
-    # 1. Built-in (models.dev + overlays)
-    pdef = get_provider(canonical)
-    if pdef is not None:
-        return pdef
-
-    # 2. User-defined providers from config
+    # 1. User-defined providers FIRST (before alias normalization)
+    # This allows users to override built-in aliases like 'openai' -> 'openrouter'
     if user_providers:
-        # Try canonical name
-        user_pdef = resolve_user_provider(canonical, user_providers)
-        if user_pdef is not None:
-            return user_pdef
-        # Try original name (in case alias didn't match)
+        # Try original name first (case-insensitive)
         user_pdef = resolve_user_provider(name.strip().lower(), user_providers)
         if user_pdef is not None:
             return user_pdef
 
-    # 3. Try models.dev directly (for providers not in our ALIASES)
+    canonical = normalize_provider(name)
+
+    # 2. User-defined providers with canonical name
+    if user_providers:
+        user_pdef = resolve_user_provider(canonical, user_providers)
+        if user_pdef is not None:
+            return user_pdef
+
+    # 3. Built-in (models.dev + overlays)
+    pdef = get_provider(canonical)
+    if pdef is not None:
+        return pdef
+
+    # 4. Try models.dev directly (for providers not in our ALIASES)
     try:
         from agent.models_dev import get_provider_info as _mdev_provider
         mdev_info = _mdev_provider(canonical)
