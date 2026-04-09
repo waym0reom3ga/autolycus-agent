@@ -350,15 +350,15 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     text = _skin_color("banner_text", "#E0FFFF")
     session_color = _skin_color("session_border", "#8B8682")
 
-    # Use skin's custom caduceus art if provided
+    # Use skin's custom caduceus art if provided (small icon only, not full logo)
     try:
         from hermes_cli.skin_engine import get_active_skin
         _bskin = get_active_skin()
-        _hero = _bskin.banner_hero if hasattr(_bskin, 'banner_hero') and _bskin.banner_hero else AUTOLYCUS_LOGO
+        _hero = _bskin.banner_hero if hasattr(_bskin, 'banner_hero') and _bskin.banner_hero else ""
     except Exception:
         _bskin = None
-        _hero = AUTOLYCUS_LOGO
-    left_lines = ["", _hero, ""]
+        _hero = ""
+    left_lines = []
     model_short = model.split("/")[-1] if "/" in model else model
     if model_short.endswith(".gguf"):
         model_short = model_short[:-5]
