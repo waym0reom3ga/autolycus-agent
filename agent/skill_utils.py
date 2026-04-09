@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 PLATFORM_MAP = {
     "macos": "darwin",
     "linux": "linux",
+    "freebsd": "freebsd",
     "windows": "win32",
 }
 
