@@ -349,6 +349,8 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     dim = _skin_color("banner_dim", "#1a5f7a")        # Medium blue-gray
     text = _skin_color("banner_text", "#ffffff")      # White for max contrast
     session_color = _skin_color("session_border", "#8B8682")
+    sky_blue = "#00BFFF"  # Sky blue for toolset names and lazy tools (high contrast)
+    flashy_teal = "#00CED1"  # Flashy blue-teal for model name (brighter than sky blue)
 
     # Use skin's custom caduceus art if provided (small icon only, not full logo)
     try:
@@ -365,10 +367,10 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     if len(model_short) > 28:
         model_short = model_short[:25] + "..."
     ctx_str = f" [dim {dim}]·[/] [dim {dim}]{_format_context_length(context_length)} context[/]" if context_length else ""
-    left_lines.append(f"[{accent}]{model_short}[/]{ctx_str} [dim {dim}]·[/] [dim {dim}]Technetia Inc[/]")
-    left_lines.append(f"[dim {dim}]{cwd}[/]")
+    left_lines.append(f"[bold {flashy_teal}]{model_short}[/]{ctx_str} [dim {dim}]·[/] [bold {sky_blue}]Technetia Inc[/]")
+    left_lines.append(f"[bold {sky_blue}]{cwd}[/]")
     if session_id:
-        left_lines.append(f"[dim {session_color}]Session: {session_id}[/]")
+        left_lines.append(f"[{accent}]Session: {session_id}[/]")
     left_content = "\n".join(left_lines)
 
     right_lines = [f"[bold {accent}]Available Tools[/]"]
@@ -399,7 +401,7 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
             if name in disabled_tools:
                 colored_names.append(f"[red]{name}[/]")
             elif name in lazy_tools:
-                colored_names.append(f"[orange]{name}[/]")  # Orange for colorblind-friendly warning
+                colored_names.append(f"[{sky_blue}]{name}[/]")  # Sky blue for high-contrast lazy tools
             else:
                 colored_names.append(f"[{text}]{name}[/]")
 
@@ -420,15 +422,15 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
                 elif name in disabled_tools:
                     colored_names.append(f"[red]{name}[/]")
                 elif name in lazy_tools:
-                    colored_names.append(f"[yellow]{name}[/]")
+                    colored_names.append(f"[{sky_blue}]{name}[/]")  # Sky blue for high-contrast lazy tools
                 else:
                     colored_names.append(f"[{text}]{name}[/]")
             tools_str = ", ".join(colored_names)
 
-        right_lines.append(f"[dim {dim}]{toolset}:[/] {tools_str}")
+        right_lines.append(f"[bold {sky_blue}]{toolset}:[/] {tools_str}")
 
     if remaining_toolsets > 0:
-        right_lines.append(f"[dim {dim}](and {remaining_toolsets} more toolsets...)[/]")
+        right_lines.append(f"[bold {sky_blue}](and {remaining_toolsets} more toolsets...)[/]")
 
     # MCP Servers section (only if configured)
     try:
@@ -467,7 +469,7 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
                 skills_str = ", ".join(skill_names)
             if len(skills_str) > 50:
                 skills_str = skills_str[:47] + "..."
-            right_lines.append(f"[dim {dim}]{category}:[/] [{text}]{skills_str}[/]")
+            right_lines.append(f"[bold {sky_blue}]{category}:[/] [{text}]{skills_str}[/]")
     else:
         right_lines.append(f"[dim {dim}]No skills installed[/]")
 
@@ -486,7 +488,7 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     except Exception:
         pass  # Never break the banner over a profiles.py bug
 
-    right_lines.append(f"[dim {dim}]{' · '.join(summary_parts)}[/]")
+    right_lines.append(f"[bold {sky_blue}]{' · '.join(summary_parts)}[/]")
 
     # Update check — use prefetched result if available
     try:
