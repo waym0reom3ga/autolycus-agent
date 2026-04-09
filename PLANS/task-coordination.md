@@ -104,7 +104,42 @@ Perform comprehensive audit of codebase to identify Linux-specific dependencies 
 
 ---
 
-### Task #2: Setup Documentation Review  
+### Task #2: Remove Docker Dependency for FreeBSD Compatibility  
+**Status**: [ ] Not started  
+**Priority**: Critical  
+**Assigned to**: Programming Assistant  
+
+**Description**:
+Hermes Agent runs natively on the host system using `LocalEnvironment`. Docker is NOT required for normal operation - it's only used as an optional isolated execution backend. Since Docker has no official FreeBSD support and won't be added, we need to safely remove/disable all Docker-related code paths while ensuring native execution works perfectly.
+
+**Background**:
+- `tools/environments/local.py` (`LocalEnvironment`) already provides full terminal execution on the host
+- You (waym0re) confirmed running Hermes on Linux without Docker enabled
+- FreeBSD users should use native execution exclusively - no containerization needed
+
+**Deliverables**:
+1. **Audit all Docker usages** - Find every reference to `DockerEnvironment` and docker-related config
+2. **Make Docker backend optional/failable** - When user selects "docker" but it's unavailable, gracefully fall back to "local" with warning
+3. **Update setup wizard** - Remove Docker as an option on FreeBSD, default to local
+4. **Update documentation** - Clarify that Hermes runs natively; Docker is Linux-only optional feature
+5. **Test native execution** - Ensure `LocalEnvironment` works without any container dependencies
+
+**Files to Modify**:
+- `tools/terminal_tool.py:618-628` - Add fallback from docker→local when unavailable
+- `hermes_cli/setup.py:1320-1400` - Skip Docker option on FreeBSD, default to local
+- `hermes_cli/status.py:261-263` - Don't show Docker status on FreeBSD
+- `README.md:26` - Update "Terminal backends" line to clarify native execution
+- `pyproject.toml` - Remove `[modal]` and `[daytona]` extras if they depend on Docker
+
+**Acceptance Criteria**:
+- On FreeBSD, setup wizard never offers Docker as an option
+- If config has `"terminal_backend": "docker"` on FreeBSD, it auto-falls back to local with warning
+- All core functionality works with `LocalEnvironment` alone (no containers)
+- Documentation clearly states: "Hermes runs natively; Docker is optional Linux-only isolation"
+
+---
+
+### Task #3: Setup Documentation Review  
 **Status**: [ ] Not started  
 **Priority**: Medium  
 **Assigned to**: Programming Assistant  
@@ -117,21 +152,28 @@ Review `README.md` installation instructions and verify all FreeBSD package name
 - [ ] Verify `pkg install python311` availability  
 - [ ] Check if `uv` has a FreeBSD port or needs cargo install
 - [ ] Validate all optional dependencies have FreeBSD equivalents
+- [ ] Update installation section to reflect Docker removal (Task #2)
 
 ---
 
-### Task #3: Create FreeBSD-Specific Error Handling
+### Task #4: Create FreeBSD-Specific Error Handling for Voice Tools
 **Status**: [ ] Not started  
 **Priority**: High  
 **Assigned to**: Programming Assistant  
 
 **Description**:
-Add graceful degradation for features that don't work on FreeBSD (voice, PTY) with clear user messaging.
+Add graceful degradation for features that don't work on FreeBSD (voice/STT/TTS) with clear user messaging. The audit identified `faster-whisper` as unavailable due to missing `ctranslate2` wheels.
 
 **Files to Modify**:
-- `hermes_cli/config.py` - Add FreeBSD detection
-- `tools/terminal_tool.py` - Handle missing PTY gracefully
-- `cli.py` - Show platform-specific warnings
+- `hermes_cli/config.py` - Add FreeBSD detection, disable voice tools by default
+- `tools/voice_mode.py:65-67` - Enhance Docker/headless detection for FreeBSD
+- `pyproject.toml:49-55` - Make `[voice]` extra conditional on platform
+- `cli.py` - Show platform-specific warnings at startup
+
+**Acceptance Criteria**:
+- Voice tools are disabled by default on FreeBSD with clear explanation
+- User can optionally enable cloud STT (Groq, OpenAI) via env vars if desired
+- No crashes or confusing errors when voice tools are unavailable
 
 ---
 
