@@ -140,19 +140,25 @@ Hermes Agent runs natively on the host system using `LocalEnvironment`. Docker i
 ---
 
 ### Task #3: Setup Documentation Review  
-**Status**: [ ] Not started  
+**Status**: [~] In progress  
 **Priority**: Medium  
 **Assigned to**: Programming Assistant  
+**Started**: 2026-04-08  
 
 **Description**:
 Review `README.md` installation instructions and verify all FreeBSD package names are correct. Cross-reference with official FreeBSD ports collection.
 
 **Checklist**:
-- [ ] Verify `pkg install rust` is correct
-- [ ] Verify `pkg install python311` availability  
-- [ ] Check if `uv` has a FreeBSD port or needs cargo install
+- [x] Verify `pkg install rust` is correct - Cargo 1.94.0 available
+- [x] Verify `pkg install python311` availability - Python 3.11.15 at `/usr/local/bin/python3.11`  
+- [x] Check if `uv` has a FreeBSD port or needs cargo install - No port, must build from source (~4 min)
 - [ ] Validate all optional dependencies have FreeBSD equivalents
 - [ ] Update installation section to reflect Docker removal (Task #2)
+
+**Findings**:
+- Installation test completed successfully with one workaround (venv permission issue)
+- See `PLANS/freebsd-installation-test.md` for detailed report
+- README should note uv build time (~4 minutes) and potential venv permission issues
 
 ---
 
@@ -182,6 +188,13 @@ Add graceful degradation for features that don't work on FreeBSD (voice/STT/TTS)
 ---
 
 ## Completed Tasks
+
+### Task #5: FreeBSD Installation Test (2026-04-08)
+Full README installation test completed on FreeBSD 15.0. See `PLANS/freebsd-installation-test.md` for detailed report. Key findings:
+- uv builds from source in ~4 minutes (no FreeBSD binary available)
+- venv permission issue documented (root-owned files from previous session)
+- All 126 dependencies install successfully without voice/pty extras
+- CLI startup works with correct platform warnings displayed
 
 ### Task #4: FreeBSD-Specific Error Handling (2026-04-08)
 Added platform detection and user warnings for FreeBSD limitations. Voice tools and clipboard support now show helpful messages at startup.
@@ -219,5 +232,5 @@ Comprehensive audit completed. See `PLANS/freebsd-audit.md` for full report. Key
 
 ---
 
-*Last updated: 2026-04-08 by om3ga (repo manager)*  
+*Last updated: 2026-04-08 by Programming Assistant (installation test completed)*  
 *Document maintained in PLANS/task-coordination.md for version control and team visibility*
