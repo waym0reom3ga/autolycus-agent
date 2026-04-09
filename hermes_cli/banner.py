@@ -344,10 +344,10 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     layout_table.add_column("left", justify="center")
     layout_table.add_column("right", justify="left")
 
-    # Resolve skin colors once for the entire banner
-    accent = _skin_color("banner_accent", "#00CED1")
-    dim = _skin_color("banner_dim", "#4169E1")
-    text = _skin_color("banner_text", "#E0FFFF")
+    # Resolve skin colors once for the entire banner (high-contrast defaults)
+    accent = _skin_color("banner_accent", "#00d4aa")  # Bright teal
+    dim = _skin_color("banner_dim", "#1a5f7a")        # Medium blue-gray
+    text = _skin_color("banner_text", "#ffffff")      # White for max contrast
     session_color = _skin_color("session_border", "#8B8682")
 
     # Use skin's custom caduceus art if provided (small icon only, not full logo)
@@ -399,7 +399,7 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
             if name in disabled_tools:
                 colored_names.append(f"[red]{name}[/]")
             elif name in lazy_tools:
-                colored_names.append(f"[yellow]{name}[/]")
+                colored_names.append(f"[orange]{name}[/]")  # Orange for colorblind-friendly warning
             else:
                 colored_names.append(f"[{text}]{name}[/]")
 
@@ -505,8 +505,8 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     layout_table.add_row(left_content, right_content)
 
     agent_name = _skin_branding("agent_name", "Autolycus Agent")
-    title_color = _skin_color("banner_title", "#00CED1")
-    border_color = _skin_color("banner_border", "#4169E1")
+    title_color = _skin_color("banner_title", "#00d4aa")  # Bright teal
+    border_color = _skin_color("banner_border", "#0a3d62")  # Dark navy for contrast
     outer_panel = Panel(
         layout_table,
         title=f"[bold {title_color}]{format_banner_version_label()}[/]",
