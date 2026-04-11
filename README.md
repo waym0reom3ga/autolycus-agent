@@ -37,6 +37,7 @@ Use any model you want — A local lmstudio or ollama server, or some hosted ser
 - Tested on FreeBSD 15.0 (your mileage may vary on other versions)
 - Rust/Cargo installed (`pkg install rust`)
 - Python 3.11+ available (check with `which python3.11`; if missing: `pkg install python311`)
+- Optional: add a brain to your AI Agent with a persistent database (`pkg install py311-sqlite`)
 
 ### Installation
 
