@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode, PointerEvent as ReactPointerEvent } from
 import { useCallback } from 'react'
 
 import { SidebarProvider } from '@/components/ui/sidebar'
+import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 import {
   $inspectorOpen,
@@ -24,6 +25,7 @@ interface AppShellProps {
   rightRailOpen: boolean
   settingsOpen: boolean
   sidebar: ReactNode
+  titlebarActions?: ReactNode
   onOpenSettings: () => void
   overlays?: ReactNode
 }
@@ -34,6 +36,7 @@ export function AppShell({
   rightRailOpen,
   settingsOpen,
   sidebar,
+  titlebarActions,
   onOpenSettings,
   overlays
 }: AppShellProps) {
@@ -66,6 +69,7 @@ export function AppShell({
 
       const handleUp = () => {
         setSidebarResizing(false)
+        triggerHaptic('crisp')
         document.body.style.cursor = previousCursor
         document.body.style.userSelect = previousUserSelect
         window.removeEventListener('pointermove', handleMove)
@@ -93,6 +97,7 @@ export function AppShell({
       }
     >
       <TitlebarControls
+        leadingActions={titlebarActions}
         onOpenSettings={onOpenSettings}
         settingsOpen={settingsOpen}
         showInspectorToggle={rightRailOpen}

@@ -1,5 +1,7 @@
 import { atom } from 'nanostores'
 
+import { triggerHaptic } from '@/lib/haptics'
+
 export interface ComposerAttachment {
   id: string
   kind: 'image' | 'file' | 'folder' | 'url'
@@ -22,7 +24,13 @@ export function clearComposerDraft() {
 }
 
 export function addComposerAttachment(attachment: ComposerAttachment) {
-  $composerAttachments.set(upsertAttachment($composerAttachments.get(), attachment))
+  const previous = $composerAttachments.get()
+  const next = upsertAttachment(previous, attachment)
+  $composerAttachments.set(next)
+
+  if (next.length > previous.length && attachment.kind !== 'url') {
+    triggerHaptic('selection')
+  }
 }
 
 export function removeComposerAttachment(id: string): ComposerAttachment | null {

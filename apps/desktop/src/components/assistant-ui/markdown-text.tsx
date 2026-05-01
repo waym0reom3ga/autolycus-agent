@@ -7,6 +7,7 @@ import { type ComponentProps, memo, useMemo, useState } from 'react'
 
 import { SyntaxHighlighter } from '@/components/assistant-ui/shiki-highlighter'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 import { notify, notifyError } from '@/store/notifications'
 
@@ -37,6 +38,7 @@ function CodeHeader({ language, code }: { language?: string; code?: string }) {
         await navigator.clipboard.writeText(code)
       }
 
+      triggerHaptic('selection')
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {

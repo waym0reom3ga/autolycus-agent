@@ -15,8 +15,11 @@ const WINDOW_BUTTON_FALLBACK = {
 export const titlebarButtonClass =
   'h-[var(--titlebar-control-height)] w-[var(--titlebar-control-size)] rounded-md text-muted-foreground hover:bg-accent hover:text-foreground'
 
-export const titlebarHeaderClass =
-  "relative z-3 flex h-(--titlebar-height) shrink-0 items-center gap-3 bg-background/70 px-3 shadow-header backdrop-blur-sm after:pointer-events-none after:absolute after:left-0 after:right-0 after:top-full after:h-10 after:bg-linear-to-b after:from-background after:via-background/80 after:to-transparent after:content-['']"
+export const titlebarHeaderBaseClass =
+  'relative z-3 flex h-(--titlebar-height) shrink-0 items-center gap-3 bg-background/70 px-3 backdrop-blur-sm'
+
+export const titlebarHeaderShadowClass =
+  "shadow-header after:pointer-events-none after:absolute after:left-0 after:right-0 after:top-full after:h-10 after:bg-linear-to-b after:from-background after:via-background/80 after:to-transparent after:content-['']"
 
 export function titlebarControlsPosition(windowButtonPosition: HermesConnection['windowButtonPosition'] | undefined) {
   const position = windowButtonPosition || WINDOW_BUTTON_FALLBACK

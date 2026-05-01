@@ -4,7 +4,8 @@ import { type ToolCallMessagePartProps } from '@assistant-ui/react'
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { formatElapsed, useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
+import { useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
+import { ActivityTimerText } from '@/components/assistant-ui/activity-timer-text'
 import { cn } from '@/lib/utils'
 
 const TOOL_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
@@ -164,7 +165,7 @@ export const ToolFallback = ({ toolName, args, result }: ToolCallMessagePartProp
             {spinnerFrame}
           </span>
         ) : null}
-        {isPending && <ToolTimerBadge seconds={elapsed} />}
+        {isPending && <ActivityTimerText seconds={elapsed} />}
       </button>
       {open && (
         <div className="ml-4 mt-1 max-w-full whitespace-pre-wrap wrap-anywhere border-l border-border pl-3 text-xs leading-relaxed text-muted-foreground/85">
@@ -176,15 +177,3 @@ export const ToolFallback = ({ toolName, args, result }: ToolCallMessagePartProp
   )
 }
 
-const ToolTimerBadge = ({ seconds }: { seconds: number }) => (
-  <span
-    className={cn(
-      'shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[0.625rem] leading-none tabular-nums',
-      seconds >= 15
-        ? 'border-primary/20 bg-primary/8 text-primary'
-        : 'border-border/70 bg-muted/40 text-muted-foreground/80'
-    )}
-  >
-    {formatElapsed(seconds)}
-  </span>
-)

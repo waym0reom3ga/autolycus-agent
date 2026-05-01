@@ -116,6 +116,10 @@ function lightColors(seed: DesktopTheme, skinName: string): DesktopThemeColors {
     return nousLightTheme.colors
   }
 
+  if (skinName === 'nous') {
+    return seed.colors
+  }
+
   const accent = seed.colors.ring || seed.colors.primary
   const soft = mix('#ffffff', accent, 0.1)
   const softer = mix('#ffffff', accent, 0.06)
@@ -168,6 +172,32 @@ function deriveTheme(skinName: string, mode: 'light' | 'dark'): DesktopTheme {
   }
 }
 
+function skinNameFromTheme(theme: DesktopTheme, mode: 'light' | 'dark'): string {
+  const suffix = `-${mode}`
+
+  return theme.name.endsWith(suffix) ? theme.name.slice(0, -suffix.length) : theme.name
+}
+
+/**
+ * Returns the *rendered* mode for a theme, regardless of what the user has
+ * toggled. A skin like Nous keeps a white background even when `mode === 'dark'`,
+ * so we shouldn't apply the `.dark` class (which assumes a dark surface and
+ * triggers shadow/scrollbar/form-control rules tuned for one). Decide from the
+ * actual background luminance.
+ */
+function renderedModeFor(colors: DesktopThemeColors, mode: 'light' | 'dark'): 'light' | 'dark' {
+  const rgb = hexToRgb(colors.background)
+
+  if (!rgb) {
+    return mode
+  }
+
+  const [r, g, b] = rgb.map(v => v / 255)
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+  return luminance > 0.5 ? 'light' : 'dark'
+}
+
 // ─── CSS application ────────────────────────────────────────────────────────
 
 function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark') {
@@ -180,8 +210,11 @@ function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark') {
   const layout = { ...DEFAULT_LAYOUT, ...theme.layout }
   const c = theme.colors
 
-  root.style.setProperty('color-scheme', mode)
-  root.classList.toggle('dark', mode === 'dark')
+  const rendered = renderedModeFor(theme.colors, mode)
+
+  root.style.setProperty('color-scheme', rendered)
+  root.dataset.hermesTheme = skinNameFromTheme(theme, mode)
+  root.classList.toggle('dark', rendered === 'dark')
 
   const vars: Record<string, string> = {
     '--dt-background': c.background,

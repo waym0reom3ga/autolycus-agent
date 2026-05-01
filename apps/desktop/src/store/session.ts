@@ -1,9 +1,9 @@
 import { atom } from 'nanostores'
 
+import type { ContextSuggestion } from '@/app/types'
 import type { HermesConnection } from '@/global'
 import type { ChatMessage } from '@/lib/chat-messages'
 import type { SessionInfo } from '@/types/hermes'
-import type { ContextSuggestion } from '@/app/types'
 
 type Updater<T> = T | ((current: T) => T)
 
@@ -20,6 +20,7 @@ export const $connection = atom<HermesConnection | null>(null)
 export const $gatewayState = atom('idle')
 export const $sessions = atom<SessionInfo[]>([])
 export const $sessionsLoading = atom(true)
+export const $workingSessionIds = atom<string[]>([])
 export const $activeSessionId = atom<string | null>(null)
 export const $selectedStoredSessionId = atom<string | null>(null)
 export const $messages = atom<ChatMessage[]>([])
@@ -41,6 +42,7 @@ export const setConnection = (next: Updater<HermesConnection | null>) => updateA
 export const setGatewayState = (next: Updater<string>) => updateAtom($gatewayState, next)
 export const setSessions = (next: Updater<SessionInfo[]>) => updateAtom($sessions, next)
 export const setSessionsLoading = (next: Updater<boolean>) => updateAtom($sessionsLoading, next)
+export const setWorkingSessionIds = (next: Updater<string[]>) => updateAtom($workingSessionIds, next)
 export const setActiveSessionId = (next: Updater<string | null>) => updateAtom($activeSessionId, next)
 export const setSelectedStoredSessionId = (next: Updater<string | null>) => updateAtom($selectedStoredSessionId, next)
 export const setMessages = (next: Updater<ChatMessage[]>) => updateAtom($messages, next)
@@ -57,3 +59,19 @@ export const setAvailablePersonalities = (next: Updater<string[]>) => updateAtom
 export const setIntroSeed = (next: Updater<number>) => updateAtom($introSeed, next)
 export const setContextSuggestions = (next: Updater<ContextSuggestion[]>) => updateAtom($contextSuggestions, next)
 export const setModelPickerOpen = (next: Updater<boolean>) => updateAtom($modelPickerOpen, next)
+
+export function setSessionWorking(sessionId: string | null | undefined, working: boolean) {
+  if (!sessionId) {
+    return
+  }
+
+  setWorkingSessionIds(current => {
+    const alreadyWorking = current.includes(sessionId)
+
+    if (working) {
+      return alreadyWorking ? current : [...current, sessionId]
+    }
+
+    return alreadyWorking ? current.filter(id => id !== sessionId) : current
+  })
+}

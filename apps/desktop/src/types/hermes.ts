@@ -10,6 +10,30 @@ export interface ConfigSchemaResponse {
   fields: Record<string, ConfigFieldSchema>
 }
 
+export interface AudioTranscriptionResponse {
+  ok: boolean
+  provider?: string
+  transcript: string
+}
+
+export interface AudioSpeakResponse {
+  ok: boolean
+  data_url: string
+  mime_type: string
+  provider?: string
+}
+
+export interface ElevenLabsVoice {
+  label: string
+  name: string
+  voice_id: string
+}
+
+export interface ElevenLabsVoicesResponse {
+  available: boolean
+  voices: ElevenLabsVoice[]
+}
+
 export interface EnvVarInfo {
   advanced: boolean
   category: string
@@ -35,6 +59,12 @@ export interface HermesConfig {
   }
   terminal?: {
     cwd?: string
+  }
+  stt?: {
+    enabled?: boolean
+  }
+  voice?: {
+    max_recording_seconds?: number
   }
 }
 
@@ -79,6 +109,8 @@ export interface RpcEvent<T = unknown> {
 
 export interface SessionCreateResponse {
   info?: SessionRuntimeInfo
+  message_count?: number
+  messages?: SessionMessage[]
   session_id: string
   stored_session_id?: string
 }

@@ -1,8 +1,9 @@
 import { useStore } from '@nanostores/react'
-import { AlertCircle, AlertTriangle, CheckCircle2, Info, type LucideIcon, X } from 'lucide-react'
-import { type ReactNode, useEffect, useState } from 'react'
+import { AlertCircle, AlertTriangle, CheckCircle2, Copy, Info, type LucideIcon, X } from 'lucide-react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 import {
   $notifications,
@@ -12,33 +13,21 @@ import {
   type NotificationKind
 } from '@/store/notifications'
 
-const tone: Record<
-  NotificationKind,
-  {
-    icon: LucideIcon
-    variant: 'default' | 'destructive' | 'warning' | 'success'
-  }
-> = {
-  error: {
-    icon: AlertCircle,
-    variant: 'destructive'
-  },
-  warning: {
-    icon: AlertTriangle,
-    variant: 'warning'
-  },
-  info: {
-    icon: Info,
-    variant: 'default'
-  },
-  success: {
-    icon: CheckCircle2,
-    variant: 'success'
-  }
+type ToneVariant = 'default' | 'destructive' | 'warning' | 'success'
+
+const tone: Record<NotificationKind, { icon: LucideIcon; iconClass: string; variant: ToneVariant }> = {
+  error: { icon: AlertCircle, iconClass: 'text-destructive', variant: 'destructive' },
+  warning: { icon: AlertTriangle, iconClass: 'text-primary', variant: 'warning' },
+  info: { icon: Info, iconClass: 'text-muted-foreground', variant: 'default' },
+  success: { icon: CheckCircle2, iconClass: 'text-primary', variant: 'success' }
 }
+
+const STACK_SURFACE = 'pointer-events-auto border-border/80 bg-popover/95 shadow-lg shadow-black/5 backdrop-blur-md'
+const GHOST_BTN = 'bg-transparent text-muted-foreground hover:text-foreground'
 
 export function NotificationStack() {
   const notifications = useStore($notifications)
+  const lastNotificationIdRef = useRef<string | null>(null)
   const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
@@ -46,6 +35,24 @@ export function NotificationStack() {
       setExpanded(false)
     }
   }, [notifications.length])
+
+  useEffect(() => {
+    const latest = notifications[0]
+
+    if (!latest || latest.id === lastNotificationIdRef.current) {
+      return
+    }
+
+    lastNotificationIdRef.current = latest.id
+
+    if (latest.kind === 'success') {
+      triggerHaptic('success')
+    } else if (latest.kind === 'error') {
+      triggerHaptic('error')
+    } else if (latest.kind === 'warning') {
+      triggerHaptic('warning')
+    }
+  }, [notifications])
 
   if (notifications.length === 0) {
     return null
@@ -61,26 +68,17 @@ export function NotificationStack() {
       role="region"
     >
       <NotificationItem notification={latest} />
+      {expanded && olderNotifications.map(n => <NotificationItem key={n.id} notification={n} />)}
       {overflowCount > 0 && (
-        <div className="pointer-events-auto flex min-h-8 items-center justify-between rounded-lg border border-border bg-card/80 px-3 text-xs text-muted-foreground shadow-xs">
-          <button
-            className="bg-transparent font-medium text-muted-foreground hover:text-foreground"
-            onClick={() => setExpanded(value => !value)}
-            type="button"
-          >
+        <div className={cn(STACK_SURFACE, 'flex min-h-8 items-center justify-between rounded-lg px-3 text-xs')}>
+          <button className={cn(GHOST_BTN, 'font-medium')} onClick={() => setExpanded(v => !v)} type="button">
             {expanded ? 'Hide' : 'Show'} {overflowCount} more {overflowCount === 1 ? 'notification' : 'notifications'}
           </button>
-          <button
-            className="bg-transparent text-muted-foreground hover:text-foreground"
-            onClick={clearNotifications}
-            type="button"
-          >
+          <button className={GHOST_BTN} onClick={clearNotifications} type="button">
             Clear all
           </button>
         </div>
       )}
-      {expanded &&
-        olderNotifications.map(notification => <NotificationItem key={notification.id} notification={notification} />)}
     </div>
   )
 }
@@ -88,19 +86,21 @@ export function NotificationStack() {
 function NotificationItem({ notification }: { notification: AppNotification }) {
   const styles = tone[notification.kind]
   const Icon = styles.icon
+  const hasDetail = Boolean(notification.detail && notification.detail !== notification.message)
 
   return (
     <Alert
       aria-live={notification.kind === 'error' ? 'assertive' : 'polite'}
-      className="pointer-events-auto grid-cols-[auto_minmax(0,1fr)_auto] pr-2.5 shadow-lg"
+      className={cn(STACK_SURFACE, 'grid-cols-[auto_minmax(0,1fr)_auto] pr-2.5')}
       role={notification.kind === 'error' ? 'alert' : 'status'}
-      variant={styles.variant}
+      variant="default"
     >
-      <Icon />
+      <Icon className={styles.iconClass} />
       <div className="col-start-2 min-w-0">
         {notification.title && <AlertTitle className="col-start-auto">{notification.title}</AlertTitle>}
         <AlertDescription className="col-start-auto">
           <p className="m-0">{notification.message}</p>
+          {hasDetail && <NotificationDetail detail={notification.detail || ''} />}
         </AlertDescription>
       </div>
       <button
@@ -112,6 +112,39 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
         <X className="size-3.5" />
       </button>
     </Alert>
+  )
+}
+
+function NotificationDetail({ detail }: { detail: string }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copyDetail() {
+    try {
+      await navigator.clipboard.writeText(detail)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1200)
+    } catch {
+      // Best effort; details remain visible even if clipboard access fails.
+    }
+  }
+
+  return (
+    <details className="mt-2 text-xs text-muted-foreground">
+      <summary className="cursor-pointer select-none font-medium text-muted-foreground hover:text-foreground">
+        Details
+      </summary>
+      <div className="mt-1 rounded-md border border-border/70 bg-background/65 p-2">
+        <pre className="max-h-32 whitespace-pre-wrap wrap-break-word font-mono text-[0.6875rem] leading-relaxed">{detail}</pre>
+        <button
+          className="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground hover:bg-accent hover:text-foreground"
+          onClick={copyDetail}
+          type="button"
+        >
+          <Copy className="size-3" />
+          {copied ? 'Copied' : 'Copy detail'}
+        </button>
+      </div>
+    </details>
   )
 }
 

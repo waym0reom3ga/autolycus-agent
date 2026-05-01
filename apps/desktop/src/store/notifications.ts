@@ -7,6 +7,7 @@ export interface AppNotification {
   kind: NotificationKind
   title?: string
   message: string
+  detail?: string
   createdAt: number
 }
 
@@ -15,6 +16,7 @@ interface NotificationInput {
   kind?: NotificationKind
   title?: string
   message: string
+  detail?: string
   durationMs?: number
 }
 
@@ -31,14 +33,51 @@ function defaultDuration(kind: NotificationKind) {
   return 5_000
 }
 
-function readableErrorMessage(error: unknown, fallback: string) {
+function cleanErrorText(value: string) {
+  return value.replace(/^Error:\s*/, '').trim()
+}
+
+const ERROR_SUMMARIES: { test: (msg: string) => boolean; summarize: (msg: string) => string }[] = [
+  {
+    test: msg => /incorrect api key provided/i.test(msg) || /['"]code['"]\s*:\s*['"]invalid_api_key['"]/i.test(msg),
+    summarize: msg => {
+      const status = msg.match(/(?:error code|status(?:Code)?)[^\d]*(\d{3})/i)?.[1]
+
+      return `OpenAI rejected the API key${status ? ` (${status} invalid_api_key)` : ''}.`
+    }
+  },
+  {
+    test: msg => /neither voice_tools_openai_key nor openai_api_key is set/i.test(msg),
+    summarize: () => 'OpenAI TTS needs VOICE_TOOLS_OPENAI_KEY or OPENAI_API_KEY.'
+  },
+  {
+    test: msg => /method not allowed/i.test(msg),
+    summarize: () => 'The desktop backend does not support that audio endpoint yet. Restart Hermes Desktop.'
+  },
+  {
+    test: msg => /microphone permission/i.test(msg),
+    summarize: () => 'Microphone permission was denied.'
+  }
+]
+
+function summarizeErrorMessage(message: string, fallback: string) {
+  const rule = ERROR_SUMMARIES.find(r => r.test(message))
+
+  if (rule) {
+    return rule.summarize(message)
+  }
+
+  return message.length > 180 ? fallback : message || fallback
+}
+
+function readableError(error: unknown, fallback: string): { message: string; detail?: string } {
   const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : fallback
+  const unwrapped = raw.match(/Error invoking remote method '[^']+': Error: (.+)$/)?.[1] ?? raw
+  const cleaned = cleanErrorText(unwrapped)
+  const detail = cleaned.match(/"detail"\s*:\s*"([^"]+)"/)?.[1] ?? cleaned
+  const summary = summarizeErrorMessage(detail, fallback)
 
-  const ipcMessage = raw.match(/Error invoking remote method '[^']+': Error: (.+)$/)
-  const message = ipcMessage?.[1] || raw.replace(/^Error:\s*/, '')
-  const detailMatch = message.match(/"detail"\s*:\s*"([^"]+)"/)
-
-  return detailMatch?.[1] || message
+  return { message: summary, detail: detail === summary ? undefined : detail }
 }
 
 export function notify(input: NotificationInput): string {
@@ -50,6 +89,7 @@ export function notify(input: NotificationInput): string {
     kind,
     title: input.title,
     message: input.message,
+    detail: input.detail,
     createdAt: Date.now()
   }
 
@@ -70,10 +110,13 @@ export function notify(input: NotificationInput): string {
 }
 
 export function notifyError(error: unknown, fallback: string): string {
+  const readable = readableError(error, fallback)
+
   return notify({
     kind: 'error',
     title: fallback,
-    message: readableErrorMessage(error, fallback)
+    message: readable.message,
+    detail: readable.detail
   })
 }
 

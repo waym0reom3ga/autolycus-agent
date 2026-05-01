@@ -4,6 +4,7 @@ import type * as React from 'react'
 import { Button } from '@/components/ui/button'
 import type { SessionInfo } from '@/hermes'
 import { sessionTitle } from '@/lib/chat-runtime'
+import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 
 import { SessionActionsMenu } from './session-actions-menu'
@@ -18,6 +19,7 @@ interface SidebarSessionRowProps extends React.ComponentProps<'div'> {
   session: SessionInfo
   isPinned: boolean
   isSelected: boolean
+  isWorking: boolean
   onDelete: () => void
   onPin: () => void
   onResume: () => void
@@ -27,6 +29,7 @@ export function SidebarSessionRow({
   session,
   isPinned,
   isSelected,
+  isWorking,
   onDelete,
   onPin,
   onResume
@@ -34,13 +37,22 @@ export function SidebarSessionRow({
   const title = sessionTitle(session)
 
   return (
-    <div className={cn(sidebarSessionRowClass, sidebarSessionFadeClass, isSelected && 'bg-accent')}>
+    <div
+      className={cn(
+        sidebarSessionRowClass,
+        sidebarSessionFadeClass,
+        isSelected && 'bg-accent',
+        isWorking && 'text-foreground'
+      )}
+      data-working={isWorking ? 'true' : undefined}
+    >
       <button
-        className="z-0 flex min-w-0 items-center bg-transparent py-1 pl-2 text-left"
+        className="z-0 flex min-w-0 items-center gap-1.5 bg-transparent py-1 pl-2 text-left"
         onClick={event => {
           if (event.shiftKey) {
             event.preventDefault()
             event.stopPropagation()
+            triggerHaptic('selection')
             onPin()
 
             return
@@ -50,6 +62,13 @@ export function SidebarSessionRow({
         }}
         type="button"
       >
+        {isWorking && (
+          <span
+            aria-label="Session running"
+            className="relative size-1.5 shrink-0 rounded-full bg-primary shadow-[0_0_0.625rem_color-mix(in_srgb,var(--primary)_65%,transparent)] before:absolute before:inset-0 before:rounded-full before:bg-primary before:opacity-75 before:content-[''] before:animate-ping"
+            role="status"
+          />
+        )}
         <span className="truncate text-sm font-medium text-foreground/90">{title}</span>
       </button>
       <div className="relative z-2 grid w-6 place-items-center">

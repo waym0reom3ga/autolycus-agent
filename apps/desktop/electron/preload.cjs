@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   getConnection: () => ipcRenderer.invoke('hermes:connection'),
   api: request => ipcRenderer.invoke('hermes:api', request),
   notify: payload => ipcRenderer.invoke('hermes:notify', payload),
+  requestMicrophoneAccess: () => ipcRenderer.invoke('hermes:requestMicrophoneAccess'),
   readFileDataUrl: filePath => ipcRenderer.invoke('hermes:readFileDataUrl', filePath),
   selectPaths: options => ipcRenderer.invoke('hermes:selectPaths', options),
   writeClipboard: text => ipcRenderer.invoke('hermes:writeClipboard', text),

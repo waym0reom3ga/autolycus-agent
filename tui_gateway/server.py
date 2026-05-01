@@ -507,6 +507,14 @@ def _start_agent_build(sid: str, session: dict) -> None:
             db = _get_db()
             if db is not None:
                 db.create_session(key, source="tui", model=_resolve_model())
+                seed_history = current.get("history") or []
+                for msg in seed_history:
+                    if isinstance(msg, dict) and msg.get("role") in ("user", "assistant", "system"):
+                        db.append_message(
+                            session_id=key,
+                            role=msg.get("role", "user"),
+                            content=msg.get("content"),
+                        )
                 pending_title = (current.get("pending_title") or "").strip()
                 if pending_title:
                     try:
@@ -2009,6 +2017,30 @@ def _history_to_messages(history: list[dict]) -> list[dict]:
     return messages
 
 
+def _coerce_seed_history(value: Any) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+
+    history = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+
+        role = item.get("role")
+        if role not in ("user", "assistant", "system"):
+            continue
+
+        content = item.get("content")
+        if content is None:
+            content = item.get("text")
+        if not isinstance(content, str) or not content.strip():
+            continue
+
+        history.append({"role": role, "content": content})
+
+    return history
+
+
 # ── Methods: session ─────────────────────────────────────────────────
 
 
@@ -2017,6 +2049,8 @@ def _(rid, params: dict) -> dict:
     sid = uuid.uuid4().hex[:8]
     key = _new_session_key()
     cols = int(params.get("cols", 80))
+    history = _coerce_seed_history(params.get("messages"))
+    title = str(params.get("title") or "").strip()
     _enable_gateway_prompts()
 
     ready = threading.Event()
@@ -2028,12 +2062,12 @@ def _(rid, params: dict) -> dict:
         "attached_images": [],
         "cols": cols,
         "edit_snapshots": {},
-        "history": [],
+        "history": history,
         "history_lock": threading.Lock(),
         "history_version": 0,
         "image_counter": 0,
         "cwd": _completion_cwd(params),
-        "pending_title": None,
+        "pending_title": title or None,
         "running": False,
         "session_key": key,
         "show_reasoning": _load_show_reasoning(),
@@ -2062,6 +2096,8 @@ def _(rid, params: dict) -> dict:
         {
             "session_id": sid,
             "stored_session_id": key,
+            "message_count": len(history),
+            "messages": _history_to_messages(history),
             "info": {
                 "model": _resolve_model(),
                 "tools": {},
@@ -3747,7 +3783,7 @@ def _(rid, params: dict) -> dict:
                 pname, new_prompt = _validate_personality(str(value or ""), cfg)
                 _write_config_key("display.personality", pname)
                 _write_config_key("agent.system_prompt", new_prompt)
-                nv = str(value or "default")
+                nv = str(value or "none")
                 history_reset, info = _apply_personality_to_session(
                     sid_key, session, new_prompt, pname
                 )
@@ -3816,7 +3852,7 @@ def _(rid, params: dict) -> dict:
     if key == "personality":
         return _ok(
             rid,
-            {"value": (_load_cfg().get("display") or {}).get("personality", "default")},
+            {"value": (_load_cfg().get("display") or {}).get("personality") or "none"},
         )
     if key == "reasoning":
         cfg = _load_cfg()

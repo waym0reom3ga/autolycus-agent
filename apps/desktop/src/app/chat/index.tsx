@@ -1,17 +1,22 @@
-import { AssistantRuntimeProvider, ExportedMessageRepository, type ThreadMessage, useExternalStoreRuntime } from '@assistant-ui/react'
+import {
+  AssistantRuntimeProvider,
+  ExportedMessageRepository,
+  type ThreadMessage,
+  useExternalStoreRuntime
+} from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown } from 'lucide-react'
 import type * as React from 'react'
 import { Suspense, useMemo } from 'react'
+import { useLocation } from 'react-router-dom'
 
 import { Thread } from '@/components/assistant-ui/thread'
-import { ChatBar, ChatBarFallback, type ChatBarState } from '@/components/chat-bar'
 import { NotificationStack } from '@/components/notifications'
 import { Button } from '@/components/ui/button'
 import { getGlobalModelOptions, type HermesGateway } from '@/hermes'
 import { quickModelOptions, sessionTitle, toRuntimeMessage } from '@/lib/chat-runtime'
-import type { ModelOptionsResponse } from '@/types/hermes'
+import { cn } from '@/lib/utils'
 import { $pinnedSessionIds } from '@/store/layout'
 import {
   $activeSessionId,
@@ -28,10 +33,13 @@ import {
   $selectedStoredSessionId,
   $sessions
 } from '@/store/session'
+import type { ModelOptionsResponse } from '@/types/hermes'
 
 import { routeSessionId } from '../routes'
-import { titlebarHeaderClass } from '../shell/titlebar'
+import { titlebarHeaderBaseClass, titlebarHeaderShadowClass } from '../shell/titlebar'
 
+import { ChatBar, ChatBarFallback } from './composer'
+import type { ChatBarState } from './composer/types'
 import { ChatRightRail } from './right-rail'
 import { SessionActionsMenu } from './sidebar/session-actions-menu'
 
@@ -42,6 +50,8 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onCancel: () => void
   onAddContextRef: (refText: string, label?: string, detail?: string) => void
   onAddUrl: (url: string) => void
+  onBranchInNewChat: (messageId: string) => void
+  maxVoiceRecordingSeconds?: number
   onPasteClipboardImage: () => void
   onPickFiles: () => void
   onPickFolders: () => void
@@ -54,6 +64,19 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onSelectPersonality: (name: string) => void
   onThreadMessagesChange: (messages: readonly ThreadMessage[]) => void
   onReload: (parentId: string | null) => Promise<void>
+  onTranscribeAudio?: (audio: Blob) => Promise<string>
+}
+
+function threadLoadingState(loadingSession: boolean, busy: boolean, awaitingResponse: boolean) {
+  if (loadingSession) {
+    return 'session'
+  }
+
+  if (!busy) {
+    return undefined
+  }
+
+  return awaitingResponse ? 'response' : 'working'
 }
 
 export function ChatView({
@@ -63,6 +86,8 @@ export function ChatView({
   onCancel,
   onAddContextRef,
   onAddUrl,
+  onBranchInNewChat,
+  maxVoiceRecordingSeconds,
   onPasteClipboardImage,
   onPickFiles,
   onPickFolders,
@@ -74,8 +99,10 @@ export function ChatView({
   onOpenModelPicker,
   onSelectPersonality,
   onThreadMessagesChange,
-  onReload
+  onReload,
+  onTranscribeAudio
 }: ChatViewProps) {
+  const location = useLocation()
   const activeSessionId = useStore($activeSessionId)
   const awaitingResponse = useStore($awaitingResponse)
   const busy = useStore($busy)
@@ -92,14 +119,17 @@ export function ChatView({
   const selectedSessionId = useStore($selectedStoredSessionId)
   const sessions = useStore($sessions)
   const activeStoredSession = sessions.find(session => session.id === selectedSessionId) || null
-  const isRoutedSessionView = Boolean(routeSessionId())
+  const isRoutedSessionView = Boolean(routeSessionId(location.pathname))
   const selectedIsPinned = selectedSessionId ? pinnedSessionIds.includes(selectedSessionId) : false
+
   const showIntro =
     freshDraftReady && !isRoutedSessionView && !selectedSessionId && !activeSessionId && messages.length === 0
+
   const loadingSession = isRoutedSessionView && messages.length === 0
-  const threadLoading = loadingSession ? 'session' : busy && awaitingResponse ? 'response' : undefined
+  const threadLoading = threadLoadingState(loadingSession, busy, awaitingResponse)
   const showChatBar = !loadingSession
   const title = activeStoredSession ? sessionTitle(activeStoredSession) : ''
+
   const modelOptionsQuery = useQuery<ModelOptionsResponse>({
     queryKey: ['model-options', activeSessionId || 'global'],
     queryFn: () => {
@@ -115,10 +145,12 @@ export function ChatView({
     },
     enabled: gatewayOpen
   })
+
   const quickModels = useMemo(
     () => quickModelOptions(modelOptionsQuery.data, currentProvider, currentModel),
     [currentModel, currentProvider, modelOptionsQuery.data]
   )
+
   const chatBarState = useMemo<ChatBarState>(
     () => ({
       model: {
@@ -140,6 +172,7 @@ export function ChatView({
     }),
     [contextSuggestions, currentModel, currentProvider, gatewayOpen, quickModels]
   )
+
   const runtimeMessageRepository = useMemo(() => {
     const items: { message: ThreadMessage; parentId: string | null }[] = []
     const branchParentByGroup = new Map<string, string | null>()
@@ -167,6 +200,7 @@ export function ChatView({
 
     return ExportedMessageRepository.fromBranchableArray(items, { headId })
   }, [messages])
+
   const runtime = useExternalStoreRuntime<ThreadMessage>({
     messageRepository: runtimeMessageRepository,
     isRunning: busy,
@@ -182,7 +216,7 @@ export function ChatView({
   return (
     <>
       <div className="flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent">
-        <header className={titlebarHeaderClass}>
+        <header className={cn(titlebarHeaderBaseClass, isRoutedSessionView && titlebarHeaderShadowClass)}>
           <div className="min-w-0 flex-1">
             {title && (
               <SessionActionsMenu
@@ -213,6 +247,7 @@ export function ChatView({
             <Thread
               intro={showIntro ? { personality: introPersonality, seed: introSeed } : undefined}
               loading={threadLoading}
+              onBranchInNewChat={onBranchInNewChat}
             />
             {showChatBar && (
               <Suspense fallback={<ChatBarFallback />}>
@@ -220,6 +255,7 @@ export function ChatView({
                   busy={busy}
                   disabled={!gatewayOpen}
                   focusKey={activeSessionId}
+                  maxRecordingSeconds={maxVoiceRecordingSeconds}
                   onAddContextRef={onAddContextRef}
                   onAddUrl={onAddUrl}
                   onCancel={onCancel}
@@ -229,6 +265,7 @@ export function ChatView({
                   onPickImages={onPickImages}
                   onRemoveAttachment={onRemoveAttachment}
                   onSubmit={onSubmit}
+                  onTranscribeAudio={onTranscribeAudio}
                   state={chatBarState}
                 />
               </Suspense>

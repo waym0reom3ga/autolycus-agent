@@ -177,10 +177,98 @@
   textarea {
     font: inherit;
   }
+
 }
 
 button {
   -webkit-app-region: no-drag;
+}
+
+.composer-liquid-shell-wrap {
+  pointer-events: none;
+  border-radius: var(--composer-glass-radius, 20px);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* Fragment siblings emitted by liquid-glass-react (not inside .composer-liquid-shell). */
+.composer-liquid-shell-wrap > div:not(.composer-liquid-shell) {
+  position: absolute !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  transform: none !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+}
+
+/* Liquid-glass rim spans (toggle via data-show-library-rims on shell wrap). */
+.composer-liquid-shell-wrap:not([data-show-library-rims='true']) > span {
+  display: none !important;
+}
+
+.composer-liquid-shell-wrap[data-show-library-rims='true'] > span {
+  position: absolute !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  transform: none !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  display: block !important;
+}
+
+.composer-liquid-shell {
+  z-index: 1;
+  top: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+.composer-liquid-shell > svg {
+  position: absolute !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  transform: none !important;
+}
+
+.composer-liquid-shell > .glass,
+.composer-liquid-shell > :not(svg):not(.glass) {
+  position: absolute !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  transform: none !important;
+}
+
+.composer-liquid-shell > .glass {
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  border-radius: var(--composer-glass-radius, 20px) !important;
+  box-shadow: none !important;
+}
+
+.composer-liquid-shell > .glass > .glass__warp {
+  border-radius: var(--composer-glass-radius, 20px) !important;
+}
+
+.composer-liquid-shell > .glass > div {
+  width: 100%;
+  height: 100%;
+  font: inherit !important;
+  text-shadow: none !important;
+  color: inherit !important;
 }
 
 input,

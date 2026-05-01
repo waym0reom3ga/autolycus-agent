@@ -1,5 +1,8 @@
 import type {
+  AudioSpeakResponse,
+  AudioTranscriptionResponse,
   ConfigSchemaResponse,
+  ElevenLabsVoicesResponse,
   EnvVarInfo,
   HermesConfig,
   HermesConfigRecord,
@@ -7,15 +10,18 @@ import type {
   ModelOptionsResponse,
   PaginatedSessions,
   RpcEvent,
-  SessionInfo,
   SessionMessagesResponse,
   SkillInfo,
   ToolsetInfo
 } from '@/types/hermes'
 
 export type {
+  AudioSpeakResponse,
+  AudioTranscriptionResponse,
   ConfigFieldSchema,
   ConfigSchemaResponse,
+  ElevenLabsVoice,
+  ElevenLabsVoicesResponse,
   EnvVarInfo,
   GatewayReadyPayload,
   HermesConfig,
@@ -175,30 +181,13 @@ export class HermesGateway {
 }
 
 export async function listSessions(limit = 40): Promise<PaginatedSessions> {
-  const pageSize = Math.max(limit, 50)
-  const collected: SessionInfo[] = []
-  let offset = 0
-  let total = 0
-
-  while (collected.length < limit) {
-    const result = await window.hermesDesktop.api<PaginatedSessions>({
-      path: `/api/sessions?limit=${pageSize}&offset=${offset}`
-    })
-
-    total = result.total
-    collected.push(...result.sessions.filter(session => session.message_count > 0))
-
-    offset += result.sessions.length
-
-    if (result.sessions.length === 0 || offset >= result.total) {
-      break
-    }
-  }
+  const result = await window.hermesDesktop.api<PaginatedSessions>({
+    path: `/api/sessions?limit=${limit}&offset=0&min_messages=1`
+  })
 
   return {
-    sessions: collected.slice(0, limit),
-    total,
-    limit,
+    ...result,
+    sessions: result.sessions.slice(0, limit),
     offset: 0
   }
 }
@@ -322,5 +311,30 @@ export function setGlobalModel(
       provider,
       model
     }
+  })
+}
+
+export function transcribeAudio(dataUrl: string, mimeType?: string): Promise<AudioTranscriptionResponse> {
+  return window.hermesDesktop.api<AudioTranscriptionResponse>({
+    path: '/api/audio/transcribe',
+    method: 'POST',
+    body: {
+      data_url: dataUrl,
+      mime_type: mimeType
+    }
+  })
+}
+
+export function speakText(text: string): Promise<AudioSpeakResponse> {
+  return window.hermesDesktop.api<AudioSpeakResponse>({
+    path: '/api/audio/speak',
+    method: 'POST',
+    body: { text }
+  })
+}
+
+export function getElevenLabsVoices(): Promise<ElevenLabsVoicesResponse> {
+  return window.hermesDesktop.api<ElevenLabsVoicesResponse>({
+    path: '/api/audio/elevenlabs/voices'
   })
 }

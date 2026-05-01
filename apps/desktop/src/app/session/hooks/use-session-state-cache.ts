@@ -1,11 +1,11 @@
 import { useStore } from '@nanostores/react'
-import { useCallback, useEffect, useRef, type MutableRefObject } from 'react'
+import { type MutableRefObject, useCallback, useEffect, useRef } from 'react'
 
-import { createClientSessionState } from '@/lib/chat-runtime'
 import type { ChatMessage } from '@/lib/chat-messages'
-import { $busy } from '@/store/session'
+import { createClientSessionState } from '@/lib/chat-runtime'
+import { $busy, setSessionWorking } from '@/store/session'
 
-import type { ClientSessionState } from '../types'
+import type { ClientSessionState } from '../../types'
 
 interface SessionStateCacheOptions {
   activeSessionId: string | null
@@ -47,10 +47,19 @@ export function useSessionStateCache({
 
     if (existing) {
       if (storedSessionId !== undefined) {
+        const previousStoredSessionId = existing.storedSessionId
         existing.storedSessionId = storedSessionId
 
         if (storedSessionId) {
           runtimeIdByStoredSessionIdRef.current.set(storedSessionId, sessionId)
+
+          if (existing.busy) {
+            setSessionWorking(storedSessionId, true)
+          }
+        }
+
+        if (previousStoredSessionId && previousStoredSessionId !== storedSessionId) {
+          setSessionWorking(previousStoredSessionId, false)
         }
       }
 
@@ -90,6 +99,12 @@ export function useSessionStateCache({
       const previous = ensureSessionState(sessionId, storedSessionId)
       const next = updater({ ...previous, messages: previous.messages })
       sessionStateByRuntimeIdRef.current.set(sessionId, next)
+
+      if (previous.storedSessionId !== next.storedSessionId || !next.busy) {
+        setSessionWorking(previous.storedSessionId, false)
+      }
+
+      setSessionWorking(next.storedSessionId, next.busy)
       syncSessionStateToView(sessionId, next)
 
       return next

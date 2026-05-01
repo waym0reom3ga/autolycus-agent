@@ -1,4 +1,16 @@
-const { app, BrowserWindow, Menu, Notification, clipboard, dialog, ipcMain, nativeImage, shell } = require('electron')
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  Notification,
+  clipboard,
+  dialog,
+  ipcMain,
+  nativeImage,
+  session,
+  shell,
+  systemPreferences
+} = require('electron')
 const crypto = require('node:crypto')
 const fs = require('node:fs')
 const http = require('node:http')
@@ -391,6 +403,18 @@ function installContextMenu(window) {
   })
 }
 
+function installMediaPermissions() {
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+    if (permission === 'media' && details?.mediaTypes?.includes('audio')) {
+      callback(true)
+
+      return
+    }
+
+    callback(false)
+  })
+}
+
 async function startHermes() {
   if (connectionPromise) return connectionPromise
 
@@ -488,6 +512,14 @@ function createWindow() {
 
 ipcMain.handle('hermes:connection', async () => startHermes())
 
+ipcMain.handle('hermes:requestMicrophoneAccess', async () => {
+  if (!IS_MAC || typeof systemPreferences.askForMediaAccess !== 'function') {
+    return true
+  }
+
+  return systemPreferences.askForMediaAccess('microphone')
+})
+
 ipcMain.handle('hermes:api', async (_event, request) => {
   const connection = await startHermes()
   return fetchJson(`${connection.baseUrl}${request.path}`, connection.token, {
@@ -539,6 +571,7 @@ ipcMain.handle('hermes:openExternal', (_event, url) => shell.openExternal(url))
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(buildApplicationMenu())
+  installMediaPermissions()
   createWindow()
   startHermes().catch(error => rememberLog(error.stack || error.message))
 

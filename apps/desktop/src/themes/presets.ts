@@ -86,6 +86,48 @@ export const hermesGoldTheme: DesktopTheme = {
   }
 }
 
+const NOUS_LENS_BLUE = '#0053FD'
+
+/** Nous — bright white with electric blue from the NousNet identity system. */
+export const nousTheme: DesktopTheme = {
+  name: 'nous',
+  label: 'Nous',
+  description: 'Design-system white with electric Nous blue and subtle grain',
+  colors: {
+    background: '#FFFFFF',
+    foreground: '#17171A',
+    card: '#FFFFFF',
+    cardForeground: '#17171A',
+    muted: `color-mix(in srgb, ${NOUS_LENS_BLUE} 5%, #FFFFFF)`,
+    mutedForeground: '#666678',
+    popover: '#FFFFFF',
+    popoverForeground: '#17171A',
+    primary: NOUS_LENS_BLUE,
+    primaryForeground: '#FFFFFF',
+    secondary: `color-mix(in srgb, ${NOUS_LENS_BLUE} 7%, #FFFFFF)`,
+    secondaryForeground: '#242432',
+    accent: `color-mix(in srgb, ${NOUS_LENS_BLUE} 10%, #FFFFFF)`,
+    accentForeground: '#202030',
+    border: `color-mix(in srgb, ${NOUS_LENS_BLUE} 22%, transparent)`,
+    input: `color-mix(in srgb, ${NOUS_LENS_BLUE} 30%, transparent)`,
+    ring: NOUS_LENS_BLUE,
+    destructive: '#C72E4D',
+    destructiveForeground: '#FFFFFF',
+    sidebarBackground: `color-mix(in srgb, ${NOUS_LENS_BLUE} 2.5%, #FFFFFF)`,
+    sidebarBorder: `color-mix(in srgb, ${NOUS_LENS_BLUE} 18%, transparent)`,
+    userBubble: `color-mix(in srgb, ${NOUS_LENS_BLUE} 6%, #FFFFFF)`,
+    userBubbleBorder: `color-mix(in srgb, ${NOUS_LENS_BLUE} 24%, transparent)`
+  },
+  typography: {
+    fontSans: SYSTEM_SANS,
+    fontMono: `"Courier Prime", ${SYSTEM_MONO}`,
+    fontUrl: 'https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap'
+  },
+  layout: {
+    radius: '0.25rem'
+  }
+}
+
 /** Classic Hermes dark teal. */
 export const defaultTheme: DesktopTheme = {
   name: 'default',
@@ -314,6 +356,7 @@ export const slateTheme: DesktopTheme = {
 export const BUILTIN_THEMES: Record<string, DesktopTheme> = {
   'nous-light': nousLightTheme,
   default: defaultTheme,
+  nous: nousTheme,
   gold: hermesGoldTheme,
   midnight: midnightTheme,
   ember: emberTheme,

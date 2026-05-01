@@ -198,6 +198,12 @@ function WorkspaceSection({
   )
 }
 
+function personalityOptionKey(value?: string): string {
+  const key = value?.trim().toLowerCase() || 'none'
+
+  return key === 'default' ? 'none' : key
+}
+
 function AgentSection({
   label: modelLabel,
   onOpen,
@@ -217,12 +223,12 @@ function AgentSection({
   const [open, setOpen] = useState(false)
 
   const merged = useMemo(
-    () => [...new Set(['default', ...options, current].map(s => s?.trim().toLowerCase()).filter(Boolean))],
+    () => [...new Set(['none', ...options, current].map(personalityOptionKey).filter(Boolean))],
     [current, options]
   )
 
-  const activeKey = (current || 'default').trim().toLowerCase()
-  const personalityLabel = current ? titleize(current) : 'Default'
+  const activeKey = personalityOptionKey(current)
+  const personalityLabel = activeKey === 'none' ? 'None' : titleize(activeKey)
 
   return (
     <section className="grid gap-1.5 py-1.5">

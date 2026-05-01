@@ -1,14 +1,14 @@
 import { useCallback } from 'react'
 
-import { contextPath, attachmentId, pathLabel } from '@/lib/chat-runtime'
+import { attachmentId, contextPath, pathLabel } from '@/lib/chat-runtime'
 import {
   addComposerAttachment,
-  removeComposerAttachment,
-  type ComposerAttachment
+  type ComposerAttachment,
+  removeComposerAttachment
 } from '@/store/composer'
 import { notify, notifyError } from '@/store/notifications'
 
-import type { ImageAttachResponse, ImageDetachResponse } from '../types'
+import type { ImageAttachResponse, ImageDetachResponse } from '../../types'
 
 interface ComposerActionsOptions {
   activeSessionId: string | null

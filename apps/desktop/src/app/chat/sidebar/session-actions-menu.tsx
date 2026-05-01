@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 
 interface SessionActionsMenuProps extends Pick<
@@ -37,7 +38,14 @@ export function SessionActionsMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
       <DropdownMenuContent align={align} aria-label={`Actions for ${title}`} className="w-44" sideOffset={sideOffset}>
-        <DropdownMenuItem className={itemClass} disabled={!onPin} onSelect={onPin}>
+        <DropdownMenuItem
+          className={itemClass}
+          disabled={!onPin}
+          onSelect={() => {
+            triggerHaptic('selection')
+            onPin?.()
+          }}
+        >
           <Pin />
           <span>{pinned ? 'Unpin' : 'Pin'}</span>
         </DropdownMenuItem>
@@ -53,7 +61,10 @@ export function SessionActionsMenu({
         <DropdownMenuItem
           className={cn(itemClass, 'text-destructive focus:text-destructive')}
           disabled={!onDelete}
-          onSelect={onDelete}
+          onSelect={() => {
+            triggerHaptic('warning')
+            onDelete?.()
+          }}
           variant="destructive"
         >
           <Trash2 />

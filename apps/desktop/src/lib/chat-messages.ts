@@ -244,6 +244,32 @@ function applyStoredToolResult(messages: ChatMessage[], toolMessage: SessionMess
   return false
 }
 
+function applyStoredToolResultToParts(parts: ChatMessagePart[], toolMessage: SessionMessage): ChatMessagePart[] | null {
+  const toolCallId = toolMessage.tool_call_id || undefined
+  const toolName = toolMessage.tool_name || toolMessage.name || 'tool'
+  const content = toolMessage.content || toolMessage.text || toolMessage.context || toolMessage.name || ''
+
+  const partIndex = parts.findIndex(
+    part =>
+      part.type === 'tool-call' &&
+      ((toolCallId && part.toolCallId === toolCallId) || (!toolCallId && part.toolName === toolName))
+  )
+
+  if (partIndex < 0) {
+    return null
+  }
+
+  const next = [...parts]
+  const existing = next[partIndex]
+  next[partIndex] = {
+    ...existing,
+    result: parseStoredToolResult(content),
+    isError: false
+  } as ChatMessagePart
+
+  return next
+}
+
 function storedToolMessagePart(toolMessage: SessionMessage, fallbackIndex: number): ChatMessagePart {
   const name = toolMessage.tool_name || toolMessage.name || 'tool'
   const context = toolMessage.context || toolMessage.text || toolMessage.content || ''
@@ -258,6 +284,42 @@ function storedToolMessagePart(toolMessage: SessionMessage, fallbackIndex: numbe
     result: context ? { context } : {},
     isError: false
   }
+}
+
+function withUniqueToolCallIds(messages: ChatMessage[]): ChatMessage[] {
+  const seen = new Set<string>()
+
+  return messages.map(message => {
+    let changed = false
+
+    const parts = message.parts.map((part, index) => {
+      if (part.type !== 'tool-call') {
+        return part
+      }
+
+      const id = part.toolCallId || `${message.id}-tool-${index}`
+
+      if (!seen.has(id)) {
+        seen.add(id)
+
+        if (part.toolCallId) {
+          return part
+        }
+
+        changed = true
+
+        return { ...part, toolCallId: id } as ChatMessagePart
+      }
+
+      changed = true
+      const uniqueId = `${id}-${message.id}-${index}`
+      seen.add(uniqueId)
+
+      return { ...part, toolCallId: uniqueId } as ChatMessagePart
+    })
+
+    return changed ? { ...message, parts } : message
+  })
 }
 
 export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
@@ -282,6 +344,14 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
 
   messages.forEach((message, index) => {
     if (message.role === 'tool') {
+      const updatedPendingToolParts = applyStoredToolResultToParts(pendingToolParts, message)
+
+      if (updatedPendingToolParts) {
+        pendingToolParts = updatedPendingToolParts
+
+        return
+      }
+
       if (applyStoredToolResult(result, message)) {
         return
       }
@@ -343,7 +413,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
   })
   flushPendingTools(messages.length)
 
-  return result.filter(m => chatMessageText(m).trim() || m.parts.some(part => part.type !== 'text'))
+  return withUniqueToolCallIds(result.filter(m => chatMessageText(m).trim() || m.parts.some(part => part.type !== 'text')))
 }
 
 export function branchGroupForUser(userMessage: ChatMessage): string {

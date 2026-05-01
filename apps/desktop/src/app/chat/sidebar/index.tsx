@@ -1,5 +1,6 @@
 import { useStore } from '@nanostores/react'
 import { ChevronDown, Layers3, Pin, Plus, RefreshCw, Sparkles } from 'lucide-react'
+import { useMemo } from 'react'
 import type * as React from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -27,7 +28,7 @@ import {
   setSidebarRecentsOpen,
   unpinSession
 } from '@/store/layout'
-import { $selectedStoredSessionId, $sessions, $sessionsLoading } from '@/store/session'
+import { $selectedStoredSessionId, $sessions, $sessionsLoading, $workingSessionIds } from '@/store/session'
 
 import { type AppView, ARTIFACTS_ROUTE, SKILLS_ROUTE } from '../../routes'
 import type { SidebarNavItem } from '../../types'
@@ -71,15 +72,17 @@ export function ChatSidebar({
   const selectedSessionId = useStore($selectedStoredSessionId)
   const sessions = useStore($sessions)
   const sessionsLoading = useStore($sessionsLoading)
+  const workingSessionIds = useStore($workingSessionIds)
 
-  const sortedSessions = [...sessions].sort((a, b) => {
+  const sortedSessions = useMemo(() => [...sessions].sort((a, b) => {
     const aTime = a.last_active || a.started_at || 0
     const bTime = b.last_active || b.started_at || 0
 
     return bTime - aTime
-  })
+  }), [sessions])
 
-  const sessionsById = new Map(sessions.map(session => [session.id, session]))
+  const sessionsById = useMemo(() => new Map(sessions.map(session => [session.id, session])), [sessions])
+  const workingSessionIdSet = useMemo(() => new Set(workingSessionIds), [workingSessionIds])
   const visiblePinnedIds = pinnedSessionIds.filter(id => sessionsById.has(id))
   const visiblePinnedIdSet = new Set(visiblePinnedIds)
 
@@ -94,13 +97,13 @@ export function ChatSidebar({
   return (
     <Sidebar
       className={cn(
-        'relative h-screen min-w-0 overflow-hidden rounded-tr-[0.9375rem] rounded-br-[0.9375rem] border-r border-t-0 border-l-0 border-b-0 text-foreground [backdrop-filter:blur(1.5rem)_saturate(1.08)]',
+        'relative h-screen min-w-0 overflow-hidden border-r border-t-0 border-b-0 border-l-0 text-foreground [backdrop-filter:blur(1.5rem)_saturate(1.08)]',
         isSidebarResizing
           ? 'transition-none'
-          : 'transition-[opacity,transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          : 'transition-[opacity,transform,border-color,background-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
         sidebarOpen
-          ? 'translate-x-0 border-(--sidebar-edge-border) bg-[color-mix(in_srgb,var(--dt-sidebar-bg)_97%,transparent)] opacity-100 shadow-(--shadow-sidebar)'
-          : 'pointer-events-none -translate-x-2 border-transparent bg-transparent opacity-0 shadow-none'
+          ? 'translate-x-0 border-(--sidebar-edge-border) bg-[color-mix(in_srgb,var(--dt-sidebar-bg)_97%,transparent)] opacity-100'
+          : 'pointer-events-none -translate-x-2 border-transparent bg-transparent opacity-0'
       )}
       collapsible="none"
     >
@@ -153,6 +156,7 @@ export function ChatSidebar({
                   <SidebarSessionRow
                     isPinned
                     isSelected={session.id === selectedSessionId}
+                    isWorking={workingSessionIdSet.has(session.id)}
                     key={session.id}
                     onDelete={() => onDeleteSession(session.id)}
                     onPin={() => unpinSession(session.id)}
@@ -200,6 +204,7 @@ export function ChatSidebar({
                   <SidebarSessionRow
                     isPinned={false}
                     isSelected={session.id === selectedSessionId}
+                    isWorking={workingSessionIdSet.has(session.id)}
                     key={session.id}
                     onDelete={() => onDeleteSession(session.id)}
                     onPin={() => pinSession(session.id)}

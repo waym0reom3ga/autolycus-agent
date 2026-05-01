@@ -932,6 +932,7 @@ class SessionDB:
         limit: int = 20,
         offset: int = 0,
         include_children: bool = False,
+        min_message_count: int = 0,
         project_compression_tips: bool = True,
     ) -> List[Dict[str, Any]]:
         """List sessions with preview (first user message) and last active timestamp.
@@ -977,6 +978,9 @@ class SessionDB:
             placeholders = ",".join("?" for _ in exclude_sources)
             where_clauses.append(f"s.source NOT IN ({placeholders})")
             params.extend(exclude_sources)
+        if min_message_count > 0:
+            where_clauses.append("s.message_count >= ?")
+            params.append(min_message_count)
 
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         query = f"""
@@ -1798,15 +1802,22 @@ class SessionDB:
     # Utility
     # =========================================================================
 
-    def session_count(self, source: str = None) -> int:
+    def session_count(self, source: str = None, min_message_count: int = 0) -> int:
         """Count sessions, optionally filtered by source."""
+        where_clauses = []
+        params = []
+
+        if source:
+            where_clauses.append("source = ?")
+            params.append(source)
+        if min_message_count > 0:
+            where_clauses.append("message_count >= ?")
+            params.append(min_message_count)
+
+        where_sql = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
         with self._lock:
-            if source:
-                cursor = self._conn.execute(
-                    "SELECT COUNT(*) FROM sessions WHERE source = ?", (source,)
-                )
-            else:
-                cursor = self._conn.execute("SELECT COUNT(*) FROM sessions")
+            cursor = self._conn.execute(f"SELECT COUNT(*) FROM sessions{where_sql}", params)
             return cursor.fetchone()[0]
 
     def message_count(self, session_id: str = None) -> int:
