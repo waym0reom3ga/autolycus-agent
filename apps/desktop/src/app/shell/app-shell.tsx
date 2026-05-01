@@ -1,0 +1,146 @@
+import { useStore } from '@nanostores/react'
+import type { CSSProperties, ReactNode, PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback } from 'react'
+
+import { SidebarProvider } from '@/components/ui/sidebar'
+import { cn } from '@/lib/utils'
+import {
+  $inspectorOpen,
+  $isSidebarResizing,
+  $sidebarOpen,
+  $sidebarWidth,
+  setSidebarOpen,
+  setSidebarResizing,
+  setSidebarWidth
+} from '@/store/layout'
+import { $connection } from '@/store/session'
+
+import { TITLEBAR_HEIGHT, titlebarControlsPosition } from './titlebar'
+import { TitlebarControls } from './titlebar-controls'
+
+interface AppShellProps {
+  children: ReactNode
+  inspectorWidth: string
+  rightRailOpen: boolean
+  settingsOpen: boolean
+  sidebar: ReactNode
+  onOpenSettings: () => void
+  overlays?: ReactNode
+}
+
+export function AppShell({
+  children,
+  inspectorWidth,
+  rightRailOpen,
+  settingsOpen,
+  sidebar,
+  onOpenSettings,
+  overlays
+}: AppShellProps) {
+  const sidebarWidth = useStore($sidebarWidth)
+  const connection = useStore($connection)
+  const sidebarOpen = useStore($sidebarOpen)
+  const inspectorOpen = useStore($inspectorOpen)
+  const isSidebarResizing = useStore($isSidebarResizing)
+
+  const displayedSidebarWidth = sidebarOpen ? sidebarWidth : Math.round(sidebarWidth * 0.8)
+  const titlebarControls = titlebarControlsPosition(connection?.windowButtonPosition)
+  const showRightRail = rightRailOpen && inspectorOpen
+
+  const startSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      setSidebarResizing(true)
+
+      const startX = event.clientX
+      const startWidth = sidebarWidth
+      const previousCursor = document.body.style.cursor
+      const previousUserSelect = document.body.style.userSelect
+
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+
+      const handleMove = (moveEvent: PointerEvent) => {
+        setSidebarWidth(startWidth + moveEvent.clientX - startX)
+      }
+
+      const handleUp = () => {
+        setSidebarResizing(false)
+        document.body.style.cursor = previousCursor
+        document.body.style.userSelect = previousUserSelect
+        window.removeEventListener('pointermove', handleMove)
+        window.removeEventListener('pointerup', handleUp)
+      }
+
+      window.addEventListener('pointermove', handleMove)
+      window.addEventListener('pointerup', handleUp, { once: true })
+    },
+    [sidebarWidth]
+  )
+
+  return (
+    <SidebarProvider
+      className="h-screen min-h-0 bg-background"
+      onOpenChange={setSidebarOpen}
+      open={sidebarOpen}
+      style={
+        {
+          '--sidebar-width': `${displayedSidebarWidth}px`,
+          '--titlebar-height': `${TITLEBAR_HEIGHT}px`,
+          '--titlebar-controls-left': `${titlebarControls.left}px`,
+          '--titlebar-controls-top': `${titlebarControls.top}px`
+        } as CSSProperties
+      }
+    >
+      <TitlebarControls
+        onOpenSettings={onOpenSettings}
+        settingsOpen={settingsOpen}
+        showInspectorToggle={rightRailOpen}
+      />
+
+      <main
+        className={cn(
+          'relative grid h-screen w-full grid-cols-[var(--sidebar-width)_minmax(0,1fr)_var(--inspector-col)] overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75',
+          isSidebarResizing
+            ? 'transition-none'
+            : 'transition-[grid-template-columns,gap] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          sidebarOpen || showRightRail ? 'gap-2.5' : 'gap-0'
+        )}
+        style={
+          {
+            '--inspector-width': inspectorWidth,
+            '--inspector-col': showRightRail ? inspectorWidth : '0px'
+          } as CSSProperties
+        }
+      >
+        <div
+          aria-hidden="true"
+          className="absolute left-0 top-0 z-1 h-(--titlebar-height) w-(--titlebar-controls-left) [-webkit-app-region:drag]"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute right-20 top-0 z-1 h-(--titlebar-height) left-[calc(var(--titlebar-controls-left)+(var(--titlebar-control-size)*2)+0.75rem)] [-webkit-app-region:drag]"
+        />
+
+        {sidebar}
+
+        {sidebarOpen && (
+          <div
+            aria-label="Resize sidebar"
+            aria-orientation="vertical"
+            className="group absolute bottom-0 top-0 left-[calc(var(--sidebar-width)-0.5rem)] z-5 w-4 cursor-col-resize [-webkit-app-region:no-drag]"
+            onPointerDown={startSidebarResize}
+            role="separator"
+            tabIndex={0}
+          >
+            <span className="absolute left-1/2 top-1/2 h-23 w-0.75 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/80 opacity-0 transition-opacity duration-100 group-hover:opacity-[0.65] group-focus-visible:opacity-[0.65]" />
+          </div>
+        )}
+
+        {children}
+      </main>
+
+      {overlays}
+    </SidebarProvider>
+  )
+}

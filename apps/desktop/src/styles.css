@@ -1,0 +1,372 @@
+@import 'tailwindcss';
+@import 'tw-shimmer';
+/*---break---
+ */
+@custom-variant dark (&:is(.dark *));
+
+/**
+ * @theme inline bridges runtime CSS variables (--dt-*) set by the
+ * ThemeProvider into Tailwind utility tokens. Every time the theme
+ * switches, ThemeProvider writes new --dt-* values onto :root and
+ * all Tailwind utilities (bg-background, text-muted-foreground, …)
+ * update automatically — no class rewrite needed.
+ */
+@theme inline {
+  --color-background: var(--dt-background);
+  --color-foreground: var(--dt-foreground);
+  --color-card: var(--dt-card);
+  --color-card-foreground: var(--dt-card-foreground);
+  --color-muted: var(--dt-muted);
+  --color-muted-foreground: var(--dt-muted-foreground);
+  --color-popover: var(--dt-popover);
+  --color-popover-foreground: var(--dt-popover-foreground);
+  --color-primary: var(--dt-primary);
+  --color-primary-foreground: var(--dt-primary-foreground);
+  --color-secondary: var(--dt-secondary);
+  --color-secondary-foreground: var(--dt-secondary-foreground);
+  --color-accent: var(--dt-accent);
+  --color-accent-foreground: var(--dt-accent-foreground);
+  --color-border: var(--dt-border);
+  --color-input: var(--dt-input);
+  --color-ring: var(--dt-ring);
+  --color-destructive: var(--dt-destructive);
+  --color-destructive-foreground: var(--dt-destructive-foreground);
+
+  --font-sans: var(--dt-font-sans);
+  --font-mono: var(--dt-font-mono);
+
+  --spacing-mul: var(--dt-spacing-mul, 1);
+  --radius-sm: max(0rem, calc(var(--radius) - 0.25rem));
+  --radius-md: max(0rem, calc(var(--radius) - 0.125rem));
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-sidebar-border: var(--sidebar-border);
+
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+
+  --color-sidebar-accent: var(--sidebar-accent);
+
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+
+  --color-sidebar-primary: var(--sidebar-primary);
+
+  --color-sidebar-foreground: var(--sidebar-foreground);
+
+  --color-sidebar: var(--sidebar);
+
+  /* Shadow ink — derived from the foreground so it warms/cools with the theme. */
+  --shadow-ink: var(--dt-foreground);
+  --shadow-sidebar:
+    0.0625rem 0 0.125rem 0 color-mix(in srgb, #000 4%, transparent),
+    0.5rem 0 1.5rem -1rem color-mix(in srgb, #000 5%, transparent),
+    1.25rem 0 3rem -2rem color-mix(in srgb, #000 6%, transparent);
+  --shadow-header:
+    0 0.5rem 0.875rem -0.375rem color-mix(in srgb, var(--dt-background) 96%, transparent),
+    0 1.25rem 2rem -0.875rem color-mix(in srgb, var(--dt-background) 82%, transparent),
+    0 2rem 3rem -1.5rem color-mix(in srgb, var(--dt-background) 55%, transparent);
+  --shadow-composer:
+    0 0 0 0.0625rem color-mix(in srgb, var(--shadow-ink) 6%, transparent),
+    0 0.25rem 0.5rem color-mix(in srgb, var(--shadow-ink) 5%, transparent),
+    0 0.75rem 2rem color-mix(in srgb, var(--shadow-ink) 8%, transparent);
+  --shadow-composer-focus:
+    0 0 0 0.1875rem color-mix(in srgb, var(--dt-ring) 18%, transparent),
+    0 0 0 0.0625rem color-mix(in srgb, var(--dt-ring) 35%, transparent),
+    0 0.5rem 1.5rem color-mix(in srgb, var(--shadow-ink) 6%, transparent);
+  --shadow-user-message:
+    0 0.0625rem 0.125rem color-mix(in srgb, var(--shadow-ink) 6%, transparent),
+    0 0.25rem 0.75rem color-mix(in srgb, var(--shadow-ink) 4%, transparent);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+
+    /* Fallback values (Claude Light theme) — ThemeProvider overwrites on mount. */
+    --dt-background: #f7f7f7;
+    --dt-foreground: #242424;
+    --dt-card: #ffffff;
+    --dt-card-foreground: #242424;
+    --dt-muted: #f0f0ef;
+    --dt-muted-foreground: #737373;
+    --dt-popover: #ffffff;
+    --dt-popover-foreground: #242424;
+    --dt-primary: #cf806d;
+    --dt-primary-foreground: #ffffff;
+    --dt-secondary: #f1f1f0;
+    --dt-secondary-foreground: #2d2d2d;
+    --dt-accent: #eeeeed;
+    --dt-accent-foreground: #242424;
+    --dt-border: #dfdfdc;
+    --dt-input: #ddddda;
+    --dt-ring: #b97969;
+    --dt-destructive: #b94a3a;
+    --dt-destructive-foreground: #ffffff;
+    --dt-sidebar-bg: #fafafa;
+    --dt-sidebar-border: #e2e2df;
+    --dt-user-bubble: #f2f2f1;
+    --dt-user-bubble-border: #dededb;
+
+    --dt-font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+    --dt-font-mono: 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+    --dt-base-size: 0.9375rem;
+    --dt-line-height: 1.55;
+    --dt-letter-spacing: 0;
+    --dt-spacing-mul: 1;
+
+    --radius: 0.75rem;
+    --vsq: min(0.5vh, 0.5vw);
+    --image-preview-max-width: 34rem;
+    --image-preview-height: clamp(16.25rem, calc(var(--vsq) * 100), 26.25rem);
+
+    /* Sidebar layout */
+    --sidebar-width: 14rem;
+    --titlebar-control-size: 1.25rem;
+    --titlebar-control-height: 1.375rem;
+
+    --sidebar: var(--dt-sidebar-bg);
+    --sidebar-foreground: var(--dt-foreground);
+    --sidebar-primary: var(--dt-primary);
+    --sidebar-primary-foreground: var(--dt-primary-foreground);
+    --sidebar-accent: var(--dt-accent);
+    --sidebar-accent-foreground: var(--dt-accent-foreground);
+    --sidebar-border: var(--dt-sidebar-border);
+    --sidebar-ring: var(--dt-ring);
+    --sidebar-edge-border: color-mix(in srgb, var(--dt-sidebar-border) 42%, transparent);
+  }
+
+  :root.dark {
+    --sidebar-edge-border: color-mix(in srgb, var(--dt-sidebar-border) 78%, transparent);
+    --shadow-sidebar:
+      0.0625rem 0 0.125rem 0 color-mix(in srgb, #000 82%, transparent),
+      0.75rem 0 1.75rem -1rem color-mix(in srgb, #000 72%, transparent),
+      1.5rem 0 3rem -1.75rem color-mix(in srgb, #000 62%, transparent);
+  }
+
+  * {
+    box-sizing: border-box;
+    border-color: var(--dt-border);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    font-size: var(--dt-base-size, 0.9375rem);
+  }
+
+  body {
+    margin: 0;
+    background: var(--dt-background);
+    color: var(--dt-foreground);
+    font-family: var(--dt-font-sans);
+    line-height: var(--dt-line-height, 1.55);
+    letter-spacing: var(--dt-letter-spacing, 0);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  textarea {
+    font: inherit;
+  }
+}
+
+button {
+  -webkit-app-region: no-drag;
+}
+
+input,
+textarea,
+[contenteditable]:not([contenteditable='false']),
+[data-slot='aui_user-message-root'],
+[data-slot='aui_assistant-message-content'] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+button,
+[role='button'] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+img,
+video,
+canvas {
+  -webkit-user-drag: none;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--dt-muted-foreground) 32%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--dt-muted-foreground) 32%, transparent);
+  border-radius: 9999px;
+  border: 0.125rem solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--dt-muted-foreground) 55%, transparent);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+}
+
+@supports (content-visibility: auto) {
+  [data-slot='aui_user-message-root'],
+  [data-slot='aui_assistant-message-root'] {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 10rem;
+  }
+
+  [data-slot='aui_user-message-root'] {
+    contain-intrinsic-size: auto 4rem;
+  }
+}
+
+.aui-md img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, var(--image-preview-max-width));
+  max-height: var(--image-preview-height);
+  object-fit: contain;
+  border: 0.0625rem solid color-mix(in srgb, var(--dt-border) 70%, transparent);
+  border-radius: 1.125rem;
+  box-shadow:
+    0 0.0625rem 0.125rem color-mix(in srgb, #000 4%, transparent),
+    0 0.625rem 1.5rem color-mix(in srgb, #000 5%, transparent);
+}
+
+.aui-md [data-slot='aui_markdown-image'] {
+  max-width: min(100%, var(--image-preview-max-width));
+}
+
+.aui-md {
+  overflow-wrap: anywhere;
+}
+
+.aui-md a,
+.aui-md code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.aui-md p:has(> img:only-child) {
+  margin-block: 0.75rem;
+}
+
+.aui-md p:has(> [data-slot='aui_markdown-image']:only-child) {
+  margin-block: 0.75rem;
+}
+
+/**
+ * Markdown rhythm. Streamdown's wrapper <div> blocks `> *` selectors and
+ * its bundled `space-y-4` lives in node_modules (unscanned by Tailwind v4),
+ * so we drive everything from descendant selectors against tags. Each
+ * block gets a uniform `margin-bottom`; headings add `margin-top` for
+ * section breaks. Margin collapse picks the larger neighbor — producing
+ * "more above headings, less below" without per-pair rules.
+ */
+.aui-md p,
+.aui-md ul,
+.aui-md ol,
+.aui-md blockquote,
+.aui-md pre,
+.aui-md table,
+.aui-md [data-streamdown='code-block'],
+.aui-md div:has(> table) {
+  margin: 0 0 1rem;
+}
+
+.aui-md h1 {
+  margin: 1.6rem 0 0.55rem;
+}
+.aui-md h2 {
+  margin: 1.4rem 0 0.5rem;
+}
+.aui-md h3 {
+  margin: 1.15rem 0 0.45rem;
+}
+.aui-md h4 {
+  margin: 0.95rem 0 0.4rem;
+}
+.aui-md hr {
+  margin: 1.5rem 0;
+}
+
+/* `padding-left` keeps outside-position list markers in the gutter. */
+.aui-md ul,
+.aui-md ol {
+  padding-left: 1.75rem;
+}
+
+/* Tight inter-bullet gap; loose items override below. */
+.aui-md li + li {
+  margin-top: 0.375rem;
+}
+
+/* Inside a bullet, hug nested blocks to the lead text. */
+.aui-md li > p {
+  margin-bottom: 0.4rem;
+}
+.aui-md li > ul,
+.aui-md li > ol {
+  margin-top: 0.4rem;
+}
+
+/* Loose list items (CommonMark wraps each in <p> when any sibling has a
+   block child) need visible separation — the tight rhythm collapses
+   against a trailing heavy block like a code fence. */
+.aui-md li:has(> p) {
+  margin-bottom: 0.85rem;
+}
+.aui-md li:has(> p):last-child {
+  margin-bottom: 0;
+}
+
+/* Trim edge margins at the container, list items, and blockquotes. */
+.aui-md > :first-child,
+.aui-md > * > :first-child,
+.aui-md li > :first-child,
+.aui-md blockquote > :first-child {
+  margin-top: 0;
+}
+.aui-md > :last-child,
+.aui-md > * > :last-child,
+.aui-md li > :last-child,
+.aui-md blockquote > :last-child {
+  margin-bottom: 0;
+}

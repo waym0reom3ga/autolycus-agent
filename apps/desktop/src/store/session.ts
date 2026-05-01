@@ -1,0 +1,59 @@
+import { atom } from 'nanostores'
+
+import type { HermesConnection } from '@/global'
+import type { ChatMessage } from '@/lib/chat-messages'
+import type { SessionInfo } from '@/types/hermes'
+import type { ContextSuggestion } from '@/app/types'
+
+type Updater<T> = T | ((current: T) => T)
+
+interface AppAtom<T> {
+  get: () => T
+  set: (value: T) => void
+}
+
+function updateAtom<T>(store: AppAtom<T>, next: Updater<T>) {
+  store.set(typeof next === 'function' ? (next as (current: T) => T)(store.get()) : next)
+}
+
+export const $connection = atom<HermesConnection | null>(null)
+export const $gatewayState = atom('idle')
+export const $sessions = atom<SessionInfo[]>([])
+export const $sessionsLoading = atom(true)
+export const $activeSessionId = atom<string | null>(null)
+export const $selectedStoredSessionId = atom<string | null>(null)
+export const $messages = atom<ChatMessage[]>([])
+export const $freshDraftReady = atom(false)
+export const $busy = atom(false)
+export const $awaitingResponse = atom(false)
+export const $currentModel = atom('')
+export const $currentProvider = atom('')
+export const $currentCwd = atom('')
+export const $currentBranch = atom('')
+export const $introPersonality = atom('')
+export const $currentPersonality = atom('')
+export const $availablePersonalities = atom<string[]>([])
+export const $introSeed = atom(0)
+export const $contextSuggestions = atom<ContextSuggestion[]>([])
+export const $modelPickerOpen = atom(false)
+
+export const setConnection = (next: Updater<HermesConnection | null>) => updateAtom($connection, next)
+export const setGatewayState = (next: Updater<string>) => updateAtom($gatewayState, next)
+export const setSessions = (next: Updater<SessionInfo[]>) => updateAtom($sessions, next)
+export const setSessionsLoading = (next: Updater<boolean>) => updateAtom($sessionsLoading, next)
+export const setActiveSessionId = (next: Updater<string | null>) => updateAtom($activeSessionId, next)
+export const setSelectedStoredSessionId = (next: Updater<string | null>) => updateAtom($selectedStoredSessionId, next)
+export const setMessages = (next: Updater<ChatMessage[]>) => updateAtom($messages, next)
+export const setFreshDraftReady = (next: Updater<boolean>) => updateAtom($freshDraftReady, next)
+export const setBusy = (next: Updater<boolean>) => updateAtom($busy, next)
+export const setAwaitingResponse = (next: Updater<boolean>) => updateAtom($awaitingResponse, next)
+export const setCurrentModel = (next: Updater<string>) => updateAtom($currentModel, next)
+export const setCurrentProvider = (next: Updater<string>) => updateAtom($currentProvider, next)
+export const setCurrentCwd = (next: Updater<string>) => updateAtom($currentCwd, next)
+export const setCurrentBranch = (next: Updater<string>) => updateAtom($currentBranch, next)
+export const setIntroPersonality = (next: Updater<string>) => updateAtom($introPersonality, next)
+export const setCurrentPersonality = (next: Updater<string>) => updateAtom($currentPersonality, next)
+export const setAvailablePersonalities = (next: Updater<string[]>) => updateAtom($availablePersonalities, next)
+export const setIntroSeed = (next: Updater<number>) => updateAtom($introSeed, next)
+export const setContextSuggestions = (next: Updater<ContextSuggestion[]>) => updateAtom($contextSuggestions, next)
+export const setModelPickerOpen = (next: Updater<boolean>) => updateAtom($modelPickerOpen, next)

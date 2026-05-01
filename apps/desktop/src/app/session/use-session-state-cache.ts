@@ -1,0 +1,109 @@
+import { useStore } from '@nanostores/react'
+import { useCallback, useEffect, useRef, type MutableRefObject } from 'react'
+
+import { createClientSessionState } from '@/lib/chat-runtime'
+import type { ChatMessage } from '@/lib/chat-messages'
+import { $busy } from '@/store/session'
+
+import type { ClientSessionState } from '../types'
+
+interface SessionStateCacheOptions {
+  activeSessionId: string | null
+  busyRef: MutableRefObject<boolean>
+  selectedStoredSessionId: string | null
+  setAwaitingResponse: (awaiting: boolean) => void
+  setBusy: (busy: boolean) => void
+  setMessages: (messages: ChatMessage[]) => void
+}
+
+export function useSessionStateCache({
+  activeSessionId,
+  busyRef,
+  selectedStoredSessionId,
+  setAwaitingResponse,
+  setBusy,
+  setMessages
+}: SessionStateCacheOptions) {
+  const busy = useStore($busy)
+  const activeSessionIdRef = useRef<string | null>(null)
+  const selectedStoredSessionIdRef = useRef<string | null>(null)
+  const sessionStateByRuntimeIdRef = useRef(new Map<string, ClientSessionState>())
+  const runtimeIdByStoredSessionIdRef = useRef(new Map<string, string>())
+
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId
+  }, [activeSessionId])
+
+  useEffect(() => {
+    busyRef.current = busy
+  }, [busy, busyRef])
+
+  useEffect(() => {
+    selectedStoredSessionIdRef.current = selectedStoredSessionId
+  }, [selectedStoredSessionId])
+
+  const ensureSessionState = useCallback((sessionId: string, storedSessionId?: string | null) => {
+    const existing = sessionStateByRuntimeIdRef.current.get(sessionId)
+
+    if (existing) {
+      if (storedSessionId !== undefined) {
+        existing.storedSessionId = storedSessionId
+
+        if (storedSessionId) {
+          runtimeIdByStoredSessionIdRef.current.set(storedSessionId, sessionId)
+        }
+      }
+
+      return existing
+    }
+
+    const created = createClientSessionState(storedSessionId ?? null)
+    sessionStateByRuntimeIdRef.current.set(sessionId, created)
+
+    if (storedSessionId) {
+      runtimeIdByStoredSessionIdRef.current.set(storedSessionId, sessionId)
+    }
+
+    return created
+  }, [])
+
+  const syncSessionStateToView = useCallback(
+    (sessionId: string, state: ClientSessionState) => {
+      if (sessionId !== activeSessionIdRef.current) {
+        return
+      }
+
+      setMessages(state.messages)
+      setBusy(state.busy)
+      busyRef.current = state.busy
+      setAwaitingResponse(state.awaitingResponse)
+    },
+    [busyRef, setAwaitingResponse, setBusy, setMessages]
+  )
+
+  const updateSessionState = useCallback(
+    (
+      sessionId: string,
+      updater: (state: ClientSessionState) => ClientSessionState,
+      storedSessionId?: string | null
+    ) => {
+      const previous = ensureSessionState(sessionId, storedSessionId)
+      const next = updater({ ...previous, messages: previous.messages })
+      sessionStateByRuntimeIdRef.current.set(sessionId, next)
+      syncSessionStateToView(sessionId, next)
+
+      return next
+    },
+    [ensureSessionState, syncSessionStateToView]
+  )
+
+  return {
+    activeSessionIdRef,
+    ensureSessionState,
+    runtimeIdByStoredSessionIdRef,
+    selectedStoredSessionIdRef,
+    sessionStateByRuntimeIdRef,
+    syncSessionStateToView,
+    updateSessionState
+  }
+}
