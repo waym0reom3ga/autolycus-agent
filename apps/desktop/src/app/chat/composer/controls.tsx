@@ -15,6 +15,7 @@ interface ConversationProps {
   status: ConversationStatus
   onEnd: () => void
   onStart: () => void
+  onStopTurn: () => void
   onToggleMute: () => void
 }
 
@@ -80,6 +81,7 @@ function ConversationPill({
   level,
   muted,
   onEnd,
+  onStopTurn,
   onToggleMute,
   status
 }: ConversationProps & { disabled: boolean }) {
@@ -104,10 +106,10 @@ function ConversationPill({
         aria-pressed={muted}
         className={cn(GHOST_ICON_BTN, 'p-0', muted && 'bg-muted text-muted-foreground')}
         disabled={disabled}
-      onClick={() => {
-        triggerHaptic('selection')
-        onToggleMute()
-      }}
+        onClick={() => {
+          triggerHaptic('selection')
+          onToggleMute()
+        }}
         size="icon"
         title={muted ? 'Unmute microphone' : 'Mute microphone'}
         type="button"
@@ -115,6 +117,23 @@ function ConversationPill({
       >
         {muted ? <MicOff size={16} /> : <Mic size={16} />}
       </Button>
+      {listening && (
+        <Button
+          aria-label="Stop listening and send"
+          className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+          disabled={disabled}
+          onClick={() => {
+            triggerHaptic('submit')
+            onStopTurn()
+          }}
+          title="Stop listening and send"
+          type="button"
+          variant="ghost"
+        >
+          <Square className="fill-current" size={11} />
+          <span>Stop</span>
+        </Button>
+      )}
       <Button
         aria-label="End voice conversation"
         className="h-8 gap-1.5 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"

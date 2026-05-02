@@ -1,19 +1,53 @@
 import { AssistantRuntimeProvider, type ThreadMessage, useExternalStoreRuntime } from '@assistant-ui/react'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useEffect, useState } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { Thread } from './thread'
 
 const createdAt = new Date('2026-05-01T00:00:00.000Z')
 
+const resizeObservers = new Set<TestResizeObserver>()
+
 class TestResizeObserver {
-  observe() {}
+  private target: Element | null = null
+
+  constructor(private readonly callback: ResizeObserverCallback) {
+    resizeObservers.add(this)
+  }
+
+  observe(target: Element) {
+    this.target = target
+  }
+
   unobserve() {}
-  disconnect() {}
+
+  disconnect() {
+    resizeObservers.delete(this)
+  }
+
+  trigger(height: number) {
+    if (!this.target) {
+      return
+    }
+
+    this.callback(
+      [
+        {
+          contentRect: { height } as DOMRectReadOnly,
+          target: this.target
+        } as ResizeObserverEntry
+      ],
+      this as unknown as ResizeObserver
+    )
+  }
 }
 
 vi.stubGlobal('ResizeObserver', TestResizeObserver)
+vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+  window.setTimeout(() => callback(performance.now()), 0)
+)
+vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id))
 
 Element.prototype.scrollTo = function scrollTo() {}
 
@@ -90,6 +124,10 @@ function StreamingHarness() {
 }
 
 describe('assistant-ui streaming renderer', () => {
+  beforeEach(() => {
+    resizeObservers.clear()
+  })
+
   it('renders assistant text incrementally before completion', async () => {
     const { container } = render(<StreamingHarness />)
 
@@ -114,5 +152,43 @@ describe('assistant-ui streaming renderer', () => {
     await waitFor(() => {
       expect(container.textContent).toContain('first chunk second chunk')
     })
+  })
+
+  it('does not pull the viewport back down after the user scrolls up during streaming', async () => {
+    const { container } = render(<StreamingHarness />)
+
+    const viewport = container.querySelector('[data-slot="aui_thread-viewport"]') as HTMLDivElement
+    let scrollHeight = 1_000
+
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 200 })
+    Object.defineProperty(viewport, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight
+    })
+
+    await wait(80)
+
+    await act(async () => {
+      viewport.scrollTop = 800
+      fireEvent.scroll(viewport)
+    })
+    await wait(0)
+
+    await act(async () => {
+      fireEvent.wheel(viewport, { deltaY: -120 })
+      viewport.scrollTop = 420
+      fireEvent.scroll(viewport)
+    })
+
+    scrollHeight = 1_200
+
+    await act(async () => {
+      for (const observer of resizeObservers) {
+        observer.trigger(1_200)
+      }
+    })
+    await wait(0)
+
+    expect(viewport.scrollTop).toBe(420)
   })
 })

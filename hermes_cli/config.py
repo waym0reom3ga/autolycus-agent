@@ -830,7 +830,7 @@ DEFAULT_CONFIG = {
     
     "stt": {
         "enabled": True,
-        "provider": "local",  # "local" (free, faster-whisper) | "groq" | "openai" (Whisper API) | "mistral" (Voxtral Transcribe)
+        "provider": "local",  # "local" (free, faster-whisper) | "groq" | "openai" (Whisper API) | "mistral" (Voxtral Transcribe) | "elevenlabs" (Scribe)
         "local": {
             "model": "base",  # tiny, base, small, medium, large-v3
             "language": "",  # auto-detect by default; set to "en", "es", "fr", etc. to force
@@ -840,6 +840,12 @@ DEFAULT_CONFIG = {
         },
         "mistral": {
             "model": "voxtral-mini-latest",  # voxtral-mini-latest, voxtral-mini-2602
+        },
+        "elevenlabs": {
+            "model_id": "scribe_v2",  # scribe_v2, scribe_v1
+            "language_code": "",  # auto-detect by default; set to "eng", "spa", "fra", etc. to force
+            "tag_audio_events": False,
+            "diarize": False,
         },
     },
 
@@ -1791,9 +1797,10 @@ OPTIONAL_ENV_VARS = {
         "category": "tool",
     },
     "ELEVENLABS_API_KEY": {
-        "description": "ElevenLabs API key for premium text-to-speech voices",
+        "description": "ElevenLabs API key for premium text-to-speech voices and Scribe transcription",
         "prompt": "ElevenLabs API key",
         "url": "https://elevenlabs.io/",
+        "tools": ["elevenlabs_tts", "voice_transcription"],
         "password": True,
         "category": "tool",
     },

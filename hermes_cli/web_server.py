@@ -280,7 +280,12 @@ _SCHEMA_OVERRIDES: Dict[str, Dict[str, Any]] = {
     "stt.provider": {
         "type": "select",
         "description": "Speech-to-text provider",
-        "options": ["local", "openai", "mistral"],
+        "options": ["local", "groq", "openai", "mistral", "xai", "elevenlabs"],
+    },
+    "stt.elevenlabs.model_id": {
+        "type": "select",
+        "description": "ElevenLabs Scribe model",
+        "options": ["scribe_v2", "scribe_v1"],
     },
     "display.skin": {
         "type": "select",

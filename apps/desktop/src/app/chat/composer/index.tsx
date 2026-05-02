@@ -32,7 +32,7 @@ import { useVoiceConversation } from './hooks/use-voice-conversation'
 import { useVoiceRecorder } from './hooks/use-voice-recorder'
 import type { ChatBarProps } from './types'
 import { UrlDialog } from './url-dialog'
-import { VoiceActivity } from './voice-activity'
+import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
 
 function trimPastedEdgeNewlines(text: string): string {
   return text.replace(EDGE_NEWLINES_RE, '')
@@ -45,7 +45,6 @@ export function ChatBar({
   maxRecordingSeconds = DEFAULT_MAX_RECORDING_SECONDS,
   state,
   onCancel,
-  onAddContextRef,
   onAddUrl,
   onPasteClipboardImage,
   onPickFiles,
@@ -203,7 +202,7 @@ export function ChatBar({
       onCancel()
     } else if (draft.trim() || attachments.length > 0) {
       triggerHaptic('submit')
-      onSubmit(draft)
+      void onSubmit(draft)
       aui.composer().setText('')
     }
 
@@ -235,9 +234,9 @@ export function ChatBar({
     onTranscribeAudio
   })
 
-  const pendingResponseText = () => {
+  const pendingResponse = () => {
     const messages = $messages.get()
-    const last = messages.findLast(m => m.role === 'assistant' && !m.pending && !m.hidden)
+    const last = messages.findLast(m => m.role === 'assistant' && !m.hidden)
 
     if (!last || last.id === lastSpokenIdRef.current) {
       return null
@@ -249,9 +248,11 @@ export function ChatBar({
       return null
     }
 
-    lastSpokenIdRef.current = last.id
-
-    return text
+    return {
+      id: last.id,
+      pending: Boolean(last.pending),
+      text
+    }
   }
 
   const consumePendingResponse = () => {
@@ -263,13 +264,13 @@ export function ChatBar({
     }
   }
 
-  const submitVoiceTurn = (text: string) => {
+  const submitVoiceTurn = async (text: string) => {
     if (busy) {
       return
     }
 
     triggerHaptic('submit')
-    onSubmit(text)
+    await onSubmit(text)
     aui.composer().setText('')
     draftRef.current = ''
   }
@@ -281,12 +282,11 @@ export function ChatBar({
     onFatalError: () => setVoiceConversationActive(false),
     onSubmit: submitVoiceTurn,
     onTranscribeAudio,
-    pendingResponseText
+    pendingResponse
   })
 
   const contextMenu = (
     <ContextMenu
-      onAddContextRef={onAddContextRef}
       onInsertText={insertText}
       onOpenUrlDialog={() => {
         triggerHaptic('open')
@@ -313,6 +313,7 @@ export function ChatBar({
           void conversation.end()
         },
         onStart: () => setVoiceConversationActive(true),
+        onStopTurn: conversation.stopTurn,
         onToggleMute: conversation.toggleMute,
         status: conversation.status
       }}
@@ -343,14 +344,12 @@ export function ChatBar({
   return (
     <>
       <ComposerPrimitive.Unstable_TriggerPopoverRoot>
-        {mentionCategories.length > 0 && (
-          <DirectivePopover
-            adapter={mention.adapter}
-            directive={mention.directive}
-            fallbackIcon={mention.fallbackIcon ?? FileText}
-            iconMap={mention.iconMap ?? DIRECTIVE_ICONS}
-          />
-        )}
+        <DirectivePopover
+          adapter={mention.adapter}
+          directive={mention.directive}
+          fallbackIcon={mention.fallbackIcon ?? FileText}
+          iconMap={mention.iconMap ?? DIRECTIVE_ICONS}
+        />
         <ComposerPrimitive.Root
           className={cn(SHELL, 'group/composer pb-8 pt-2')}
           onSubmit={e => {
@@ -407,6 +406,7 @@ export function ChatBar({
               style={{ ...COMPOSER_BACKDROP_STYLE, borderRadius: `${glassTweaks.liquid.cornerRadius}px` }}
             >
               <VoiceActivity state={voiceActivityState} />
+              <VoicePlaybackActivity />
               {attachments.length > 0 && <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} />}
               {stacked ? (
                 <>

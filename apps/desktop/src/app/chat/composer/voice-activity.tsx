@@ -1,6 +1,10 @@
-import { Loader2, Mic } from 'lucide-react'
+import { useStore } from '@nanostores/react'
+import { Loader2, Mic, Volume2, VolumeX } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { stopVoicePlayback } from '@/lib/voice-playback'
+import { $voicePlayback } from '@/store/voice-playback'
 
 import type { VoiceActivityState } from './types'
 
@@ -32,6 +36,25 @@ function VoiceLevelBars({ level, active }: { active: boolean; level: number }) {
           />
         )
       })}
+    </div>
+  )
+}
+
+function PlaybackBars() {
+  const bars = [820, 940, 760, 880, 700, 980, 790]
+
+  return (
+    <div aria-hidden="true" className="flex h-4 items-center gap-0.75">
+      {bars.map((duration, index) => (
+        <span
+          className="voice-wave-bar h-full w-0.5 rounded-full bg-current"
+          key={index}
+          style={{
+            animationDelay: `${index * -110}ms`,
+            animationDuration: `${duration}ms`
+          }}
+        />
+      ))}
     </div>
   )
 }
@@ -72,6 +95,53 @@ export function VoiceActivity({
       </div>
 
       <VoiceLevelBars active={recording} level={state.level} />
+    </div>
+  )
+}
+
+export function VoicePlaybackActivity() {
+  const playback = useStore($voicePlayback)
+
+  if (playback.status === 'idle') {
+    return null
+  }
+
+  const preparing = playback.status === 'preparing'
+
+  const title = preparing
+    ? 'Preparing audio'
+    : playback.source === 'voice-conversation'
+      ? 'Speaking response'
+      : 'Reading aloud'
+
+  return (
+    <div
+      aria-live="polite"
+      className={cn(
+        'flex h-8 items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-2.5 text-xs text-primary',
+        'shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] backdrop-blur-sm'
+      )}
+      role="status"
+    >
+      <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+        {preparing ? <Loader2 className="animate-spin" size={12} /> : <Volume2 size={12} />}
+      </div>
+
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="truncate font-medium text-foreground/85">{title}</span>
+        {!preparing && <PlaybackBars />}
+      </div>
+
+      <Button
+        className="h-6 shrink-0 gap-1 rounded-full px-2 text-[0.6875rem]"
+        onClick={stopVoicePlayback}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <VolumeX size={12} />
+        Stop
+      </Button>
     </div>
   )
 }

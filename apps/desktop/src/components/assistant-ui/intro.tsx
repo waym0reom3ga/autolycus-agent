@@ -19,6 +19,7 @@ export type IntroProps = {
 const NEUTRAL_PERSONALITIES = new Set(['', 'default', 'none', 'neutral'])
 
 const HERMES_FRAME_COUNT = 8
+const ASSET_BASE_URL = import.meta.env.BASE_URL || '/'
 
 const FALLBACK_COPY: IntroCopy[] = [
   {
@@ -154,6 +155,10 @@ function resolveCopy(personality?: string, seed?: number): IntroCopy {
   return pickCopy(copies, seed)
 }
 
+function publicAssetPath(path: string): string {
+  return `${ASSET_BASE_URL}${path}`.replace(/([^:]\/)\/+/g, '$1')
+}
+
 export const Intro: FC<IntroProps> = ({ personality, seed }) => {
   const [mountSeed] = useState(() => Math.floor(Math.random() * 100000))
   const [frameOffset, setFrameOffset] = useState(0)
@@ -184,7 +189,7 @@ export const Intro: FC<IntroProps> = ({ personality, seed }) => {
           aria-hidden="true"
           className="h-full w-full scale-110 object-contain select-none"
           draggable={false}
-          src={`/hermes-frames/hermes-frame-${frameIndex}.png?v=matte-clean-6`}
+          src={publicAssetPath(`hermes-frames/hermes-frame-${frameIndex}.png?v=matte-clean-6`)}
         />
       </button>
       <p className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/75">Hermes Agent</p>

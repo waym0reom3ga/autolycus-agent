@@ -23,6 +23,7 @@
   "dependencies": {
     "@assistant-ui/react": "^0.12.28",
     "@assistant-ui/react-streamdown": "^0.1.11",
+    "@audiowave/react": "^0.6.2",
     "@chenglou/pretext": "^0.0.6",
     "@nanostores/react": "^1.1.0",
     "@radix-ui/react-slot": "^1.2.4",

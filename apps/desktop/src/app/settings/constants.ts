@@ -60,6 +60,7 @@ export const ENUM_OPTIONS: Record<string, string[]> = {
   'context.engine': ['compressor', 'default', 'custom'],
   'delegation.reasoning_effort': ['', 'minimal', 'low', 'medium', 'high', 'xhigh'],
   'memory.provider': ['', 'builtin', 'honcho'],
+  'stt.elevenlabs.model_id': ['scribe_v2', 'scribe_v1'],
   'stt.local.model': ['tiny', 'base', 'small', 'medium', 'large-v3'],
   'tts.openai.voice': ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
 }
@@ -101,6 +102,10 @@ export const FIELD_LABELS: Record<string, string> = {
   'stt.provider': 'Speech-To-Text Provider',
   'stt.local.model': 'Local Transcription Model',
   'stt.local.language': 'Transcription Language',
+  'stt.elevenlabs.model_id': 'ElevenLabs STT Model',
+  'stt.elevenlabs.language_code': 'ElevenLabs Language',
+  'stt.elevenlabs.tag_audio_events': 'Tag Audio Events',
+  'stt.elevenlabs.diarize': 'Speaker Diarization',
   'tts.provider': 'Text-To-Speech Provider',
   'tts.edge.voice': 'Edge Voice',
   'tts.openai.model': 'OpenAI TTS Model',
@@ -157,6 +162,7 @@ export const FIELD_DESCRIPTIONS: Record<string, string> = {
   'compression.enabled': 'Summarize older context when conversations get large.',
   'voice.auto_tts': 'Automatically speak assistant responses.',
   'stt.enabled': 'Enable local or provider-backed speech transcription.',
+  'stt.elevenlabs.language_code': 'Optional ISO-639-3 language code. Blank lets ElevenLabs auto-detect.',
   'agent.max_turns': 'Upper bound for tool-calling turns before Hermes stops a run.'
 }
 
@@ -241,6 +247,10 @@ export const SECTIONS: DesktopConfigSection[] = [
       'tts.elevenlabs.model_id',
       'stt.local.model',
       'stt.local.language',
+      'stt.elevenlabs.model_id',
+      'stt.elevenlabs.language_code',
+      'stt.elevenlabs.tag_audio_events',
+      'stt.elevenlabs.diarize',
       'voice.record_key',
       'voice.max_recording_seconds'
     ]

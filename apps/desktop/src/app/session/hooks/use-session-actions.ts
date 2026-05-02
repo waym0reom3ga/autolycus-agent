@@ -87,6 +87,11 @@ export function useSessionActions({
 
   const createBackendSessionForSend = useCallback(async (): Promise<string | null> => {
     const created = await requestGateway<SessionCreateResponse>('session.create', { cols: 96 })
+
+    if (created.stored_session_id) {
+      navigate(sessionRoute(created.stored_session_id), { replace: true })
+    }
+
     setActiveSessionId(created.session_id)
     activeSessionIdRef.current = created.session_id
     ensureSessionState(created.session_id, created.stored_session_id ?? null)
@@ -94,7 +99,6 @@ export function useSessionActions({
     if (created.stored_session_id) {
       setSelectedStoredSessionId(created.stored_session_id)
       selectedStoredSessionIdRef.current = created.stored_session_id
-      navigate(sessionRoute(created.stored_session_id), { replace: true })
     }
 
     if (created.info?.model) {

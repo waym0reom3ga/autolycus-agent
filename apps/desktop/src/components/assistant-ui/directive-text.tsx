@@ -24,10 +24,63 @@ const ICONS: Record<HermesRefType, ComponentType<{ className?: string }>> = {
  * so they render as inline chips in user messages instead of raw text.
  *
  * Supported types: file, folder, url, image. Anything else stays plain text.
+ *
+ * Mirrors the Python `agent/context_references.REFERENCE_PATTERN` syntax:
+ * the value may be wrapped in backticks, single quotes, or double quotes so
+ * paths with spaces/parens/etc. survive parsing intact.
  */
-const CANONICAL_DIRECTIVE_RE = /:([\w-]{1,64})\[([^\]\n]{1,1024})\](?:\{name=([^}\n]{1,1024})\})?/gu
+const CANONICAL_DIRECTIVE_RE = /:([\w-]{1,64})\[([^\]\n]{1,1024})\](?:\{name=([^}\n]{1,1024})\})?/g
 
-const HERMES_DIRECTIVE_RE = /@(file|folder|url|image|tool):(\S+)/gu
+const HERMES_DIRECTIVE_RE = new RegExp(
+  '@(file|folder|url|image|tool):(' +
+    '`[^`\\n]+`' +
+    '|"[^"\\n]+"' +
+    "|'[^'\\n]+'" +
+    '|\\S+' +
+    ')',
+  'g'
+)
+
+const TRAILING_PUNCTUATION_RE = /[,.;!?]+$/
+
+function unwrapRefValue(raw: string): string {
+  if (raw.length < 2) {
+    return raw
+  }
+
+  const head = raw[0]
+  const tail = raw[raw.length - 1]
+
+  if ((head === '`' && tail === '`') || (head === '"' && tail === '"') || (head === "'" && tail === "'")) {
+    return raw.slice(1, -1)
+  }
+
+  return raw.replace(TRAILING_PUNCTUATION_RE, '')
+}
+
+function needsQuoting(value: string): boolean {
+  return /[\s()\[\]{}<>"'`]/.test(value)
+}
+
+export function formatRefValue(value: string): string {
+  if (!needsQuoting(value)) {
+    return value
+  }
+
+  if (!value.includes('`')) {
+    return `\`${value}\``
+  }
+
+  if (!value.includes('"')) {
+    return `"${value}"`
+  }
+
+  if (!value.includes("'")) {
+    return `'${value}'`
+  }
+
+  return value
+}
 
 export const hermesDirectiveFormatter: Unstable_DirectiveFormatter = {
   serialize(item: Unstable_TriggerItem): string {
@@ -35,7 +88,7 @@ export const hermesDirectiveFormatter: Unstable_DirectiveFormatter = {
       return `@${item.id}`
     }
 
-    return `@${item.type}:${item.id}`
+    return `@${item.type}:${formatRefValue(item.id)}`
   },
   parse(text: string): readonly Unstable_DirectiveSegment[] {
     return parseDirectiveText(text)
@@ -51,13 +104,17 @@ function parseDirectiveText(text: string): Unstable_DirectiveSegment[] {
       label: match[2] || match[3] || '',
       id: match[3] || match[2] || ''
     })),
-    ...Array.from(text.matchAll(HERMES_DIRECTIVE_RE)).map(match => ({
-      start: match.index ?? 0,
-      end: (match.index ?? 0) + match[0].length,
-      type: match[1] || 'file',
-      label: shortLabel(match[1] as HermesRefType, match[2] || ''),
-      id: match[2] || ''
-    }))
+    ...Array.from(text.matchAll(HERMES_DIRECTIVE_RE)).map(match => {
+      const id = unwrapRefValue(match[2] || '')
+
+      return {
+        start: match.index ?? 0,
+        end: (match.index ?? 0) + match[0].length,
+        type: match[1] || 'file',
+        label: shortLabel(match[1] as HermesRefType, id),
+        id
+      }
+    })
   ]
     .filter(match => match.id)
     .sort((a, b) => a.start - b.start)
@@ -136,14 +193,14 @@ const DirectiveChip: FC<{
   return (
     <span
       className={cn(
-        'mx-0.5 inline-flex max-w-56 items-center gap-1 rounded-full border border-border/80 bg-background/95 px-1.5 py-0.5 align-[0.05em] text-[0.82em] font-medium leading-none text-foreground shadow-sm ring-1 ring-black/3'
+        'mx-0.5 inline-flex max-w-64 items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--dt-primary)_16%,transparent)] px-2 py-0.5 align-[0.02em] text-[0.92em] font-semibold leading-tight text-primary ring-1 ring-inset ring-primary/10'
       )}
       data-directive-id={id}
       data-directive-type={type}
       data-slot="aui_directive-chip"
       title={id}
     >
-      {Icon && <Icon className="size-3 shrink-0 text-muted-foreground" />}
+      {Icon && <Icon className="size-3.5 shrink-0 text-primary" />}
       <span className="truncate">{label}</span>
     </span>
   )

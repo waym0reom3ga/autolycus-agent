@@ -1,4 +1,3 @@
-import type { Unstable_TriggerItem } from '@assistant-ui/core'
 import type { Unstable_IconComponent } from '@assistant-ui/react'
 import { FileText, FolderOpen, ImageIcon, Link, type LucideIcon } from 'lucide-react'
 import type { CSSProperties } from 'react'
@@ -37,7 +36,7 @@ export const DIRECTIVE_ICONS: Record<string, Unstable_IconComponent> = {
 }
 
 export const DIRECTIVE_POPOVER_CLASS =
-  'absolute bottom-24 left-1/2 z-50 w-[min(calc(100vw-1.5rem),28rem)] max-h-[min(28rem,calc(100vh-8rem))] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-2xl border border-border/70 bg-popover p-1.5 text-popover-foreground shadow-2xl'
+  'absolute bottom-24 left-1/2 z-50 w-[min(calc(100vw-1.5rem),26rem)] max-h-[min(24rem,calc(100vh-8rem))] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-2xl border border-border/60 bg-popover/95 p-1.5 text-popover-foreground shadow-2xl backdrop-blur-md ring-1 ring-black/5'
 
 export const PROMPT_SNIPPETS = [
   {
@@ -62,37 +61,6 @@ export const ASK_PLACEHOLDERS = [
   "Share what you're working on and we'll figure it out.",
   "Tell me where you're stuck and I'll stay with you.",
   'Duck mode: gentle debugging, together.'
-]
-
-export const REF_ITEMS: Unstable_TriggerItem[] = [
-  {
-    id: 'file:',
-    type: 'file',
-    label: 'File',
-    description: 'Attach a file path',
-    metadata: { icon: 'file' }
-  },
-  {
-    id: 'folder:',
-    type: 'folder',
-    label: 'Folder',
-    description: 'Attach a folder path',
-    metadata: { icon: 'folder' }
-  },
-  {
-    id: 'url:',
-    type: 'url',
-    label: 'URL',
-    description: 'Attach a web page',
-    metadata: { icon: 'url' }
-  },
-  {
-    id: 'image:',
-    type: 'image',
-    label: 'Image',
-    description: 'Attach an image path',
-    metadata: { icon: 'image' }
-  }
 ]
 
 export const EDGE_NEWLINES_RE = /^[\t ]*(?:\r\n|\r|\n)+|(?:\r\n|\r|\n)+[\t ]*$/g

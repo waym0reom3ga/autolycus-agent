@@ -8,18 +8,28 @@ import {
   type ToolCallMessagePartProps,
   useAuiState
 } from '@assistant-ui/react'
+import { useStore } from '@nanostores/react'
 import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
   GitBranchIcon,
+  Loader2Icon,
   MoreHorizontalIcon,
   RefreshCwIcon,
   Volume2Icon,
   VolumeXIcon
 } from 'lucide-react'
-import { type FC, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type FC,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState
+} from 'react'
 
 import { useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
 import { ActivityTimerText } from '@/components/assistant-ui/activity-timer-text'
@@ -38,11 +48,12 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Loader } from '@/components/ui/loader'
-import { speakText } from '@/hermes'
 import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
+import { playSpeechText, stopVoicePlayback } from '@/lib/voice-playback'
 import { notifyError } from '@/store/notifications'
 import { setThreadScrolledUp } from '@/store/thread-scroll'
+import { $voicePlayback } from '@/store/voice-playback'
 
 const THINKING_FACES = [
   '(｡•́︿•̀｡)',
@@ -119,12 +130,16 @@ export const Thread: FC<{
   intro?: IntroProps
   loading?: ThreadLoadingState
   onBranchInNewChat?: (messageId: string) => void
-}> = ({ intro, loading, onBranchInNewChat }) => {
+  sessionKey?: string | null
+}> = ({ intro, loading, onBranchInNewChat, sessionKey }) => {
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
   const messageCount = useAuiState(s => s.thread.messages.length)
   const isRunning = useAuiState(s => s.thread.isRunning)
   const lastMessageId = useAuiState(s => s.thread.messages.at(-1)?.id ?? '')
   const shouldStickToBottomRef = useRef(true)
+  const scrollFrameRef = useRef<number | null>(null)
+  const sessionKeyRef = useRef<string | null>(sessionKey ?? null)
 
   const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     const nearBottom = isNearBottom(event.currentTarget)
@@ -132,8 +147,44 @@ export const Thread: FC<{
     setThreadScrolledUp(!nearBottom)
   }, [])
 
+  const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    if (event.deltaY < 0) {
+      shouldStickToBottomRef.current = false
+      setThreadScrolledUp(true)
+    }
+  }, [])
+
+  const scrollToBottom = useCallback(() => {
+    const viewport = viewportRef.current
+
+    if (!viewport) {
+      return
+    }
+
+    viewport.scrollTop = viewport.scrollHeight
+    shouldStickToBottomRef.current = true
+    setThreadScrolledUp(false)
+  }, [])
+
+  const scheduleScrollToBottom = useCallback(() => {
+    if (scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current)
+    }
+
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null
+      scrollToBottom()
+    })
+  }, [scrollToBottom])
+
   useEffect(() => {
-    return () => setThreadScrolledUp(false)
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current)
+      }
+
+      setThreadScrolledUp(false)
+    }
   }, [])
 
   useLayoutEffect(() => {
@@ -143,16 +194,48 @@ export const Thread: FC<{
       return
     }
 
-    const force = loading === 'session'
+    const nextSessionKey = sessionKey ?? null
+    const sessionChanged = sessionKeyRef.current !== nextSessionKey
+    sessionKeyRef.current = nextSessionKey
+    const force = loading === 'session' || sessionChanged
 
     if (!force && !shouldStickToBottomRef.current) {
       return
     }
 
-    viewport.scrollTop = viewport.scrollHeight
-    shouldStickToBottomRef.current = true
-    setThreadScrolledUp(false)
-  }, [isRunning, lastMessageId, loading, messageCount])
+    scheduleScrollToBottom()
+  }, [isRunning, lastMessageId, loading, messageCount, scheduleScrollToBottom, sessionKey])
+
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    const viewport = viewportRef.current
+
+    if (!content || !viewport) {
+      return
+    }
+
+    let previousHeight = content.getBoundingClientRect().height
+
+    const observer = new ResizeObserver(entries => {
+      const height = entries[0]?.contentRect.height ?? content.getBoundingClientRect().height
+
+      if (height === previousHeight) {
+        return
+      }
+
+      previousHeight = height
+
+      if (!shouldStickToBottomRef.current && !isNearBottom(viewport)) {
+        return
+      }
+
+      scheduleScrollToBottom()
+    })
+
+    observer.observe(content)
+
+    return () => observer.disconnect()
+  }, [scheduleScrollToBottom])
 
   return (
     <GeneratedImageProvider>
@@ -160,15 +243,17 @@ export const Thread: FC<{
         <AuiIf condition={s => Boolean(intro) && s.thread.isEmpty}>{intro && <Intro {...intro} />}</AuiIf>
 
         <ThreadPrimitive.Viewport
-          className="h-full min-h-0 overflow-y-auto overscroll-contain px-[clamp(1rem,10%,12rem)] pt-[calc(var(--vsq)*19)] scroll-smooth"
+          autoScroll={false}
+          className="h-full min-h-0 overflow-y-auto overscroll-contain px-[clamp(1rem,10%,12rem)] pt-[calc(var(--vsq)*19)]"
           data-slot="aui_thread-viewport"
           onScroll={handleScroll}
+          onWheel={handleWheel}
           ref={viewportRef}
           scrollToBottomOnInitialize
           scrollToBottomOnRunStart
           scrollToBottomOnThreadSwitch
         >
-          <div className="flex w-full flex-col gap-3">
+          <div className="flex w-full flex-col gap-3" ref={contentRef}>
             <ThreadPrimitive.Messages>{() => <ThreadMessage onBranchInNewChat={onBranchInNewChat} />}</ThreadPrimitive.Messages>
             {loading === 'response' && <ResponseLoadingIndicator />}
             {loading === 'working' && <WorkingIndicator />}
@@ -446,7 +531,7 @@ const AssistantActionBar: FC<MessageActionProps> = ({ messageId, messageText, on
               <GitBranchIcon />
               Branch in new chat
             </DropdownMenuItem>
-            <ReadAloudItem text={messageText} />
+            <ReadAloudItem messageId={messageId} text={messageText} />
           </DropdownMenuContent>
         </DropdownMenu>
       </ActionBarPrimitive.Root>
@@ -479,80 +564,39 @@ const CopyMessageButton: FC<{ text: string }> = ({ text }) => {
   )
 }
 
-let currentAudio: HTMLAudioElement | null = null
+const ReadAloudItem: FC<{ messageId: string; text: string }> = ({ messageId, text }) => {
+  const voicePlayback = useStore($voicePlayback)
 
-function stopCurrentAudio() {
-  if (!currentAudio) {
-    return
-  }
+  const readAloudStatus =
+    voicePlayback.source === 'read-aloud' && voicePlayback.messageId === messageId ? voicePlayback.status : 'idle'
 
-  currentAudio.pause()
-  currentAudio.src = ''
-  currentAudio = null
-}
-
-const ReadAloudItem: FC<{ text: string }> = ({ text }) => {
-  const [reading, setReading] = useState(false)
-  const seqRef = useRef(0)
-
-  const stop = useCallback(() => {
-    seqRef.current += 1
-    stopCurrentAudio()
-    setReading(false)
-  }, [])
+  const isPreparing = readAloudStatus === 'preparing'
+  const isSpeaking = readAloudStatus === 'speaking'
+  const anyPlaybackActive = voicePlayback.status !== 'idle'
+  const Icon = isPreparing ? Loader2Icon : isSpeaking ? VolumeXIcon : Volume2Icon
 
   const read = useCallback(async () => {
-    if (!text) {
+    if (!text || $voicePlayback.get().status !== 'idle') {
       return
     }
 
-    stopCurrentAudio()
-    const seq = ++seqRef.current
-    const isCurrent = () => seq === seqRef.current
-
-    const finish = () => {
-      if (!isCurrent()) {
-        return
-      }
-
-      currentAudio = null
-      setReading(false)
-    }
-
-    setReading(true)
-
     try {
-      const { data_url } = await speakText(text)
-
-      if (!isCurrent()) {
-        return
-      }
-
-      const audio = new Audio(data_url)
-      currentAudio = audio
-      audio.addEventListener('ended', finish, { once: true })
-      audio.addEventListener('error', finish, { once: true })
-      await audio.play()
+      await playSpeechText(text, { messageId, source: 'read-aloud' })
     } catch (error) {
-      if (isCurrent()) {
-        notifyError(error, 'Read aloud failed')
-        finish()
-      }
+      notifyError(error, 'Read aloud failed')
     }
-  }, [text])
-
-  const Icon = reading ? VolumeXIcon : Volume2Icon
+  }, [messageId, text])
 
   return (
     <DropdownMenuItem
-      disabled={!reading && !text}
+      disabled={isPreparing || (!isSpeaking && (anyPlaybackActive || !text))}
       onSelect={e => {
         e.preventDefault()
-        void (reading ? stop() : read())
+        void (isSpeaking ? stopVoicePlayback() : read())
       }}
     >
-      <Icon />
-      {reading ? 'Stop reading' : 'Read aloud'}
+      <Icon className={isPreparing ? 'animate-spin' : undefined} />
+      {isPreparing ? 'Preparing audio...' : isSpeaking ? 'Stop reading' : 'Read aloud'}
     </DropdownMenuItem>
   )
 }

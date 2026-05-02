@@ -36,7 +36,7 @@ export interface ChatBarProps {
   onPickFolders?: () => void
   onPickImages?: () => void
   onRemoveAttachment?: (id: string) => void
-  onSubmit: (value: string) => void
+  onSubmit: (value: string) => Promise<void> | void
   onTranscribeAudio?: (audio: Blob) => Promise<string>
 }
 

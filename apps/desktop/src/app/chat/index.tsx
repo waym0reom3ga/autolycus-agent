@@ -8,13 +8,14 @@ import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown } from 'lucide-react'
 import type * as React from 'react'
-import { Suspense, useMemo } from 'react'
+import { Suspense, useMemo, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 
 import { Thread } from '@/components/assistant-ui/thread'
 import { NotificationStack } from '@/components/notifications'
 import { Button } from '@/components/ui/button'
 import { getGlobalModelOptions, type HermesGateway } from '@/hermes'
+import type { ChatMessage } from '@/lib/chat-messages'
 import { quickModelOptions, sessionTitle, toRuntimeMessage } from '@/lib/chat-runtime'
 import { cn } from '@/lib/utils'
 import { $pinnedSessionIds } from '@/store/layout'
@@ -57,7 +58,7 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onPickFolders: () => void
   onPickImages: () => void
   onRemoveAttachment: (id: string) => void
-  onSubmit: (text: string) => void
+  onSubmit: (text: string) => Promise<void> | void
   onChangeCwd: (cwd: string) => void
   onBrowseCwd: () => void
   onOpenModelPicker: () => void
@@ -118,6 +119,7 @@ export function ChatView({
   const pinnedSessionIds = useStore($pinnedSessionIds)
   const selectedSessionId = useStore($selectedStoredSessionId)
   const sessions = useStore($sessions)
+  const runtimeMessageCacheRef = useRef(new WeakMap<ChatMessage, ThreadMessage>())
   const activeStoredSession = sessions.find(session => session.id === selectedSessionId) || null
   const isRoutedSessionView = Boolean(routeSessionId(location.pathname))
   const selectedIsPinned = selectedSessionId ? pinnedSessionIds.includes(selectedSessionId) : false
@@ -128,6 +130,7 @@ export function ChatView({
   const loadingSession = isRoutedSessionView && messages.length === 0
   const threadLoading = threadLoadingState(loadingSession, busy, awaitingResponse)
   const showChatBar = !loadingSession
+  const threadKey = selectedSessionId || activeSessionId || (isRoutedSessionView ? location.pathname : 'new')
   const title = activeStoredSession ? sessionTitle(activeStoredSession) : ''
 
   const modelOptionsQuery = useQuery<ModelOptionsResponse>({
@@ -190,7 +193,14 @@ export function ChatView({
         parentId = branchParentByGroup.get(message.branchGroupId) ?? null
       }
 
-      items.push({ message: toRuntimeMessage(message), parentId })
+      const cachedMessage = runtimeMessageCacheRef.current.get(message)
+      const runtimeMessage = cachedMessage ?? toRuntimeMessage(message)
+
+      if (!cachedMessage) {
+        runtimeMessageCacheRef.current.set(message, runtimeMessage)
+      }
+
+      items.push({ message: runtimeMessage, parentId })
 
       if (!message.hidden) {
         visibleParentId = message.id
@@ -248,6 +258,7 @@ export function ChatView({
               intro={showIntro ? { personality: introPersonality, seed: introSeed } : undefined}
               loading={threadLoading}
               onBranchInNewChat={onBranchInNewChat}
+              sessionKey={threadKey}
             />
             {showChatBar && (
               <Suspense fallback={<ChatBarFallback />}>

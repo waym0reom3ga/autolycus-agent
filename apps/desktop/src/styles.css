@@ -184,6 +184,29 @@ button {
   -webkit-app-region: no-drag;
 }
 
+@keyframes voice-wave {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scaleY(0.28);
+  }
+
+  35% {
+    opacity: 0.95;
+    transform: scaleY(1);
+  }
+
+  62% {
+    opacity: 0.7;
+    transform: scaleY(0.52);
+  }
+}
+
+.voice-wave-bar {
+  animation: voice-wave 860ms ease-in-out infinite;
+  transform-origin: center;
+}
+
 .composer-liquid-shell-wrap {
   pointer-events: none;
   border-radius: var(--composer-glass-radius, 20px);

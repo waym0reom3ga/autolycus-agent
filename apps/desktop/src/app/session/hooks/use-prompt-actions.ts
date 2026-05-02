@@ -13,7 +13,7 @@ import {
 import { triggerHaptic } from '@/lib/haptics'
 import { $composerAttachments, clearComposerAttachments } from '@/store/composer'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
-import { $busy, $messages, setAwaitingResponse, setBusy } from '@/store/session'
+import { $busy, $messages, setAwaitingResponse, setBusy, setMessages } from '@/store/session'
 
 import type { ClientSessionState, SlashExecResponse } from '../../types'
 
@@ -296,12 +296,34 @@ export function usePromptActions({
   )
 
   const cancelRun = useCallback(async () => {
-    if (!activeSessionId) {
+    const sessionId = activeSessionId || activeSessionIdRef.current
+
+    busyRef.current = false
+    setBusy(false)
+    setAwaitingResponse(false)
+
+    const finalizeMessages = (messages: ChatMessage[]) =>
+      messages.map(message =>
+        message.pending
+          ? {
+              ...message,
+              parts: chatMessageText(message).trim()
+                ? appendTextPart(message.parts, INTERRUPTED_MARKER)
+                : [...message.parts, textPart(INTERRUPTED_MARKER.trim())],
+              pending: false
+            }
+          : message
+      )
+
+    if (!sessionId) {
+      setMessages(finalizeMessages($messages.get()))
+
       return
     }
 
-    updateSessionState(activeSessionId, state => {
+    updateSessionState(sessionId, state => {
       const streamId = state.streamId
+
       const messages = streamId
         ? state.messages.map(message =>
             message.id === streamId
@@ -314,7 +336,7 @@ export function usePromptActions({
                 }
               : message
           )
-        : state.messages
+        : finalizeMessages(state.messages)
 
       return {
         ...state,
@@ -328,11 +350,11 @@ export function usePromptActions({
     })
 
     try {
-      await requestGateway('session.interrupt', { session_id: activeSessionId })
+      await requestGateway('session.interrupt', { session_id: sessionId })
     } catch (err) {
       notifyError(err, 'Stop failed')
     }
-  }, [activeSessionId, requestGateway, updateSessionState])
+  }, [activeSessionId, activeSessionIdRef, busyRef, requestGateway, updateSessionState])
 
   const reloadFromMessage = useCallback(
     async (parentId: string | null) => {

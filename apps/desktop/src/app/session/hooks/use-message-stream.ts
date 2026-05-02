@@ -1,6 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { type MutableRefObject, useCallback } from 'react'
-import { flushSync } from 'react-dom'
 
 import {
   appendReasoningPart,
@@ -60,7 +59,6 @@ export function useMessageStream({
       transform: (parts: ChatMessagePart[], message: ChatMessage) => ChatMessagePart[],
       seed: () => ChatMessagePart[],
       opts: {
-        sync?: boolean
         pending?: (message: ChatMessage) => boolean
       } = {}
     ) => {
@@ -112,7 +110,7 @@ export function useMessageStream({
         })
       }
 
-      opts.sync ? flushSync(apply) : apply()
+      apply()
     },
     [updateSessionState]
   )
@@ -126,8 +124,7 @@ export function useMessageStream({
       mutateStream(
         sessionId,
         parts => appendTextPart(parts, delta),
-        () => [textPart(delta)],
-        { sync: true }
+        () => [textPart(delta)]
       )
     },
     [mutateStream]
@@ -152,8 +149,7 @@ export function useMessageStream({
 
           return appendReasoningPart(parts, delta)
         },
-        () => [reasoningPart(delta)],
-        { sync: true }
+        () => [reasoningPart(delta)]
       )
     },
     [mutateStream]
@@ -299,6 +295,7 @@ export function useMessageStream({
         const apply = explicitSid ? isActiveEvent : !activeSessionIdRef.current
         const modelChanged = typeof payload?.model === 'string'
         const providerChanged = typeof payload?.provider === 'string'
+        const runningChanged = typeof payload?.running === 'boolean'
 
         if (apply) {
           if (modelChanged) {
@@ -319,6 +316,35 @@ export function useMessageStream({
 
           if (typeof payload?.personality === 'string') {
             setCurrentPersonality(normalizePersonalityValue(payload.personality))
+          }
+
+          if (runningChanged && sessionId) {
+            updateSessionState(sessionId, state => {
+              const busy = Boolean(payload!.running)
+
+              if (state.busy === busy && (busy || !state.awaitingResponse)) {
+                return state
+              }
+
+              if (busy) {
+                return {
+                  ...state,
+                  busy
+                }
+              }
+
+              if (state.awaitingResponse && !state.sawAssistantPayload) {
+                return state
+              }
+
+              return {
+                ...state,
+                awaitingResponse: false,
+                busy,
+                pendingBranchGroup: null,
+                streamId: null
+              }
+            })
           }
         }
 
@@ -355,11 +381,11 @@ export function useMessageStream({
         }
       } else if (event.type === 'reasoning.delta') {
         if (sessionId) {
-          appendReasoningDelta(sessionId, coerceGatewayText(payload?.text))
+          appendReasoningDelta(sessionId, coerceThinkingText(payload?.text))
         }
       } else if (event.type === 'reasoning.available') {
         if (sessionId) {
-          appendReasoningDelta(sessionId, coerceGatewayText(payload?.text), true)
+          appendReasoningDelta(sessionId, coerceThinkingText(payload?.text), true)
         }
       } else if (event.type === 'message.complete') {
         if (!sessionId) {

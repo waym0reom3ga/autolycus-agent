@@ -14,6 +14,7 @@ import {
   listSessions,
   setGlobalModel
 } from '../hermes'
+import { formatRefValue } from '../components/assistant-ui/directive-text'
 import { toChatMessages } from '../lib/chat-messages'
 import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromConfig } from '../lib/chat-runtime'
 import { $pinnedSessionIds, pinSession, unpinSession } from '../store/layout'
@@ -571,7 +572,7 @@ export function DesktopController() {
       gateway={gatewayRef.current}
       maxVoiceRecordingSeconds={voiceMaxRecordingSeconds}
       onAddContextRef={addContextRefAttachment}
-      onAddUrl={url => addContextRefAttachment(`@url:${url}`, url)}
+      onAddUrl={url => addContextRefAttachment(`@url:${formatRefValue(url)}`, url)}
       onBranchInNewChat={messageId => void branchInNewChat(messageId)}
       onBrowseCwd={() => void browseSessionCwd()}
       onCancel={() => void cancelRun()}
@@ -589,7 +590,7 @@ export function DesktopController() {
       onReload={reloadFromMessage}
       onRemoveAttachment={id => void removeAttachment(id)}
       onSelectPersonality={name => void selectPersonality(name)}
-      onSubmit={text => void submitText(text)}
+      onSubmit={submitText}
       onThreadMessagesChange={handleThreadMessagesChange}
       onToggleSelectedPin={toggleSelectedPin}
       onTranscribeAudio={transcribeVoiceAudio}

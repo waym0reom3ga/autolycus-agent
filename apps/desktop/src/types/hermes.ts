@@ -168,6 +168,7 @@ export interface SessionRuntimeInfo {
   personality?: string
   provider?: string
   reasoning_effort?: string
+  running?: boolean
   service_tier?: string
   skills?: Record<string, string[]> | string[]
   tools?: Record<string, string[]>

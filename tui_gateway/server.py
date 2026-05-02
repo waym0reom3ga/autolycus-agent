@@ -1409,6 +1409,7 @@ def _session_info(agent, session: dict | None = None) -> dict:
         "cwd": cwd,
         "branch": _git_branch_for_cwd(cwd),
         "personality": str(personality or ""),
+        "running": bool((session or {}).get("running")),
         "version": "",
         "release_date": "",
         "update_behind": None,

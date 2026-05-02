@@ -2,6 +2,7 @@ import type { ThreadMessage } from '@assistant-ui/react'
 
 import type { QuickModelOption } from '@/app/chat/composer/types'
 import type { ClientSessionState, CommandDispatchResponse } from '@/app/types'
+import { formatRefValue } from '@/components/assistant-ui/directive-text'
 import { type ChatMessage, type ChatMessagePart, chatMessageText, textPart } from '@/lib/chat-messages'
 import type { ComposerAttachment } from '@/store/composer'
 import type { ModelOptionsResponse, SessionInfo } from '@/types/hermes'
@@ -25,7 +26,11 @@ export const BUILTIN_PERSONALITIES = [
   'hype'
 ]
 
-const SPINNER_STATUS_RE = /^\s*[（(][^\s)）]{1,8}[)）]\s+[^.\n]{2,48}\.\.\.\s*/
+const THINKING_STATUS_PREFIX_RE =
+  /^\s*(?:(?:[^\s.]{1,16})\s+)?(?:processing|thinking|reasoning|analyzing|pondering|contemplating|musing|cogitating|ruminating|deliberating|mulling|reflecting|computing|synthesizing|formulating|brainstorming)\.\.\.\s*/i
+
+const EMPTY_THINKING_PLACEHOLDER_RE =
+  /\b(?:current rewritten thinking|next thinking to process|provide the thinking content|don't see any .*thinking)\b/i
 
 export function createClientSessionState(
   storedSessionId: string | null = null,
@@ -102,7 +107,9 @@ export function coerceGatewayText(value: unknown): string {
 }
 
 export function coerceThinkingText(value: unknown): string {
-  return coerceGatewayText(value).replace(SPINNER_STATUS_RE, '').trim()
+  const text = coerceGatewayText(value).replace(THINKING_STATUS_PREFIX_RE, '').trim()
+
+  return EMPTY_THINKING_PLACEHOLDER_RE.test(text) ? '' : text
 }
 
 export function isImageGenerationTool(name?: string): boolean {
@@ -135,7 +142,7 @@ export function attachmentDisplayText(attachment: ComposerAttachment): string | 
   if (attachment.kind === 'image') {
     const id = attachment.detail || attachment.path || attachment.label
 
-    return id ? `@image:${id}` : null
+    return id ? `@image:${formatRefValue(id)}` : null
   }
 
   return null

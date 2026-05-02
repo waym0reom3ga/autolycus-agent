@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 
+import { formatRefValue } from '@/components/assistant-ui/directive-text'
 import { attachmentId, contextPath, pathLabel } from '@/lib/chat-runtime'
 import {
   addComposerAttachment,
@@ -57,7 +58,7 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
           kind,
           label: pathLabel(path),
           detail: rel,
-          refText: `@${kind}:${rel}`,
+          refText: `@${kind}:${formatRefValue(rel)}`,
           path
         })
       }

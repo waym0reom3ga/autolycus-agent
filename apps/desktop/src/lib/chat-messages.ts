@@ -29,6 +29,7 @@ export type GatewayEventPayload = {
   todos?: unknown
   model?: string
   provider?: string
+  running?: boolean
   cwd?: string
   branch?: string
   personality?: string
@@ -47,6 +48,28 @@ export function chatMessageText(message: ChatMessage): string {
     .filter((part): part is Extract<ChatMessagePart, { type: 'text' }> => part.type === 'text')
     .map(part => part.text)
     .join('')
+}
+
+const ATTACHED_CONTEXT_MARKER_RE = /(?:^|\n)--- Attached Context ---\s*\n/
+const CONTEXT_WARNINGS_MARKER_RE = /(?:^|\n)--- Context Warnings ---[\s\S]*$/
+const CONTEXT_REF_RE = /@(file|folder|url|image|tool):(?:"[^"\n]+"|'[^'\n]+'|`[^`\n]+`|\S+)/g
+
+function displayContentForMessage(role: SessionMessage['role'], content: string): string {
+  if (role !== 'user') {
+    return content
+  }
+
+  const marker = content.match(ATTACHED_CONTEXT_MARKER_RE)
+
+  if (!marker || marker.index === undefined) {
+    return content.replace(CONTEXT_WARNINGS_MARKER_RE, '').trim()
+  }
+
+  const visibleText = content.slice(0, marker.index).replace(CONTEXT_WARNINGS_MARKER_RE, '').trim()
+  const attachedContext = content.slice(marker.index + marker[0].length)
+  const refs = [...new Set(Array.from(attachedContext.matchAll(CONTEXT_REF_RE)).map(match => match[0]))]
+
+  return [refs.join('\n'), visibleText].filter(Boolean).join('\n\n') || visibleText
 }
 
 export function appendTextPart(parts: ChatMessagePart[], delta: string): ChatMessagePart[] {
@@ -363,6 +386,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     }
 
     const content = message.content || message.text || message.context || message.name || ''
+    const displayContent = displayContentForMessage(message.role, content)
     const parts: ChatMessagePart[] = []
 
     const reasoning =
@@ -374,8 +398,8 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
       parts.push(reasoningPart(reasoning))
     }
 
-    if (content) {
-      parts.push(textPart(content))
+    if (displayContent) {
+      parts.push(textPart(displayContent))
     }
 
     if (message.role === 'assistant' && Array.isArray(message.tool_calls)) {

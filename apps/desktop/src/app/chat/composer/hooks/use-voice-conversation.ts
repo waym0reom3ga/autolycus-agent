@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { speakText } from '@/hermes'
+import { playSpeechText, stopVoicePlayback } from '@/lib/voice-playback'
 import { notify, notifyError } from '@/store/notifications'
 
 import {
@@ -14,13 +14,19 @@ import { useMicRecorder } from './use-mic-recorder'
 
 export type ConversationStatus = 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking'
 
+interface PendingVoiceResponse {
+  id: string
+  pending: boolean
+  text: string
+}
+
 interface VoiceConversationOptions {
   busy: boolean
   enabled: boolean
   onFatalError?: () => void
-  onSubmit: (text: string) => void
+  onSubmit: (text: string) => Promise<void> | void
   onTranscribeAudio?: (audio: Blob) => Promise<string>
-  pendingResponseText: () => string | null
+  pendingResponse: () => PendingVoiceResponse | null
   consumePendingResponse: () => void
 }
 
@@ -30,16 +36,19 @@ export function useVoiceConversation({
   onFatalError,
   onSubmit,
   onTranscribeAudio,
-  pendingResponseText,
+  pendingResponse,
   consumePendingResponse
 }: VoiceConversationOptions) {
   const { handle, level } = useMicRecorder()
   const [status, setStatus] = useState<ConversationStatus>('idle')
   const [muted, setMuted] = useState(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
   const turnTimeoutRef = useRef<number | null>(null)
   const pendingStartRef = useRef(false)
-  const lastSpokenRef = useRef<string | null>(null)
+  const turnClosingRef = useRef(false)
+  const awaitingSpokenResponseRef = useRef(false)
+  const responseIdRef = useRef<string | null>(null)
+  const spokenSourceLengthRef = useRef(0)
+  const speechBufferRef = useRef('')
   const enabledRef = useRef(enabled)
   const mutedRef = useRef(muted)
   const busyRef = useRef(busy)
@@ -69,36 +78,74 @@ export function useVoiceConversation({
     }
   }
 
-  const stopAudio = useCallback(() => {
-    const audio = audioRef.current
+  const resetSpeechBuffer = () => {
+    responseIdRef.current = null
+    spokenSourceLengthRef.current = 0
+    speechBufferRef.current = ''
+  }
 
-    if (audio) {
-      audio.pause()
-      audio.src = ''
-      audioRef.current = null
-    }
-  }, [])
+  const appendSpeechText = (text: string) => {
+    const cleaned = text
 
-  const handleTurn = useCallback(async () => {
-    clearTurnTimeout()
-    setStatus('transcribing')
-    const result = await handle.stop()
-
-    if (!result || !result.heardSpeech || !onTranscribeAudio) {
-      if (enabledRef.current && !mutedRef.current && !busyRef.current && statusRef.current !== 'speaking') {
-        pendingStartRef.current = true
-      }
-
-      setStatus('idle')
-
+    if (!cleaned) {
       return
     }
 
-    try {
-      const transcript = (await onTranscribeAudio(result.audio)).trim()
+    speechBufferRef.current = `${speechBufferRef.current} ${cleaned}`.trim()
+  }
 
-      if (!transcript) {
-        if (enabledRef.current) {
+  const takeSpeechChunk = (force = false): string | null => {
+    const buffer = speechBufferRef.current.replace(/\s+/g, ' ').trim()
+
+    if (!buffer) {
+      speechBufferRef.current = ''
+
+      return null
+    }
+
+    const sentence = buffer.match(/^(.+?[.!?。！？])(?:\s+|$)/)
+
+    if (sentence?.[1] && (sentence[1].length >= 8 || force)) {
+      const chunk = sentence[1].trim()
+      speechBufferRef.current = buffer.slice(sentence[1].length).trim()
+
+      return chunk
+    }
+
+    if (!force && buffer.length > 220) {
+      const softBoundary = Math.max(buffer.lastIndexOf(', ', 180), buffer.lastIndexOf('; ', 180), buffer.lastIndexOf(': ', 180))
+
+      if (softBoundary > 80) {
+        const chunk = buffer.slice(0, softBoundary + 1).trim()
+        speechBufferRef.current = buffer.slice(softBoundary + 1).trim()
+
+        return chunk
+      }
+    }
+
+    if (!force) {
+      return null
+    }
+
+    speechBufferRef.current = ''
+
+    return buffer
+  }
+
+  const handleTurn = useCallback(async (forceTranscribe = false) => {
+    if (turnClosingRef.current) {
+      return
+    }
+
+    turnClosingRef.current = true
+    clearTurnTimeout()
+    setStatus('transcribing')
+
+    try {
+      const result = await handle.stop()
+
+      if (!result || (!result.heardSpeech && !forceTranscribe) || !onTranscribeAudio) {
+        if (enabledRef.current && !mutedRef.current && !busyRef.current && statusRef.current !== 'speaking') {
           pendingStartRef.current = true
         }
 
@@ -107,16 +154,34 @@ export function useVoiceConversation({
         return
       }
 
-      onSubmit(transcript)
-      setStatus('thinking')
-    } catch (error) {
-      notifyError(error, 'Voice transcription failed')
+      try {
+        const transcript = (await onTranscribeAudio(result.audio)).trim()
 
-      if (enabledRef.current && !mutedRef.current && !busyRef.current) {
-        pendingStartRef.current = true
+        if (!transcript) {
+          if (enabledRef.current) {
+            pendingStartRef.current = true
+          }
+
+          setStatus('idle')
+
+          return
+        }
+
+        awaitingSpokenResponseRef.current = true
+        resetSpeechBuffer()
+        await onSubmit(transcript)
+        setStatus('thinking')
+      } catch (error) {
+        notifyError(error, 'Voice transcription failed')
+
+        if (enabledRef.current && !mutedRef.current && !busyRef.current) {
+          pendingStartRef.current = true
+        }
+
+        setStatus('idle')
       }
-
-      setStatus('idle')
+    } finally {
+      turnClosingRef.current = false
     }
   }, [handle, onSubmit, onTranscribeAudio])
 
@@ -158,24 +223,13 @@ export function useVoiceConversation({
 
   const speak = useCallback(
     async (text: string) => {
-      stopAudio()
       setStatus('speaking')
 
       try {
-        const response = await speakText(text)
-        const audio = new Audio(response.data_url)
-        audioRef.current = audio
-
-        await new Promise<void>((resolve, reject) => {
-          audio.addEventListener('ended', () => resolve(), { once: true })
-          audio.addEventListener('error', () => reject(new Error('Playback failed')), { once: true })
-          void audio.play().catch(reject)
-        })
+        await playSpeechText(text, { source: 'voice-conversation' })
       } catch (error) {
         notifyError(error, 'Voice playback failed')
       } finally {
-        audioRef.current = null
-
         if (enabledRef.current) {
           pendingStartRef.current = true
           setStatus('idle')
@@ -184,7 +238,7 @@ export function useVoiceConversation({
         }
       }
     },
-    [stopAudio]
+    []
   )
 
   const start = useCallback(async () => {
@@ -200,20 +254,31 @@ export function useVoiceConversation({
     }
 
     setMuted(false)
-    lastSpokenRef.current = null
+    awaitingSpokenResponseRef.current = false
+    resetSpeechBuffer()
+    consumePendingResponse()
     pendingStartRef.current = true
-  }, [onFatalError, onTranscribeAudio])
+    await startListening()
+  }, [consumePendingResponse, onFatalError, onTranscribeAudio, startListening])
 
   const end = useCallback(async () => {
     pendingStartRef.current = false
     clearTurnTimeout()
-    stopAudio()
+    stopVoicePlayback()
     handle.cancel()
-    lastSpokenRef.current = null
+    turnClosingRef.current = false
+    awaitingSpokenResponseRef.current = false
+    resetSpeechBuffer()
     consumePendingResponse()
     setMuted(false)
     setStatus('idle')
-  }, [consumePendingResponse, handle, stopAudio])
+  }, [consumePendingResponse, handle])
+
+  const stopTurn = useCallback(() => {
+    if (statusRef.current === 'listening') {
+      void handleTurn(true)
+    }
+  }, [handleTurn])
 
   const toggleMute = useCallback(() => {
     setMuted(value => {
@@ -231,22 +296,77 @@ export function useVoiceConversation({
     })
   }, [handle])
 
-  // Drive the loop: speak any new assistant response, otherwise start listening
-  // when the agent is idle and we're between turns.
+  useEffect(() => {
+    if (!enabled) {
+      return
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat || event.metaKey || event.ctrlKey || event.altKey) {
+        return
+      }
+
+      if (statusRef.current !== 'listening') {
+        return
+      }
+
+      event.preventDefault()
+      stopTurn()
+    }
+
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
+  }, [enabled, stopTurn])
+
+  // Drive the loop: after a voice-submitted turn, speak stable chunks as the
+  // assistant stream grows. Otherwise start listening when idle between turns.
   useEffect(() => {
     if (!enabled || muted) {
       return
     }
 
-    const text = pendingResponseText()
-    const trimmed = text?.trim() ?? ''
+    if (awaitingSpokenResponseRef.current && status !== 'speaking') {
+      const response = pendingResponse()
 
-    if (trimmed && trimmed !== lastSpokenRef.current && status !== 'speaking') {
-      lastSpokenRef.current = trimmed
-      consumePendingResponse()
-      void speak(trimmed)
+      if (response) {
+        if (response.id !== responseIdRef.current) {
+          resetSpeechBuffer()
+          responseIdRef.current = response.id
+        }
 
-      return
+        if (response.text.length > spokenSourceLengthRef.current) {
+          appendSpeechText(response.text.slice(spokenSourceLengthRef.current))
+          spokenSourceLengthRef.current = response.text.length
+        }
+
+        const chunk = takeSpeechChunk(!response.pending && !busy)
+
+        if (chunk) {
+          void speak(chunk)
+
+          return
+        }
+
+        if (!response.pending && !busy) {
+          awaitingSpokenResponseRef.current = false
+          consumePendingResponse()
+          resetSpeechBuffer()
+          pendingStartRef.current = true
+          setStatus('idle')
+
+          return
+        }
+      }
+
+      if (!busy && status === 'thinking') {
+        awaitingSpokenResponseRef.current = false
+        resetSpeechBuffer()
+        pendingStartRef.current = true
+        setStatus('idle')
+
+        return
+      }
     }
 
     if (busy || status !== 'idle') {
@@ -256,7 +376,7 @@ export function useVoiceConversation({
     if (pendingStartRef.current) {
       void startListening()
     }
-  }, [busy, consumePendingResponse, enabled, muted, pendingResponseText, speak, startListening, status])
+  }, [busy, consumePendingResponse, enabled, muted, pendingResponse, speak, startListening, status])
 
   useEffect(() => {
     if (enabled && !wasEnabledRef.current) {
@@ -270,5 +390,5 @@ export function useVoiceConversation({
     wasEnabledRef.current = enabled
   }, [enabled, end, start])
 
-  return { end, level, muted, start, status, toggleMute }
+  return { end, level, muted, start, status, stopTurn, toggleMute }
 }

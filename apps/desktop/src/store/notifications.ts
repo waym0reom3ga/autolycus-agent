@@ -51,6 +51,13 @@ const ERROR_SUMMARIES: { test: (msg: string) => boolean; summarize: (msg: string
     summarize: () => 'OpenAI TTS needs VOICE_TOOLS_OPENAI_KEY or OPENAI_API_KEY.'
   },
   {
+    test: msg => /ELEVENLABS_API_KEY not set/i.test(msg) || /ElevenLabs STT API error \(HTTP 401\)/i.test(msg),
+    summarize: msg =>
+      /ELEVENLABS_API_KEY not set/i.test(msg)
+        ? 'ElevenLabs STT needs ELEVENLABS_API_KEY.'
+        : 'ElevenLabs rejected the API key (401).'
+  },
+  {
     test: msg => /method not allowed/i.test(msg),
     summarize: () => 'The desktop backend does not support that audio endpoint yet. Restart Hermes Desktop.'
   },

@@ -15,11 +15,10 @@ import {
 import { cn } from '@/lib/utils'
 
 import { GHOST_ICON_BTN, PROMPT_SNIPPETS } from './constants'
-import type { ChatBarState, ContextSuggestion } from './types'
+import type { ChatBarState } from './types'
 
 export function ContextMenu({
   state,
-  onAddContextRef,
   onInsertText,
   onOpenUrlDialog,
   onPasteClipboardImage,
@@ -28,7 +27,6 @@ export function ContextMenu({
   onPickImages
 }: {
   state: ChatBarState
-  onAddContextRef?: (refText: string, label?: string, detail?: string) => void
   onInsertText: (text: string) => void
   onOpenUrlDialog: () => void
   onPasteClipboardImage?: () => void
@@ -36,11 +34,6 @@ export function ContextMenu({
   onPickFolders?: () => void
   onPickImages?: () => void
 }) {
-  const choose = (item: ContextSuggestion) =>
-    onAddContextRef ? onAddContextRef(item.text, item.display, item.meta) : onInsertText(item.text)
-
-  const suggestions = state.tools.suggestions?.slice(0, 8) ?? []
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -56,47 +49,27 @@ export function ContextMenu({
           <Plus size={18} />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64" side="top" sideOffset={10}>
-        <DropdownMenuLabel className="text-xs text-muted-foreground">Add context</DropdownMenuLabel>
+      <DropdownMenuContent align="start" className="w-60" side="top" sideOffset={10}>
+        <DropdownMenuLabel className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground/85">
+          Attach
+        </DropdownMenuLabel>
         <ContextMenuItem disabled={!onPickFiles} icon={FileText} onSelect={onPickFiles}>
-          Files
+          Files…
         </ContextMenuItem>
         <ContextMenuItem disabled={!onPickFolders} icon={FolderOpen} onSelect={onPickFolders}>
-          Folders
+          Folder…
         </ContextMenuItem>
         <ContextMenuItem disabled={!onPickImages} icon={ImageIcon} onSelect={onPickImages}>
-          Images
+          Images…
         </ContextMenuItem>
         <ContextMenuItem disabled={!onPasteClipboardImage} icon={Clipboard} onSelect={onPasteClipboardImage}>
-          Image from clipboard
+          Paste image
         </ContextMenuItem>
         <ContextMenuItem icon={Link} onSelect={onOpenUrlDialog}>
-          URL
+          URL…
         </ContextMenuItem>
 
         <DropdownMenuSeparator />
-
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <FileText />
-            <span>Suggested files</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="w-72">
-            {suggestions.length === 0 ? (
-              <DropdownMenuItem disabled>
-                <span className="text-muted-foreground">No suggestions</span>
-              </DropdownMenuItem>
-            ) : (
-              suggestions.map(item => (
-                <DropdownMenuItem key={item.text} onSelect={() => choose(item)}>
-                  <FileText />
-                  <span className="min-w-0 flex-1 truncate">{item.display}</span>
-                  {item.meta && <span className="max-w-28 truncate text-xs text-muted-foreground">{item.meta}</span>}
-                </DropdownMenuItem>
-              ))
-            )}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
 
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
@@ -111,6 +84,13 @@ export function ContextMenu({
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+
+        <DropdownMenuSeparator />
+
+        <div className="px-2 py-1 text-[0.7rem] text-muted-foreground/80">
+          Tip: type <kbd className="rounded bg-muted/70 px-1 py-px font-mono text-[0.65rem]">@</kbd> to reference files
+          inline.
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )
