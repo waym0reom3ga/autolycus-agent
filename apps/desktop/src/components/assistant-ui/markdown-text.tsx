@@ -18,7 +18,7 @@ import {
   mediaPathFromMarkdownHref
 } from '@/lib/media'
 import { isLikelyProseCodeBlock, isLikelyProseFence, sanitizeLanguageTag } from '@/lib/markdown-code'
-import { previewTargetFromMarkdownHref, stripPreviewTargets } from '@/lib/preview-targets'
+import { isLikelyPreviewCandidate, previewTargetFromMarkdownHref, stripPreviewTargets } from '@/lib/preview-targets'
 import { cn } from '@/lib/utils'
 
 /**
@@ -77,6 +77,15 @@ function findClosingFence(lines: string[], start: number, marker: string): numbe
   return -1
 }
 
+function isPreviewOnlyFence(body: string): boolean {
+  const lines = body
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  return lines.length === 1 && isLikelyPreviewCandidate(lines[0])
+}
+
 function normalizeFenceBlocks(text: string): string {
   const sourceLines = text.split('\n')
   const out: string[] = []
@@ -112,6 +121,14 @@ function normalizeFenceBlocks(text: string): string {
     if (closeIndex !== -1 && !body.trim()) {
       // Empty fenced block: drop both delimiters. This prevents Streamdown's
       // code plugin from rendering an empty shell/card.
+      index = closeIndex + 1
+      continue
+    }
+
+    if (closeIndex !== -1 && isPreviewOnlyFence(body)) {
+      // Agents often fence a lone preview URL to make it copyable. The chat UI
+      // already renders a preview card for that URL, so don't show code fences.
+      out.push(...bodyLines)
       index = closeIndex + 1
       continue
     }
@@ -406,7 +423,7 @@ const MarkdownTextImpl = () => {
           <li className={cn('leading-relaxed', className)} {...props} />
         ),
         table: ({ className, ...props }: ComponentProps<'table'>) => (
-          <div className="w-full overflow-x-auto rounded-md border border-border">
+          <div className="max-w-full overflow-x-auto rounded-md border border-border">
             <table
               className={cn(
                 'w-full border-collapse text-sm [&_tr]:border-b [&_tr]:border-border last:[&_tr]:border-0',
@@ -442,7 +459,7 @@ const MarkdownTextImpl = () => {
     <StreamdownTextPrimitive
       caret="block"
       components={components}
-      containerClassName="aui-md text-foreground"
+      containerClassName="aui-md max-w-full overflow-hidden text-foreground"
       lineNumbers={false}
       mode="streaming"
       parseIncompleteMarkdown

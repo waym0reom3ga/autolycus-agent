@@ -36,6 +36,17 @@ describe('preprocessMarkdown', () => {
     expect(output).toContain('- **Scroll wheel** - zoom')
   })
 
+  it('drops fences around a preview-only URL block', () => {
+    const fence = '```'
+    const input = ['Server is back.', '', fence, 'http://localhost:8812/', fence].join('\n')
+
+    const output = preprocessMarkdown(input)
+
+    expect(output).toContain('Server is back.')
+    expect(output).not.toContain('```')
+    expect(output).not.toContain('http://localhost:8812/')
+  })
+
   it('demotes prose sentence masquerading as fence info', () => {
     const input = ['```Heads up - a bunny got added', '- Pure white (`#ffffff`)', '- Ambient dropped to 0.18'].join('\n')
     const output = preprocessMarkdown(input)

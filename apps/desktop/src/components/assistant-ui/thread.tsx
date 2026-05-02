@@ -33,6 +33,7 @@ import {
   useRef,
   useState
 } from 'react'
+import spinners from 'unicode-animations'
 // Scroll behavior: delegated to `use-stick-to-bottom` (StackBlitz), the
 // reference implementation that powers bolt.new and several other streaming
 // chat UIs. It handles everything we care about — spring-animated catch-up,
@@ -44,7 +45,6 @@ import {
 // keeping `$threadScrolledUp` in sync with `isAtBottom` for the composer's
 // dim-when-scrolled-away treatment.
 import { StickToBottom, useStickToBottomContext } from 'use-stick-to-bottom'
-import spinners from 'unicode-animations'
 
 import { useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
 import { ActivityTimerText } from '@/components/assistant-ui/activity-timer-text'
@@ -115,9 +115,7 @@ export const Thread: FC<{
 }> = ({ intro, loading, onBranchInNewChat, sessionKey }) => {
   return (
     <GeneratedImageProvider>
-      <ThreadPrimitive.Root className="relative grid h-full min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden bg-transparent">
-        <AuiIf condition={s => Boolean(intro) && s.thread.isEmpty}>{intro && <Intro {...intro} />}</AuiIf>
-
+      <ThreadPrimitive.Root className="relative grid h-full min-h-0 max-w-full grid-rows-[minmax(0,1fr)] overflow-hidden bg-transparent contain-[layout_paint]">
         <ThreadPrimitive.ViewportProvider>
           {/*
            * <StickToBottom> renders a wrapper <div>; <StickToBottom.Content>
@@ -140,16 +138,17 @@ export const Thread: FC<{
            * content above the composer, not hidden behind it.
            */}
           <StickToBottom
-            className="relative h-full min-h-0"
+            className="relative h-full min-h-0 max-w-full overflow-hidden contain-[layout_paint]"
             initial="instant"
             resize="instant"
           >
             <ThreadScrollSync sessionKey={sessionKey} />
             <StickToBottom.Content
-              className="mx-auto flex w-full max-w-[48rem] flex-col gap-3 px-4 pt-[calc(var(--vsq)*19)] sm:px-6 lg:px-8"
+              className="mx-auto flex w-full max-w-[48rem] min-w-0 flex-col gap-3 px-4 pt-[calc(var(--vsq)*19)] sm:px-6 lg:px-8"
               data-slot="aui_thread-content"
-              scrollClassName="overflow-y-auto overscroll-contain"
+              scrollClassName="overflow-x-hidden overflow-y-auto overscroll-contain"
             >
+              <AuiIf condition={s => Boolean(intro) && s.thread.isEmpty}>{intro && <Intro {...intro} />}</AuiIf>
               <ThreadPrimitive.Messages
                 components={{
                   AssistantMessage: () => <AssistantMessage onBranchInNewChat={onBranchInNewChat} />,
@@ -357,25 +356,26 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
  * textarea grows (multi-line input), attachments expand, or the composer
  * enters a focused/expanded state.
  */
-const COMPOSER_BREATHING_ROOM_PX = 20
+const COMPOSER_BREATHING_ROOM_PX = 36
+const DEFAULT_COMPOSER_CLEARANCE_PX = 192
 
 const ComposerClearance: FC = () => {
   const [height, setHeight] = useState<number>(() => {
-    // Sensible default until the observer wires up (~ 8rem).
-    if (typeof document === 'undefined') return 128
+    // Keep enough space even while the floating composer is still mounting.
+    if (typeof document === 'undefined') {
+      return DEFAULT_COMPOSER_CLEARANCE_PX
+    }
+
     const composer = document.querySelector<HTMLElement>('[data-slot="composer-root"]')
 
-    return composer ? composer.getBoundingClientRect().height + COMPOSER_BREATHING_ROOM_PX : 128
+    return composer ? composer.getBoundingClientRect().height + COMPOSER_BREATHING_ROOM_PX : DEFAULT_COMPOSER_CLEARANCE_PX
   })
 
   useEffect(() => {
-    const composer = document.querySelector<HTMLElement>('[data-slot="composer-root"]')
+    let composerObserver: ResizeObserver | null = null
+    let observedComposer: HTMLElement | null = null
 
-    if (!composer) {
-      return
-    }
-
-    const apply = () => {
+    const apply = (composer: HTMLElement) => {
       const h = composer.getBoundingClientRect().height
 
       setHeight(prev => {
@@ -385,11 +385,30 @@ const ComposerClearance: FC = () => {
       })
     }
 
-    apply()
-    const observer = new ResizeObserver(apply)
-    observer.observe(composer)
+    const bindComposer = () => {
+      const composer = document.querySelector<HTMLElement>('[data-slot="composer-root"]')
 
-    return () => observer.disconnect()
+      if (!composer || composer === observedComposer) {
+        return false
+      }
+
+      observedComposer = composer
+      apply(composer)
+      composerObserver?.disconnect()
+      composerObserver = new ResizeObserver(() => apply(composer))
+      composerObserver.observe(composer)
+
+      return true
+    }
+
+    bindComposer()
+    const mutationObserver = new MutationObserver(() => void bindComposer())
+    mutationObserver.observe(document.body, { childList: true, subtree: true })
+
+    return () => {
+      composerObserver?.disconnect()
+      mutationObserver.disconnect()
+    }
   }, [])
 
   return <div aria-hidden="true" className="shrink-0" style={{ height: `${height}px` }} />
@@ -435,11 +454,11 @@ const AssistantMessage: FC<{ onBranchInNewChat?: (messageId: string) => void }> 
 
   return (
     <MessagePrimitive.Root
-      className="group flex w-full flex-col gap-2 self-start"
+      className="group flex w-full min-w-0 max-w-full flex-col gap-2 self-start overflow-hidden"
       data-role="assistant"
       data-slot="aui_assistant-message-root"
     >
-      <div className="wrap-anywhere text-pretty text-foreground" data-slot="aui_assistant-message-content">
+      <div className="wrap-anywhere min-w-0 max-w-full overflow-hidden text-pretty text-foreground" data-slot="aui_assistant-message-content">
         <MessagePrimitive.Parts
           components={{
             Text: MarkdownText,
@@ -540,7 +559,7 @@ const ThinkingDisclosure: FC<{
   const elapsed = useElapsedSeconds(pending)
 
   return (
-    <div className="mb-3 text-sm text-muted-foreground">
+    <div className="mb-2 text-sm text-muted-foreground">
       <button
         aria-expanded={open}
         className="inline-flex max-w-full items-center gap-1 rounded-md py-0.5 pr-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -757,11 +776,11 @@ const UserMessage: FC = () => {
 
   return (
     <MessagePrimitive.Root
-      className="group flex max-w-[min(72%,34rem)] flex-col items-end gap-2 self-end"
+      className="group flex min-w-0 max-w-[min(72%,34rem)] flex-col items-end gap-2 self-end overflow-hidden"
       data-role="user"
       data-slot="aui_user-message-root"
     >
-      <div className="wrap-anywhere whitespace-pre-line rounded-2xl border border-[color-mix(in_srgb,var(--dt-user-bubble-border)_78%,transparent)] bg-[color-mix(in_srgb,var(--dt-user-bubble)_94%,transparent)] px-3 py-2 leading-[1.48] text-foreground/95">
+      <div className="wrap-anywhere max-w-full overflow-hidden whitespace-pre-line rounded-2xl border border-[color-mix(in_srgb,var(--dt-user-bubble-border)_78%,transparent)] bg-[color-mix(in_srgb,var(--dt-user-bubble)_94%,transparent)] px-3 py-2 leading-[1.48] text-foreground/95">
         <MessagePrimitive.Parts components={{ Text: DirectiveText }} />
       </div>
       <div className="min-h-6">

@@ -1,5 +1,5 @@
 import { Copy, ExternalLink, FileImage, FileText, FolderOpen, Layers3, Link2, RefreshCw, Search, X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type * as React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -23,7 +23,8 @@ import { notify, notifyError } from '@/store/notifications'
 import type { SessionInfo, SessionMessage } from '@/types/hermes'
 
 import { sessionRoute } from '../routes'
-import { TITLEBAR_ICON_SIZE, titlebarButtonClass, titlebarHeaderBaseClass } from '../shell/titlebar'
+import { titlebarHeaderBaseClass } from '../shell/titlebar'
+import type { SetTitlebarToolGroup } from '../shell/titlebar-controls'
 
 type ArtifactKind = 'image' | 'file' | 'link'
 
@@ -340,10 +341,10 @@ function paginationItems(page: number, pageCount: number): Array<number | 'ellip
 }
 
 interface ArtifactsViewProps extends React.ComponentProps<'section'> {
-  setTitlebarActions?: (actions: ReactNode | null) => void
+  setTitlebarToolGroup?: SetTitlebarToolGroup
 }
 
-export function ArtifactsView({ setTitlebarActions, ...props }: ArtifactsViewProps) {
+export function ArtifactsView({ setTitlebarToolGroup, ...props }: ArtifactsViewProps) {
   const navigate = useNavigate()
   const [artifacts, setArtifacts] = useState<ArtifactRecord[] | null>(null)
   const [query, setQuery] = useState('')
@@ -384,24 +385,22 @@ export function ArtifactsView({ setTitlebarActions, ...props }: ArtifactsViewPro
   }, [refreshArtifacts])
 
   useEffect(() => {
-    if (!setTitlebarActions) {
+    if (!setTitlebarToolGroup) {
       return
     }
 
-    setTitlebarActions(
-      <button
-        aria-label={refreshing ? 'Refreshing artifacts' : 'Refresh artifacts'}
-        className={cn(titlebarButtonClass, 'grid place-items-center bg-transparent')}
-        disabled={refreshing}
-        onClick={() => void refreshArtifacts()}
-        type="button"
-      >
-        <RefreshCw className={cn(refreshing && 'animate-spin')} size={TITLEBAR_ICON_SIZE} />
-      </button>
-    )
+    setTitlebarToolGroup('artifacts', [
+      {
+        disabled: refreshing,
+        icon: <RefreshCw className={cn(refreshing && 'animate-spin')} />,
+        id: 'refresh-artifacts',
+        label: refreshing ? 'Refreshing artifacts' : 'Refresh artifacts',
+        onSelect: () => void refreshArtifacts()
+      }
+    ])
 
-    return () => setTitlebarActions(null)
-  }, [refreshArtifacts, refreshing, setTitlebarActions])
+    return () => setTitlebarToolGroup('artifacts', [])
+  }, [refreshArtifacts, refreshing, setTitlebarToolGroup])
 
   useEffect(() => {
     setImagePage(1)
@@ -514,8 +513,8 @@ export function ArtifactsView({ setTitlebarActions, ...props }: ArtifactsViewPro
       className="flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background"
     >
       <header className={titlebarHeaderBaseClass}>
-        <h2 className="text-base font-semibold leading-none tracking-tight">Artifacts</h2>
-        <span className="text-xs text-muted-foreground">{counts.all} found</span>
+        <h2 className="pointer-events-auto text-base font-semibold leading-none tracking-tight">Artifacts</h2>
+        <span className="pointer-events-auto text-xs text-muted-foreground">{counts.all} found</span>
       </header>
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-[1.0625rem] border border-border/50 bg-background/85">

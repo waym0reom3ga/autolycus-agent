@@ -514,6 +514,22 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     }
 
     if (message.role === 'assistant' && pendingToolParts.length) {
+      const last = result.at(-1)
+
+      // Session logs interleave tool-only assistant rows with later prose; appending onto
+      // the previous bubble keeps one turn contiguous (vs unshift splitting the UI).
+      if (last?.role === 'assistant') {
+        last.parts = [...last.parts, ...pendingToolParts, ...parts]
+        pendingToolParts = []
+        pendingToolTimestamp = undefined
+
+        if (message.timestamp !== undefined) {
+          last.timestamp = message.timestamp
+        }
+
+        return
+      }
+
       parts.unshift(...pendingToolParts)
       pendingToolParts = []
       pendingToolTimestamp = undefined

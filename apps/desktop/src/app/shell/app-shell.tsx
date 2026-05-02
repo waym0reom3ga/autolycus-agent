@@ -17,15 +17,17 @@ import { $previewTarget } from '@/store/preview'
 import { $connection } from '@/store/session'
 
 import { TITLEBAR_HEIGHT, titlebarControlsPosition } from './titlebar'
-import { TitlebarControls } from './titlebar-controls'
+import { TitlebarControls, type TitlebarTool } from './titlebar-controls'
 
 interface AppShellProps {
   children: ReactNode
   inspectorWidth: string
+  leftTitlebarTools?: readonly TitlebarTool[]
+  previewWidth: string
   rightRailOpen: boolean
   settingsOpen: boolean
   sidebar: ReactNode
-  titlebarActions?: ReactNode
+  titlebarTools?: readonly TitlebarTool[]
   onOpenSettings: () => void
   overlays?: ReactNode
 }
@@ -33,10 +35,12 @@ interface AppShellProps {
 export function AppShell({
   children,
   inspectorWidth,
+  leftTitlebarTools,
+  previewWidth,
   rightRailOpen,
   settingsOpen,
   sidebar,
-  titlebarActions,
+  titlebarTools,
   onOpenSettings,
   overlays
 }: AppShellProps) {
@@ -50,22 +54,36 @@ export function AppShell({
   // and draggable hit-zones are fixed overlays, so keeping an invisible grid
   // column for a closed sidebar pushes/clips the actual chat surface.
   const displayedSidebarWidth = sidebarOpen ? sidebarWidth : 0
+
   const titlebarControls = titlebarControlsPosition(connection?.windowButtonPosition)
+
   const titlebarContentInset = sidebarOpen
     ? 0
     : titlebarControls.left + TITLEBAR_HEIGHT + Math.round(TITLEBAR_HEIGHT / 2)
-  const showRightRail = rightRailOpen && (inspectorOpen || Boolean(previewTarget))
 
-  // Right rail yields to chat min-width before the chat column starts crushing the composer.
-  const inspectorColumn = showRightRail
-    ? 'min(var(--inspector-width), max(0px, calc(100vw - var(--sidebar-width) - var(--chat-min-width) - 2 * var(--shell-gap))))'
+  const showPreviewRail = rightRailOpen && Boolean(previewTarget)
+  const showInspectorRail = rightRailOpen && inspectorOpen
+
+  const inspectorColumn = showInspectorRail ? 'var(--inspector-width)' : '0px'
+
+  // Preview yields first because it is the widest rail; keep chat usable before
+  // letting the webview consume horizontal space.
+  const previewColumn = showPreviewRail
+    ? `min(var(--preview-width), max(0px, calc(100vw - var(--sidebar-width) - ${showInspectorRail ? 'var(--inspector-width)' : '0px'} - var(--chat-min-width) - 3 * var(--shell-gap))))`
     : '0px'
-  // Always keep the shell as 3 columns because the sidebar and chat are
-  // always rendered as grid children. Collapsing to a single grid column
-  // makes the hidden sidebar occupy row 1 and pushes chat into row 2, which
-  // looks like a blank/white screen when closing the preview with sidebars
-  // hidden. Centering is handled by setting closed side columns to 0px.
-  const shellGridColumns = 'var(--sidebar-width) minmax(0,1fr) var(--inspector-col)'
+
+  const titlebarToolCount = (titlebarTools?.filter(tool => !tool.hidden).length ?? 0) + (rightRailOpen ? 1 : 0) + 2
+
+  const previewToolbarGap = showPreviewRail
+    ? 'max(0px, calc(var(--shell-right-sidebar-width) - (3 * var(--titlebar-control-size)) + 0.2rem))'
+    : '0px'
+
+  // Always keep the shell as fixed columns because sidebar/chat/preview/inspector
+  // are always rendered as grid children. Hidden rails collapse to 0px so they
+  // don't float over the chat surface or reorder into a new row.
+  const shellGridColumns = 'var(--sidebar-width) minmax(0,1fr) var(--preview-col) var(--inspector-col)'
+
+  const hasSideGaps = sidebarOpen || showPreviewRail || showInspectorRail
 
   const startSidebarResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -106,42 +124,52 @@ export function AppShell({
       open={sidebarOpen}
       style={
         {
+          '--inspector-width': inspectorWidth,
+          '--preview-width': previewWidth,
           '--sidebar-width': `${displayedSidebarWidth}px`,
           '--chat-center-offset': '0px',
+          '--shell-left-sidebar-width': `${displayedSidebarWidth}px`,
+          '--shell-preview-pane-width': previewColumn,
+          '--shell-right-sidebar-width': inspectorColumn,
+          '--shell-right-region-width': 'calc(var(--shell-preview-pane-width) + var(--shell-right-sidebar-width))',
+          '--shell-preview-toolbar-gap': previewToolbarGap,
           '--titlebar-height': `${TITLEBAR_HEIGHT}px`,
           '--titlebar-content-inset': `${titlebarContentInset}px`,
           '--titlebar-controls-left': `${titlebarControls.left}px`,
-          '--titlebar-controls-top': `${titlebarControls.top}px`
+          '--titlebar-controls-top': `${titlebarControls.top}px`,
+          '--titlebar-tools-right': '0.75rem',
+          '--titlebar-tools-width': `calc(${titlebarToolCount} * var(--titlebar-control-size) + var(--shell-preview-toolbar-gap))`
         } as CSSProperties
       }
     >
       <TitlebarControls
-        leadingActions={titlebarActions}
+        leftTools={leftTitlebarTools}
         onOpenSettings={onOpenSettings}
         settingsOpen={settingsOpen}
         showInspectorToggle={rightRailOpen}
+        tools={titlebarTools}
       />
 
       <main
         className={cn(
           'relative grid h-screen w-full overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75 transition-none',
-          sidebarOpen || showRightRail ? 'gap-(--shell-gap)' : 'gap-0'
+          hasSideGaps ? 'gap-(--shell-gap)' : 'gap-0'
         )}
         style={
           {
-            '--inspector-width': inspectorWidth,
             '--inspector-col': inspectorColumn,
+            '--preview-col': previewColumn,
             gridTemplateColumns: shellGridColumns
           } as CSSProperties
         }
       >
         <div
           aria-hidden="true"
-          className="absolute left-0 top-0 z-1 h-(--titlebar-height) w-(--titlebar-controls-left) [-webkit-app-region:drag]"
+          className="pointer-events-none absolute left-0 top-0 z-1 h-(--titlebar-height) w-(--titlebar-controls-left) [-webkit-app-region:drag]"
         />
         <div
           aria-hidden="true"
-          className="absolute right-20 top-0 z-1 h-(--titlebar-height) left-[calc(var(--titlebar-controls-left)+(var(--titlebar-control-size)*2)+0.75rem)] [-webkit-app-region:drag]"
+          className="pointer-events-none absolute top-0 z-1 h-(--titlebar-height) left-[calc(var(--titlebar-controls-left)+(var(--titlebar-control-size)*2)+0.75rem)] right-[calc(var(--titlebar-tools-right)+var(--titlebar-tools-width)+0.75rem)] [-webkit-app-region:drag]"
         />
 
         {sidebar}

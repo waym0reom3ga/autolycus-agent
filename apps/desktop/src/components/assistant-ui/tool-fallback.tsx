@@ -165,7 +165,7 @@ export const ToolFallback = ({ toolCallId, toolName, args, result }: ToolCallMes
   }, [isPending])
 
   return (
-    <div className="mb-3 mt-1 text-sm text-muted-foreground">
+    <div className="mb-2 mt-2 text-sm text-muted-foreground">
       <button
         className="inline-grid max-w-full grid-cols-[0.75rem_minmax(0,auto)_minmax(0,1fr)_auto_auto] items-center gap-1 rounded-md py-0.5 pr-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         onClick={() => setOpen(v => !v)}

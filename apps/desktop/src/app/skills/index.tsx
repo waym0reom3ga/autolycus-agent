@@ -1,6 +1,6 @@
 import { Brain, RefreshCw, Search, Wrench, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type * as React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { PageLoader } from '@/components/page-loader'
@@ -13,7 +13,8 @@ import { notify, notifyError } from '@/store/notifications'
 import type { SkillInfo, ToolsetInfo } from '@/types/hermes'
 
 import { asText, includesQuery, prettyName, toolNames } from '../settings/helpers'
-import { TITLEBAR_ICON_SIZE, titlebarButtonClass, titlebarHeaderBaseClass } from '../shell/titlebar'
+import { titlebarHeaderBaseClass } from '../shell/titlebar'
+import type { SetTitlebarToolGroup } from '../shell/titlebar-controls'
 
 type SkillsMode = 'skills' | 'toolsets'
 
@@ -59,10 +60,10 @@ function filteredToolsets(toolsets: ToolsetInfo[], query: string): ToolsetInfo[]
 }
 
 interface SkillsViewProps extends React.ComponentProps<'section'> {
-  setTitlebarActions?: (actions: ReactNode | null) => void
+  setTitlebarToolGroup?: SetTitlebarToolGroup
 }
 
-export function SkillsView({ setTitlebarActions, ...props }: SkillsViewProps) {
+export function SkillsView({ setTitlebarToolGroup, ...props }: SkillsViewProps) {
   const [mode, setMode] = useState<SkillsMode>('skills')
   const [query, setQuery] = useState('')
   const [skills, setSkills] = useState<SkillInfo[] | null>(null)
@@ -90,24 +91,22 @@ export function SkillsView({ setTitlebarActions, ...props }: SkillsViewProps) {
   }, [refreshCapabilities])
 
   useEffect(() => {
-    if (!setTitlebarActions) {
+    if (!setTitlebarToolGroup) {
       return
     }
 
-    setTitlebarActions(
-      <button
-        aria-label={refreshing ? 'Refreshing skills' : 'Refresh skills'}
-        className={cn(titlebarButtonClass, 'grid place-items-center bg-transparent')}
-        disabled={refreshing}
-        onClick={() => void refreshCapabilities()}
-        type="button"
-      >
-        <RefreshCw className={cn(refreshing && 'animate-spin')} size={TITLEBAR_ICON_SIZE} />
-      </button>
-    )
+    setTitlebarToolGroup('skills', [
+      {
+        disabled: refreshing,
+        icon: <RefreshCw className={cn(refreshing && 'animate-spin')} />,
+        id: 'refresh-skills',
+        label: refreshing ? 'Refreshing skills' : 'Refresh skills',
+        onSelect: () => void refreshCapabilities()
+      }
+    ])
 
-    return () => setTitlebarActions(null)
-  }, [refreshCapabilities, refreshing, setTitlebarActions])
+    return () => setTitlebarToolGroup('skills', [])
+  }, [refreshCapabilities, refreshing, setTitlebarToolGroup])
 
   const categories = useMemo(() => {
     if (!skills) {
@@ -172,8 +171,8 @@ export function SkillsView({ setTitlebarActions, ...props }: SkillsViewProps) {
       className="flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background"
     >
       <header className={titlebarHeaderBaseClass}>
-        <h2 className="text-base font-semibold leading-none tracking-tight">Skills</h2>
-        <span className="text-xs text-muted-foreground">
+        <h2 className="pointer-events-auto text-base font-semibold leading-none tracking-tight">Skills</h2>
+        <span className="pointer-events-auto text-xs text-muted-foreground">
           {enabledSkills}/{totalSkills} enabled
         </span>
       </header>

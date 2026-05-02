@@ -40,11 +40,12 @@ import type { ModelOptionsResponse } from '@/types/hermes'
 
 import { routeSessionId } from '../routes'
 import { titlebarHeaderBaseClass, titlebarHeaderShadowClass } from '../shell/titlebar'
+import type { SetTitlebarToolGroup } from '../shell/titlebar-controls'
 
 import { ChatBar, ChatBarFallback } from './composer'
 import type { ChatBarState } from './composer/types'
 import type { DroppedFile } from './hooks/use-composer-actions'
-import { ChatRightRail } from './right-rail'
+import { ChatPreviewRail, ChatRightRail } from './right-rail'
 import { SessionActionsMenu } from './sidebar/session-actions-menu'
 
 interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
@@ -72,6 +73,7 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onEdit: (message: AppendMessage) => Promise<void>
   onReload: (parentId: string | null) => Promise<void>
   onTranscribeAudio?: (audio: Blob) => Promise<string>
+  setTitlebarToolGroup?: SetTitlebarToolGroup
 }
 
 function threadLoadingState(
@@ -123,7 +125,8 @@ export function ChatView({
   onThreadMessagesChange,
   onEdit,
   onReload,
-  onTranscribeAudio
+  onTranscribeAudio,
+  setTitlebarToolGroup
 }: ChatViewProps) {
   const location = useLocation()
   const activeSessionId = useStore($activeSessionId)
@@ -255,7 +258,7 @@ export function ChatView({
 
   return (
     <>
-      <div className={cn('relative flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent', className)}>
+      <div className={cn('relative col-start-2 col-end-3 row-start-1 flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent', className)}>
         <header className={cn(titlebarHeaderBaseClass, isRoutedSessionView && titlebarHeaderShadowClass)}>
           <div className="min-w-0 flex-1">
             {title && (
@@ -269,7 +272,7 @@ export function ChatView({
                 title={title}
               >
                 <Button
-                  className="h-7 min-w-0 gap-1.5 rounded-lg px-1 py-0 text-foreground hover:bg-accent/70 data-[state=open]:bg-accent/70 [-webkit-app-region:no-drag]"
+                  className="pointer-events-auto h-7 min-w-0 gap-1.5 rounded-lg px-1 py-0 text-foreground hover:bg-accent/70 data-[state=open]:bg-accent/70 [-webkit-app-region:no-drag]"
                   type="button"
                   variant="ghost"
                 >
@@ -283,7 +286,7 @@ export function ChatView({
 
         <NotificationStack />
 
-        <div className="relative min-h-0 flex-1 overflow-hidden rounded-[1.0625rem] bg-transparent">
+        <div className="relative min-h-0 max-w-full flex-1 overflow-hidden rounded-[1.0625rem] bg-transparent contain-[layout_paint]">
           <AssistantRuntimeProvider runtime={runtime}>
             <Thread
               intro={showIntro ? { personality: introPersonality, seed: introSeed } : undefined}
@@ -321,6 +324,7 @@ export function ChatView({
         </div>
       </div>
 
+      <ChatPreviewRail setTitlebarToolGroup={setTitlebarToolGroup} />
       <ChatRightRail
         onBrowseCwd={onBrowseCwd}
         onChangeCwd={onChangeCwd}

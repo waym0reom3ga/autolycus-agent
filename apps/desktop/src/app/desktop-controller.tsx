@@ -1,6 +1,6 @@
 import { useStore } from '@nanostores/react'
 import { useQueryClient } from '@tanstack/react-query'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import type { ModelOptionsResponse, SessionRuntimeInfo } from '@/types/hermes'
@@ -20,7 +20,7 @@ import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromC
 import { extractPreviewCandidates } from '../lib/preview-targets'
 import { $pinnedSessionIds, pinSession, unpinSession } from '../store/layout'
 import { notify, notifyError } from '../store/notifications'
-import { $previewTarget, setPreviewTarget } from '../store/preview'
+import { setPreviewTarget } from '../store/preview'
 import {
   $activeSessionId,
   $currentCwd,
@@ -59,6 +59,7 @@ import { useSessionActions } from './session/hooks/use-session-actions'
 import { useSessionStateCache } from './session/hooks/use-session-state-cache'
 import { SettingsView } from './settings'
 import { AppShell } from './shell/app-shell'
+import type { SetTitlebarToolGroup, TitlebarTool, TitlebarToolSide } from './shell/titlebar-controls'
 import { SkillsView } from './skills'
 import type { ContextSuggestion } from './types'
 
@@ -87,7 +88,6 @@ export function DesktopController() {
   const gatewayState = useStore($gatewayState)
   const { availableThemes, setTheme, themeName } = useTheme()
   const activeSessionId = useStore($activeSessionId)
-  const previewTarget = useStore($previewTarget)
   const messages = useStore($messages)
   const selectedStoredSessionId = useStore($selectedStoredSessionId)
   const currentCwd = useStore($currentCwd)
@@ -102,7 +102,9 @@ export function DesktopController() {
   const chatOpen = currentView === 'chat'
   const settingsReturnPathRef = useRef(NEW_CHAT_ROUTE)
   const refreshSessionsRequestRef = useRef(0)
-  const [titlebarActions, setTitlebarActions] = useState<ReactNode>(null)
+  const [titlebarToolGroups, setTitlebarToolGroups] = useState<
+    Record<TitlebarToolSide, Record<string, readonly TitlebarTool[]>>
+  >({ left: {}, right: {} })
   const [voiceMaxRecordingSeconds, setVoiceMaxRecordingSeconds] = useState(DEFAULT_VOICE_RECORDING_SECONDS)
   const [sttEnabled, setSttEnabled] = useState(true)
 
@@ -122,6 +124,30 @@ export function DesktopController() {
     setBusy,
     setMessages
   })
+
+  const setTitlebarToolGroup = useCallback<SetTitlebarToolGroup>((id, tools, side = 'right') => {
+    setTitlebarToolGroups(current => {
+      const next = { ...current, [side]: { ...current[side] } }
+
+      if (tools.length === 0) {
+        delete next[side][id]
+      } else {
+        next[side][id] = tools
+      }
+
+      return next
+    })
+  }, [])
+
+  const leftTitlebarTools = useMemo(
+    () => Object.values(titlebarToolGroups.left).flat(),
+    [titlebarToolGroups.left]
+  )
+
+  const titlebarTools = useMemo(
+    () => Object.values(titlebarToolGroups.right).flat(),
+    [titlebarToolGroups.right]
+  )
 
   const toggleSelectedPin = useCallback(() => {
     const sessionId = $selectedStoredSessionId.get()
@@ -786,6 +812,7 @@ export function DesktopController() {
       onSelectPersonality={name => void selectPersonality(name)}
       onSubmit={submitText}
       onThreadMessagesChange={handleThreadMessagesChange}
+      setTitlebarToolGroup={setTitlebarToolGroup}
       onToggleSelectedPin={toggleSelectedPin}
       onTranscribeAudio={transcribeVoiceAudio}
     />
@@ -793,19 +820,21 @@ export function DesktopController() {
 
   return (
     <AppShell
-      inspectorWidth={previewTarget ? PREVIEW_RAIL_WIDTH : SESSION_INSPECTOR_WIDTH}
+      inspectorWidth={SESSION_INSPECTOR_WIDTH}
+      leftTitlebarTools={leftTitlebarTools}
       onOpenSettings={openSettings}
       overlays={overlays}
+      previewWidth={PREVIEW_RAIL_WIDTH}
       rightRailOpen={chatOpen}
       settingsOpen={settingsOpen}
       sidebar={sidebar}
-      titlebarActions={titlebarActions}
+      titlebarTools={titlebarTools}
     >
       <Routes>
         <Route element={chatView} index />
         <Route element={chatView} path=":sessionId" />
-        <Route element={<SkillsView setTitlebarActions={setTitlebarActions} />} path="skills" />
-        <Route element={<ArtifactsView setTitlebarActions={setTitlebarActions} />} path="artifacts" />
+        <Route element={<SkillsView setTitlebarToolGroup={setTitlebarToolGroup} />} path="skills" />
+        <Route element={<ArtifactsView setTitlebarToolGroup={setTitlebarToolGroup} />} path="artifacts" />
         <Route element={null} path="settings" />
         <Route element={<Navigate replace to={NEW_CHAT_ROUTE} />} path="new" />
         <Route element={<LegacySessionRedirect />} path="sessions/:sessionId" />

@@ -2,8 +2,10 @@ import { useStore } from '@nanostores/react'
 import type * as React from 'react'
 
 import { SESSION_INSPECTOR_WIDTH, SessionInspector } from '@/components/session-inspector'
+import { cn } from '@/lib/utils'
 import { $inspectorOpen } from '@/store/layout'
 import { $previewTarget } from '@/store/preview'
+import type { SetTitlebarToolGroup } from '@/app/shell/titlebar-controls'
 import {
   $availablePersonalities,
   $busy,
@@ -32,7 +34,6 @@ export function ChatRightRail({
   onSelectPersonality
 }: ChatRightRailProps) {
   const inspectorOpen = useStore($inspectorOpen)
-  const previewTarget = useStore($previewTarget)
   const gatewayOpen = useStore($gatewayState) === 'open'
   const busy = useStore($busy)
   const cwd = useStore($currentCwd)
@@ -42,26 +43,44 @@ export function ChatRightRail({
   const personality = useStore($currentPersonality)
   const personalities = useStore($availablePersonalities)
 
-  if (previewTarget) {
-    return <PreviewPane target={previewTarget} />
+  return (
+    <div className="col-start-4 col-end-5 row-start-1 min-w-0 overflow-hidden">
+      <SessionInspector
+        branch={branch}
+        busy={busy}
+        cwd={cwd}
+        modelLabel={model ? model.split('/').pop() || model : ''}
+        modelTitle={provider ? `${provider}: ${model || ''}` : model}
+        onBrowseCwd={onBrowseCwd}
+        onChangeCwd={onChangeCwd}
+        onOpenModelPicker={gatewayOpen ? onOpenModelPicker : undefined}
+        onSelectPersonality={gatewayOpen ? onSelectPersonality : undefined}
+        open={inspectorOpen}
+        personalities={personalities}
+        personality={personality}
+        providerName={provider}
+      />
+    </div>
+  )
+}
+
+export function ChatPreviewRail({ setTitlebarToolGroup }: { setTitlebarToolGroup?: SetTitlebarToolGroup }) {
+  const inspectorOpen = useStore($inspectorOpen)
+  const previewTarget = useStore($previewTarget)
+
+  if (!previewTarget) {
+    return <aside aria-hidden="true" className="col-start-3 col-end-4 row-start-1 min-w-0 overflow-hidden" />
   }
 
   return (
-    <SessionInspector
-      branch={branch}
-      busy={busy}
-      cwd={cwd}
-      modelLabel={model ? model.split('/').pop() || model : ''}
-      modelTitle={provider ? `${provider}: ${model || ''}` : model}
-      onBrowseCwd={onBrowseCwd}
-      onChangeCwd={onChangeCwd}
-      onOpenModelPicker={gatewayOpen ? onOpenModelPicker : undefined}
-      onSelectPersonality={gatewayOpen ? onSelectPersonality : undefined}
-      open={inspectorOpen}
-      personalities={personalities}
-      personality={personality}
-      providerName={provider}
-    />
+    <div
+      className={cn(
+        'pointer-events-none col-start-3 col-end-4 row-start-1 min-w-0 overflow-hidden',
+        inspectorOpen && 'border-r border-border/60'
+      )}
+    >
+      <PreviewPane setTitlebarToolGroup={setTitlebarToolGroup} target={previewTarget} />
+    </div>
   )
 }
 
