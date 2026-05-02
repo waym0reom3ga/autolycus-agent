@@ -85,13 +85,11 @@ export function useVoiceConversation({
   }
 
   const appendSpeechText = (text: string) => {
-    const cleaned = text
-
-    if (!cleaned) {
+    if (!text) {
       return
     }
 
-    speechBufferRef.current = `${speechBufferRef.current} ${cleaned}`.trim()
+    speechBufferRef.current = `${speechBufferRef.current} ${text}`.trim()
   }
 
   const takeSpeechChunk = (force = false): string | null => {

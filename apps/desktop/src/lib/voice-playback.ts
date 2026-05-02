@@ -11,8 +11,13 @@ import { sanitizeTextForSpeech } from './speech-text'
 let currentAudio: HTMLAudioElement | null = null
 let sequence = 0
 
-function currentState(status: VoicePlaybackState['status'], options?: VoicePlaybackOptions): VoicePlaybackState {
+function currentState(
+  status: VoicePlaybackState['status'],
+  options?: VoicePlaybackOptions,
+  audioElement: HTMLAudioElement | null = null
+): VoicePlaybackState {
   return {
+    audioElement,
     messageId: options?.messageId ?? null,
     sequence,
     source: options?.source ?? null,
@@ -35,6 +40,7 @@ export function stopVoicePlayback() {
   }
 
   setVoicePlaybackState({
+    audioElement: null,
     messageId: null,
     sequence,
     source: null,
@@ -65,7 +71,7 @@ export async function playSpeechText(text: string, options: VoicePlaybackOptions
 
     const audio = new Audio(response.data_url)
     currentAudio = audio
-    setVoicePlaybackState(currentState('speaking', options))
+    setVoicePlaybackState(currentState('speaking', options, audio))
 
     await new Promise<void>((resolve, reject) => {
       audio.addEventListener('ended', () => resolve(), { once: true })

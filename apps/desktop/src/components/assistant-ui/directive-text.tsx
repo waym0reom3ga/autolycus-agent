@@ -84,6 +84,31 @@ export function formatRefValue(value: string): string {
 
 export const hermesDirectiveFormatter: Unstable_DirectiveFormatter = {
   serialize(item: Unstable_TriggerItem): string {
+    const metadata = item.metadata as { rawText?: unknown; insertId?: unknown } | undefined
+    const rawText = typeof metadata?.rawText === 'string' ? metadata.rawText : null
+    const insertId = typeof metadata?.insertId === 'string' ? metadata.insertId : null
+
+    // Live-completion items carry the gateway's original `text` field via metadata.
+    if (rawText) {
+      // Palette starters (`@file:` with empty value) — insert verbatim so the
+      // user can keep typing the path inline.
+      if (rawText.endsWith(':') && !insertId) {
+        return rawText
+      }
+
+      // Simple references like `@diff` / `@staged`.
+      if (!insertId) {
+        return rawText
+      }
+
+      // Typed references with a value — quote when needed.
+      const kindMatch = rawText.match(/^@([^:]+):/)
+      const kind = kindMatch?.[1] ?? item.type
+
+      return `@${kind}:${formatRefValue(insertId)}`
+    }
+
+    // Fallback for legacy callers that pass raw `id` strings.
     if (item.id === `${item.type}:`) {
       return `@${item.id}`
     }

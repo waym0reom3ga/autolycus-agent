@@ -24,6 +24,7 @@ import {
   $awaitingResponse,
   $busy,
   $contextSuggestions,
+  $currentCwd,
   $currentModel,
   $currentProvider,
   $freshDraftReady,
@@ -108,6 +109,7 @@ export function ChatView({
   const awaitingResponse = useStore($awaitingResponse)
   const busy = useStore($busy)
   const contextSuggestions = useStore($contextSuggestions)
+  const currentCwd = useStore($currentCwd)
   const currentModel = useStore($currentModel)
   const currentProvider = useStore($currentProvider)
   const freshDraftReady = useStore($freshDraftReady)
@@ -225,7 +227,7 @@ export function ChatView({
 
   return (
     <>
-      <div className="flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent">
+      <div className="relative flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent">
         <header className={cn(titlebarHeaderBaseClass, isRoutedSessionView && titlebarHeaderShadowClass)}>
           <div className="min-w-0 flex-1">
             {title && (
@@ -264,8 +266,10 @@ export function ChatView({
               <Suspense fallback={<ChatBarFallback />}>
                 <ChatBar
                   busy={busy}
+                  cwd={currentCwd}
                   disabled={!gatewayOpen}
                   focusKey={activeSessionId}
+                  gateway={gateway}
                   maxRecordingSeconds={maxVoiceRecordingSeconds}
                   onAddContextRef={onAddContextRef}
                   onAddUrl={onAddUrl}
@@ -277,6 +281,7 @@ export function ChatView({
                   onRemoveAttachment={onRemoveAttachment}
                   onSubmit={onSubmit}
                   onTranscribeAudio={onTranscribeAudio}
+                  sessionId={activeSessionId}
                   state={chatBarState}
                 />
               </Suspense>

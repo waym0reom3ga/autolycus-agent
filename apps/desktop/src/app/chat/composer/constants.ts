@@ -1,4 +1,3 @@
-import type { Unstable_IconComponent } from '@assistant-ui/react'
 import { FileText, FolderOpen, ImageIcon, Link, type LucideIcon } from 'lucide-react'
 import type { CSSProperties } from 'react'
 
@@ -28,15 +27,8 @@ export const ATTACHMENT_ICON: Record<ComposerAttachment['kind'], LucideIcon> = {
   file: FileText
 }
 
-export const DIRECTIVE_ICONS: Record<string, Unstable_IconComponent> = {
-  file: FileText,
-  folder: FolderOpen,
-  image: ImageIcon,
-  url: Link
-}
-
-export const DIRECTIVE_POPOVER_CLASS =
-  'absolute bottom-24 left-1/2 z-50 w-[min(calc(100vw-1.5rem),26rem)] max-h-[min(24rem,calc(100vh-8rem))] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-2xl border border-border/60 bg-popover/95 p-1.5 text-popover-foreground shadow-2xl backdrop-blur-md ring-1 ring-black/5'
+export const COMPLETION_DRAWER_CLASS =
+  'absolute inset-x-0 bottom-[calc(100%-0.0rem)] z-50 max-h-[min(23rem,calc(100vh-8rem))] overflow-y-auto overscroll-contain rounded-t-(--composer-active-radius) rounded-b-none border-x border-t border-b-0 border-ring/45 bg-popover/96 p-1.5 pb-3 text-popover-foreground shadow-[0_-1rem_2.25rem_-1.75rem_color-mix(in_srgb,var(--dt-foreground)_34%,transparent),0_-0.3125rem_0.875rem_-0.6875rem_color-mix(in_srgb,var(--dt-foreground)_22%,transparent)] backdrop-blur-md'
 
 export const PROMPT_SNIPPETS = [
   {

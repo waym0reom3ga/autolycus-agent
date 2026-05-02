@@ -64,7 +64,7 @@ export function NotificationStack() {
   return (
     <div
       aria-label="Notifications"
-      className="pointer-events-none fixed left-1/2 top-[calc(var(--titlebar-height)+0.75rem)] z-1050 flex w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2"
+      className="pointer-events-none absolute left-1/2 top-[calc(var(--titlebar-height)+0.75rem)] z-1050 flex w-[min(32rem,calc(100%-2rem))] -translate-x-1/2 flex-col gap-2"
       role="region"
     >
       <NotificationItem notification={latest} />

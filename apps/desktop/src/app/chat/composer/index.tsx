@@ -1,8 +1,7 @@
-import { ComposerPrimitive, unstable_useMentionAdapter, useAui, useAuiState } from '@assistant-ui/react'
+import { ComposerPrimitive, useAui, useAuiState } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
 import LiquidGlass from 'liquid-glass-react'
-import { FileText } from 'lucide-react'
-import { type ClipboardEvent, type CSSProperties, useEffect, useMemo, useRef, useState } from 'react'
+import { type ClipboardEvent, type CSSProperties, useEffect, useRef, useState } from 'react'
 
 import { hermesDirectiveFormatter } from '@/components/assistant-ui/directive-text'
 import { chatMessageText } from '@/lib/chat-messages'
@@ -17,7 +16,6 @@ import {
   ASK_PLACEHOLDERS,
   COMPOSER_BACKDROP_STYLE,
   DEFAULT_MAX_RECORDING_SECONDS,
-  DIRECTIVE_ICONS,
   EDGE_NEWLINES_RE,
   EXPAND_HEIGHT_PX,
   NARROW_VIEWPORT,
@@ -26,10 +24,14 @@ import {
 } from './constants'
 import { ContextMenu } from './context-menu'
 import { ComposerControls } from './controls'
-import { buildMentionCategories, DirectivePopover } from './directive-popover'
+import { DirectivePopover } from './directive-popover'
+import { HelpHint } from './help-hint'
+import { useAtCompletions } from './hooks/use-at-completions'
 import { useComposerGlassTweaks } from './hooks/use-composer-glass-tweaks'
+import { useSlashCompletions } from './hooks/use-slash-completions'
 import { useVoiceConversation } from './hooks/use-voice-conversation'
 import { useVoiceRecorder } from './hooks/use-voice-recorder'
+import { SlashPopover } from './slash-popover'
 import type { ChatBarProps } from './types'
 import { UrlDialog } from './url-dialog'
 import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
@@ -40,9 +42,12 @@ function trimPastedEdgeNewlines(text: string): string {
 
 export function ChatBar({
   busy,
+  cwd,
   disabled,
   focusKey,
+  gateway,
   maxRecordingSeconds = DEFAULT_MAX_RECORDING_SECONDS,
+  sessionId,
   state,
   onCancel,
   onAddUrl,
@@ -76,19 +81,13 @@ export function ChatBar({
     () => ASK_PLACEHOLDERS[Math.floor(Math.random() * ASK_PLACEHOLDERS.length)] || 'Ask anything'
   )
 
-  const mentionCategories = useMemo(() => buildMentionCategories(state.tools.suggestions), [state.tools.suggestions])
-
-  const mention = unstable_useMentionAdapter({
-    categories: mentionCategories,
-    includeModelContextTools: false,
-    formatter: hermesDirectiveFormatter,
-    iconMap: DIRECTIVE_ICONS,
-    fallbackIcon: FileText
-  })
+  const at = useAtCompletions({ gateway: gateway ?? null, sessionId: sessionId ?? null, cwd: cwd ?? null })
+  const slash = useSlashCompletions({ gateway: gateway ?? null })
 
   const stacked = expanded || stack
   const hasComposerPayload = draft.trim().length > 0 || attachments.length > 0
   const canSubmit = busy || hasComposerPayload
+  const showHelpHint = draft === '?'
 
   const glassTweaks = useComposerGlassTweaks()
 
@@ -344,20 +343,27 @@ export function ChatBar({
   return (
     <>
       <ComposerPrimitive.Unstable_TriggerPopoverRoot>
-        <DirectivePopover
-          adapter={mention.adapter}
-          directive={mention.directive}
-          fallbackIcon={mention.fallbackIcon ?? FileText}
-          iconMap={mention.iconMap ?? DIRECTIVE_ICONS}
-        />
         <ComposerPrimitive.Root
           className={cn(SHELL, 'group/composer pb-8 pt-2')}
+          data-slot="composer-root"
+          style={
+            {
+              '--composer-active-radius': `${glassTweaks.liquid.cornerRadius}px`
+            } as CSSProperties
+          }
           onSubmit={e => {
             e.preventDefault()
             submitDraft()
           }}
           ref={composerRef}
         >
+          {showHelpHint && <HelpHint />}
+          <DirectivePopover
+            adapter={at.adapter}
+            directive={{ formatter: hermesDirectiveFormatter }}
+            loading={at.loading}
+          />
+          <SlashPopover adapter={slash.adapter} loading={slash.loading} />
           <div
             className="pointer-events-none absolute inset-x-0 bottom-0 top-0"
             style={{ background: glassTweaks.fadeBackground }}
@@ -375,6 +381,7 @@ export function ChatBar({
               ref={glassShellRef}
               style={
                 {
+                  '--composer-active-radius': `${glassTweaks.liquid.cornerRadius}px`,
                   '--composer-glass-radius': `${glassTweaks.liquid.cornerRadius}px`
                 } as CSSProperties
               }
@@ -403,7 +410,14 @@ export function ChatBar({
                   ? 'opacity-60 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
                   : 'opacity-100'
               )}
-              style={{ ...COMPOSER_BACKDROP_STYLE, borderRadius: `${glassTweaks.liquid.cornerRadius}px` }}
+              data-slot="composer-surface"
+              style={
+                {
+                  ...COMPOSER_BACKDROP_STYLE,
+                  '--composer-active-radius': `${glassTweaks.liquid.cornerRadius}px`,
+                  borderRadius: `${glassTweaks.liquid.cornerRadius}px`
+                } as CSSProperties
+              }
             >
               <VoiceActivity state={voiceActivityState} />
               <VoicePlaybackActivity />

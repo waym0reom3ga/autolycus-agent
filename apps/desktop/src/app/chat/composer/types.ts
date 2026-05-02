@@ -28,6 +28,9 @@ export interface ChatBarProps {
   focusKey?: string | null
   maxRecordingSeconds?: number
   state: ChatBarState
+  gateway?: import('@/hermes').HermesGateway | null
+  sessionId?: string | null
+  cwd?: string | null
   onCancel: () => void
   onAddContextRef?: (refText: string, label?: string, detail?: string) => void
   onAddUrl?: (url: string) => void

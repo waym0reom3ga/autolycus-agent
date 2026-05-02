@@ -48,6 +48,37 @@ interface PromptActionsOptions {
   ) => ClientSessionState
 }
 
+interface CommandsCatalogResponse {
+  categories?: Array<{ name: string; pairs: [string, string][] }>
+  pairs?: [string, string][]
+  skill_count?: number
+  warning?: string
+}
+
+function renderCommandsCatalog(catalog: CommandsCatalogResponse): string {
+  const sections = catalog.categories?.length
+    ? catalog.categories
+    : [{ name: 'Commands', pairs: catalog.pairs ?? [] }]
+
+  const body = sections
+    .filter(section => section.pairs.length > 0)
+    .map(section => {
+      const rows = section.pairs.map(([cmd, desc]) => `${cmd.padEnd(18)} ${desc}`)
+
+      return [`${section.name}:`, ...rows].join('\n')
+    })
+    .join('\n\n')
+
+  const tail = [
+    catalog.skill_count ? `${catalog.skill_count} skill commands available.` : '',
+    catalog.warning ? `warning: ${catalog.warning}` : ''
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  return [body || 'No commands available.', tail].filter(Boolean).join('\n\n')
+}
+
 export function usePromptActions({
   activeSessionId,
   activeSessionIdRef,
@@ -189,6 +220,18 @@ export function usePromptActions({
 
         if (!name) {
           renderSlashOutput('empty slash command')
+
+          return
+        }
+
+        if (name === 'help' || name === 'commands') {
+          try {
+            const catalog = await requestGateway<CommandsCatalogResponse>('commands.catalog', { session_id: sessionId })
+
+            renderSlashOutput(renderCommandsCatalog(catalog))
+          } catch (err) {
+            renderSlashOutput(`error: ${err instanceof Error ? err.message : String(err)}`)
+          }
 
           return
         }

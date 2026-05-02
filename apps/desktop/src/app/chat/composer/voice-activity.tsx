@@ -1,5 +1,7 @@
+import { type AudioDataProvider, AudioWave, useCustomAudio } from '@audiowave/react'
 import { useStore } from '@nanostores/react'
 import { Loader2, Mic, Volume2, VolumeX } from 'lucide-react'
+import { useMemo } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -7,6 +9,15 @@ import { stopVoicePlayback } from '@/lib/voice-playback'
 import { $voicePlayback } from '@/store/voice-playback'
 
 import type { VoiceActivityState } from './types'
+
+type BrowserAudioContext = typeof AudioContext
+
+interface ElementAnalyser {
+  analyser: AnalyserNode
+  context: AudioContext
+}
+
+const elementAnalysers = new WeakMap<HTMLAudioElement, ElementAnalyser>()
 
 function formatElapsed(seconds: number) {
   const safeSeconds = Math.max(0, Math.floor(seconds))
@@ -40,21 +51,80 @@ function VoiceLevelBars({ level, active }: { active: boolean; level: number }) {
   )
 }
 
-function PlaybackBars() {
-  const bars = [820, 940, 760, 880, 700, 980, 790]
+function PlaybackWaveform({ audioElement }: { audioElement: HTMLAudioElement | null }) {
+  const provider = useMemo<AudioDataProvider>(
+    () => ({
+      onAudioData(callback) {
+        if (!audioElement) {
+          return () => undefined
+        }
+
+        const audioWindow = window as Window & { webkitAudioContext?: BrowserAudioContext }
+        const AudioContextCtor = window.AudioContext || audioWindow.webkitAudioContext
+
+        if (!AudioContextCtor) {
+          return () => undefined
+        }
+
+        let entry = elementAnalysers.get(audioElement)
+
+        if (!entry || entry.context.state === 'closed') {
+          const context = new AudioContextCtor()
+          const source = context.createMediaElementSource(audioElement)
+          const analyser = context.createAnalyser()
+
+          analyser.fftSize = 256
+          analyser.smoothingTimeConstant = 0.72
+          source.connect(analyser)
+          analyser.connect(context.destination)
+          entry = { analyser, context }
+          elementAnalysers.set(audioElement, entry)
+        }
+
+        void entry.context.resume()
+
+        const data = new Uint8Array(entry.analyser.fftSize)
+        let raf = 0
+
+        const tick = () => {
+          entry.analyser.getByteTimeDomainData(data)
+          callback(new Uint8Array(data))
+          raf = window.requestAnimationFrame(tick)
+        }
+
+        tick()
+
+        return () => window.cancelAnimationFrame(raf)
+      }
+    }),
+    [audioElement]
+  )
+
+  const { source } = useCustomAudio({
+    provider,
+    status: audioElement ? 'active' : 'idle'
+  })
 
   return (
-    <div aria-hidden="true" className="flex h-4 items-center gap-0.75">
-      {bars.map((duration, index) => (
-        <span
-          className="voice-wave-bar h-full w-0.5 rounded-full bg-current"
-          key={index}
-          style={{
-            animationDelay: `${index * -110}ms`,
-            animationDuration: `${duration}ms`
-          }}
+    <div aria-hidden="true" className="h-4 w-22 overflow-hidden rounded-full">
+      {source ? (
+        <AudioWave
+          amplitudeMode="adaptive"
+          animateCurrentPick
+          backgroundColor="transparent"
+          barColor="rgb(37 99 235)"
+          barWidth={2}
+          gain={1.8}
+          gap={1}
+          height={16}
+          onlyActive
+          rounded={2}
+          secondaryBarColor="transparent"
+          source={source}
+          speed={2}
+          width="100%"
         />
-      ))}
+      ) : null}
     </div>
   )
 }
@@ -129,7 +199,7 @@ export function VoicePlaybackActivity() {
 
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="truncate font-medium text-foreground/85">{title}</span>
-        {!preparing && <PlaybackBars />}
+        {!preparing && <PlaybackWaveform audioElement={playback.audioElement} />}
       </div>
 
       <Button
