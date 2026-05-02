@@ -1,9 +1,9 @@
+import './liquid-glass-overrides.css'
+
 import { ComposerPrimitive, useAui, useAuiState } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
 import LiquidGlass from 'liquid-glass-react'
 import { type ClipboardEvent, type CSSProperties, useEffect, useRef, useState } from 'react'
-
-import './liquid-glass-overrides.css'
 
 import { hermesDirectiveFormatter } from '@/components/assistant-ui/directive-text'
 import { useMediaQuery } from '@/hooks/use-media-query'
@@ -31,6 +31,9 @@ import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
 
 const COMPOSER_SHELL_CLASS =
   'group/composer absolute bottom-0 left-1/2 z-30 w-[min(calc(100%-1rem),clamp(26rem,61.8%,56rem))] max-w-full -translate-x-1/2 pt-2 pb-[var(--composer-shell-pad-block-end)]'
+
+const COMPOSER_SCROLLED_DIM_CLASS =
+  'opacity-30 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
 
 const COMPOSER_FROST_CLASS = cn(
   'pointer-events-none absolute inset-0 -z-10 rounded-(--composer-active-radius)',
@@ -384,9 +387,7 @@ export function ChatBar({
               className={cn(
                 'composer-liquid-shell-wrap absolute inset-0 isolate overflow-hidden rounded-(--composer-glass-radius,20px) transition-opacity duration-200 ease-out',
                 'group-has-data-[state=open]/composer:rounded-t-none',
-                scrolledUp
-                  ? 'opacity-30 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
-                  : 'opacity-100'
+                scrolledUp ? COMPOSER_SCROLLED_DIM_CLASS : 'opacity-100'
               )}
               data-glass-frame="true"
               data-show-library-rims={glassTweaks.showLibraryRims ? 'true' : undefined}
@@ -423,9 +424,7 @@ export function ChatBar({
               <div
                 className={cn(
                   'relative z-1 flex min-h-0 w-full flex-col gap-1.5 px-2 py-1.5 transition-opacity duration-200 ease-out',
-                  scrolledUp
-                    ? 'opacity-30 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
-                    : 'opacity-100'
+                  scrolledUp ? COMPOSER_SCROLLED_DIM_CLASS : 'opacity-100'
                 )}
                 data-slot="composer-fade"
               >
