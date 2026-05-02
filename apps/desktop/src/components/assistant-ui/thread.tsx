@@ -111,11 +111,13 @@ function partText(part: unknown): string {
     return part
   }
 
-  if (part && typeof part === 'object' && 'text' in part && typeof part.text === 'string') {
-    return part.text
+  if (!part || typeof part !== 'object') {
+    return ''
   }
 
-  return ''
+  const row = part as { text?: unknown; type?: unknown }
+
+  return (!row.type || row.type === 'text') && typeof row.text === 'string' ? row.text : ''
 }
 
 function messageContentText(content: unknown): string {

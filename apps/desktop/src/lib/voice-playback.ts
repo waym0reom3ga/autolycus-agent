@@ -9,6 +9,7 @@ import {
 import { sanitizeTextForSpeech } from './speech-text'
 
 let currentAudio: HTMLAudioElement | null = null
+let currentStop: (() => void) | null = null
 let sequence = 0
 
 function currentState(
@@ -32,10 +33,13 @@ export interface VoicePlaybackOptions {
 
 export function stopVoicePlayback() {
   sequence += 1
+  currentStop?.()
+  currentStop = null
 
   if (currentAudio) {
     currentAudio.pause()
     currentAudio.src = ''
+    currentAudio.load()
     currentAudio = null
   }
 
@@ -74,8 +78,29 @@ export async function playSpeechText(text: string, options: VoicePlaybackOptions
     setVoicePlaybackState(currentState('speaking', options, audio))
 
     await new Promise<void>((resolve, reject) => {
-      audio.addEventListener('ended', () => resolve(), { once: true })
-      audio.addEventListener('error', () => reject(new Error('Playback failed')), { once: true })
+      const cleanup = () => {
+        audio.removeEventListener('ended', onEnded)
+        audio.removeEventListener('error', onError)
+        currentStop = null
+      }
+
+      const onEnded = () => {
+        cleanup()
+        resolve()
+      }
+
+      const onError = () => {
+        cleanup()
+        reject(new Error('Playback failed'))
+      }
+
+      currentStop = () => {
+        cleanup()
+        resolve()
+      }
+
+      audio.addEventListener('ended', onEnded, { once: true })
+      audio.addEventListener('error', onError, { once: true })
       void audio.play().catch(reject)
     })
 
@@ -89,6 +114,7 @@ export async function playSpeechText(text: string, options: VoicePlaybackOptions
     return true
   } catch (error) {
     if (isCurrent()) {
+      currentStop = null
       currentAudio = null
       setVoicePlaybackState(currentState('idle'))
     }

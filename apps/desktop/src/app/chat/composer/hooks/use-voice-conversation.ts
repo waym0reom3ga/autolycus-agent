@@ -82,7 +82,7 @@ export function useVoiceConversation({
       return
     }
 
-    speechBufferRef.current = `${speechBufferRef.current} ${text}`.trim()
+    speechBufferRef.current = `${speechBufferRef.current}${text}`
   }
 
   const takeSpeechChunk = (force = false): string | null => {

@@ -3,6 +3,8 @@ import { useStore } from '@nanostores/react'
 import LiquidGlass from 'liquid-glass-react'
 import { type ClipboardEvent, type CSSProperties, useEffect, useRef, useState } from 'react'
 
+import './liquid-glass-overrides.css'
+
 import { hermesDirectiveFormatter } from '@/components/assistant-ui/directive-text'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { chatMessageText } from '@/lib/chat-messages'
@@ -27,13 +29,20 @@ import type { ChatBarProps } from './types'
 import { UrlDialog } from './url-dialog'
 import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
 
-const SHELL =
-  'absolute bottom-0 left-1/2 z-30 w-[min(calc(100%_-_1rem),clamp(26rem,61.8%,56rem))] max-w-full -translate-x-1/2'
+const COMPOSER_SHELL_CLASS =
+  'group/composer absolute bottom-0 left-1/2 z-30 w-[min(calc(100%-1rem),clamp(26rem,61.8%,56rem))] max-w-full -translate-x-1/2 pt-2 pb-[var(--composer-shell-pad-block-end)]'
 
-const COMPOSER_BACKDROP_STYLE = {
-  backdropFilter: 'blur(0.75rem) saturate(1.12)',
-  WebkitBackdropFilter: 'blur(0.75rem) saturate(1.12)'
-} satisfies CSSProperties
+const COMPOSER_FROST_CLASS = cn(
+  'pointer-events-none absolute inset-0 -z-10 rounded-(--composer-active-radius)',
+  'bg-[color-mix(in_srgb,var(--dt-card)_72%,transparent)]',
+  'backdrop-blur-[0.75rem] backdrop-saturate-[1.12]',
+  '[-webkit-backdrop-filter:blur(0.75rem)_saturate(1.12)]',
+  'transition-[background-color,backdrop-filter,-webkit-backdrop-filter] duration-150 ease-out',
+  'group-data-[thread-scrolled-up]/composer:bg-[color-mix(in_srgb,var(--dt-card)_48%,transparent)]',
+  'group-focus-within/composer:bg-[var(--dt-card)]',
+  'group-focus-within/composer:[backdrop-filter:none]',
+  'group-focus-within/composer:[-webkit-backdrop-filter:none]'
+)
 
 export function ChatBar({
   busy,
@@ -344,18 +353,20 @@ export function ChatBar({
     <>
       <ComposerPrimitive.Unstable_TriggerPopoverRoot>
         <ComposerPrimitive.Root
-          className={cn(SHELL, 'group/composer pb-(--composer-shell-pad-block-end) pt-2')}
+          className={COMPOSER_SHELL_CLASS}
           data-slot="composer-root"
-          style={
-            {
-              '--composer-active-radius': `${glassTweaks.liquid.cornerRadius}px`
-            } as CSSProperties
-          }
+          data-thread-scrolled-up={scrolledUp ? '' : undefined}
           onSubmit={e => {
             e.preventDefault()
             submitDraft()
           }}
           ref={composerRef}
+          style={
+            {
+              '--composer-active-radius': `${glassTweaks.liquid.cornerRadius}px`,
+              '--composer-glass-radius': `${glassTweaks.liquid.cornerRadius}px`
+            } as CSSProperties
+          }
         >
           {showHelpHint && <HelpHint />}
           <DirectivePopover
@@ -365,26 +376,22 @@ export function ChatBar({
           />
           <SlashPopover adapter={slash.adapter} loading={slash.loading} />
           <div
-            className="pointer-events-none absolute inset-x-0 bottom-0 top-0"
+            className="pointer-events-none absolute inset-0"
             style={{ background: glassTweaks.fadeBackground }}
           />
           <div className="relative w-full">
             <div
               className={cn(
-                'composer-liquid-shell-wrap absolute inset-0 transition-opacity duration-200 ease-out',
+                'composer-liquid-shell-wrap absolute inset-0 isolate overflow-hidden rounded-(--composer-glass-radius,20px) transition-opacity duration-200 ease-out',
+                'group-has-data-[state=open]/composer:rounded-t-none',
                 scrolledUp
-                  ? 'opacity-70 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
+                  ? 'opacity-30 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
                   : 'opacity-100'
               )}
               data-glass-frame="true"
               data-show-library-rims={glassTweaks.showLibraryRims ? 'true' : undefined}
+              data-slot="composer-liquid-shell-wrap"
               ref={glassShellRef}
-              style={
-                {
-                  '--composer-active-radius': `${glassTweaks.liquid.cornerRadius}px`,
-                  '--composer-glass-radius': `${glassTweaks.liquid.cornerRadius}px`
-                } as CSSProperties
-              }
             >
               <LiquidGlass
                 aberrationIntensity={glassTweaks.liquid.aberrationIntensity}
@@ -398,38 +405,30 @@ export function ChatBar({
                 mouseContainer={composerRef}
                 padding="0"
                 saturation={glassTweaks.liquid.saturation}
-                style={{ position: 'absolute', top: '0', left: '0', width: '100%', height: '100%' }}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
               >
                 <span className="block h-full w-full" />
               </LiquidGlass>
             </div>
             <div
               className={cn(
-                'relative z-4 isolate overflow-hidden border border-input/70 shadow-composer transition-[border-color,box-shadow] duration-200 ease-out group-focus-within/composer:border-ring/35 group-focus-within/composer:shadow-composer-focus',
-                scrolledUp ? 'border-input/48' : 'border-input/70'
+                'relative z-4 isolate overflow-hidden rounded-(--composer-active-radius) border border-input/70 shadow-composer transition-[border-color,box-shadow] duration-200 ease-out',
+                'group-focus-within/composer:border-ring/35 group-focus-within/composer:shadow-composer-focus',
+                'group-has-data-[state=open]/composer:rounded-t-none group-has-data-[state=open]/composer:border-t-transparent',
+                'group-has-data-[state=open]/composer:shadow-[0_0.0625rem_0_0.0625rem_color-mix(in_srgb,var(--dt-ring)_35%,transparent),0_0.5rem_1.5rem_color-mix(in_srgb,var(--shadow-ink)_6%,transparent)]'
               )}
               data-slot="composer-surface"
-              style={
-                {
-                  borderRadius: `${glassTweaks.liquid.cornerRadius}px`,
-                  '--composer-active-radius': `${glassTweaks.liquid.cornerRadius}px`
-                } as CSSProperties
-              }
             >
+              <div aria-hidden className={COMPOSER_FROST_CLASS} />
               <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0 -z-10"
-                style={
-                  {
-                    ...COMPOSER_BACKDROP_STYLE,
-                    borderRadius: `${glassTweaks.liquid.cornerRadius}px`,
-                    backgroundColor: scrolledUp
-                      ? 'color-mix(in srgb, var(--dt-card) 48%, transparent)'
-                      : 'color-mix(in srgb, var(--dt-card) 72%, transparent)'
-                  } satisfies CSSProperties
-                }
-              />
-              <div className="relative z-1 flex min-h-0 w-full flex-col gap-1.5 px-2 py-1.5">
+                className={cn(
+                  'relative z-1 flex min-h-0 w-full flex-col gap-1.5 px-2 py-1.5 transition-opacity duration-200 ease-out',
+                  scrolledUp
+                    ? 'opacity-30 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
+                    : 'opacity-100'
+                )}
+                data-slot="composer-fade"
+              >
                 <VoiceActivity state={voiceActivityState} />
                 <VoicePlaybackActivity />
                 {attachments.length > 0 && (
@@ -470,19 +469,13 @@ export function ChatBar({
 
 export function ChatBarFallback() {
   return (
-    <div className={cn(SHELL, 'bg-linear-to-b from-transparent to-background/55 pb-(--composer-shell-pad-block-end) pt-2')}>
-      <div className="relative isolate h-11 w-full overflow-hidden rounded-[1.25rem] border border-input/70 shadow-composer">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={
-            {
-              ...COMPOSER_BACKDROP_STYLE,
-              borderRadius: '1.25rem',
-              backgroundColor: 'color-mix(in srgb, var(--dt-card) 72%, transparent)'
-            } satisfies CSSProperties
-          }
-        />
+    <div
+      className={cn(COMPOSER_SHELL_CLASS, 'bg-linear-to-b from-transparent to-background/55')}
+      data-slot="composer-root"
+      style={{ '--composer-active-radius': '1.25rem' } as CSSProperties}
+    >
+      <div className="relative isolate h-11 w-full overflow-hidden rounded-(--composer-active-radius) border border-input/70 shadow-composer">
+        <div aria-hidden className={COMPOSER_FROST_CLASS} />
       </div>
     </div>
   )
