@@ -37,6 +37,9 @@ const consoleLevelClass: Record<number, string> = {
   3: 'text-destructive'
 }
 
+const CONSOLE_BOTTOM_THRESHOLD = 24
+const FILE_RELOAD_DEBOUNCE_MS = 200
+
 function compactUrl(value: string): string {
   try {
     const url = new URL(value)
@@ -56,6 +59,14 @@ function formatLogLine(log: ConsoleEntry): string {
   const tail = log.source ? ` (${compactUrl(log.source)}${log.line ? `:${log.line}` : ''})` : ''
 
   return `${head} ${log.message}${tail}`.trim()
+}
+
+function isNearConsoleBottom(element: HTMLDivElement | null): boolean {
+  if (!element) {
+    return true
+  }
+
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= CONSOLE_BOTTOM_THRESHOLD
 }
 
 interface ConsoleRowProps {
@@ -136,10 +147,11 @@ async function writeClipboardText(text: string) {
 
 export function PreviewPane({ target }: { target: PreviewTarget }) {
   const consoleBodyRef = useRef<HTMLDivElement | null>(null)
+  const consoleShouldStickRef = useRef(true)
   const hostRef = useRef<HTMLDivElement | null>(null)
   const logIdRef = useRef(0)
   const webviewRef = useRef<PreviewWebview | null>(null)
-  const [consoleOpen, setConsoleOpen] = useState(true)
+  const [consoleOpen, setConsoleOpen] = useState(false)
   const [currentUrl, setCurrentUrl] = useState(target.url)
   const [devtoolsOpen, setDevtoolsOpen] = useState(false)
   const [logs, setLogs] = useState<ConsoleEntry[]>([])
@@ -211,10 +223,22 @@ export function PreviewPane({ target }: { target: PreviewTarget }) {
   }
 
   useEffect(() => {
-    if (consoleOpen) {
-      consoleBodyRef.current?.scrollTo({ top: consoleBodyRef.current.scrollHeight })
+    if (consoleOpen && consoleShouldStickRef.current) {
+      const consoleBody = consoleBodyRef.current
+
+      consoleBody?.scrollTo({ top: consoleBody.scrollHeight })
     }
   }, [consoleOpen, logs])
+
+  useEffect(() => {
+    if (consoleOpen) {
+      consoleShouldStickRef.current = true
+
+      const consoleBody = consoleBodyRef.current
+
+      consoleBody?.scrollTo({ top: consoleBody.scrollHeight })
+    }
+  }, [consoleOpen])
 
   useEffect(() => {
     if (target.kind !== 'file' || !window.hermesDesktop?.watchPreviewFile || !window.hermesDesktop?.onPreviewFileChanged) {
@@ -222,19 +246,32 @@ export function PreviewPane({ target }: { target: PreviewTarget }) {
     }
 
     let active = true
+    let pendingReloadCount = 0
+    let pendingReloadUrl = ''
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null
     let watchId = ''
 
-    const unsubscribe = window.hermesDesktop.onPreviewFileChanged(payload => {
-      if (!active || payload.id !== watchId) {
+    const flushReload = () => {
+      if (!active || pendingReloadCount === 0) {
         return
       }
 
+      const changedCount = pendingReloadCount
+      const changedUrl = pendingReloadUrl
+
+      pendingReloadCount = 0
+      pendingReloadUrl = ''
+
+      consoleShouldStickRef.current = isNearConsoleBottom(consoleBodyRef.current)
       setLogs(prev => [
         ...prev.slice(-199),
         {
           id: ++logIdRef.current,
           level: 1,
-          message: `File changed, reloading preview: ${compactUrl(payload.url)}`
+          message:
+            changedCount === 1
+              ? `File changed, reloading preview: ${compactUrl(changedUrl)}`
+              : `${changedCount} file changes, reloading preview: ${compactUrl(changedUrl)}`
         }
       ])
 
@@ -243,6 +280,24 @@ export function PreviewPane({ target }: { target: PreviewTarget }) {
       } else {
         webviewRef.current?.reload?.()
       }
+    }
+
+    const unsubscribe = window.hermesDesktop.onPreviewFileChanged(payload => {
+      if (!active || payload.id !== watchId) {
+        return
+      }
+
+      pendingReloadCount += 1
+      pendingReloadUrl = payload.url
+
+      if (reloadTimer) {
+        clearTimeout(reloadTimer)
+      }
+
+      reloadTimer = setTimeout(() => {
+        reloadTimer = null
+        flushReload()
+      }, FILE_RELOAD_DEBOUNCE_MS)
     })
 
     void window.hermesDesktop
@@ -271,6 +326,10 @@ export function PreviewPane({ target }: { target: PreviewTarget }) {
       active = false
       unsubscribe()
 
+      if (reloadTimer) {
+        clearTimeout(reloadTimer)
+      }
+
       if (watchId) {
         void window.hermesDesktop?.stopPreviewFileWatch?.(watchId)
       }
@@ -298,6 +357,7 @@ export function PreviewPane({ target }: { target: PreviewTarget }) {
     webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes')
 
     const appendLog = (entry: Omit<ConsoleEntry, 'id'>) => {
+      consoleShouldStickRef.current = isNearConsoleBottom(consoleBodyRef.current)
       setLogs(prev => [...prev.slice(-199), { ...entry, id: ++logIdRef.current }])
     }
 

@@ -99,6 +99,7 @@ function threadLoadingState(
 }
 
 export function ChatView({
+  className,
   gateway,
   onToggleSelectedPin,
   onDeleteSelectedSession,
@@ -254,7 +255,7 @@ export function ChatView({
 
   return (
     <>
-      <div className="relative flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent">
+      <div className={cn('relative flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent', className)}>
         <header className={cn(titlebarHeaderBaseClass, isRoutedSessionView && titlebarHeaderShadowClass)}>
           <div className="min-w-0 flex-1">
             {title && (

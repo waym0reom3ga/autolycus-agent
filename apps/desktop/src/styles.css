@@ -311,6 +311,7 @@ canvas {
 [data-slot='composer-root'] {
   width: clamp(var(--composer-min-width), var(--composer-target-width), var(--composer-max-width));
   max-width: calc(100% - var(--composer-inline-clearance));
+  transform: translateX(-50%);
 }
 
 /* Thread scroll container (from use-stick-to-bottom).

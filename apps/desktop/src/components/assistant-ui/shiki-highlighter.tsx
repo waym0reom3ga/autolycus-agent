@@ -28,6 +28,12 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
   // fence padding without touching indentation on the first real line.
   const trimmed = (code ?? '').replace(/^\n+/, '').trimEnd()
 
+  // Avoid rendering an empty code card while Streamdown is still deciding
+  // whether a transient/incomplete fence is real markdown.
+  if (!trimmed.trim()) {
+    return null
+  }
+
   if (isLikelyProseCodeBlock(language, trimmed)) {
     return <div className="whitespace-pre-wrap wrap-anywhere text-foreground">{trimmed}</div>
   }

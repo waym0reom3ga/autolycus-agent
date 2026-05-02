@@ -31,10 +31,23 @@ const REASONING_BLOCK_RE = /<(think|thinking|reasoning|scratchpad|analysis)>[\s\
 const PREVIEW_MARKER_RE = /\[Preview:[^\]]+\]\(#preview[:/][^)]+\)/gi
 
 const FENCE_LINE_RE = /^([ \t]*)(`{3,}|~{3,})([^\n]*)$/
-const MIDLINE_FENCE_RE = /([^\n])```+(?=\s|$)/g
+const MIDLINE_FENCE_RE = /([^\n])(`{3,}|~{3,})(?=\s|$)/g
+const EMPTY_FENCE_BLOCK_RE = /(^|\n)[ \t]*(?:`{3,}|~{3,})[^\n]*\n[ \t]*(?:`{3,}|~{3,})[ \t]*(?=\n|$)/g
 
 function stripMidlineFenceStarts(text: string): string {
+  // Providers often stream inline fence noise like `200.``` http://...`.
+  // A real fenced block must start at the beginning of a line; anything
+  // mid-line should be treated as literal/prose and never allowed to create
+  // an empty Streamdown code-card shell.
   return text.replace(MIDLINE_FENCE_RE, '$1')
+}
+
+function stripEmptyFenceBlocks(text: string): string {
+  // Remove already-balanced but empty fences before Streamdown sees them.
+  // Returning null from our CodeHeader/SyntaxHighlighter is not enough: the
+  // code plugin still renders its outer code-block wrapper, producing the
+  // blank bordered element seen during streaming.
+  return text.replace(EMPTY_FENCE_BLOCK_RE, '$1')
 }
 
 function pushProseFence(out: string[], indent: string, info: string, lines: string[]) {
@@ -96,6 +109,13 @@ function normalizeFenceBlocks(text: string): string {
     const bodyLines = sourceLines.slice(index + 1, closeIndex === -1 ? sourceLines.length : closeIndex)
     const body = bodyLines.join('\n')
 
+    if (closeIndex !== -1 && !body.trim()) {
+      // Empty fenced block: drop both delimiters. This prevents Streamdown's
+      // code plugin from rendering an empty shell/card.
+      index = closeIndex + 1
+      continue
+    }
+
     if (closeIndex === -1) {
       if (!body.trim()) {
         index += 1
@@ -130,8 +150,9 @@ function normalizeFenceBlocks(text: string): string {
 export function preprocessMarkdown(text: string): string {
   const cleaned = text.replace(REASONING_BLOCK_RE, '').replace(PREVIEW_MARKER_RE, '')
   const normalizedFences = normalizeFenceBlocks(stripMidlineFenceStarts(cleaned))
+  const strippedEmptyFences = stripEmptyFenceBlocks(normalizedFences)
 
-  return normalizedFences
+  return strippedEmptyFences
     .split(/((?:```|~~~)[\s\S]*?(?:```|~~~))/g)
     .map(part => (/^(?:```|~~~)/.test(part) ? part : stripPreviewTargets(part)))
     .join('')
@@ -140,21 +161,26 @@ export function preprocessMarkdown(text: string): string {
 
 function CodeHeader({ language, code }: { language?: string; code?: string }) {
   const [copied, setCopied] = useState(false)
+  const normalizedCode = (code ?? '').replace(/^\n+/, '').trimEnd()
 
-  if (isLikelyProseCodeBlock(language, code)) {
+  // Streamdown can transiently parse stray backticks / incomplete fences as
+  // an empty code block while text is streaming, e.g. "200.``` http://...".
+  // Rendering our header + empty body for that looks like a giant blank
+  // code card. Hide the whole block until there's actual code content.
+  if (!normalizedCode.trim() || isLikelyProseCodeBlock(language, normalizedCode)) {
     return null
   }
 
   async function handleCopy() {
-    if (!code) {
+    if (!normalizedCode) {
       return
     }
 
     try {
       if (window.hermesDesktop?.writeClipboard) {
-        await window.hermesDesktop.writeClipboard(code)
+        await window.hermesDesktop.writeClipboard(normalizedCode)
       } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(code)
+        await navigator.clipboard.writeText(normalizedCode)
       }
 
       triggerHaptic('selection')

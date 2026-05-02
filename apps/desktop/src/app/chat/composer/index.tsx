@@ -41,7 +41,7 @@ import { UrlDialog } from './url-dialog'
 import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
 
 const COMPOSER_SHELL_CLASS =
-  'group/composer absolute bottom-0 left-1/2 z-30 max-w-full -translate-x-1/2 pt-2 pb-[var(--composer-shell-pad-block-end)]'
+  'group/composer absolute bottom-0 left-1/2 z-30 max-w-full pt-2 pb-[var(--composer-shell-pad-block-end)]'
 
 function extractClipboardImageBlobs(clipboard: DataTransfer): Blob[] {
   const blobs: Blob[] = []

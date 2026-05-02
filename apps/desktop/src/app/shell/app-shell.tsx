@@ -46,14 +46,24 @@ export function AppShell({
   const inspectorOpen = useStore($inspectorOpen)
   const previewTarget = useStore($previewTarget)
 
-  const displayedSidebarWidth = sidebarOpen ? sidebarWidth : Math.round(sidebarWidth * 0.8)
+  // The shell grid should describe visible app chrome only. Titlebar buttons
+  // and draggable hit-zones are fixed overlays, so keeping an invisible grid
+  // column for a closed sidebar pushes/clips the actual chat surface.
+  const displayedSidebarWidth = sidebarOpen ? sidebarWidth : 0
   const titlebarControls = titlebarControlsPosition(connection?.windowButtonPosition)
+  const titlebarContentInset = titlebarControls.left + TITLEBAR_HEIGHT + Math.round(TITLEBAR_HEIGHT / 2)
   const showRightRail = rightRailOpen && (inspectorOpen || Boolean(previewTarget))
 
   // Right rail yields to chat min-width before the chat column starts crushing the composer.
   const inspectorColumn = showRightRail
     ? 'min(var(--inspector-width), max(0px, calc(100vw - var(--sidebar-width) - var(--chat-min-width) - 2 * var(--shell-gap))))'
     : '0px'
+  // Always keep the shell as 3 columns because the sidebar and chat are
+  // always rendered as grid children. Collapsing to a single grid column
+  // makes the hidden sidebar occupy row 1 and pushes chat into row 2, which
+  // looks like a blank/white screen when closing the preview with sidebars
+  // hidden. Centering is handled by setting closed side columns to 0px.
+  const shellGridColumns = 'var(--sidebar-width) minmax(0,1fr) var(--inspector-col)'
 
   const startSidebarResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -95,7 +105,9 @@ export function AppShell({
       style={
         {
           '--sidebar-width': `${displayedSidebarWidth}px`,
+          '--chat-center-offset': '0px',
           '--titlebar-height': `${TITLEBAR_HEIGHT}px`,
+          '--titlebar-content-inset': `${titlebarContentInset}px`,
           '--titlebar-controls-left': `${titlebarControls.left}px`,
           '--titlebar-controls-top': `${titlebarControls.top}px`
         } as CSSProperties
@@ -110,13 +122,14 @@ export function AppShell({
 
       <main
         className={cn(
-          'relative grid h-screen w-full grid-cols-[var(--sidebar-width)_minmax(0,1fr)_var(--inspector-col)] overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75 transition-none',
+          'relative grid h-screen w-full overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75 transition-none',
           sidebarOpen || showRightRail ? 'gap-(--shell-gap)' : 'gap-0'
         )}
         style={
           {
             '--inspector-width': inspectorWidth,
-            '--inspector-col': inspectorColumn
+            '--inspector-col': inspectorColumn,
+            gridTemplateColumns: shellGridColumns
           } as CSSProperties
         }
       >

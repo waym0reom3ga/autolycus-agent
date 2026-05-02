@@ -146,7 +146,7 @@ export const Thread: FC<{
           >
             <ThreadScrollSync sessionKey={sessionKey} />
             <StickToBottom.Content
-              className="flex w-full flex-col gap-3 px-[clamp(1rem,10%,12rem)] pt-[calc(var(--vsq)*19)]"
+              className="mx-auto flex w-full max-w-[48rem] flex-col gap-3 px-4 pt-[calc(var(--vsq)*19)] sm:px-6 lg:px-8"
               data-slot="aui_thread-content"
               scrollClassName="overflow-y-auto overscroll-contain"
             >
