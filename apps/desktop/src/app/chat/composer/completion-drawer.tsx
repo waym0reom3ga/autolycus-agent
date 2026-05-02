@@ -2,10 +2,8 @@ import type { Unstable_TriggerAdapter } from '@assistant-ui/core'
 import { ComposerPrimitive } from '@assistant-ui/react'
 import type { ReactNode } from 'react'
 
-import { COMPLETION_DRAWER_CLASS } from './constants'
-
-export const COMPLETION_DRAWER_ROW_CLASS =
-  'flex w-full min-w-0 items-baseline gap-2 rounded-md px-2.5 py-1 text-left text-xs transition-colors hover:bg-accent/70 data-highlighted:bg-accent'
+export const COMPLETION_DRAWER_CLASS = 'composer-completion-drawer'
+export const COMPLETION_DRAWER_ROW_CLASS = 'composer-completion-row'
 
 export function ComposerCompletionDrawer({
   adapter,

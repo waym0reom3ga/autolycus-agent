@@ -3,13 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { playSpeechText, stopVoicePlayback } from '@/lib/voice-playback'
 import { notify, notifyError } from '@/store/notifications'
 
-import {
-  CONVERSATION_IDLE_SILENCE_MS,
-  CONVERSATION_MAX_TURN_SECONDS,
-  CONVERSATION_POST_SPEECH_SILENCE_MS,
-  CONVERSATION_SPEECH_LEVEL
-} from '../constants'
-
 import { useMicRecorder } from './use-mic-recorder'
 
 export type ConversationStatus = 'idle' | 'listening' | 'transcribing' | 'thinking' | 'speaking'
@@ -195,10 +188,11 @@ export function useVoiceConversation({
     }
 
     try {
+      // VAD tuning mirrors `tools.voice_mode` defaults so the browser loop matches the CLI.
       await handle.start({
-        silenceLevel: CONVERSATION_SPEECH_LEVEL,
-        silenceMs: CONVERSATION_POST_SPEECH_SILENCE_MS,
-        idleSilenceMs: CONVERSATION_IDLE_SILENCE_MS,
+        silenceLevel: 0.075,
+        silenceMs: 1_250,
+        idleSilenceMs: 12_000,
         onError: error => {
           notifyError(error, 'Microphone failed')
           pendingStartRef.current = false
@@ -207,10 +201,7 @@ export function useVoiceConversation({
         onSilence: () => void handleTurn()
       })
       setStatus('listening')
-      turnTimeoutRef.current = window.setTimeout(
-        () => void handleTurn(),
-        CONVERSATION_MAX_TURN_SECONDS * 1000
-      )
+      turnTimeoutRef.current = window.setTimeout(() => void handleTurn(), 60_000)
     } catch (error) {
       notifyError(error, 'Could not start voice session')
       pendingStartRef.current = false

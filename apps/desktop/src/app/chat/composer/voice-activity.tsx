@@ -1,7 +1,6 @@
-import { type AudioDataProvider, AudioWave, useCustomAudio } from '@audiowave/react'
 import { useStore } from '@nanostores/react'
 import { Loader2, Mic, Volume2, VolumeX } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -51,82 +50,101 @@ function VoiceLevelBars({ level, active }: { active: boolean; level: number }) {
   )
 }
 
+function getElementAnalyser(audioElement: HTMLAudioElement): ElementAnalyser | null {
+  const audioWindow = window as Window & { webkitAudioContext?: BrowserAudioContext }
+  const AudioContextCtor = window.AudioContext || audioWindow.webkitAudioContext
+
+  if (!AudioContextCtor) {
+    return null
+  }
+
+  let entry = elementAnalysers.get(audioElement)
+
+  if (!entry || entry.context.state === 'closed') {
+    const context = new AudioContextCtor()
+    const source = context.createMediaElementSource(audioElement)
+    const analyser = context.createAnalyser()
+
+    analyser.fftSize = 512
+    analyser.smoothingTimeConstant = 0.65
+    source.connect(analyser)
+    analyser.connect(context.destination)
+    entry = { analyser, context }
+    elementAnalysers.set(audioElement, entry)
+  }
+
+  void entry.context.resume()
+
+  return entry
+}
+
+const WAVE_W = 88
+const WAVE_H = 16
+const BAR_W = 2
+const BAR_GAP = 5
+const STEP = BAR_W + BAR_GAP
+const BARS = Math.floor((WAVE_W + BAR_GAP) / STEP)
+const X0 = Math.round((WAVE_W - (BARS * STEP - BAR_GAP)) / 2)
+
 function PlaybackWaveform({ audioElement }: { audioElement: HTMLAudioElement | null }) {
-  const provider = useMemo<AudioDataProvider>(
-    () => ({
-      onAudioData(callback) {
-        if (!audioElement) {
-          return () => undefined
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+
+    if (!canvas || !audioElement) {
+      return
+    }
+
+    const entry = getElementAnalyser(audioElement)
+    const ctx = canvas.getContext('2d')
+
+    if (!entry || !ctx) {
+      return
+    }
+
+    const dpr = Math.max(1, window.devicePixelRatio || 1)
+    const { analyser } = entry
+    const buf = new Uint8Array(analyser.frequencyBinCount)
+    const hi = Math.floor(buf.length * 0.9)
+
+    canvas.width = Math.round(WAVE_W * dpr)
+    canvas.height = Math.round(WAVE_H * dpr)
+    canvas.style.width = `${WAVE_W}px`
+    canvas.style.height = `${WAVE_H}px`
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.imageSmoothingEnabled = false
+    ctx.fillStyle = getComputedStyle(canvas).color
+
+    let raf = 0
+
+    const tick = () => {
+      analyser.getByteFrequencyData(buf)
+      ctx.clearRect(0, 0, WAVE_W, WAVE_H)
+
+      for (let i = 0; i < BARS; i++) {
+        const a = Math.floor((i / BARS) * hi)
+        const b = Math.floor(((i + 1) / BARS) * hi)
+        let peak = 0
+
+        for (let j = a; j < b; j++) {
+          peak = Math.max(peak, buf[j] ?? 0)
         }
 
-        const audioWindow = window as Window & { webkitAudioContext?: BrowserAudioContext }
-        const AudioContextCtor = window.AudioContext || audioWindow.webkitAudioContext
-
-        if (!AudioContextCtor) {
-          return () => undefined
-        }
-
-        let entry = elementAnalysers.get(audioElement)
-
-        if (!entry || entry.context.state === 'closed') {
-          const context = new AudioContextCtor()
-          const source = context.createMediaElementSource(audioElement)
-          const analyser = context.createAnalyser()
-
-          analyser.fftSize = 256
-          analyser.smoothingTimeConstant = 0.72
-          source.connect(analyser)
-          analyser.connect(context.destination)
-          entry = { analyser, context }
-          elementAnalysers.set(audioElement, entry)
-        }
-
-        void entry.context.resume()
-
-        const data = new Uint8Array(entry.analyser.fftSize)
-        let raf = 0
-
-        const tick = () => {
-          entry.analyser.getByteTimeDomainData(data)
-          callback(new Uint8Array(data))
-          raf = window.requestAnimationFrame(tick)
-        }
-
-        tick()
-
-        return () => window.cancelAnimationFrame(raf)
+        const amp = Math.sqrt(peak / 255)
+        const bh = Math.max(3, Math.round((0.18 + amp * 0.82) * WAVE_H))
+        ctx.fillRect(X0 + i * STEP, Math.round((WAVE_H - bh) / 2), BAR_W, bh)
       }
-    }),
-    [audioElement]
-  )
 
-  const { source } = useCustomAudio({
-    provider,
-    status: audioElement ? 'active' : 'idle'
-  })
+      raf = requestAnimationFrame(tick)
+    }
 
-  return (
-    <div aria-hidden="true" className="h-4 w-22 overflow-hidden rounded-full">
-      {source ? (
-        <AudioWave
-          amplitudeMode="adaptive"
-          animateCurrentPick
-          backgroundColor="transparent"
-          barColor="rgb(37 99 235)"
-          barWidth={2}
-          gain={1.8}
-          gap={1}
-          height={16}
-          onlyActive
-          rounded={2}
-          secondaryBarColor="transparent"
-          source={source}
-          speed={2}
-          width="100%"
-        />
-      ) : null}
-    </div>
-  )
+    tick()
+
+    return () => cancelAnimationFrame(raf)
+  }, [audioElement])
+
+  return <canvas aria-hidden="true" className="block h-4 w-[88px]" ref={canvasRef} />
 }
 
 export function VoiceActivity({

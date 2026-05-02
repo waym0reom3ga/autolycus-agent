@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
-import { GHOST_ICON_BTN, PROMPT_SNIPPETS } from './constants'
+import { GHOST_ICON_BTN } from './controls'
 import type { ChatBarState } from './types'
 
 export function ContextMenu({
@@ -77,7 +77,11 @@ export function ContextMenu({
             <span>Prompt snippets</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-72">
-            {PROMPT_SNIPPETS.map(snippet => (
+            {[
+              { label: 'Code review', text: 'Please review this for bugs, regressions, and missing tests.' },
+              { label: 'Implementation plan', text: 'Please make a concise implementation plan before changing code.' },
+              { label: 'Explain this', text: 'Please explain how this works and point me to the key files.' }
+            ].map(snippet => (
               <ContextMenuItem icon={MessageSquareText} key={snippet.label} onSelect={() => onInsertText(snippet.text)}>
                 {snippet.label}
               </ContextMenuItem>

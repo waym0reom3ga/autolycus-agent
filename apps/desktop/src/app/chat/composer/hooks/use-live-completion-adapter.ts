@@ -12,16 +12,8 @@ export interface CompletionPayload {
   query: string
 }
 
-/**
- * Drives an assistant-ui `Unstable_TriggerAdapter` from an async RPC call.
- *
- * Mirrors the TUI's `useCompletion` flow: each query change schedules a
- * debounced fetch (default 60ms) and the adapter synchronously returns the
- * most recent items while the user keeps typing. When the fetch resolves we
- * store the new items + the query they belong to, which causes a re-render
- * with a fresh adapter instance — `Unstable_TriggerPopover` then re-runs its
- * `search()` and shows the latest results.
- */
+const EMPTY_QUERY = '\u0000'
+
 export function useLiveCompletionAdapter(options: {
   enabled: boolean
   debounceMs?: number
@@ -31,7 +23,7 @@ export function useLiveCompletionAdapter(options: {
   const { enabled, debounceMs = 60, fetcher, toItem } = options
 
   const [state, setState] = useState<{ query: string; items: Unstable_TriggerItem[] }>({
-    query: '\u0000',
+    query: EMPTY_QUERY,
     items: []
   })
 
@@ -49,6 +41,18 @@ export function useLiveCompletionAdapter(options: {
   }, [])
 
   useEffect(() => () => cancelTimer(), [cancelTimer])
+
+  useEffect(() => {
+    if (enabled) {
+      return
+    }
+
+    cancelTimer()
+    pendingQueryRef.current = null
+    tokenRef.current += 1
+    setLoading(false)
+    setState({ query: EMPTY_QUERY, items: [] })
+  }, [cancelTimer, enabled])
 
   const scheduleFetch = useCallback(
     (query: string) => {

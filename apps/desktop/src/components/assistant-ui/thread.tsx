@@ -258,7 +258,7 @@ export const Thread: FC<{
             {loading === 'response' && <ResponseLoadingIndicator />}
             {loading === 'working' && <WorkingIndicator />}
           </div>
-          <ThreadPrimitive.ViewportFooter className="h-[220px] shrink-0" />
+          <ThreadPrimitive.ViewportFooter className="h-(--thread-composer-clearance) shrink-0" />
         </ThreadPrimitive.Viewport>
         {loading === 'session' && <CenteredThreadSpinner />}
       </ThreadPrimitive.Root>

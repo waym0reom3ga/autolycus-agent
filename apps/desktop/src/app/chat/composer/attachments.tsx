@@ -1,8 +1,6 @@
-import { X } from 'lucide-react'
+import { FileText, FolderOpen, ImageIcon, Link, X } from 'lucide-react'
 
 import type { ComposerAttachment } from '@/store/composer'
-
-import { ATTACHMENT_ICON } from './constants'
 
 export function AttachmentList({
   attachments,
@@ -21,7 +19,7 @@ export function AttachmentList({
 }
 
 function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachment; onRemove?: (id: string) => void }) {
-  const Icon = ATTACHMENT_ICON[attachment.kind]
+  const Icon = { folder: FolderOpen, url: Link, image: ImageIcon, file: FileText }[attachment.kind]
 
   return (
     <div className="group/attachment flex max-w-full items-center gap-2 rounded-2xl border border-border/70 bg-muted/35 py-1 pl-1 pr-1.5 text-xs text-foreground/90">

@@ -24,9 +24,9 @@ export function DirectivePopover({
           <div className="grid gap-0.5 pt-0.5">
             {items.length === 0 ? (
               <CompletionDrawerEmpty title={loading ? 'Looking up...' : 'No matches.'}>
-                  Try <span className="font-mono text-foreground/80">@</span> for shortcuts, or paths like{' '}
-                  <span className="font-mono text-foreground/80">@~/Desktop</span> /{' '}
-                  <span className="font-mono text-foreground/80">@./src</span>.
+                Try <span className="font-mono text-foreground/80">@</span> for shortcuts, or paths like{' '}
+                <span className="font-mono text-foreground/80">@~/Desktop</span> /{' '}
+                <span className="font-mono text-foreground/80">@./src</span>.
               </CompletionDrawerEmpty>
             ) : (
               items.map((item, index) => <DirectiveRow index={index} item={item} key={item.id} />)

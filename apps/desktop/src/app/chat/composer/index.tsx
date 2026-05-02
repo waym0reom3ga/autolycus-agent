@@ -4,6 +4,7 @@ import LiquidGlass from 'liquid-glass-react'
 import { type ClipboardEvent, type CSSProperties, useEffect, useRef, useState } from 'react'
 
 import { hermesDirectiveFormatter } from '@/components/assistant-ui/directive-text'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import { chatMessageText } from '@/lib/chat-messages'
 import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
@@ -12,16 +13,6 @@ import { $messages } from '@/store/session'
 import { $threadScrolledUp } from '@/store/thread-scroll'
 
 import { AttachmentList } from './attachments'
-import {
-  ASK_PLACEHOLDERS,
-  COMPOSER_BACKDROP_STYLE,
-  DEFAULT_MAX_RECORDING_SECONDS,
-  EDGE_NEWLINES_RE,
-  EXPAND_HEIGHT_PX,
-  NARROW_VIEWPORT,
-  SHELL,
-  STACK_AT
-} from './constants'
 import { ContextMenu } from './context-menu'
 import { ComposerControls } from './controls'
 import { DirectivePopover } from './directive-popover'
@@ -36,9 +27,13 @@ import type { ChatBarProps } from './types'
 import { UrlDialog } from './url-dialog'
 import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
 
-function trimPastedEdgeNewlines(text: string): string {
-  return text.replace(EDGE_NEWLINES_RE, '')
-}
+const SHELL =
+  'absolute bottom-0 left-1/2 z-30 w-[min(calc(100%_-_1rem),clamp(26rem,61.8%,56rem))] max-w-full -translate-x-1/2'
+
+const COMPOSER_BACKDROP_STYLE = {
+  backdropFilter: 'blur(0.75rem) saturate(1.12)',
+  WebkitBackdropFilter: 'blur(0.75rem) saturate(1.12)'
+} satisfies CSSProperties
 
 export function ChatBar({
   busy,
@@ -46,7 +41,7 @@ export function ChatBar({
   disabled,
   focusKey,
   gateway,
-  maxRecordingSeconds = DEFAULT_MAX_RECORDING_SECONDS,
+  maxRecordingSeconds = 120,
   sessionId,
   state,
   onCancel,
@@ -74,17 +69,29 @@ export function ChatBar({
   const [urlValue, setUrlValue] = useState('')
   const [expanded, setExpanded] = useState(false)
   const [voiceConversationActive, setVoiceConversationActive] = useState(false)
-  const [stack, setStack] = useState(false)
+  const [tight, setTight] = useState(false)
   const lastSpokenIdRef = useRef<string | null>(null)
 
-  const [askPlaceholder] = useState(
-    () => ASK_PLACEHOLDERS[Math.floor(Math.random() * ASK_PLACEHOLDERS.length)] || 'Ask anything'
-  )
+  const narrow = useMediaQuery('(max-width: 680px)')
+
+  const [askPlaceholder] = useState(() => {
+    const lines = [
+      'Hey friend, what can I help with?',
+      "What's on your mind? I'm here with you.",
+      'Need a hand? We can take it one step at a time.',
+      'Want to walk through this bug together?',
+      "Share what you're working on and we'll figure it out.",
+      "Tell me where you're stuck and I'll stay with you.",
+      'Duck mode: gentle debugging, together.'
+    ]
+
+    return lines[Math.floor(Math.random() * lines.length)] ?? 'Ask anything'
+  })
 
   const at = useAtCompletions({ gateway: gateway ?? null, sessionId: sessionId ?? null, cwd: cwd ?? null })
   const slash = useSlashCompletions({ gateway: gateway ?? null })
 
-  const stacked = expanded || stack
+  const stacked = expanded || narrow || tight
   const hasComposerPayload = draft.trim().length > 0 || attachments.length > 0
   const canSubmit = busy || hasComposerPayload
   const showHelpHint = draft === '?'
@@ -120,7 +127,7 @@ export function ChatBar({
       return
     }
 
-    const wraps = (textareaRef.current?.scrollHeight ?? 0) > EXPAND_HEIGHT_PX
+    const wraps = (textareaRef.current?.scrollHeight ?? 0) > 42
 
     if (draft.includes('\n') || wraps) {
       setExpanded(true)
@@ -128,26 +135,19 @@ export function ChatBar({
   }, [draft, expanded])
 
   useEffect(() => {
-    const mq = window.matchMedia(NARROW_VIEWPORT)
+    const el = composerRef.current
 
-    const update = () => {
-      const w = composerRef.current?.getBoundingClientRect().width ?? window.innerWidth
-
-      setStack(mq.matches || w < STACK_AT)
+    if (!el) {
+      return
     }
+
+    const update = () => setTight(el.getBoundingClientRect().width < 500)
 
     update()
-    mq.addEventListener('change', update)
     const ro = new ResizeObserver(update)
+    ro.observe(el)
 
-    if (composerRef.current) {
-      ro.observe(composerRef.current)
-    }
-
-    return () => {
-      mq.removeEventListener('change', update)
-      ro.disconnect()
-    }
+    return () => ro.disconnect()
   }, [])
 
   const insertText = (text: string) => {
@@ -167,7 +167,7 @@ export function ChatBar({
       return
     }
 
-    const trimmedText = trimPastedEdgeNewlines(pastedText)
+    const trimmedText = pastedText.replace(/^[\t ]*(?:\r\n|\r|\n)+|(?:\r\n|\r|\n)+[\t ]*$/g, '')
 
     if (trimmedText === pastedText) {
       return
@@ -344,7 +344,7 @@ export function ChatBar({
     <>
       <ComposerPrimitive.Unstable_TriggerPopoverRoot>
         <ComposerPrimitive.Root
-          className={cn(SHELL, 'group/composer pb-8 pt-2')}
+          className={cn(SHELL, 'group/composer pb-(--composer-shell-pad-block-end) pt-2')}
           data-slot="composer-root"
           style={
             {
@@ -405,38 +405,52 @@ export function ChatBar({
             </div>
             <div
               className={cn(
-                'relative z-4 flex w-full flex-col gap-1.5 overflow-hidden border border-input/70 bg-card/72 px-2 py-1.5 shadow-composer transition-[border-color,box-shadow,opacity] duration-200 ease-out group-focus-within/composer:border-ring/35 group-focus-within/composer:shadow-composer-focus',
-                scrolledUp
-                  ? 'opacity-60 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
-                  : 'opacity-100'
+                'relative z-4 isolate overflow-hidden border border-input/70 shadow-composer transition-[border-color,box-shadow] duration-200 ease-out group-focus-within/composer:border-ring/35 group-focus-within/composer:shadow-composer-focus',
+                scrolledUp ? 'border-input/48' : 'border-input/70'
               )}
               data-slot="composer-surface"
               style={
                 {
-                  ...COMPOSER_BACKDROP_STYLE,
-                  '--composer-active-radius': `${glassTweaks.liquid.cornerRadius}px`,
-                  borderRadius: `${glassTweaks.liquid.cornerRadius}px`
+                  borderRadius: `${glassTweaks.liquid.cornerRadius}px`,
+                  '--composer-active-radius': `${glassTweaks.liquid.cornerRadius}px`
                 } as CSSProperties
               }
             >
-              <VoiceActivity state={voiceActivityState} />
-              <VoicePlaybackActivity />
-              {attachments.length > 0 && <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} />}
-              {stacked ? (
-                <>
-                  {input}
-                  <div className="flex w-full items-center gap-1.5">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 -z-10"
+                style={
+                  {
+                    ...COMPOSER_BACKDROP_STYLE,
+                    borderRadius: `${glassTweaks.liquid.cornerRadius}px`,
+                    backgroundColor: scrolledUp
+                      ? 'color-mix(in srgb, var(--dt-card) 48%, transparent)'
+                      : 'color-mix(in srgb, var(--dt-card) 72%, transparent)'
+                  } satisfies CSSProperties
+                }
+              />
+              <div className="relative z-1 flex min-h-0 w-full flex-col gap-1.5 px-2 py-1.5">
+                <VoiceActivity state={voiceActivityState} />
+                <VoicePlaybackActivity />
+                {attachments.length > 0 && (
+                  <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} />
+                )}
+                {stacked ? (
+                  <>
+                    {input}
+                    <div className="flex w-full items-center gap-1.5">
+                      {contextMenu}
+                      {controls}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex w-full items-end gap-1.5">
                     {contextMenu}
+                    {input}
                     {controls}
                   </div>
-                </>
-              ) : (
-                <div className="flex w-full items-end gap-1.5">
-                  {contextMenu}
-                  {input}
-                  {controls}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </ComposerPrimitive.Root>
@@ -456,10 +470,19 @@ export function ChatBar({
 
 export function ChatBarFallback() {
   return (
-    <div className={cn(SHELL, 'bg-linear-to-b from-transparent to-background/55 pb-8 pt-2')}>
-      <div className="relative h-11 w-full">
-        <div className="absolute inset-0 rounded-[1.25rem] bg-card/1" style={COMPOSER_BACKDROP_STYLE} />
-        <div className="absolute inset-0 rounded-[1.25rem] border border-input/70 bg-card/72 shadow-composer" />
+    <div className={cn(SHELL, 'bg-linear-to-b from-transparent to-background/55 pb-(--composer-shell-pad-block-end) pt-2')}>
+      <div className="relative isolate h-11 w-full overflow-hidden rounded-[1.25rem] border border-input/70 shadow-composer">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={
+            {
+              ...COMPOSER_BACKDROP_STYLE,
+              borderRadius: '1.25rem',
+              backgroundColor: 'color-mix(in srgb, var(--dt-card) 72%, transparent)'
+            } satisfies CSSProperties
+          }
+        />
       </div>
     </div>
   )

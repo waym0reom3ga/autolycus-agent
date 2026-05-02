@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button'
 import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 
-import { GHOST_ICON_BTN, ICON_BTN } from './constants'
 import type { ConversationStatus } from './hooks/use-voice-conversation'
 import type { ChatBarState, VoiceStatus } from './types'
+
+export const ICON_BTN = 'h-8 w-8 shrink-0 rounded-full'
+export const GHOST_ICON_BTN = cn(ICON_BTN, 'text-muted-foreground hover:bg-accent hover:text-foreground')
 
 interface ConversationProps {
   active: boolean

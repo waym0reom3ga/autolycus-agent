@@ -11,6 +11,8 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
+import { matchesQuery, useMediaQuery } from '@/hooks/use-media-query'
+
 import {
   BUILTIN_THEME_LIST,
   BUILTIN_THEMES,
@@ -36,15 +38,10 @@ const DENSITY_MULTIPLIERS: Record<ThemeDensity, string> = {
 const INJECTED_FONT_URLS = new Set<string>()
 const SKIN_THEME_LIST = BUILTIN_THEME_LIST.filter(t => t.name !== 'nous-light')
 
-function systemPrefersDark(): boolean {
-  if (typeof window === 'undefined' || !window.matchMedia) {
-    return false
-  }
-
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-}
-
-function effectiveMode(mode: ThemeMode, systemDark = systemPrefersDark()): 'light' | 'dark' {
+function effectiveMode(
+  mode: ThemeMode,
+  systemDark = matchesQuery('(prefers-color-scheme: dark)')
+): 'light' | 'dark' {
   return mode === 'system' ? (systemDark ? 'dark' : 'light') : mode
 }
 
@@ -313,20 +310,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return (window.localStorage.getItem(MODE_KEY) as ThemeMode) ?? 'light'
   })
 
-  const [systemDark, setSystemDark] = useState(systemPrefersDark)
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) {
-      return
-    }
-
-    const mql = window.matchMedia('(prefers-color-scheme: dark)')
-    const listener = (e: MediaQueryListEvent) => setSystemDark(e.matches)
-    mql.addEventListener('change', listener)
-
-    return () => mql.removeEventListener('change', listener)
-  }, [])
-
+  const systemDark = useMediaQuery('(prefers-color-scheme: dark)')
   const resolvedMode = effectiveMode(mode, systemDark)
 
   const activeTheme = useMemo(() => deriveTheme(themeName, resolvedMode), [themeName, resolvedMode])

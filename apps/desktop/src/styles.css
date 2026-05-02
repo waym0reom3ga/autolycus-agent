@@ -68,13 +68,12 @@
     0 1.25rem 2rem -0.875rem color-mix(in srgb, var(--dt-background) 82%, transparent),
     0 2rem 3rem -1.5rem color-mix(in srgb, var(--dt-background) 55%, transparent);
   --shadow-composer:
-    0 0 0 0.0625rem color-mix(in srgb, var(--shadow-ink) 6%, transparent),
-    0 0.25rem 0.5rem color-mix(in srgb, var(--shadow-ink) 5%, transparent),
-    0 0.75rem 2rem color-mix(in srgb, var(--shadow-ink) 8%, transparent);
+    0 0 0 0.0625rem color-mix(in srgb, var(--shadow-ink) 4%, transparent),
+    0 0.0625rem 0.25rem color-mix(in srgb, var(--shadow-ink) 3%, transparent);
   --shadow-composer-focus:
-    0 0 0 0.1875rem color-mix(in srgb, var(--dt-ring) 18%, transparent),
-    0 0 0 0.0625rem color-mix(in srgb, var(--dt-ring) 35%, transparent),
-    0 0.5rem 1.5rem color-mix(in srgb, var(--shadow-ink) 6%, transparent);
+    0 0 0 0.125rem color-mix(in srgb, var(--dt-ring) 14%, transparent),
+    0 0 0 0.0625rem color-mix(in srgb, var(--dt-ring) 26%, transparent),
+    0 0.1875rem 0.625rem color-mix(in srgb, var(--shadow-ink) 4%, transparent);
   --shadow-user-message:
     0 0.0625rem 0.125rem color-mix(in srgb, var(--shadow-ink) 6%, transparent),
     0 0.25rem 0.75rem color-mix(in srgb, var(--shadow-ink) 4%, transparent);
@@ -117,6 +116,10 @@
     --dt-spacing-mul: 1;
 
     --radius: 0.75rem;
+    /* Thread ViewportFooter — gap from last msg → composer (scroll only) */
+    --thread-composer-clearance: 8rem;
+    /* Composer shell — gap under bar to chat pane bottom */
+    --composer-shell-pad-block-end: 2.5rem;
     --vsq: min(0.5vh, 0.5vw);
     --image-preview-max-width: 34rem;
     --image-preview-height: clamp(16.25rem, calc(var(--vsq) * 100), 26.25rem);
@@ -177,7 +180,6 @@
   textarea {
     font: inherit;
   }
-
 }
 
 button {
@@ -259,6 +261,43 @@ button {
   box-shadow: none !important;
 }
 
+.composer-completion-drawer {
+  position: absolute;
+  inset-inline: 0;
+  bottom: calc(100% - 0.5rem);
+  z-index: 50;
+  max-height: min(23rem, calc(100vh - 8rem));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 0.0625rem solid color-mix(in srgb, var(--dt-ring) 45%, transparent);
+  border-bottom: 0;
+  border-top-left-radius: var(--composer-active-radius);
+  border-top-right-radius: var(--composer-active-radius);
+  background: color-mix(in srgb, var(--dt-popover) 96%, transparent);
+  color: var(--dt-popover-foreground);
+  padding: 0.375rem 0.375rem 0.75rem;
+  backdrop-filter: blur(0.75rem) saturate(1.1);
+  -webkit-backdrop-filter: blur(0.75rem) saturate(1.1);
+}
+
+.composer-completion-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.5rem;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  text-align: left;
+  font-size: 0.75rem;
+  transition: background-color 120ms ease;
+}
+
+.composer-completion-row:hover,
+.composer-completion-row[data-highlighted] {
+  background: color-mix(in srgb, var(--dt-accent) 70%, transparent);
+}
+
 [data-slot='composer-root']:has([data-slot='composer-completion-drawer'][data-state='open'])
   [data-slot='composer-surface'] {
   border-top-left-radius: 0 !important;
@@ -269,8 +308,7 @@ button {
     0 0.5rem 1.5rem color-mix(in srgb, var(--shadow-ink) 6%, transparent);
 }
 
-[data-slot='composer-root']:has([data-slot='composer-completion-drawer'][data-state='open'])
-  [data-glass-frame='true'] {
+[data-slot='composer-root']:has([data-slot='composer-completion-drawer'][data-state='open']) [data-glass-frame='true'] {
   border-top-left-radius: 0 !important;
   border-top-right-radius: 0 !important;
 }

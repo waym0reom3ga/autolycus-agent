@@ -1,4 +1,6 @@
-import { COMPLETION_DRAWER_CLASS } from './constants'
+import type { ReactNode } from 'react'
+
+import { COMPLETION_DRAWER_CLASS } from './completion-drawer'
 
 const COMMON_COMMANDS: [string, string][] = [
   ['/help', 'full list of commands + hotkeys'],
@@ -42,7 +44,7 @@ export function HelpHint() {
   )
 }
 
-function Section({ children, title }: { children: React.ReactNode; title: string }) {
+function Section({ children, title }: { children: ReactNode; title: string }) {
   return (
     <div className="grid gap-0.5 pt-0.5">
       <p className="px-2.5 pb-0.5 pt-1 text-[0.65rem] font-medium uppercase tracking-wide text-muted-foreground/75">

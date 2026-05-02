@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { VOICE_MIME_TYPES } from '../constants'
-
 type BrowserAudioContext = typeof AudioContext
 
 export interface MicRecorderOptions {
@@ -23,14 +21,6 @@ interface MicRecorderHandle {
   start: (options?: MicRecorderOptions) => Promise<void>
   stop: () => Promise<MicRecording | null>
   cancel: () => void
-}
-
-function preferredVoiceMimeType(): string {
-  if (typeof MediaRecorder === 'undefined') {
-    return ''
-  }
-
-  return VOICE_MIME_TYPES.find(type => MediaRecorder.isTypeSupported(type)) || ''
 }
 
 function micError(error: unknown): Error {
@@ -187,7 +177,10 @@ export function useMicRecorder(): { handle: MicRecorderHandle; level: number; re
       throw micError(error)
     }
 
-    const mimeType = preferredVoiceMimeType()
+    const mimeType =
+      ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/wav'].find(
+        type => MediaRecorder.isTypeSupported(type)
+      ) ?? ''
     let recorder: MediaRecorder
 
     try {
