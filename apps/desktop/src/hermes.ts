@@ -14,6 +14,7 @@ import type {
   SkillInfo,
   ToolsetInfo
 } from '@/types/hermes'
+import { JsonRpcGatewayClient } from '@hermes/shared'
 
 export type {
   AudioSpeakResponse,
@@ -41,142 +42,15 @@ export type {
   ToolsetInfo
 } from '@/types/hermes'
 
-type PendingCall = {
-  resolve: (value: unknown) => void
-  reject: (error: Error) => void
-}
-
-export class HermesGateway {
-  private socket: WebSocket | null = null
-  private nextId = 1
-  private pending = new Map<number, PendingCall>()
-  private eventHandlers = new Set<(event: RpcEvent) => void>()
-  private stateHandlers = new Set<(state: string) => void>()
-
-  async connect(wsUrl: string): Promise<void> {
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      return
-    }
-
-    this.setState('connecting')
-    await new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(wsUrl)
-      this.socket = ws
-
-      ws.addEventListener('open', () => {
-        this.setState('open')
-        resolve()
-      })
-
-      ws.addEventListener('error', () => {
-        this.setState('error')
-        reject(new Error('Could not connect to Hermes gateway'))
-      })
-
-      ws.addEventListener('close', () => {
-        this.setState('closed')
-
-        for (const call of this.pending.values()) {
-          call.reject(new Error('Hermes gateway connection closed'))
-        }
-
-        this.pending.clear()
-      })
-
-      ws.addEventListener('message', message => {
-        this.handleMessage(message.data)
-      })
+export class HermesGateway extends JsonRpcGatewayClient {
+  constructor() {
+    super({
+      closedErrorMessage: 'Hermes gateway connection closed',
+      connectErrorMessage: 'Could not connect to Hermes gateway',
+      createRequestId: nextId => nextId,
+      notConnectedErrorMessage: 'Hermes gateway is not connected',
+      requestTimeoutMs: 0
     })
-  }
-
-  close(): void {
-    this.socket?.close()
-    this.socket = null
-  }
-
-  onEvent(handler: (event: RpcEvent) => void): () => void {
-    this.eventHandlers.add(handler)
-
-    return () => this.eventHandlers.delete(handler)
-  }
-
-  onState(handler: (state: string) => void): () => void {
-    this.stateHandlers.add(handler)
-
-    return () => this.stateHandlers.delete(handler)
-  }
-
-  request<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-    const socket = this.socket
-
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new Error('Hermes gateway is not connected'))
-    }
-
-    const id = this.nextId++
-
-    const payload = JSON.stringify({
-      jsonrpc: '2.0',
-      id,
-      method,
-      params
-    })
-
-    return new Promise<T>((resolve, reject) => {
-      this.pending.set(id, {
-        resolve: value => resolve(value as T),
-        reject
-      })
-      socket.send(payload)
-    })
-  }
-
-  private handleMessage(raw: unknown): void {
-    const text = typeof raw === 'string' ? raw : String(raw)
-
-    let frame: {
-      id?: number
-      result?: unknown
-      error?: { message?: string }
-      method?: string
-      params?: RpcEvent
-    }
-
-    try {
-      frame = JSON.parse(text)
-    } catch {
-      return
-    }
-
-    if (typeof frame.id === 'number') {
-      const call = this.pending.get(frame.id)
-
-      if (!call) {
-        return
-      }
-
-      this.pending.delete(frame.id)
-
-      if (frame.error) {
-        call.reject(new Error(frame.error.message || 'Hermes RPC failed'))
-      } else {
-        call.resolve(frame.result)
-      }
-
-      return
-    }
-
-    if (frame.method === 'event' && frame.params) {
-      for (const handler of this.eventHandlers) {
-        handler(frame.params)
-      }
-    }
-  }
-
-  private setState(state: string): void {
-    for (const handler of this.stateHandlers) {
-      handler(state)
-    }
   }
 }
 

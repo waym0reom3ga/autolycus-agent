@@ -310,7 +310,7 @@ If you're contributing to the web dashboard frontend:
 hermes dashboard --no-open
 
 # Terminal 2: start the Vite dev server with HMR
-cd web/
+cd apps/dashboard/
 npm install
 npm run dev
 ```

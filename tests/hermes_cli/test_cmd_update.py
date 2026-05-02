@@ -106,10 +106,11 @@ class TestCmdUpdateBranchFallback:
         pull_cmds = [c for c in commands if "pull" in c]
         assert len(pull_cmds) == 0
 
+    @patch("hermes_cli.main._web_ui_build_needed", return_value=True)
     @patch("shutil.which")
     @patch("subprocess.run")
     def test_update_refreshes_repo_and_tui_node_dependencies(
-        self, mock_run, mock_which, mock_args
+        self, mock_run, mock_which, _mock_web_ui_build_needed, mock_args
     ):
         mock_which.side_effect = {"uv": "/usr/bin/uv", "npm": "/usr/bin/npm"}.get
         mock_run.side_effect = _make_run_side_effect(
@@ -127,8 +128,17 @@ class TestCmdUpdateBranchFallback:
         # cmd_update runs npm commands in three locations:
         #   1. repo root  — slash-command / TUI bridge deps
         #   2. ui-tui/    — Ink TUI deps
-        #   3. web/       — install + "npm run build" for the web frontend
+        #   3. apps/dashboard/ — install + "npm run build" for the web frontend
         full_flags = [
+            "/usr/bin/npm",
+            "ci",
+            "--silent",
+            "--no-fund",
+            "--no-audit",
+            "--progress=false",
+            "--workspaces=false",
+        ]
+        app_flags = [
             "/usr/bin/npm",
             "ci",
             "--silent",
@@ -138,9 +148,9 @@ class TestCmdUpdateBranchFallback:
         ]
         assert npm_calls == [
             (full_flags, PROJECT_ROOT),
-            (full_flags, PROJECT_ROOT / "ui-tui"),
-            (["/usr/bin/npm", "ci", "--silent"], PROJECT_ROOT / "web"),
-            (["/usr/bin/npm", "run", "build"], PROJECT_ROOT / "web"),
+            (app_flags, PROJECT_ROOT / "ui-tui"),
+            (["/usr/bin/npm", "ci", "--silent"], PROJECT_ROOT / "apps" / "dashboard"),
+            (["/usr/bin/npm", "run", "build"], PROJECT_ROOT / "apps" / "dashboard"),
         ]
 
     def test_update_non_interactive_skips_migration_prompt(self, mock_args, capsys):

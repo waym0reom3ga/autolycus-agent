@@ -260,7 +260,7 @@ export function ChatView({
           <div className="min-w-0 flex-1">
             {title && (
               <SessionActionsMenu
-                align="end"
+                align="start"
                 onDelete={selectedSessionId ? onDeleteSelectedSession : undefined}
                 onPin={selectedSessionId ? onToggleSelectedPin : undefined}
                 pinned={selectedIsPinned}

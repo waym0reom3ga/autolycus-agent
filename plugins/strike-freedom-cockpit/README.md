@@ -51,8 +51,8 @@ to swap artwork across themes.
 
 ## What this demo proves
 
-The dashboard skin+plugin system supports (ref: `web/src/themes/types.ts`,
-`web/src/plugins/slots.ts`):
+The dashboard skin+plugin system supports (ref: `apps/dashboard/src/themes/types.ts`,
+`apps/dashboard/src/plugins/slots.ts`):
 
 - Palette, typography, font URLs, density, radius — already present
 - **Asset URLs exposed as CSS vars** (bg / hero / crest / logo /

@@ -1,7 +1,7 @@
 """Tests for _web_ui_build_needed — staleness check for the web UI dist.
 
-Critical invariant: the Vite build outputs to hermes_cli/web_dist/
-(vite.config.ts: outDir: "../hermes_cli/web_dist"), NOT web/dist/.
+Critical invariant: the dashboard Vite build outputs to hermes_cli/web_dist/
+(vite.config.ts: outDir: "../../hermes_cli/web_dist"), NOT apps/dashboard/dist/.
 The sentinel must be checked in the correct output directory or the
 freshness check is a no-op and the OOM rebuild always runs.
 """
@@ -26,8 +26,8 @@ def _touch(path: Path, offset: float = 0.0) -> None:
 
 def _make_web_dir(tmp_path: Path) -> tuple[Path, Path]:
     """Return (web_dir, dist_dir) matching real repo layout."""
-    web_dir = tmp_path / "web"
-    web_dir.mkdir()
+    web_dir = tmp_path / "apps" / "dashboard"
+    web_dir.mkdir(parents=True)
     (web_dir / "package.json").touch()
     dist_dir = tmp_path / "hermes_cli" / "web_dist"
     return web_dir, dist_dir
@@ -58,10 +58,10 @@ class TestWebUIBuildNeeded:
         assert _web_ui_build_needed(web_dir) is False
 
     def test_web_dist_dir_not_web_dist_subdir(self, tmp_path):
-        """Regression: sentinel must be in hermes_cli/web_dist/, NOT web/dist/."""
+        """Regression: sentinel must be in hermes_cli/web_dist/, NOT apps/dashboard/dist/."""
         web_dir, dist_dir = _make_web_dir(tmp_path)
         _touch(web_dir / "src" / "App.tsx", offset=-10)
-        # Place manifest in wrong location (web/dist/) — should NOT count as fresh
+        # Place manifest in wrong location (apps/dashboard/dist/) — should NOT count as fresh
         wrong_dist = web_dir / "dist" / ".vite" / "manifest.json"
         _touch(wrong_dist)
         # Correct location is empty → still needs build
@@ -89,7 +89,7 @@ class TestWebUIBuildNeeded:
 
     def test_ignores_dist_subdir_under_web(self, tmp_path):
         web_dir, dist_dir = _make_web_dir(tmp_path)
-        # package.json older than manifest; only web/dist file is newer
+        # package.json older than manifest; only apps/dashboard/dist file is newer
         _touch(web_dir / "package.json", offset=-20)
         _touch(dist_dir / ".vite" / "manifest.json", offset=-10)
         _touch(web_dir / "dist" / "assets" / "index.js")

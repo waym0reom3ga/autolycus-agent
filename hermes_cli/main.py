@@ -5227,12 +5227,14 @@ def _web_ui_build_needed(web_dir: Path) -> bool:
     """Return True if the web UI dist is missing or stale.
 
     Mirrors the staleness logic used by ``_tui_build_needed()`` for the TUI.
-    The Vite build outputs to ``hermes_cli/web_dist/`` (per vite.config.ts
-    outDir: "../hermes_cli/web_dist"), NOT to ``web/dist/``.  Uses the Vite
-    manifest as the sentinel because it is written last and therefore has the
-    newest mtime of any build output.
+    The dashboard source lives under ``apps/dashboard/``, but the Vite build
+    still outputs to ``hermes_cli/web_dist/`` so Python packaging can continue
+    serving the same static asset directory. Uses the Vite manifest as the
+    sentinel because it is written last and therefore has the newest mtime of
+    any build output.
     """
-    dist_dir = web_dir.parent / "hermes_cli" / "web_dist"
+    project_root = web_dir.parent.parent if web_dir.parent.name == "apps" else web_dir.parent
+    dist_dir = project_root / "hermes_cli" / "web_dist"
     sentinel = dist_dir / ".vite" / "manifest.json"
     if not sentinel.exists():
         sentinel = dist_dir / "index.html"
@@ -5304,7 +5306,7 @@ def _build_web_ui(web_dir: Path, *, fatal: bool = False) -> bool:
     """Build the web UI frontend if npm is available.
 
     Args:
-        web_dir: Path to the ``web/`` source directory.
+        web_dir: Path to the dashboard frontend source directory.
         fatal: If True, print error guidance and return False on failure
                instead of a soft warning (used by ``hermes web``).
 
@@ -5320,7 +5322,7 @@ def _build_web_ui(web_dir: Path, *, fatal: bool = False) -> bool:
     if not npm:
         if fatal:
             print("Web UI frontend not built and npm is not available.")
-            print("Install Node.js, then run:  cd web && npm install && npm run build")
+            print("Install Node.js, then run:  cd apps/dashboard && npm install && npm run build")
         return not fatal
     print("→ Building web UI...")
     r1 = _run_npm_install_deterministic(npm, web_dir, extra_args=("--silent",))
@@ -5330,7 +5332,7 @@ def _build_web_ui(web_dir: Path, *, fatal: bool = False) -> bool:
             + ("" if fatal else " (hermes web will not be available)")
         )
         if fatal:
-            print("  Run manually:  cd web && npm install && npm run build")
+            print("  Run manually:  cd apps/dashboard && npm install && npm run build")
         return False
     r2 = subprocess.run([npm, "run", "build"], cwd=web_dir, capture_output=True)
     if r2.returncode != 0:
@@ -5339,7 +5341,7 @@ def _build_web_ui(web_dir: Path, *, fatal: bool = False) -> bool:
             + ("" if fatal else " (hermes web will not be available)")
         )
         if fatal:
-            print("  Run manually:  cd web && npm install && npm run build")
+            print("  Run manually:  cd apps/dashboard && npm install && npm run build")
         return False
     print("  ✓ Web UI built")
     return True
@@ -5684,7 +5686,7 @@ def _update_via_zip(args):
         _install_python_dependencies_with_optional_fallback(pip_cmd)
 
     _update_node_dependencies()
-    _build_web_ui(PROJECT_ROOT / "web")
+    _build_web_ui(PROJECT_ROOT / "apps" / "dashboard")
 
     # Sync skills
     try:
@@ -6269,10 +6271,14 @@ def _update_node_dependencies() -> None:
         if not (path / "package.json").exists():
             continue
 
+        extra_args = ["--silent", "--no-fund", "--no-audit", "--progress=false"]
+        if path == PROJECT_ROOT:
+            extra_args.append("--workspaces=false")
+
         result = _run_npm_install_deterministic(
             npm,
             path,
-            extra_args=("--silent", "--no-fund", "--no-audit", "--progress=false"),
+            extra_args=tuple(extra_args),
         )
         if result.returncode == 0:
             print(f"  ✓ {label}")
@@ -6990,7 +6996,7 @@ def _cmd_update_impl(args, gateway_mode: bool):
             _install_python_dependencies_with_optional_fallback(pip_cmd)
 
         _update_node_dependencies()
-        _build_web_ui(PROJECT_ROOT / "web")
+        _build_web_ui(PROJECT_ROOT / "apps" / "dashboard")
 
         print()
         print("✓ Code updated!")
@@ -8080,7 +8086,7 @@ def cmd_dashboard(args):
         sys.exit(1)
 
     if "HERMES_WEB_DIST" not in os.environ:
-        if not _build_web_ui(PROJECT_ROOT / "web", fatal=True):
+        if not _build_web_ui(PROJECT_ROOT / "apps" / "dashboard", fatal=True):
             sys.exit(1)
 
     from hermes_cli.web_server import start_server

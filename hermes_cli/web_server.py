@@ -3094,7 +3094,7 @@ async def get_models_analytics(days: int = 30):
 # The endpoint spawns the same ``hermes --tui`` binary the CLI uses, behind
 # a POSIX pseudo-terminal, and forwards bytes + resize escapes across a
 # WebSocket.  The browser renders the ANSI through xterm.js (see
-# web/src/pages/ChatPage.tsx).
+# apps/dashboard/src/pages/ChatPage.tsx).
 #
 # Auth: ``?token=<session_token>`` query param (browsers can't set
 # Authorization on the WS upgrade).  Same ephemeral ``_SESSION_TOKEN`` as
@@ -3435,7 +3435,7 @@ def mount_spa(application: FastAPI):
         @application.get("/{full_path:path}")
         async def no_frontend(full_path: str):
             return JSONResponse(
-                {"error": "Frontend not built. Run: cd web && npm run build"},
+                {"error": "Frontend not built. Run: cd apps/dashboard && npm run build"},
                 status_code=404,
             )
         return
@@ -3477,7 +3477,7 @@ def mount_spa(application: FastAPI):
 # ---------------------------------------------------------------------------
 
 # Built-in dashboard themes — label + description only.  The actual color
-# definitions live in the frontend (web/src/themes/presets.ts).
+# definitions live in the frontend (apps/dashboard/src/themes/presets.ts).
 _BUILTIN_DASHBOARD_THEMES = [
     {"name": "default",   "label": "Hermes Teal",  "description": "Classic dark teal — the canonical Hermes look"},
     {"name": "midnight",  "label": "Midnight",      "description": "Deep blue-violet with cool accents"},
@@ -3729,7 +3729,7 @@ async def get_dashboard_themes():
     """Return available themes and the currently active one.
 
     Built-in entries ship name/label/description only (the frontend owns
-    their full definitions in `web/src/themes/presets.ts`).  User themes
+    their full definitions in `apps/dashboard/src/themes/presets.ts`).  User themes
     from `~/.hermes/dashboard-themes/*.yaml` ship with their full
     normalised definition under `definition`, so the client can apply
     them without a stub.

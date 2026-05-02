@@ -16,9 +16,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@hermes/shared": ["../shared/src/index.ts"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "../shared/src"],
   "references": []
 }

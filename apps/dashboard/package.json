@@ -1,5 +1,5 @@
 {
-  "name": "web",
+  "name": "dashboard",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -13,6 +13,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hermes/shared": "file:../shared",
     "@nous-research/ui": "^0.10.0",
     "@observablehq/plot": "^0.6.17",
     "@react-three/fiber": "^9.6.0",

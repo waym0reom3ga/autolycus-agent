@@ -51,7 +51,9 @@ export function AppShell({
   // column for a closed sidebar pushes/clips the actual chat surface.
   const displayedSidebarWidth = sidebarOpen ? sidebarWidth : 0
   const titlebarControls = titlebarControlsPosition(connection?.windowButtonPosition)
-  const titlebarContentInset = titlebarControls.left + TITLEBAR_HEIGHT + Math.round(TITLEBAR_HEIGHT / 2)
+  const titlebarContentInset = sidebarOpen
+    ? 0
+    : titlebarControls.left + TITLEBAR_HEIGHT + Math.round(TITLEBAR_HEIGHT / 2)
   const showRightRail = rightRailOpen && (inspectorOpen || Boolean(previewTarget))
 
   // Right rail yields to chat min-width before the chat column starts crushing the composer.

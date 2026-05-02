@@ -69,6 +69,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@hermes/shared": path.resolve(__dirname, "../shared/src"),
     },
     // When @nous-research/ui is symlinked via `file:../../design-language`,
     // Node's module resolution would pick up shared deps from
@@ -90,7 +91,7 @@ export default defineConfig({
     ],
   },
   build: {
-    outDir: "../hermes_cli/web_dist",
+    outDir: "../../hermes_cli/web_dist",
     emptyOutDir: true,
   },
   server: {

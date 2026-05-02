@@ -469,7 +469,7 @@ Plugins use Lucide icon names. The dashboard maps these by name — unknown name
 
 Currently mapped: `Activity`, `BarChart3`, `Clock`, `Code`, `Database`, `Eye`, `FileText`, `Globe`, `Heart`, `KeyRound`, `MessageSquare`, `Package`, `Puzzle`, `Settings`, `Shield`, `Sparkles`, `Star`, `Terminal`, `Wrench`, `Zap`.
 
-Need a different icon? Open a PR to `web/src/App.tsx`'s `ICON_MAP` — pure additive change.
+Need a different icon? Open a PR to `apps/dashboard/src/App.tsx`'s `ICON_MAP` — pure additive change.
 
 ### The Plugin SDK
 
