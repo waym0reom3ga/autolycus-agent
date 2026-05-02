@@ -2,11 +2,7 @@ import { useCallback } from 'react'
 
 import { formatRefValue } from '@/components/assistant-ui/directive-text'
 import { attachmentId, contextPath, pathLabel } from '@/lib/chat-runtime'
-import {
-  addComposerAttachment,
-  type ComposerAttachment,
-  removeComposerAttachment
-} from '@/store/composer'
+import { addComposerAttachment, type ComposerAttachment, removeComposerAttachment } from '@/store/composer'
 import { notify, notifyError } from '@/store/notifications'
 
 import type { ImageAttachResponse, ImageDetachResponse } from '../../types'
@@ -92,6 +88,7 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
           session_id: activeSessionId,
           path
         })
+
         const attachedPath = result.path || path
 
         if (result.attached) {

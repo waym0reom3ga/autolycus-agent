@@ -32,12 +32,7 @@ const ICONS: Record<HermesRefType, ComponentType<{ className?: string }>> = {
 const CANONICAL_DIRECTIVE_RE = /:([\w-]{1,64})\[([^\]\n]{1,1024})\](?:\{name=([^}\n]{1,1024})\})?/g
 
 const HERMES_DIRECTIVE_RE = new RegExp(
-  '@(file|folder|url|image|tool):(' +
-    '`[^`\\n]+`' +
-    '|"[^"\\n]+"' +
-    "|'[^'\\n]+'" +
-    '|\\S+' +
-    ')',
+  '@(file|folder|url|image|tool):(' + '`[^`\\n]+`' + '|"[^"\\n]+"' + "|'[^'\\n]+'" + '|\\S+' + ')',
   'g'
 )
 
@@ -59,7 +54,7 @@ function unwrapRefValue(raw: string): string {
 }
 
 function needsQuoting(value: string): boolean {
-  return /[\s()\[\]{}<>"'`]/.test(value)
+  return /[\s()[\]{}<>"'`]/.test(value)
 }
 
 export function formatRefValue(value: string): string {

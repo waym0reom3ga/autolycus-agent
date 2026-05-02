@@ -7,7 +7,9 @@ import type { RpcEvent } from '@/types/hermes'
 
 interface GatewayBootOptions {
   handleGatewayEvent: (event: RpcEvent) => void
-  onConnectionReady: (connection: Awaited<ReturnType<NonNullable<typeof window.hermesDesktop>['getConnection']>> | null) => void
+  onConnectionReady: (
+    connection: Awaited<ReturnType<NonNullable<typeof window.hermesDesktop>['getConnection']>> | null
+  ) => void
   onGatewayReady: (gateway: HermesGateway | null) => void
   refreshHermesConfig: () => Promise<void>
   refreshSessions: () => Promise<void>
@@ -87,11 +89,5 @@ export function useGatewayBoot({
       onConnectionReady(null)
       onGatewayReady(null)
     }
-  }, [
-    handleGatewayEvent,
-    onConnectionReady,
-    onGatewayReady,
-    refreshHermesConfig,
-    refreshSessions
-  ])
+  }, [handleGatewayEvent, onConnectionReady, onGatewayReady, refreshHermesConfig, refreshSessions])
 }

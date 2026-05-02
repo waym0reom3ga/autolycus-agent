@@ -10,7 +10,7 @@ export const prettyName = (v: string) => v.replace(/_/g, ' ').replace(/\b\w/g, c
 
 export const toolNames = (t: ToolsetInfo) => (Array.isArray(t.tools) ? t.tools.map(asText).filter(Boolean) : [])
 
-export const withoutKey = <T,>(record: Record<string, T>, key: string) => {
+export const withoutKey = <T>(record: Record<string, T>, key: string) => {
   const next = { ...record }
   delete next[key]
 

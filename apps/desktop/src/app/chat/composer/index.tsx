@@ -378,10 +378,7 @@ export function ChatBar({
             loading={at.loading}
           />
           <SlashPopover adapter={slash.adapter} loading={slash.loading} />
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{ background: glassTweaks.fadeBackground }}
-          />
+          <div className="pointer-events-none absolute inset-0" style={{ background: glassTweaks.fadeBackground }} />
           <div className="relative w-full">
             <div
               className={cn(
@@ -430,9 +427,7 @@ export function ChatBar({
               >
                 <VoiceActivity state={voiceActivityState} />
                 <VoicePlaybackActivity />
-                {attachments.length > 0 && (
-                  <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} />
-                )}
+                {attachments.length > 0 && <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} />}
                 {stacked ? (
                   <>
                     {input}

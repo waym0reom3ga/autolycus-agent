@@ -52,7 +52,10 @@ interface LoaderProps extends Omit<ComponentProps<'div'>, 'children'> {
   type?: LoaderType
 }
 
-interface BaseCurveOptions extends Pick<LoaderCurve, 'durationMs' | 'particleCount' | 'pulseDurationMs' | 'strokeWidth' | 'trailSpan'> {
+interface BaseCurveOptions extends Pick<
+  LoaderCurve,
+  'durationMs' | 'particleCount' | 'pulseDurationMs' | 'strokeWidth' | 'trailSpan'
+> {
   point?: LoaderCurve['point']
   rotate?: boolean
   rotationDurationMs?: number
@@ -206,8 +209,7 @@ const LOADER_CURVES: Record<LoaderType, LoaderCurve> = {
     point(progress, detailScale) {
       const t = progress * Math.PI * 12
 
-      const butterfly =
-        Math.exp(Math.cos(t)) - 2 * Math.cos(4 * t) - Math.sin(t / 12) ** 5
+      const butterfly = Math.exp(Math.cos(t)) - 2 * Math.cos(4 * t) - Math.sin(t / 12) ** 5
 
       const scale = 4.6 + detailScale * 0.45
 
@@ -520,7 +522,9 @@ function buildPath(config: LoaderCurve, detailScale: number, steps: number) {
 }
 
 function detailScaleFor(time: number, config: LoaderCurve, phaseOffset: number) {
-  const pulseProgress = ((time + phaseOffset * config.pulseDurationMs) % config.pulseDurationMs) / config.pulseDurationMs
+  const pulseProgress =
+    ((time + phaseOffset * config.pulseDurationMs) % config.pulseDurationMs) / config.pulseDurationMs
+
   const pulseAngle = pulseProgress * TWO_PI
 
   return 0.52 + ((Math.sin(pulseAngle + 0.55) + 1) / 2) * 0.48
@@ -548,5 +552,7 @@ function rotationFor(time: number, config: LoaderCurve, phaseOffset: number) {
     return 0
   }
 
-  return -(((time + phaseOffset * config.rotationDurationMs) % config.rotationDurationMs) / config.rotationDurationMs) * 360
+  return (
+    -(((time + phaseOffset * config.rotationDurationMs) % config.rotationDurationMs) / config.rotationDurationMs) * 360
+  )
 }

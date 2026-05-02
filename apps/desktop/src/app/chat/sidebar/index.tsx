@@ -74,12 +74,16 @@ export function ChatSidebar({
   const sessionsLoading = useStore($sessionsLoading)
   const workingSessionIds = useStore($workingSessionIds)
 
-  const sortedSessions = useMemo(() => [...sessions].sort((a, b) => {
-    const aTime = a.last_active || a.started_at || 0
-    const bTime = b.last_active || b.started_at || 0
+  const sortedSessions = useMemo(
+    () =>
+      [...sessions].sort((a, b) => {
+        const aTime = a.last_active || a.started_at || 0
+        const bTime = b.last_active || b.started_at || 0
 
-    return bTime - aTime
-  }), [sessions])
+        return bTime - aTime
+      }),
+    [sessions]
+  )
 
   const sessionsById = useMemo(() => new Map(sessions.map(session => [session.id, session])), [sessions])
   const workingSessionIdSet = useMemo(() => new Set(workingSessionIds), [workingSessionIds])

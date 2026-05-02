@@ -181,6 +181,7 @@ export function useMicRecorder(): { handle: MicRecorderHandle; level: number; re
       ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/wav'].find(
         type => MediaRecorder.isTypeSupported(type)
       ) ?? ''
+
     let recorder: MediaRecorder
 
     try {

@@ -5,6 +5,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 're
 
 import type { ModelOptionsResponse, SessionRuntimeInfo } from '@/types/hermes'
 
+import { formatRefValue } from '../components/assistant-ui/directive-text'
 import {
   getGlobalModelInfo,
   getHermesConfig,
@@ -14,7 +15,6 @@ import {
   listSessions,
   setGlobalModel
 } from '../hermes'
-import { formatRefValue } from '../components/assistant-ui/directive-text'
 import { toChatMessages } from '../lib/chat-messages'
 import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromConfig } from '../lib/chat-runtime'
 import { $pinnedSessionIds, pinSession, unpinSession } from '../store/layout'
@@ -48,13 +48,7 @@ import { ChatSidebar } from './chat/sidebar'
 import { useGatewayBoot } from './gateway/hooks/use-gateway-boot'
 import { useGatewayRequest } from './gateway/hooks/use-gateway-request'
 import { ModelPickerOverlay } from './model-picker-overlay'
-import {
-  appViewForPath,
-  isNewChatRoute,
-  NEW_CHAT_ROUTE,
-  routeSessionId,
-  sessionRoute
-} from './routes'
+import { appViewForPath, isNewChatRoute, NEW_CHAT_ROUTE, routeSessionId, sessionRoute } from './routes'
 import { useMessageStream } from './session/hooks/use-message-stream'
 import { usePromptActions } from './session/hooks/use-prompt-actions'
 import { useSessionActions } from './session/hooks/use-session-actions'

@@ -280,110 +280,121 @@ export function useSessionActions({
     ]
   )
 
-  const branchCurrentSession = useCallback(async (messageId?: string): Promise<boolean> => {
-    const sourceSessionId = activeSessionIdRef.current
+  const branchCurrentSession = useCallback(
+    async (messageId?: string): Promise<boolean> => {
+      const sourceSessionId = activeSessionIdRef.current
 
-    if (!sourceSessionId) {
-      notify({
-        kind: 'warning',
-        title: 'Nothing to branch',
-        message: 'Start or resume a chat before branching.'
-      })
-
-      return false
-    }
-
-    if (busyRef.current) {
-      notify({
-        kind: 'warning',
-        title: 'Session busy',
-        message: 'Stop the current turn before branching this chat.'
-      })
-
-      return false
-    }
-
-    try {
-      const currentMessages = $messages.get()
-      const targetIndex = messageId ? currentMessages.findIndex(message => message.id === messageId) : -1
-      const branchStart = targetIndex >= 0 ? targetIndex : Math.max(currentMessages.length - 1, 0)
-      const branchEnd = targetIndex >= 0 ? targetIndex + 1 : currentMessages.length
-
-      const branchMessages = currentMessages
-        .slice(branchStart, branchEnd)
-        .map(message => ({
-          content: chatMessageText(message),
-          source: message,
-          role: message.role
-        }))
-        .filter(message => message.content.trim() && ['assistant', 'system', 'user'].includes(message.role))
-
-      if (!branchMessages.length) {
+      if (!sourceSessionId) {
         notify({
           kind: 'warning',
           title: 'Nothing to branch',
-          message: 'This message has no text to branch from.'
+          message: 'Start or resume a chat before branching.'
         })
 
         return false
       }
 
-      clearNotifications()
+      if (busyRef.current) {
+        notify({
+          kind: 'warning',
+          title: 'Session busy',
+          message: 'Stop the current turn before branching this chat.'
+        })
 
-      const branched = await requestGateway<SessionCreateResponse>('session.create', {
-        cols: 96,
-        messages: branchMessages.map(({ content, role }) => ({ content, role })),
-        title: 'Branch'
-      })
-
-      const routedSessionId = branched.stored_session_id ?? branched.session_id
-
-      setFreshDraftReady(false)
-      ensureSessionState(branched.session_id, routedSessionId)
-      setActiveSessionId(branched.session_id)
-      activeSessionIdRef.current = branched.session_id
-      updateSessionState(
-        branched.session_id,
-        state => ({
-          ...state,
-          messages: branchMessages.map(({ source }) => source),
-          busy: false,
-          awaitingResponse: false
-        }),
-        routedSessionId
-      )
-      setSelectedStoredSessionId(routedSessionId)
-      selectedStoredSessionIdRef.current = routedSessionId
-      navigate(sessionRoute(routedSessionId))
-
-      clearComposerDraft()
-      clearComposerAttachments()
-
-      if (branched.info?.model) {
-        setCurrentModel(branched.info.model)
+        return false
       }
 
-      if (branched.info?.provider) {
-        setCurrentProvider(branched.info.provider)
+      try {
+        const currentMessages = $messages.get()
+        const targetIndex = messageId ? currentMessages.findIndex(message => message.id === messageId) : -1
+        const branchStart = targetIndex >= 0 ? targetIndex : Math.max(currentMessages.length - 1, 0)
+        const branchEnd = targetIndex >= 0 ? targetIndex + 1 : currentMessages.length
+
+        const branchMessages = currentMessages
+          .slice(branchStart, branchEnd)
+          .map(message => ({
+            content: chatMessageText(message),
+            source: message,
+            role: message.role
+          }))
+          .filter(message => message.content.trim() && ['assistant', 'system', 'user'].includes(message.role))
+
+        if (!branchMessages.length) {
+          notify({
+            kind: 'warning',
+            title: 'Nothing to branch',
+            message: 'This message has no text to branch from.'
+          })
+
+          return false
+        }
+
+        clearNotifications()
+
+        const branched = await requestGateway<SessionCreateResponse>('session.create', {
+          cols: 96,
+          messages: branchMessages.map(({ content, role }) => ({ content, role })),
+          title: 'Branch'
+        })
+
+        const routedSessionId = branched.stored_session_id ?? branched.session_id
+
+        setFreshDraftReady(false)
+        ensureSessionState(branched.session_id, routedSessionId)
+        setActiveSessionId(branched.session_id)
+        activeSessionIdRef.current = branched.session_id
+        updateSessionState(
+          branched.session_id,
+          state => ({
+            ...state,
+            messages: branchMessages.map(({ source }) => source),
+            busy: false,
+            awaitingResponse: false
+          }),
+          routedSessionId
+        )
+        setSelectedStoredSessionId(routedSessionId)
+        selectedStoredSessionIdRef.current = routedSessionId
+        navigate(sessionRoute(routedSessionId))
+
+        clearComposerDraft()
+        clearComposerAttachments()
+
+        if (branched.info?.model) {
+          setCurrentModel(branched.info.model)
+        }
+
+        if (branched.info?.provider) {
+          setCurrentProvider(branched.info.provider)
+        }
+
+        if (branched.info?.cwd) {
+          setCurrentCwd(branched.info.cwd)
+        }
+
+        setCurrentBranch(branched.info?.branch || '')
+
+        if (typeof branched.info?.personality === 'string') {
+          setCurrentPersonality(normalizePersonalityValue(branched.info.personality))
+        }
+
+        return true
+      } catch (err) {
+        notifyError(err, 'Branch failed')
+
+        return false
       }
-
-      if (branched.info?.cwd) {
-        setCurrentCwd(branched.info.cwd)
-      }
-
-      setCurrentBranch(branched.info?.branch || '')
-
-      if (typeof branched.info?.personality === 'string') {
-        setCurrentPersonality(normalizePersonalityValue(branched.info.personality))
-      }
-
-      return true
-    } catch (err) {
-      notifyError(err, 'Branch failed')
-
-      return false
-    }
-  }, [activeSessionIdRef, busyRef, ensureSessionState, navigate, requestGateway, selectedStoredSessionIdRef, updateSessionState])
+    },
+    [
+      activeSessionIdRef,
+      busyRef,
+      ensureSessionState,
+      navigate,
+      requestGateway,
+      selectedStoredSessionIdRef,
+      updateSessionState
+    ]
+  )
 
   const removeSession = useCallback(
     async (storedSessionId: string) => {

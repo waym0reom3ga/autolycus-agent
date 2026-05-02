@@ -59,7 +59,9 @@ function Row({ description, keyLabel, mono = false }: { description: string; key
   return (
     <div className="flex min-w-0 items-baseline gap-2 rounded-md px-2.5 py-1 text-xs">
       <span
-        className={mono ? 'shrink-0 truncate font-mono font-medium text-foreground/85' : 'shrink-0 truncate text-foreground/85'}
+        className={
+          mono ? 'shrink-0 truncate font-mono font-medium text-foreground/85' : 'shrink-0 truncate text-foreground/85'
+        }
       >
         {keyLabel}
       </span>

@@ -162,11 +162,7 @@ function PlaybackWaveform({ audioElement }: { audioElement: HTMLAudioElement | n
   return <canvas aria-hidden="true" className="block h-4 w-[88px]" ref={canvasRef} />
 }
 
-export function VoiceActivity({
-  state
-}: {
-  state: VoiceActivityState
-}) {
+export function VoiceActivity({ state }: { state: VoiceActivityState }) {
   if (state.status === 'idle') {
     return null
   }
@@ -194,7 +190,9 @@ export function VoiceActivity({
 
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="truncate font-medium text-foreground/85">{title}</span>
-        <span className="font-mono text-[0.6875rem] text-muted-foreground/85">{formatElapsed(state.elapsedSeconds)}</span>
+        <span className="font-mono text-[0.6875rem] text-muted-foreground/85">
+          {formatElapsed(state.elapsedSeconds)}
+        </span>
       </div>
 
       <VoiceLevelBars active={recording} level={state.level} />

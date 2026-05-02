@@ -21,15 +21,7 @@ import {
   Volume2Icon,
   VolumeXIcon
 } from 'lucide-react'
-import {
-  type FC,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState
-} from 'react'
+import { type FC, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
 import { ActivityTimerText } from '@/components/assistant-ui/activity-timer-text'
@@ -256,7 +248,9 @@ export const Thread: FC<{
           scrollToBottomOnThreadSwitch
         >
           <div className="flex w-full flex-col gap-3" ref={contentRef}>
-            <ThreadPrimitive.Messages>{() => <ThreadMessage onBranchInNewChat={onBranchInNewChat} />}</ThreadPrimitive.Messages>
+            <ThreadPrimitive.Messages>
+              {() => <ThreadMessage onBranchInNewChat={onBranchInNewChat} />}
+            </ThreadPrimitive.Messages>
             {loading === 'response' && <ResponseLoadingIndicator />}
             {loading === 'working' && <WorkingIndicator />}
           </div>
@@ -384,7 +378,12 @@ const WorkingIndicator: FC = () => {
 
   return (
     <StatusRow label="Hermes is still working">
-      <Loader className="size-4 text-muted-foreground/60" label="Still working" strokeScale={0.65} type="spiral-search" />
+      <Loader
+        className="size-4 text-muted-foreground/60"
+        label="Still working"
+        strokeScale={0.65}
+        type="spiral-search"
+      />
       <span className="shimmer min-w-0 truncate text-muted-foreground/60">Still working…</span>
       <ActivityTimerText seconds={elapsed} />
     </StatusRow>

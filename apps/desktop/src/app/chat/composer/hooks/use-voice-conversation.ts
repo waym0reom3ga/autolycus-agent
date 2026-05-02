@@ -104,7 +104,11 @@ export function useVoiceConversation({
     }
 
     if (!force && buffer.length > 220) {
-      const softBoundary = Math.max(buffer.lastIndexOf(', ', 180), buffer.lastIndexOf('; ', 180), buffer.lastIndexOf(': ', 180))
+      const softBoundary = Math.max(
+        buffer.lastIndexOf(', ', 180),
+        buffer.lastIndexOf('; ', 180),
+        buffer.lastIndexOf(': ', 180)
+      )
 
       if (softBoundary > 80) {
         const chunk = buffer.slice(0, softBoundary + 1).trim()
@@ -123,33 +127,21 @@ export function useVoiceConversation({
     return buffer
   }
 
-  const handleTurn = useCallback(async (forceTranscribe = false) => {
-    if (turnClosingRef.current) {
-      return
-    }
-
-    turnClosingRef.current = true
-    clearTurnTimeout()
-    setStatus('transcribing')
-
-    try {
-      const result = await handle.stop()
-
-      if (!result || (!result.heardSpeech && !forceTranscribe) || !onTranscribeAudio) {
-        if (enabledRef.current && !mutedRef.current && !busyRef.current && statusRef.current !== 'speaking') {
-          pendingStartRef.current = true
-        }
-
-        setStatus('idle')
-
+  const handleTurn = useCallback(
+    async (forceTranscribe = false) => {
+      if (turnClosingRef.current) {
         return
       }
 
-      try {
-        const transcript = (await onTranscribeAudio(result.audio)).trim()
+      turnClosingRef.current = true
+      clearTurnTimeout()
+      setStatus('transcribing')
 
-        if (!transcript) {
-          if (enabledRef.current) {
+      try {
+        const result = await handle.stop()
+
+        if (!result || (!result.heardSpeech && !forceTranscribe) || !onTranscribeAudio) {
+          if (enabledRef.current && !mutedRef.current && !busyRef.current && statusRef.current !== 'speaking') {
             pendingStartRef.current = true
           }
 
@@ -158,23 +150,38 @@ export function useVoiceConversation({
           return
         }
 
-        awaitingSpokenResponseRef.current = true
-        resetSpeechBuffer()
-        await onSubmit(transcript)
-        setStatus('thinking')
-      } catch (error) {
-        notifyError(error, 'Voice transcription failed')
+        try {
+          const transcript = (await onTranscribeAudio(result.audio)).trim()
 
-        if (enabledRef.current && !mutedRef.current && !busyRef.current) {
-          pendingStartRef.current = true
+          if (!transcript) {
+            if (enabledRef.current) {
+              pendingStartRef.current = true
+            }
+
+            setStatus('idle')
+
+            return
+          }
+
+          awaitingSpokenResponseRef.current = true
+          resetSpeechBuffer()
+          await onSubmit(transcript)
+          setStatus('thinking')
+        } catch (error) {
+          notifyError(error, 'Voice transcription failed')
+
+          if (enabledRef.current && !mutedRef.current && !busyRef.current) {
+            pendingStartRef.current = true
+          }
+
+          setStatus('idle')
         }
-
-        setStatus('idle')
+      } finally {
+        turnClosingRef.current = false
       }
-    } finally {
-      turnClosingRef.current = false
-    }
-  }, [handle, onSubmit, onTranscribeAudio])
+    },
+    [handle, onSubmit, onTranscribeAudio]
+  )
 
   const startListening = useCallback(async () => {
     pendingStartRef.current = false
@@ -210,25 +217,22 @@ export function useVoiceConversation({
     }
   }, [handle, handleTurn, onFatalError])
 
-  const speak = useCallback(
-    async (text: string) => {
-      setStatus('speaking')
+  const speak = useCallback(async (text: string) => {
+    setStatus('speaking')
 
-      try {
-        await playSpeechText(text, { source: 'voice-conversation' })
-      } catch (error) {
-        notifyError(error, 'Voice playback failed')
-      } finally {
-        if (enabledRef.current) {
-          pendingStartRef.current = true
-          setStatus('idle')
-        } else {
-          setStatus('idle')
-        }
+    try {
+      await playSpeechText(text, { source: 'voice-conversation' })
+    } catch (error) {
+      notifyError(error, 'Voice playback failed')
+    } finally {
+      if (enabledRef.current) {
+        pendingStartRef.current = true
+        setStatus('idle')
+      } else {
+        setStatus('idle')
       }
-    },
-    []
-  )
+    }
+  }, [])
 
   const start = useCallback(async () => {
     if (!onTranscribeAudio) {

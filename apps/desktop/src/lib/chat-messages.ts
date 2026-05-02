@@ -437,7 +437,9 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
   })
   flushPendingTools(messages.length)
 
-  return withUniqueToolCallIds(result.filter(m => chatMessageText(m).trim() || m.parts.some(part => part.type !== 'text')))
+  return withUniqueToolCallIds(
+    result.filter(m => chatMessageText(m).trim() || m.parts.some(part => part.type !== 'text'))
+  )
 }
 
 export function branchGroupForUser(userMessage: ChatMessage): string {

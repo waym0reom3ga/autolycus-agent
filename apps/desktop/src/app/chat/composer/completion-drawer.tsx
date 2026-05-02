@@ -46,13 +46,7 @@ export function ComposerCompletionDrawer({
   )
 }
 
-export function CompletionDrawerEmpty({
-  children,
-  title
-}: {
-  children?: ReactNode
-  title: string
-}) {
+export function CompletionDrawerEmpty({ children, title }: { children?: ReactNode; title: string }) {
   return (
     <div className="px-3 py-3 text-sm text-muted-foreground">
       <p>{title}</p>

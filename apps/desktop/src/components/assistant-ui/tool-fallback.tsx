@@ -176,4 +176,3 @@ export const ToolFallback = ({ toolName, args, result }: ToolCallMessagePartProp
     </div>
   )
 }
-

@@ -134,7 +134,9 @@ function NotificationDetail({ detail }: { detail: string }) {
         Details
       </summary>
       <div className="mt-1 rounded-md border border-border/70 bg-background/65 p-2">
-        <pre className="max-h-32 whitespace-pre-wrap wrap-break-word font-mono text-[0.6875rem] leading-relaxed">{detail}</pre>
+        <pre className="max-h-32 whitespace-pre-wrap wrap-break-word font-mono text-[0.6875rem] leading-relaxed">
+          {detail}
+        </pre>
         <button
           className="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground hover:bg-accent hover:text-foreground"
           onClick={copyDetail}

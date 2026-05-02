@@ -1,11 +1,7 @@
 import type { Unstable_TriggerAdapter, Unstable_TriggerItem } from '@assistant-ui/core'
 import { ComposerPrimitive, type Unstable_MentionDirective } from '@assistant-ui/react'
 
-import {
-  ComposerCompletionDrawer,
-  CompletionDrawerEmpty,
-  COMPLETION_DRAWER_ROW_CLASS
-} from './completion-drawer'
+import { COMPLETION_DRAWER_ROW_CLASS, CompletionDrawerEmpty, ComposerCompletionDrawer } from './completion-drawer'
 
 export function DirectivePopover({
   adapter,
@@ -44,11 +40,7 @@ function DirectiveRow({ index, item }: { index: number; item: Unstable_TriggerIt
   const description = metadata?.meta || item.description
 
   return (
-    <ComposerPrimitive.Unstable_TriggerPopoverItem
-      className={COMPLETION_DRAWER_ROW_CLASS}
-      index={index}
-      item={item}
-    >
+    <ComposerPrimitive.Unstable_TriggerPopoverItem className={COMPLETION_DRAWER_ROW_CLASS} index={index} item={item}>
       <span className="shrink-0 truncate font-mono font-medium leading-5 text-foreground">{display}</span>
       {description && <span className="min-w-0 truncate leading-5 text-muted-foreground/80">{description}</span>}
     </ComposerPrimitive.Unstable_TriggerPopoverItem>

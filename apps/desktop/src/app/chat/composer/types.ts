@@ -1,3 +1,5 @@
+import type { HermesGateway } from '@/hermes'
+
 export interface ContextSuggestion {
   text: string
   display: string
@@ -28,7 +30,7 @@ export interface ChatBarProps {
   focusKey?: string | null
   maxRecordingSeconds?: number
   state: ChatBarState
-  gateway?: import('@/hermes').HermesGateway | null
+  gateway?: HermesGateway | null
   sessionId?: string | null
   cwd?: string | null
   onCancel: () => void

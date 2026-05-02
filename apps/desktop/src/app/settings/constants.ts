@@ -1,4 +1,16 @@
-import { Brain, Lock, type LucideIcon, MessageCircle, Mic, Monitor, Moon, Palette, Sparkles, Sun, Wrench } from 'lucide-react'
+import {
+  Brain,
+  Lock,
+  type LucideIcon,
+  MessageCircle,
+  Mic,
+  Monitor,
+  Moon,
+  Palette,
+  Sparkles,
+  Sun,
+  Wrench
+} from 'lucide-react'
 
 import type { ThemeMode } from '@/themes/context'
 

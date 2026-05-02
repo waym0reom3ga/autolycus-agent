@@ -178,13 +178,7 @@ function ConversationIndicator({
       {bars.map((weight, index) => {
         const height = listening ? 0.3 + Math.min(0.7, normalized * weight) : 0.3
 
-        return (
-          <span
-            className="w-0.5 rounded-full bg-current"
-            key={index}
-            style={{ height: `${height * 100}%` }}
-          />
-        )
+        return <span className="w-0.5 rounded-full bg-current" key={index} style={{ height: `${height * 100}%` }} />
       })}
     </span>
   )
@@ -204,11 +198,7 @@ function DictationButton({
   const active = state.active || status !== 'idle'
 
   const aria =
-    status === 'recording'
-      ? 'Stop dictation'
-      : status === 'transcribing'
-        ? 'Transcribing dictation'
-        : 'Voice dictation'
+    status === 'recording' ? 'Stop dictation' : status === 'transcribing' ? 'Transcribing dictation' : 'Voice dictation'
 
   return (
     <Button

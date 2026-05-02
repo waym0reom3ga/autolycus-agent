@@ -9,7 +9,15 @@ import { notify, notifyError } from '@/store/notifications'
 import type { EnvVarInfo } from '@/types/hermes'
 
 import { CONTROL_TEXT } from './constants'
-import { asText, includesQuery, prettyName, providerGroup, providerPriority, redactedValue, withoutKey } from './helpers'
+import {
+  asText,
+  includesQuery,
+  prettyName,
+  providerGroup,
+  providerPriority,
+  redactedValue,
+  withoutKey
+} from './helpers'
 import { LoadingState, Pill, SectionHeading, SettingsContent } from './primitives'
 import type { EnvPatch, EnvRowProps, ProviderGroup, SearchProps } from './types'
 
@@ -218,6 +226,7 @@ export function KeysSettings({ query }: SearchProps) {
     void (async () => {
       try {
         const next = await getEnvVars()
+
         if (!cancelled) {
           setVars(next)
         }

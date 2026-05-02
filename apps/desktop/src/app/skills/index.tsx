@@ -34,11 +34,7 @@ function filteredSkills(skills: SkillInfo[], query: string, category: string | n
         return true
       }
 
-      return (
-        includesQuery(skill.name, q) ||
-        includesQuery(skill.description, q) ||
-        includesQuery(skill.category, q)
-      )
+      return includesQuery(skill.name, q) || includesQuery(skill.description, q) || includesQuery(skill.category, q)
     })
     .sort((a, b) => asText(a.name).localeCompare(asText(b.name)))
 }
@@ -177,14 +173,21 @@ export function SkillsView({ setTitlebarActions, ...props }: SkillsViewProps) {
     >
       <header className={titlebarHeaderBaseClass}>
         <h2 className="text-base font-semibold leading-none tracking-tight">Skills</h2>
-        <span className="text-xs text-muted-foreground">{enabledSkills}/{totalSkills} enabled</span>
+        <span className="text-xs text-muted-foreground">
+          {enabledSkills}/{totalSkills} enabled
+        </span>
       </header>
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-[1.0625rem] border border-border/50 bg-background/85">
         <div className="border-b border-border/50 px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <ModeButton active={mode === 'skills'} icon={Brain} onClick={() => setMode('skills')} text="Skills" />
-            <ModeButton active={mode === 'toolsets'} icon={Wrench} onClick={() => setMode('toolsets')} text="Toolsets" />
+            <ModeButton
+              active={mode === 'toolsets'}
+              icon={Wrench}
+              onClick={() => setMode('toolsets')}
+              text="Toolsets"
+            />
             <div className="ml-auto w-full max-w-sm min-w-64">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -246,7 +249,10 @@ export function SkillsView({ setTitlebarActions, ...props }: SkillsViewProps) {
                     </div>
                     <div className="divide-y divide-border/40 rounded-lg border border-border/40 bg-background/70">
                       {list.map(skill => (
-                        <div className="grid gap-3 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" key={skill.name}>
+                        <div
+                          className="grid gap-3 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                          key={skill.name}
+                        >
                           <div className="min-w-0">
                             <div className="truncate text-sm font-medium">{skill.name}</div>
                             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -272,7 +278,9 @@ export function SkillsView({ setTitlebarActions, ...props }: SkillsViewProps) {
               <EmptyState description="Try a broader search query." title="No toolsets found" />
             ) : (
               <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">{enabledToolsets}/{toolsets.length} toolsets enabled</div>
+                <div className="text-xs text-muted-foreground">
+                  {enabledToolsets}/{toolsets.length} toolsets enabled
+                </div>
                 <div className="divide-y divide-border/40 rounded-lg border border-border/40 bg-background/70">
                   {visibleToolsets.map(toolset => {
                     const tools = toolNames(toolset)
@@ -289,7 +297,9 @@ export function SkillsView({ setTitlebarActions, ...props }: SkillsViewProps) {
                             </StatusPill>
                           </div>
                         </div>
-                        <p className="mt-1 text-xs text-muted-foreground">{asText(toolset.description) || 'No description.'}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {asText(toolset.description) || 'No description.'}
+                        </p>
                         {tools.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {tools.map(name => (

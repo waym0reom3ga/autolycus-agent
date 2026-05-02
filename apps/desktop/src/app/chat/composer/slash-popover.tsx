@@ -1,11 +1,7 @@
 import type { Unstable_DirectiveFormatter, Unstable_TriggerAdapter, Unstable_TriggerItem } from '@assistant-ui/core'
 import { ComposerPrimitive } from '@assistant-ui/react'
 
-import {
-  ComposerCompletionDrawer,
-  CompletionDrawerEmpty,
-  COMPLETION_DRAWER_ROW_CLASS
-} from './completion-drawer'
+import { COMPLETION_DRAWER_ROW_CLASS, CompletionDrawerEmpty, ComposerCompletionDrawer } from './completion-drawer'
 
 const slashFormatter: Unstable_DirectiveFormatter = {
   serialize(item: Unstable_TriggerItem): string {

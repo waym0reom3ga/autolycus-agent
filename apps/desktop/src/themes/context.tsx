@@ -38,10 +38,7 @@ const DENSITY_MULTIPLIERS: Record<ThemeDensity, string> = {
 const INJECTED_FONT_URLS = new Set<string>()
 const SKIN_THEME_LIST = BUILTIN_THEME_LIST.filter(t => t.name !== 'nous-light')
 
-function effectiveMode(
-  mode: ThemeMode,
-  systemDark = matchesQuery('(prefers-color-scheme: dark)')
-): 'light' | 'dark' {
+function effectiveMode(mode: ThemeMode, systemDark = matchesQuery('(prefers-color-scheme: dark)')): 'light' | 'dark' {
   return mode === 'system' ? (systemDark ? 'dark' : 'light') : mode
 }
 

@@ -73,7 +73,11 @@ function ConfigField({
         <SelectContent>
           {selectOptions.map(option => (
             <SelectItem key={option || EMPTY_SELECT_VALUE} value={option || EMPTY_SELECT_VALUE}>
-              {option ? (optionLabels?.[option] ?? prettyName(option)) : schemaKey === 'display.personality' ? 'None' : '(none)'}
+              {option
+                ? (optionLabels?.[option] ?? prettyName(option))
+                : schemaKey === 'display.personality'
+                  ? 'None'
+                  : '(none)'}
             </SelectItem>
           ))}
         </SelectContent>
@@ -227,6 +231,7 @@ export function ConfigSettings({
       void (async () => {
         try {
           await saveHermesConfig(config)
+
           if (saveVersionRef.current === v) {
             onConfigSaved?.()
           }

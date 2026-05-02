@@ -23,9 +23,40 @@ const { spawn } = require('node:child_process')
 const PORT_FLOOR = 9120
 const PORT_CEILING = 9199
 const DEV_SERVER = process.env.HERMES_DESKTOP_DEV_SERVER
-const REPO_ROOT = path.resolve(__dirname, '../../..')
-const DESKTOP_ROOT = path.resolve(__dirname, '..')
+const IS_PACKAGED = app.isPackaged
 const IS_MAC = process.platform === 'darwin'
+const IS_WINDOWS = process.platform === 'win32'
+const APP_ROOT = app.getAppPath()
+const SOURCE_REPO_ROOT = path.resolve(APP_ROOT, '../..')
+const BUNDLED_HERMES_ROOT = path.join(process.resourcesPath, 'hermes-agent')
+const BUNDLED_VENV_ROOT = path.join(app.getPath('userData'), 'hermes-runtime')
+const BUNDLED_VENV_MARKER = path.join(BUNDLED_VENV_ROOT, '.hermes-desktop-runtime.json')
+const DESKTOP_LOG_PATH = path.join(app.getPath('userData'), 'desktop.log')
+const RUNTIME_SCHEMA_VERSION = 3
+const BUNDLED_RUNTIME_REQUIREMENTS = [
+  'openai>=2.21.0,<3',
+  'anthropic>=0.39.0,<1',
+  'python-dotenv>=1.2.1,<2',
+  'fire>=0.7.1,<1',
+  'httpx[socks]>=0.28.1,<1',
+  'rich>=14.3.3,<15',
+  'tenacity>=9.1.4,<10',
+  'pyyaml>=6.0.2,<7',
+  'requests>=2.32.0,<3',
+  'jinja2>=3.1.5,<4',
+  'pydantic>=2.12.5,<3',
+  'prompt_toolkit>=3.0.52,<4',
+  'exa-py>=2.9.0,<3',
+  'firecrawl-py>=4.16.0,<5',
+  'parallel-web>=0.4.2,<1',
+  'fal-client>=0.13.1,<1',
+  'croniter>=6.0.0,<7',
+  'edge-tts>=7.2.7,<8',
+  'PyJWT[crypto]>=2.12.0,<3',
+  'fastapi>=0.104.0,<1',
+  'uvicorn[standard]>=0.24.0,<1',
+  IS_WINDOWS ? 'pywinpty>=2.0.0,<3' : 'ptyprocess>=0.7.0,<1'
+]
 const APP_NAME = 'Hermes'
 const TITLEBAR_HEIGHT = 34
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 14
@@ -33,9 +64,17 @@ const WINDOW_BUTTON_POSITION = {
   x: 24,
   y: TITLEBAR_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2
 }
-const APP_ICON_PATH = path.join(DESKTOP_ROOT, 'public', 'apple-touch-icon.png')
+const APP_ICON_PATHS = [
+  path.join(APP_ROOT, 'public', 'apple-touch-icon.png'),
+  path.join(APP_ROOT, 'dist', 'apple-touch-icon.png'),
+  path.join(unpackedPathFor(APP_ROOT), 'dist', 'apple-touch-icon.png')
+]
 
 app.setName(APP_NAME)
+app.setAboutPanelOptions({
+  applicationName: APP_NAME,
+  copyright: 'Copyright © 2026 Nous Research'
+})
 
 let mainWindow = null
 let hermesProcess = null
@@ -45,15 +84,324 @@ const hermesLog = []
 function rememberLog(chunk) {
   const text = String(chunk || '').trim()
   if (!text) return
-  hermesLog.push(...text.split(/\r?\n/).map(line => `[hermes] ${line}`))
+  const lines = text.split(/\r?\n/).map(line => `[hermes] ${line}`)
+  hermesLog.push(...lines)
   if (hermesLog.length > 300) {
     hermesLog.splice(0, hermesLog.length - 300)
   }
+
+  try {
+    fs.mkdirSync(path.dirname(DESKTOP_LOG_PATH), { recursive: true })
+    fs.appendFileSync(DESKTOP_LOG_PATH, `${lines.join('\n')}\n`)
+  } catch {
+    // Logging must never block app startup.
+  }
 }
 
-function findPython() {
-  const local = [path.join(REPO_ROOT, '.venv', 'bin', 'python'), path.join(REPO_ROOT, 'venv', 'bin', 'python')]
-  return local.find(candidate => fs.existsSync(candidate)) || 'python3'
+function fileExists(filePath) {
+  try {
+    return fs.statSync(filePath).isFile()
+  } catch {
+    return false
+  }
+}
+
+function directoryExists(filePath) {
+  try {
+    return fs.statSync(filePath).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+function unpackedPathFor(filePath) {
+  return filePath.replace(/app\.asar(?=$|[\\/])/, 'app.asar.unpacked')
+}
+
+function findOnPath(command) {
+  if (!command) return null
+
+  if (path.isAbsolute(command) || command.includes(path.sep) || (IS_WINDOWS && command.includes('/'))) {
+    return fileExists(command) ? command : null
+  }
+
+  const pathEntries = String(process.env.PATH || '')
+    .split(path.delimiter)
+    .filter(Boolean)
+  const extensions = IS_WINDOWS
+    ? ['', ...(process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)]
+    : ['']
+
+  for (const entry of pathEntries) {
+    for (const extension of extensions) {
+      const candidate = path.join(entry, `${command}${extension}`)
+      if (fileExists(candidate)) return candidate
+    }
+  }
+
+  return null
+}
+
+function isCommandScript(command) {
+  return IS_WINDOWS && /\.(cmd|bat)$/i.test(command || '')
+}
+
+function isHermesSourceRoot(root) {
+  return directoryExists(root) && fileExists(path.join(root, 'hermes_cli', 'main.py'))
+}
+
+function findPythonForRoot(root) {
+  const override = process.env.HERMES_DESKTOP_PYTHON
+  if (override && fileExists(override)) return override
+
+  const relativePaths = IS_WINDOWS
+    ? [path.join('.venv', 'Scripts', 'python.exe'), path.join('venv', 'Scripts', 'python.exe')]
+    : [path.join('.venv', 'bin', 'python'), path.join('venv', 'bin', 'python')]
+
+  for (const relativePath of relativePaths) {
+    const candidate = path.join(root, relativePath)
+    if (fileExists(candidate)) return candidate
+  }
+
+  return findSystemPython()
+}
+
+function findSystemPython() {
+  const commands = IS_WINDOWS ? ['python.exe', 'py.exe', 'python'] : ['python3', 'python']
+
+  for (const command of commands) {
+    const candidate = findOnPath(command)
+    if (candidate) return candidate
+  }
+
+  return null
+}
+
+function getVenvPython(venvRoot) {
+  return path.join(venvRoot, IS_WINDOWS ? path.join('Scripts', 'python.exe') : path.join('bin', 'python'))
+}
+
+function runProcess(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env || process.env,
+      shell: Boolean(options.shell),
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+
+    child.stdout.on('data', rememberLog)
+    child.stderr.on('data', rememberLog)
+    child.once('error', reject)
+    child.once('exit', code => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error(`${path.basename(command)} exited with code ${code}: ${recentHermesLog()}`))
+      }
+    })
+  })
+}
+
+function recentHermesLog() {
+  return hermesLog.slice(-20).join('\n')
+}
+
+function readJson(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function resolveWebDist() {
+  const override = process.env.HERMES_DESKTOP_WEB_DIST
+  if (override && directoryExists(path.resolve(override))) return path.resolve(override)
+
+  const unpackedDist = path.join(unpackedPathFor(APP_ROOT), 'dist')
+  if (directoryExists(unpackedDist)) return unpackedDist
+
+  return path.join(APP_ROOT, 'dist')
+}
+
+function resolveRendererIndex() {
+  const candidates = [path.join(APP_ROOT, 'dist', 'index.html'), path.join(resolveWebDist(), 'index.html')]
+  return candidates.find(fileExists) || candidates[0]
+}
+
+function resolveHermesCwd() {
+  const candidates = [
+    process.env.HERMES_DESKTOP_CWD,
+    process.env.INIT_CWD,
+    process.cwd(),
+    !IS_PACKAGED ? SOURCE_REPO_ROOT : null,
+    app.getPath('home')
+  ]
+
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    const resolved = path.resolve(String(candidate))
+    if (directoryExists(resolved)) return resolved
+  }
+
+  return app.getPath('home')
+}
+
+function createPythonBackend(root, label, dashboardArgs, options = {}) {
+  const python = findPythonForRoot(root)
+  if (!python) return null
+
+  return {
+    kind: 'python',
+    label,
+    command: python,
+    args: ['-m', 'hermes_cli.main', ...dashboardArgs],
+    env: {
+      PYTHONPATH: [root, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter)
+    },
+    root,
+    bootstrap: Boolean(options.bootstrap),
+    shell: false
+  }
+}
+
+function createBundledBackend(root, dashboardArgs) {
+  const python = getVenvPython(BUNDLED_VENV_ROOT)
+
+  return {
+    kind: 'python',
+    label: 'bundled Hermes',
+    command: fileExists(python) ? python : findSystemPython(),
+    args: ['-m', 'hermes_cli.main', ...dashboardArgs],
+    env: {
+      PYTHONPATH: [root, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter)
+    },
+    root,
+    bootstrap: true,
+    shell: false
+  }
+}
+
+function resolveHermesBackend(dashboardArgs) {
+  const overrideRoot = process.env.HERMES_DESKTOP_HERMES_ROOT && path.resolve(process.env.HERMES_DESKTOP_HERMES_ROOT)
+  if (overrideRoot && isHermesSourceRoot(overrideRoot)) {
+    const backend = createPythonBackend(overrideRoot, `Hermes source at ${overrideRoot}`, dashboardArgs)
+    if (backend) return backend
+  }
+
+  if (process.env.HERMES_DESKTOP_IGNORE_EXISTING !== '1') {
+    const hermesCommand = process.env.HERMES_DESKTOP_HERMES
+      ? findOnPath(process.env.HERMES_DESKTOP_HERMES) || process.env.HERMES_DESKTOP_HERMES
+      : findOnPath('hermes')
+    if (hermesCommand) {
+      return {
+        label: `existing Hermes CLI at ${hermesCommand}`,
+        command: hermesCommand,
+        args: dashboardArgs,
+        bootstrap: false,
+        env: {},
+        kind: 'command',
+        shell: isCommandScript(hermesCommand)
+      }
+    }
+  }
+
+  if (IS_PACKAGED && isHermesSourceRoot(BUNDLED_HERMES_ROOT)) {
+    const backend = createBundledBackend(BUNDLED_HERMES_ROOT, dashboardArgs)
+    if (backend.command) return backend
+  }
+
+  if (!IS_PACKAGED && isHermesSourceRoot(SOURCE_REPO_ROOT)) {
+    const backend = createPythonBackend(SOURCE_REPO_ROOT, `Hermes source at ${SOURCE_REPO_ROOT}`, dashboardArgs)
+    if (backend) return backend
+  }
+
+  const python = findSystemPython()
+  if (python) {
+    return {
+      kind: 'python',
+      label: `installed hermes_cli module via ${python}`,
+      command: python,
+      args: ['-m', 'hermes_cli.main', ...dashboardArgs],
+      bootstrap: false,
+      env: {},
+      shell: false
+    }
+  }
+
+  throw new Error('Could not find Hermes. Install the Hermes CLI or set HERMES_DESKTOP_HERMES_ROOT.')
+}
+
+async function ensureBundledRuntime(backend) {
+  if (!backend.bootstrap) return backend
+
+  const sourceVersion = readJson(path.join(backend.root, 'package.json'))?.version || app.getVersion()
+  const marker = readJson(BUNDLED_VENV_MARKER)
+  const venvPython = getVenvPython(BUNDLED_VENV_ROOT)
+
+  const runtimeReady =
+    fileExists(venvPython) &&
+    marker?.sourceVersion === sourceVersion &&
+    marker?.runtimeSchemaVersion === RUNTIME_SCHEMA_VERSION &&
+    (await hasBundledRuntimeImports(venvPython))
+
+  if (runtimeReady) {
+    backend.command = venvPython
+    backend.label = `${backend.label} runtime at ${BUNDLED_VENV_ROOT}`
+    return backend
+  }
+
+  const systemPython = findSystemPython()
+  if (!systemPython) {
+    throw new Error('Python 3.11+ is required to bootstrap the bundled Hermes runtime.')
+  }
+
+  rememberLog(`Preparing bundled Hermes runtime in ${BUNDLED_VENV_ROOT}`)
+  fs.mkdirSync(BUNDLED_VENV_ROOT, { recursive: true })
+
+  if (!fileExists(venvPython)) {
+    await runProcess(systemPython, ['-m', 'venv', BUNDLED_VENV_ROOT])
+  }
+
+  await runProcess(venvPython, [
+    '-m',
+    'pip',
+    'install',
+    '--disable-pip-version-check',
+    '--no-warn-script-location',
+    '--upgrade',
+    ...BUNDLED_RUNTIME_REQUIREMENTS
+  ])
+
+  await runProcess(venvPython, ['-c', 'import fastapi, uvicorn, ptyprocess'])
+
+  fs.writeFileSync(
+    BUNDLED_VENV_MARKER,
+    JSON.stringify(
+      {
+        runtimeSchemaVersion: RUNTIME_SCHEMA_VERSION,
+        sourceVersion,
+        installedAt: new Date().toISOString()
+      },
+      null,
+      2
+    )
+  )
+
+  backend.command = venvPython
+  backend.label = `${backend.label} runtime at ${BUNDLED_VENV_ROOT}`
+  return backend
+}
+
+async function hasBundledRuntimeImports(python) {
+  try {
+    await runProcess(python, ['-c', 'import fastapi, uvicorn, ptyprocess'])
+    return true
+  } catch {
+    rememberLog('Bundled Hermes runtime is missing required dashboard dependencies; reinstalling.')
+    return false
+  }
 }
 
 function isPortAvailable(port) {
@@ -226,22 +574,15 @@ function getWindowButtonPosition() {
   return mainWindow?.getWindowButtonPosition?.() || WINDOW_BUTTON_POSITION
 }
 
-function getAppIconPath() {
-  return fs.existsSync(APP_ICON_PATH) ? APP_ICON_PATH : undefined
+function sendBackendExit(payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const { webContents } = mainWindow
+  if (!webContents || webContents.isDestroyed()) return
+  webContents.send('hermes:backend-exit', payload)
 }
 
-function resolveHermesCwd() {
-  const candidates = [process.env.HERMES_DESKTOP_CWD, process.env.INIT_CWD, process.cwd(), REPO_ROOT]
-  for (const candidate of candidates) {
-    if (!candidate) continue
-    const resolved = path.resolve(String(candidate))
-    try {
-      if (fs.statSync(resolved).isDirectory()) return resolved
-    } catch {
-      // Try the next candidate.
-    }
-  }
-  return REPO_ROOT
+function getAppIconPath() {
+  return APP_ICON_PATHS.find(fileExists)
 }
 
 function buildApplicationMenu() {
@@ -421,43 +762,57 @@ async function startHermes() {
   connectionPromise = (async () => {
     const port = await pickPort()
     const token = crypto.randomBytes(32).toString('base64url')
-    const python = findPython()
-    const args = [
-      '-m',
-      'hermes_cli.main',
-      'dashboard',
-      '--no-open',
-      '--tui',
-      '--host',
-      '127.0.0.1',
-      '--port',
-      String(port)
-    ]
+    const dashboardArgs = ['dashboard', '--no-open', '--tui', '--host', '127.0.0.1', '--port', String(port)]
+    const backend = await ensureBundledRuntime(resolveHermesBackend(dashboardArgs))
     const hermesCwd = resolveHermesCwd()
+    const webDist = resolveWebDist()
 
-    hermesProcess = spawn(python, args, {
+    rememberLog(`Starting Hermes backend via ${backend.label}`)
+
+    hermesProcess = spawn(backend.command, backend.args, {
       cwd: hermesCwd,
       env: {
         ...process.env,
-        PYTHONPATH: [REPO_ROOT, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
+        ...backend.env,
         HERMES_DASHBOARD_SESSION_TOKEN: token,
         HERMES_DASHBOARD_TUI: '1',
-        HERMES_WEB_DIST: path.join(REPO_ROOT, 'apps', 'desktop', 'dist')
+        HERMES_WEB_DIST: webDist
       },
+      shell: backend.shell,
       stdio: ['ignore', 'pipe', 'pipe']
     })
 
     hermesProcess.stdout.on('data', rememberLog)
     hermesProcess.stderr.on('data', rememberLog)
+    let backendReady = false
+    let rejectBackendStart = null
+    const backendStartFailed = new Promise((_resolve, reject) => {
+      rejectBackendStart = reject
+    })
+    hermesProcess.once('error', error => {
+      rememberLog(`Hermes backend failed to start: ${error.message}`)
+      hermesProcess = null
+      connectionPromise = null
+      sendBackendExit({ code: null, signal: null, error: error.message })
+      rejectBackendStart?.(error)
+    })
     hermesProcess.once('exit', (code, signal) => {
       rememberLog(`Hermes dashboard exited (${signal || code})`)
       hermesProcess = null
       connectionPromise = null
-      mainWindow?.webContents.send('hermes:backend-exit', { code, signal })
+      sendBackendExit({ code, signal })
+      if (!backendReady) {
+        rejectBackendStart?.(
+          new Error(
+            `Hermes dashboard exited before it became ready (${signal || code}). Log: ${DESKTOP_LOG_PATH}\n${recentHermesLog()}`
+          )
+        )
+      }
     })
 
     const baseUrl = `http://127.0.0.1:${port}`
-    await waitForHermes(baseUrl, token)
+    await Promise.race([waitForHermes(baseUrl, token), backendStartFailed])
+    backendReady = true
 
     return {
       baseUrl,
@@ -506,7 +861,7 @@ function createWindow() {
   if (DEV_SERVER) {
     mainWindow.loadURL(DEV_SERVER)
   } else {
-    mainWindow.loadURL(pathToFileURL(path.join(__dirname, '..', 'dist', 'index.html')).toString())
+    mainWindow.loadURL(pathToFileURL(resolveRendererIndex()).toString())
   }
 }
 

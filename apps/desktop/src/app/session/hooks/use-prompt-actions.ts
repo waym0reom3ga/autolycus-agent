@@ -56,9 +56,7 @@ interface CommandsCatalogResponse {
 }
 
 function renderCommandsCatalog(catalog: CommandsCatalogResponse): string {
-  const sections = catalog.categories?.length
-    ? catalog.categories
-    : [{ name: 'Commands', pairs: catalog.pairs ?? [] }]
+  const sections = catalog.categories?.length ? catalog.categories : [{ name: 'Commands', pairs: catalog.pairs ?? [] }]
 
   const body = sections
     .filter(section => section.pairs.length > 0)
@@ -120,12 +118,15 @@ export function usePromptActions({
     async (rawText: string) => {
       const visibleText = rawText.trim()
       const attachments = $composerAttachments.get()
+
       const contextRefs = attachments
         .map(attachment => attachment.refText)
         .filter(Boolean)
         .join('\n')
+
       const hasImageAttachment = attachments.some(attachment => attachment.kind === 'image')
       const displayRefs = attachments.map(attachmentDisplayText).filter(Boolean).join('\n')
+
       const text =
         [contextRefs, visibleText].filter(Boolean).join('\n\n') ||
         (hasImageAttachment ? 'What do you see in this image?' : '')
@@ -241,6 +242,7 @@ export function usePromptActions({
             session_id: sessionId,
             command: command.replace(/^\/+/, '')
           })
+
           const body = result?.output || `/${name}: no output`
           renderSlashOutput(result?.warning ? `warning: ${result.warning}\n${body}` : body)
 
@@ -407,6 +409,7 @@ export function usePromptActions({
 
       const messages = $messages.get()
       const parentIndex = parentId ? messages.findIndex(message => message.id === parentId) : messages.length - 1
+
       const userIndex =
         parentIndex >= 0
           ? [...messages.slice(0, parentIndex + 1)].reverse().findIndex(message => message.role === 'user')
@@ -428,6 +431,7 @@ export function usePromptActions({
         parentId && messages[parentIndex]?.role === 'assistant'
           ? messages[parentIndex]
           : messages.slice(absoluteUserIndex + 1).find(message => message.role === 'assistant')
+
       const branchGroupId = targetAssistant?.branchGroupId ?? branchGroupForUser(userMessage)
 
       clearNotifications()
@@ -435,6 +439,7 @@ export function usePromptActions({
         const nextUserIndex = state.messages.findIndex(
           (message, index) => index > absoluteUserIndex && message.role === 'user'
         )
+
         const end = nextUserIndex < 0 ? state.messages.length : nextUserIndex
 
         return {

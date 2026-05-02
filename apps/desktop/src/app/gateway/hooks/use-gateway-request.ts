@@ -1,15 +1,17 @@
 import { useStore } from '@nanostores/react'
 import { useCallback, useEffect, useRef } from 'react'
 
-import { HermesGateway } from '@/hermes'
+import type { HermesGateway } from '@/hermes'
 import { $gatewayState, setConnection } from '@/store/session'
 
 export function useGatewayRequest() {
   const gatewayState = useStore($gatewayState)
   const gatewayRef = useRef<HermesGateway | null>(null)
+
   const connectionRef = useRef<Awaited<ReturnType<NonNullable<typeof window.hermesDesktop>['getConnection']>> | null>(
     null
   )
+
   const gatewayStateRef = useRef(gatewayState)
   const reconnectingRef = useRef<Promise<HermesGateway | null> | null>(null)
 

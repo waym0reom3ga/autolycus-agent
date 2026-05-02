@@ -105,7 +105,13 @@ function artifactKind(value: string): ArtifactKind {
     return 'image'
   }
 
-  if (value.startsWith('/') || value.startsWith('./') || value.startsWith('../') || value.startsWith('~/') || value.startsWith('file://')) {
+  if (
+    value.startsWith('/') ||
+    value.startsWith('./') ||
+    value.startsWith('../') ||
+    value.startsWith('~/') ||
+    value.startsWith('file://')
+  ) {
     return 'file'
   }
 
@@ -113,7 +119,12 @@ function artifactKind(value: string): ArtifactKind {
 }
 
 function artifactHref(value: string): string {
-  if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('file://') || value.startsWith('data:')) {
+  if (
+    value.startsWith('http://') ||
+    value.startsWith('https://') ||
+    value.startsWith('file://') ||
+    value.startsWith('data:')
+  ) {
     return value
   }
 
@@ -153,7 +164,11 @@ function messageText(message: SessionMessage): string {
   return ''
 }
 
-function collectStringValues(value: unknown, keyPath: string, collector: (value: string, keyPath: string) => void): void {
+function collectStringValues(
+  value: unknown,
+  keyPath: string,
+  collector: (value: string, keyPath: string) => void
+): void {
   if (typeof value === 'string') {
     collector(value, keyPath)
 

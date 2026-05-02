@@ -86,10 +86,7 @@ export function useVoiceRecorder({
       startedAtRef.current = Date.now()
       setElapsedSeconds(0)
       setVoiceStatus('recording')
-      intervalRef.current = window.setInterval(
-        () => setElapsedSeconds((Date.now() - startedAtRef.current) / 1000),
-        250
-      )
+      intervalRef.current = window.setInterval(() => setElapsedSeconds((Date.now() - startedAtRef.current) / 1000), 250)
       const cap = Math.max(1, Math.min(Math.trunc(maxRecordingSeconds), 600))
       timeoutRef.current = window.setTimeout(() => void stop(), cap * 1000)
     } catch (error) {

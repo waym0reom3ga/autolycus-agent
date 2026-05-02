@@ -14,8 +14,10 @@ import {
   $gatewayState
 } from '@/store/session'
 
-interface ChatRightRailProps
-  extends Pick<React.ComponentProps<typeof SessionInspector>, 'onBrowseCwd' | 'onChangeCwd'> {
+interface ChatRightRailProps extends Pick<
+  React.ComponentProps<typeof SessionInspector>,
+  'onBrowseCwd' | 'onChangeCwd'
+> {
   onOpenModelPicker: () => void
   onSelectPersonality: (name: string) => void
 }

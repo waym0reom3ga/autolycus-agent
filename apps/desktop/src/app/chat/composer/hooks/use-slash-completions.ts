@@ -38,9 +38,10 @@ function commandText(value: string): string {
 }
 
 /** Live `/` completions backed by the gateway's `complete.slash` RPC. */
-export function useSlashCompletions(options: {
-  gateway: HermesGateway | null
-}): { adapter: Unstable_TriggerAdapter; loading: boolean } {
+export function useSlashCompletions(options: { gateway: HermesGateway | null }): {
+  adapter: Unstable_TriggerAdapter
+  loading: boolean
+} {
   const { gateway } = options
   const enabled = Boolean(gateway)
 
