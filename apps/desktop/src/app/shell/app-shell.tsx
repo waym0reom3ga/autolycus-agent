@@ -74,10 +74,6 @@ export function AppShell({
 
   const titlebarToolCount = (titlebarTools?.filter(tool => !tool.hidden).length ?? 0) + (rightRailOpen ? 1 : 0) + 2
 
-  const previewToolbarGap = showPreviewRail
-    ? 'max(0px, calc(var(--shell-right-sidebar-width) - (3 * var(--titlebar-control-size)) + 0.2rem))'
-    : '0px'
-
   // Always keep the shell as fixed columns because sidebar/chat/preview/inspector
   // are always rendered as grid children. Hidden rails collapse to 0px so they
   // don't float over the chat surface or reorder into a new row.
@@ -132,7 +128,9 @@ export function AppShell({
           '--shell-preview-pane-width': previewColumn,
           '--shell-right-sidebar-width': inspectorColumn,
           '--shell-right-region-width': 'calc(var(--shell-preview-pane-width) + var(--shell-right-sidebar-width))',
-          '--shell-preview-toolbar-gap': previewToolbarGap,
+          '--shell-preview-toolbar-gap': showPreviewRail
+            ? 'max(0px, calc(var(--shell-right-sidebar-width) - (3 * var(--titlebar-control-size)) + 0.2rem))'
+            : '0px',
           '--titlebar-height': `${TITLEBAR_HEIGHT}px`,
           '--titlebar-content-inset': `${titlebarContentInset}px`,
           '--titlebar-controls-left': `${titlebarControls.left}px`,

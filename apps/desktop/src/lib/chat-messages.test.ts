@@ -3,33 +3,21 @@ import { describe, expect, it } from 'vitest'
 import { appendAssistantTextPart, chatMessageText, renderMediaTags, toChatMessages, upsertToolPart } from './chat-messages'
 
 describe('toChatMessages', () => {
-  it('merges queued tool-only assistant rows into the previous assistant bubble', () => {
+  it('keeps a turn with interleaved tool-only rows in a single bubble', () => {
     const messages = toChatMessages([
       { role: 'assistant', content: 'Planning.', timestamp: 1 },
       {
         role: 'assistant',
         content: '',
         timestamp: 2,
-        tool_calls: [{ id: 'tc-terminal', function: { name: 'terminal', arguments: '{"command":"ls"}' } }]
+        tool_calls: [{ id: 'tc', function: { name: 'terminal', arguments: '{}' } }]
       },
       { role: 'assistant', content: 'Done.', timestamp: 3 }
     ])
 
-    const assistants = messages.filter(m => m.role === 'assistant')
-
-    expect(assistants).toHaveLength(1)
-    expect(chatMessageText(assistants[0])).toContain('Planning')
-    expect(chatMessageText(assistants[0])).toContain('Done')
-    expect(assistants[0].parts.some(p => p.type === 'tool-call' && p.toolName === 'terminal')).toBe(true)
-    const ordered = assistants[0].parts.map(p => p.type)
-
-    expect(ordered.filter(t => t === 'text')).toHaveLength(2)
-    const toolIdx = assistants[0].parts.findIndex(p => p.type === 'tool-call')
-
-    expect(ordered.slice(0, toolIdx)).toContain('text')
-    expect(
-      assistants[0].parts.findIndex((p, i) => p.type === 'text' && i > toolIdx)
-    ).toBeGreaterThanOrEqual(0)
+    expect(messages).toHaveLength(1)
+    expect(messages[0].parts.map(p => p.type)).toEqual(['text', 'tool-call', 'text'])
+    expect(chatMessageText(messages[0])).toBe('Planning.Done.')
   })
 
   it('hides attached context payloads from user message display', () => {
