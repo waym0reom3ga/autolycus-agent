@@ -177,7 +177,7 @@ export const Intro: FC<IntroProps> = ({ personality, seed }) => {
   }, [advanceFrame, frameOffset])
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-1 grid place-items-center content-center px-[calc(var(--vsq)*50)] pb-32 text-center text-muted-foreground">
+    <div className="pointer-events-none absolute inset-0 z-1 flex flex-col items-center justify-center px-[calc(var(--vsq)*50)] text-center text-muted-foreground">
       <button
         aria-label="Change Hermes pose"
         className="pointer-events-auto mb-5 h-56 w-64 cursor-default border-0 bg-transparent p-0"

@@ -2,18 +2,20 @@ import type { QueryClient } from '@tanstack/react-query'
 import { type MutableRefObject, useCallback } from 'react'
 
 import {
+  appendAssistantTextPart,
   appendReasoningPart,
-  appendTextPart,
+  assistantTextPart,
   type ChatMessage,
   type ChatMessagePart,
   chatMessageText,
   type GatewayEventPayload,
   reasoningPart,
-  textPart,
+  renderMediaTags,
   upsertToolPart
 } from '@/lib/chat-messages'
 import { coerceGatewayText, coerceThinkingText, normalizePersonalityValue } from '@/lib/chat-runtime'
 import { triggerHaptic } from '@/lib/haptics'
+import { setClarifyRequest } from '@/store/clarify'
 import { notify } from '@/store/notifications'
 import {
   setCurrentBranch,
@@ -22,6 +24,7 @@ import {
   setCurrentPersonality,
   setCurrentProvider
 } from '@/store/session'
+import { recordToolDiff } from '@/store/tool-diffs'
 import type { RpcEvent } from '@/types/hermes'
 
 import type { ClientSessionState } from '../../types'
@@ -123,8 +126,8 @@ export function useMessageStream({
 
       mutateStream(
         sessionId,
-        parts => appendTextPart(parts, delta),
-        () => [textPart(delta)]
+        parts => appendAssistantTextPart(parts, delta),
+        () => [assistantTextPart(delta)]
       )
     },
     [mutateStream]
@@ -181,7 +184,7 @@ export function useMessageStream({
         }
 
         const streamId = state.streamId
-        const finalText = text.trim()
+        const finalText = renderMediaTags(text).trim()
         const normalize = (value: string) => value.replace(/\s+/g, ' ').trim()
         const dedupeReference = normalize(finalText)
 
@@ -200,7 +203,7 @@ export function useMessageStream({
             return !(r && (dedupeReference.startsWith(r) || r.startsWith(dedupeReference)))
           })
 
-          return text ? [...kept, textPart(text)] : kept
+          return finalText ? [...kept, assistantTextPart(finalText)] : kept
         }
 
         const completeMessage = (message: ChatMessage): ChatMessage => ({
@@ -228,24 +231,24 @@ export function useMessageStream({
               nextMessages = prev.map((message, messageIndex) =>
                 messageIndex === index ? completeMessage(message) : message
               )
-            } else if (text) {
+            } else if (finalText) {
               nextMessages = [
                 ...prev,
                 {
                   id: `assistant-${Date.now()}`,
                   role: 'assistant',
-                  parts: [textPart(text)],
+                  parts: [assistantTextPart(finalText)],
                   branchGroupId: state.pendingBranchGroup ?? undefined
                 }
               ]
             }
-          } else if (text) {
+          } else if (finalText) {
             nextMessages = [
               ...prev,
               {
                 id: `assistant-${Date.now()}`,
                 role: 'assistant',
-                parts: [textPart(text)],
+                parts: [assistantTextPart(finalText)],
                 branchGroupId: state.pendingBranchGroup ?? undefined
               }
             ]
@@ -407,6 +410,29 @@ export function useMessageStream({
       } else if (event.type === 'tool.complete') {
         if (sessionId) {
           upsertToolCall(sessionId, payload, 'complete')
+        }
+
+        if (typeof payload?.inline_diff === 'string' && payload.inline_diff.trim()) {
+          recordToolDiff(payload.tool_id || payload.name || '', payload.inline_diff)
+        }
+      } else if (event.type === 'clarify.request') {
+        if (!isActiveEvent) {
+          return
+        }
+
+        // Surface the clarify tool's overlay. The Python side is blocked on
+        // `clarify.respond`, so without this handler the agent would hang
+        // forever (see tools/clarify_tool.py + tui_gateway/server.py:_block).
+        const requestId = typeof payload?.request_id === 'string' ? payload.request_id : ''
+        const question = typeof payload?.question === 'string' ? payload.question : ''
+
+        if (requestId && question) {
+          setClarifyRequest({
+            requestId,
+            question,
+            choices: Array.isArray(payload?.choices) ? payload!.choices!.filter(c => typeof c === 'string') : null,
+            sessionId: sessionId ?? null
+          })
         }
       } else if (event.type === 'error') {
         if (isActiveEvent) {

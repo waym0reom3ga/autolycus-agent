@@ -1,4 +1,4 @@
-import { Archive, Pencil, Pin, Trash2 } from 'lucide-react'
+import { Archive, Copy, Pencil, Pin, Trash2 } from 'lucide-react'
 import type * as React from 'react'
 import type { ReactNode } from 'react'
 
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
+import { notify, notifyError } from '@/store/notifications'
 
 interface SessionActionsMenuProps extends Pick<
   React.ComponentProps<typeof DropdownMenuContent>,
@@ -18,6 +19,7 @@ interface SessionActionsMenuProps extends Pick<
 > {
   children: ReactNode
   title: string
+  sessionId: string
   pinned?: boolean
   onPin?: () => void
   onDelete?: () => void
@@ -26,6 +28,7 @@ interface SessionActionsMenuProps extends Pick<
 export function SessionActionsMenu({
   children,
   title,
+  sessionId,
   pinned = false,
   onPin,
   onDelete,
@@ -33,6 +36,17 @@ export function SessionActionsMenu({
   sideOffset = 6
 }: SessionActionsMenuProps) {
   const itemClass = 'gap-2.5 text-foreground focus:bg-accent [&_svg]:size-4'
+
+  const copyId = async () => {
+    triggerHaptic('selection')
+
+    try {
+      await navigator.clipboard.writeText(sessionId)
+      notify({ kind: 'success', message: 'Session ID copied', durationMs: 2_000 })
+    } catch (err) {
+      notifyError(err, 'Could not copy session ID')
+    }
+  }
 
   return (
     <DropdownMenu>
@@ -48,6 +62,10 @@ export function SessionActionsMenu({
         >
           <Pin />
           <span>{pinned ? 'Unpin' : 'Pin'}</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem className={itemClass} onSelect={() => void copyId()}>
+          <Copy />
+          <span>Copy ID</span>
         </DropdownMenuItem>
         <DropdownMenuItem className={itemClass}>
           <Pencil />

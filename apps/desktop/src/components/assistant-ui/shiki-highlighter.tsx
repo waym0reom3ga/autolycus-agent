@@ -4,6 +4,8 @@ import type { SyntaxHighlighterProps } from '@assistant-ui/react-streamdown'
 import type { FC } from 'react'
 import ShikiHighlighter from 'react-shiki'
 
+import { isLikelyProseCodeBlock } from '@/lib/markdown-code'
+
 /**
  * assistant-ui's recommended `SyntaxHighlighter` slot.
  *
@@ -22,10 +24,13 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
   language,
   code
 }) => {
-  // Markdown fences include the pre-closing newline in `code`, which
-  // Shiki tokenizes into a blank final line. Trim so the box ends on
-  // real code.
-  const trimmed = (code ?? '').trimEnd()
+  // Streamdown may hand us fence contents with edge newlines. Strip blank
+  // fence padding without touching indentation on the first real line.
+  const trimmed = (code ?? '').replace(/^\n+/, '').trimEnd()
+
+  if (isLikelyProseCodeBlock(language, trimmed)) {
+    return <div className="whitespace-pre-wrap wrap-anywhere text-foreground">{trimmed}</div>
+  }
 
   return (
     <Pre className="aui-shiki m-0 overflow-hidden rounded-b-md border border-t-0 border-border bg-card font-mono text-sm leading-relaxed [&_pre]:m-0 [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:px-4 [&_pre]:py-3 [&_pre]:font-mono [&_pre]:leading-relaxed">

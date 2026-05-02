@@ -1,4 +1,4 @@
-import type { ThreadMessage } from '@assistant-ui/react'
+import type { AppendMessage, ThreadMessage } from '@assistant-ui/react'
 import { type MutableRefObject, useCallback } from 'react'
 
 import { transcribeAudio } from '@/hermes'
@@ -8,14 +8,21 @@ import {
   INTERRUPTED_MARKER,
   parseCommandDispatch,
   parseSlashCommand,
+  pathLabel,
   SLASH_COMMAND_RE
 } from '@/lib/chat-runtime'
+import {
+  type CommandsCatalogLike,
+  desktopSlashUnavailableMessage,
+  filterDesktopCommandsCatalog,
+  isDesktopSlashCommand
+} from '@/lib/desktop-slash-commands'
 import { triggerHaptic } from '@/lib/haptics'
-import { $composerAttachments, clearComposerAttachments } from '@/store/composer'
+import { $composerAttachments, addComposerAttachment, clearComposerAttachments, type ComposerAttachment } from '@/store/composer'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
 import { $busy, $messages, setAwaitingResponse, setBusy, setMessages } from '@/store/session'
 
-import type { ClientSessionState, SlashExecResponse } from '../../types'
+import type { ClientSessionState, ImageAttachResponse, SlashExecResponse } from '../../types'
 
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -37,9 +44,12 @@ interface PromptActionsOptions {
   activeSessionId: string | null
   activeSessionIdRef: MutableRefObject<string | null>
   busyRef: MutableRefObject<boolean>
+  branchCurrentSession: () => Promise<boolean>
   createBackendSessionForSend: () => Promise<string | null>
+  handleSkinCommand: (arg: string) => string
   requestGateway: <T>(method: string, params?: Record<string, unknown>) => Promise<T>
   selectedStoredSessionIdRef: MutableRefObject<string | null>
+  startFreshSessionDraft: () => void
   sttEnabled: boolean
   updateSessionState: (
     sessionId: string,
@@ -48,15 +58,12 @@ interface PromptActionsOptions {
   ) => ClientSessionState
 }
 
-interface CommandsCatalogResponse {
-  categories?: Array<{ name: string; pairs: [string, string][] }>
-  pairs?: [string, string][]
-  skill_count?: number
-  warning?: string
-}
+function renderCommandsCatalog(catalog: CommandsCatalogLike): string {
+  const desktopCatalog = filterDesktopCommandsCatalog(catalog)
 
-function renderCommandsCatalog(catalog: CommandsCatalogResponse): string {
-  const sections = catalog.categories?.length ? catalog.categories : [{ name: 'Commands', pairs: catalog.pairs ?? [] }]
+  const sections = desktopCatalog.categories?.length
+    ? desktopCatalog.categories
+    : [{ name: 'Desktop commands', pairs: desktopCatalog.pairs ?? [] }]
 
   const body = sections
     .filter(section => section.pairs.length > 0)
@@ -68,22 +75,40 @@ function renderCommandsCatalog(catalog: CommandsCatalogResponse): string {
     .join('\n\n')
 
   const tail = [
-    catalog.skill_count ? `${catalog.skill_count} skill commands available.` : '',
-    catalog.warning ? `warning: ${catalog.warning}` : ''
+    desktopCatalog.skill_count ? `${desktopCatalog.skill_count} skill commands available.` : '',
+    desktopCatalog.warning ? `warning: ${desktopCatalog.warning}` : ''
   ]
     .filter(Boolean)
     .join('\n')
 
-  return [body || 'No commands available.', tail].filter(Boolean).join('\n\n')
+  return [body || 'No desktop commands available.', tail].filter(Boolean).join('\n\n')
+}
+
+function slashStatusText(command: string, output: string): string {
+  return [`slash:${command}`, output.trim()].filter(Boolean).join('\n')
+}
+
+function appendText(message: AppendMessage): string {
+  return message.content
+    .map(part => ('text' in part ? part.text : ''))
+    .join('')
+    .trim()
+}
+
+function visibleUserOrdinal(messages: readonly ChatMessage[], end: number): number {
+  return messages.slice(0, end).filter(m => m.role === 'user' && !m.hidden).length
 }
 
 export function usePromptActions({
   activeSessionId,
   activeSessionIdRef,
   busyRef,
+  branchCurrentSession,
   createBackendSessionForSend,
+  handleSkinCommand,
   requestGateway,
   selectedStoredSessionIdRef,
+  startFreshSessionDraft,
   sttEnabled,
   updateSessionState
 }: PromptActionsOptions) {
@@ -112,6 +137,39 @@ export function usePromptActions({
       )
     },
     [selectedStoredSessionIdRef, updateSessionState]
+  )
+
+  const syncImageAttachmentsForSubmit = useCallback(
+    async (sessionId: string, attachments: ComposerAttachment[]) => {
+      const images = attachments.filter(attachment => attachment.kind === 'image' && attachment.path)
+
+      for (const attachment of images) {
+        if (attachment.attachedSessionId === sessionId) {
+          continue
+        }
+
+        const result = await requestGateway<ImageAttachResponse>('image.attach', {
+          session_id: sessionId,
+          path: attachment.path
+        })
+
+        if (!result.attached) {
+          const label = attachment.label || (attachment.path ? pathLabel(attachment.path) : 'image')
+          throw new Error(result.message || `Could not attach ${label}`)
+        }
+
+        const attachedPath = result.path || attachment.path
+
+        addComposerAttachment({
+          ...attachment,
+          id: attachment.id,
+          label: attachedPath ? pathLabel(attachedPath) : attachment.label,
+          path: attachedPath,
+          attachedSessionId: sessionId
+        })
+      }
+    },
+    [requestGateway]
   )
 
   const submitPromptText = useCallback(
@@ -146,21 +204,33 @@ export function usePromptActions({
         ]
       }
 
+      const releaseBusy = () => {
+        busyRef.current = false
+        setBusy(false)
+        setAwaitingResponse(false)
+      }
+
       busyRef.current = true
       setBusy(true)
       setAwaitingResponse(true)
       clearNotifications()
-      const sessionId = activeSessionId ? activeSessionId : await createBackendSessionForSend()
+
+      let sessionId = activeSessionId
 
       if (!sessionId) {
-        busyRef.current = false
-        setBusy(false)
-        setAwaitingResponse(false)
-        notify({
-          kind: 'error',
-          title: 'Session unavailable',
-          message: 'Could not create a new session'
-        })
+        try {
+          sessionId = await createBackendSessionForSend()
+        } catch (err) {
+          releaseBusy()
+          notifyError(err, 'Session unavailable')
+
+          return
+        }
+      }
+
+      if (!sessionId) {
+        releaseBusy()
+        notify({ kind: 'error', title: 'Session unavailable', message: 'Could not create a new session' })
 
         return
       }
@@ -180,20 +250,24 @@ export function usePromptActions({
       )
 
       try {
+        await syncImageAttachmentsForSubmit(sessionId, attachments)
         await requestGateway('prompt.submit', { session_id: sessionId, text })
         clearComposerAttachments()
       } catch (err) {
-        busyRef.current = false
-        updateSessionState(sessionId, state => ({
-          ...state,
-          messages: state.messages.filter(message => message.id !== userMessage.id),
-          busy: false,
-          awaitingResponse: false
-        }))
+        releaseBusy()
+        updateSessionState(sessionId, state => ({ ...state, busy: false, awaitingResponse: false }))
         notifyError(err, 'Prompt failed')
       }
     },
-    [activeSessionId, createBackendSessionForSend, requestGateway, selectedStoredSessionIdRef, updateSessionState]
+    [
+      activeSessionId,
+      busyRef,
+      createBackendSessionForSend,
+      requestGateway,
+      selectedStoredSessionIdRef,
+      syncImageAttachmentsForSubmit,
+      updateSessionState
+    ]
   )
 
   const executeSlashCommand = useCallback(
@@ -201,6 +275,36 @@ export function usePromptActions({
       const runSlash = async (commandText: string, sessionHint?: string, recordInput = true): Promise<void> => {
         const command = commandText.trim()
         const { name, arg } = parseSlashCommand(command)
+        const normalizedName = name.toLowerCase()
+
+        if (!name) {
+          const sessionId = sessionHint || activeSessionIdRef.current || (await createBackendSessionForSend())
+
+          if (sessionId) {
+            appendSessionTextMessage(sessionId, 'system', 'empty slash command')
+          }
+
+          return
+        }
+
+        if (normalizedName === 'new' || normalizedName === 'reset') {
+          startFreshSessionDraft()
+
+          return
+        }
+
+        if (normalizedName === 'branch' || normalizedName === 'fork') {
+          await branchCurrentSession()
+
+          return
+        }
+
+        if (normalizedName === 'skin' && !sessionHint && !activeSessionIdRef.current) {
+          notify({ kind: 'success', message: handleSkinCommand(arg) })
+
+          return
+        }
+
         const sessionId = sessionHint || activeSessionIdRef.current || (await createBackendSessionForSend())
 
         if (!sessionId) {
@@ -213,26 +317,29 @@ export function usePromptActions({
           return
         }
 
-        const renderSlashOutput = (text: string) => appendSessionTextMessage(sessionId, 'system', text)
+        const renderSlashOutput = (text: string) =>
+          appendSessionTextMessage(sessionId, 'system', recordInput ? slashStatusText(command, text) : text)
 
-        if (recordInput) {
-          appendSessionTextMessage(sessionId, 'user', command)
-        }
-
-        if (!name) {
-          renderSlashOutput('empty slash command')
+        if (normalizedName === 'skin') {
+          renderSlashOutput(handleSkinCommand(arg))
 
           return
         }
 
         if (name === 'help' || name === 'commands') {
           try {
-            const catalog = await requestGateway<CommandsCatalogResponse>('commands.catalog', { session_id: sessionId })
+            const catalog = await requestGateway<CommandsCatalogLike>('commands.catalog', { session_id: sessionId })
 
             renderSlashOutput(renderCommandsCatalog(catalog))
           } catch (err) {
             renderSlashOutput(`error: ${err instanceof Error ? err.message : String(err)}`)
           }
+
+          return
+        }
+
+        if (!isDesktopSlashCommand(name)) {
+          renderSlashOutput(desktopSlashUnavailableMessage(name) || `/${name} is not available in the desktop app.`)
 
           return
         }
@@ -306,7 +413,17 @@ export function usePromptActions({
 
       await runSlash(rawCommand, options?.sessionId, options?.recordInput ?? true)
     },
-    [activeSessionIdRef, appendSessionTextMessage, createBackendSessionForSend, requestGateway, submitPromptText]
+    [
+      activeSessionIdRef,
+      appendSessionTextMessage,
+      branchCurrentSession,
+      busyRef,
+      createBackendSessionForSend,
+      handleSkinCommand,
+      requestGateway,
+      startFreshSessionDraft,
+      submitPromptText
+    ]
   )
 
   const submitText = useCallback(
@@ -433,6 +550,7 @@ export function usePromptActions({
           : messages.slice(absoluteUserIndex + 1).find(message => message.role === 'assistant')
 
       const branchGroupId = targetAssistant?.branchGroupId ?? branchGroupForUser(userMessage)
+      const truncateBeforeUserOrdinal = visibleUserOrdinal(messages, absoluteUserIndex)
 
       clearNotifications()
       updateSessionState(activeSessionId, state => {
@@ -459,7 +577,11 @@ export function usePromptActions({
       })
 
       try {
-        await requestGateway('prompt.submit', { session_id: activeSessionId, text: userText })
+        await requestGateway('prompt.submit', {
+          session_id: activeSessionId,
+          text: userText,
+          truncate_before_user_ordinal: truncateBeforeUserOrdinal
+        })
       } catch (err) {
         updateSessionState(activeSessionId, state => ({
           ...state,
@@ -472,26 +594,80 @@ export function usePromptActions({
     [activeSessionId, requestGateway, updateSessionState]
   )
 
+  const editMessage = useCallback(
+    async (edited: AppendMessage) => {
+      const sessionId = activeSessionId || activeSessionIdRef.current
+      const sourceId = edited.sourceId || edited.parentId
+      const text = appendText(edited)
+
+      if (!sessionId || !sourceId || !text || edited.role !== 'user' || $busy.get()) {
+        return
+      }
+
+      const messages = $messages.get()
+      const sourceIndex = messages.findIndex(m => m.id === sourceId)
+      const source = messages[sourceIndex]
+
+      if (!source || source.role !== 'user' || chatMessageText(source).trim() === text) {
+        return
+      }
+
+      const truncate_before_user_ordinal = visibleUserOrdinal(messages, sourceIndex)
+      const editedMessage: ChatMessage = { ...source, parts: [textPart(text)] }
+
+      clearNotifications()
+      updateSessionState(sessionId, state => ({
+        ...state,
+        busy: true,
+        awaitingResponse: true,
+        pendingBranchGroup: null,
+        sawAssistantPayload: false,
+        interrupted: false,
+        messages: [...state.messages.slice(0, sourceIndex), editedMessage]
+      }))
+
+      try {
+        await requestGateway('prompt.submit', { session_id: sessionId, text, truncate_before_user_ordinal })
+      } catch (err) {
+        updateSessionState(sessionId, state => ({ ...state, busy: false, awaitingResponse: false }))
+        notifyError(err, 'Edit failed')
+      }
+    },
+    [activeSessionId, activeSessionIdRef, requestGateway, updateSessionState]
+  )
+
   const handleThreadMessagesChange = useCallback(
     (nextMessages: readonly ThreadMessage[]) => {
-      const visibleIds = new Set(nextMessages.map(message => message.id))
+      const visibleIds = new Set(nextMessages.map(m => m.id))
       const sessionId = activeSessionIdRef.current
 
       if (!sessionId) {
         return
       }
 
-      updateSessionState(sessionId, state => ({
-        ...state,
-        messages: state.messages.map(message =>
-          message.role === 'assistant' && message.branchGroupId
-            ? { ...message, hidden: !visibleIds.has(message.id) }
-            : message
-        )
-      }))
+      updateSessionState(sessionId, state => {
+        let changed = false
+        const messages = state.messages.map(message => {
+          if (message.role !== 'assistant' || !message.branchGroupId) {
+            return message
+          }
+
+          const hidden = !visibleIds.has(message.id)
+
+          if (message.hidden === hidden) {
+            return message
+          }
+
+          changed = true
+
+          return { ...message, hidden }
+        })
+
+        return changed ? { ...state, messages } : state
+      })
     },
     [activeSessionIdRef, updateSessionState]
   )
 
-  return { cancelRun, handleThreadMessagesChange, reloadFromMessage, submitText, transcribeVoiceAudio }
+  return { cancelRun, editMessage, handleThreadMessagesChange, reloadFromMessage, submitText, transcribeVoiceAudio }
 }

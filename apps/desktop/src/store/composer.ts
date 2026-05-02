@@ -10,6 +10,7 @@ export interface ComposerAttachment {
   refText?: string
   previewUrl?: string
   path?: string
+  attachedSessionId?: string
 }
 
 export const $composerDraft = atom('')

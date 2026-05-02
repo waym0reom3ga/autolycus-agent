@@ -6,6 +6,8 @@ import { AtSign, FileText, FolderOpen, ImageIcon, Link as LinkIcon, Wrench } fro
 import type { ComponentType, FC } from 'react'
 import { Fragment, useMemo } from 'react'
 
+import { ZoomableImage } from '@/components/assistant-ui/zoomable-image'
+import { extractEmbeddedImages } from '@/lib/embedded-images'
 import { cn } from '@/lib/utils'
 
 const HERMES_REF_TYPES = ['file', 'folder', 'url', 'image', 'tool'] as const
@@ -188,7 +190,8 @@ function shortLabel(type: HermesRefType, id: string): string {
  * Unknown directive types fall through as plain text.
  */
 export const DirectiveText: TextMessagePartComponent = ({ text }: TextMessagePartProps) => {
-  const segments = useMemo(() => hermesDirectiveFormatter.parse(text ?? ''), [text])
+  const { cleanedText, images } = useMemo(() => extractEmbeddedImages(text ?? ''), [text])
+  const segments = useMemo(() => hermesDirectiveFormatter.parse(cleanedText), [cleanedText])
 
   return (
     <span className="whitespace-pre-line" data-slot="aui_directive-text">
@@ -198,6 +201,20 @@ export const DirectiveText: TextMessagePartComponent = ({ text }: TextMessagePar
         ) : (
           <DirectiveChip id={segment.id} key={`m-${index}-${segment.id}`} label={segment.label} type={segment.type} />
         )
+      )}
+      {images.length > 0 && (
+        <span className="mt-2 flex flex-wrap gap-2" data-slot="aui_embedded-images">
+          {images.map((src, index) => (
+            <ZoomableImage
+              alt=""
+              className="max-h-48 max-w-full rounded-lg border border-border/60 object-contain"
+              draggable={false}
+              key={`img-${index}`}
+              slot="aui_embedded-image"
+              src={src}
+            />
+          ))}
+        </span>
       )}
     </span>
   )

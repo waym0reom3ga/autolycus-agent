@@ -19,7 +19,8 @@ import {
   DEFAULT_LAYOUT,
   DEFAULT_TYPOGRAPHY,
   defaultTheme,
-  nousLightTheme
+  nousLightTheme,
+  nousTheme
 } from './presets'
 import type { DesktopTheme, DesktopThemeColors, ThemeDensity } from './types'
 
@@ -37,6 +38,10 @@ const DENSITY_MULTIPLIERS: Record<ThemeDensity, string> = {
 
 const INJECTED_FONT_URLS = new Set<string>()
 const SKIN_THEME_LIST = BUILTIN_THEME_LIST.filter(t => t.name !== 'nous-light')
+const NOUS_FONT_FAMILY_FALLBACK = {
+  fontSans: nousTheme.typography?.fontSans ?? DEFAULT_TYPOGRAPHY.fontSans,
+  fontMono: nousTheme.typography?.fontMono ?? DEFAULT_TYPOGRAPHY.fontMono
+}
 
 function effectiveMode(mode: ThemeMode, systemDark = matchesQuery('(prefers-color-scheme: dark)')): 'light' | 'dark' {
   return mode === 'system' ? (systemDark ? 'dark' : 'light') : mode
@@ -101,8 +106,21 @@ function fontOnly(theme: DesktopTheme): DesktopTheme['typography'] {
   }
 
   const { fontSans, fontMono, fontUrl } = theme.typography
+  const typography: DesktopTheme['typography'] = {}
 
-  return { fontSans, fontMono, fontUrl }
+  if (fontSans) {
+    typography.fontSans = fontSans
+  }
+
+  if (fontMono) {
+    typography.fontMono = fontMono
+  }
+
+  if (fontUrl) {
+    typography.fontUrl = fontUrl
+  }
+
+  return typography
 }
 
 function lightColors(seed: DesktopTheme, skinName: string): DesktopThemeColors {
@@ -200,7 +218,7 @@ function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark') {
   }
 
   const root = document.documentElement
-  const typo = { ...DEFAULT_TYPOGRAPHY, ...theme.typography }
+  const typo = { ...DEFAULT_TYPOGRAPHY, ...NOUS_FONT_FAMILY_FALLBACK, ...theme.typography }
   const layout = { ...DEFAULT_LAYOUT, ...theme.layout }
   const c = theme.colors
 

@@ -133,14 +133,14 @@ export interface SessionInfo {
 
 export interface SessionMessage {
   codex_reasoning_items?: unknown
-  content: null | string
-  context?: string
+  content: unknown
+  context?: unknown
   name?: string
   reasoning?: null | string
   reasoning_content?: null | string
   reasoning_details?: unknown
   role: 'assistant' | 'system' | 'tool' | 'user'
-  text?: string
+  text?: unknown
   timestamp?: number
   tool_call_id?: null | string
   tool_calls?: unknown

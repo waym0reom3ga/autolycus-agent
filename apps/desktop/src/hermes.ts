@@ -180,9 +180,9 @@ export class HermesGateway {
   }
 }
 
-export async function listSessions(limit = 40): Promise<PaginatedSessions> {
+export async function listSessions(limit = 40, minMessages = 0): Promise<PaginatedSessions> {
   const result = await window.hermesDesktop.api<PaginatedSessions>({
-    path: `/api/sessions?limit=${limit}&offset=0&min_messages=1`
+    path: `/api/sessions?limit=${limit}&offset=0&min_messages=${Math.max(0, minMessages)}`
   })
 
   return {

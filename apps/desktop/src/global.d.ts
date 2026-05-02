@@ -11,7 +11,14 @@ declare global {
       selectPaths: (options?: HermesSelectPathsOptions) => Promise<string[]>
       writeClipboard: (text: string) => Promise<boolean>
       saveImageFromUrl: (url: string) => Promise<boolean>
+      saveImageBuffer: (data: ArrayBuffer | Uint8Array, ext: string) => Promise<string>
+      saveClipboardImage: () => Promise<string>
+      getPathForFile: (file: File) => string
+      normalizePreviewTarget: (target: string, baseDir?: string) => Promise<HermesPreviewTarget | null>
+      watchPreviewFile: (url: string) => Promise<HermesPreviewWatch>
+      stopPreviewFileWatch: (id: string) => Promise<boolean>
       openExternal: (url: string) => Promise<void>
+      onPreviewFileChanged: (callback: (payload: HermesPreviewFileChanged) => void) => () => void
       onBackendExit: (callback: (payload: BackendExit) => void) => () => void
     }
   }
@@ -35,6 +42,24 @@ export interface HermesNotification {
   title?: string
   body?: string
   silent?: boolean
+}
+
+export interface HermesPreviewTarget {
+  kind: 'file' | 'url'
+  label: string
+  source: string
+  url: string
+}
+
+export interface HermesPreviewWatch {
+  id: string
+  path: string
+}
+
+export interface HermesPreviewFileChanged {
+  id: string
+  path: string
+  url: string
 }
 
 export interface HermesSelectPathsOptions {

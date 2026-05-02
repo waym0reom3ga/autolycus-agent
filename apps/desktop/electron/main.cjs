@@ -70,6 +70,30 @@ const APP_ICON_PATHS = [
   path.join(unpackedPathFor(APP_ROOT), 'dist', 'apple-touch-icon.png')
 ]
 
+const MEDIA_MIME_TYPES = {
+  '.avi': 'video/x-msvideo',
+  '.bmp': 'image/bmp',
+  '.flac': 'audio/flac',
+  '.gif': 'image/gif',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.m4a': 'audio/mp4',
+  '.mkv': 'video/x-matroska',
+  '.mov': 'video/quicktime',
+  '.mp3': 'audio/mpeg',
+  '.mp4': 'video/mp4',
+  '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg; codecs=opus',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.wav': 'audio/wav',
+  '.webm': 'video/webm',
+  '.webp': 'image/webp'
+}
+
+const PREVIEW_HTML_EXTENSIONS = new Set(['.html', '.htm'])
+const LOCAL_PREVIEW_HOSTS = new Set(['0.0.0.0', '127.0.0.1', '::1', '[::1]', 'localhost'])
+
 app.setName(APP_NAME)
 app.setAboutPanelOptions({
   applicationName: APP_NAME,
@@ -80,6 +104,7 @@ let mainWindow = null
 let hermesProcess = null
 let connectionPromise = null
 const hermesLog = []
+const previewWatchers = new Map()
 
 function rememberLog(chunk) {
   const text = String(chunk || '').trim()
@@ -462,13 +487,8 @@ function fetchJson(url, token, options = {}) {
 
 function mimeTypeForPath(filePath) {
   const ext = path.extname(filePath || '').toLowerCase()
-  if (ext === '.png') return 'image/png'
-  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
-  if (ext === '.gif') return 'image/gif'
-  if (ext === '.webp') return 'image/webp'
-  if (ext === '.svg') return 'image/svg+xml'
-  if (ext === '.bmp') return 'image/bmp'
-  return 'application/octet-stream'
+
+  return MEDIA_MIME_TYPES[ext] || 'application/octet-stream'
 }
 
 function extensionForMimeType(mimeType) {
@@ -550,6 +570,162 @@ async function saveImageFromUrl(rawUrl) {
   if (result.canceled || !result.filePath) return false
   await fs.promises.writeFile(result.filePath, buffer)
   return true
+}
+
+async function writeComposerImage(buffer, ext = '.png') {
+  const rawExt = String(ext || '.png')
+    .trim()
+    .toLowerCase()
+  const normalizedExt = rawExt.startsWith('.') ? rawExt : `.${rawExt}`
+  const safeExt = /^\.[a-z0-9]{1,5}$/.test(normalizedExt) ? normalizedExt : '.png'
+  const dir = path.join(app.getPath('userData'), 'composer-images')
+  await fs.promises.mkdir(dir, { recursive: true })
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', '')
+  const random = crypto.randomBytes(3).toString('hex')
+  const filePath = path.join(dir, `composer_${stamp}_${random}${safeExt}`)
+  await fs.promises.writeFile(filePath, buffer)
+  return filePath
+}
+
+function previewLabelForUrl(url) {
+  return `${url.host}${url.pathname === '/' ? '' : url.pathname}`
+}
+
+function expandUserPath(filePath) {
+  const value = String(filePath || '').trim()
+
+  if (value === '~') {
+    return app.getPath('home')
+  }
+
+  if (value.startsWith(`~${path.sep}`) || value.startsWith('~/')) {
+    return path.join(app.getPath('home'), value.slice(2))
+  }
+
+  return value
+}
+
+function previewFileTarget(rawTarget, baseDir) {
+  const raw = String(rawTarget || '').trim()
+  const base = baseDir ? path.resolve(expandUserPath(baseDir)) : resolveHermesCwd()
+  const filePath = raw.startsWith('file:') ? fileURLToPath(raw) : path.resolve(base, expandUserPath(raw))
+  let resolved = filePath
+
+  if (directoryExists(resolved)) {
+    resolved = path.join(resolved, 'index.html')
+  }
+
+  const ext = path.extname(resolved).toLowerCase()
+  if (!PREVIEW_HTML_EXTENSIONS.has(ext) || !fileExists(resolved)) {
+    return null
+  }
+
+  return {
+    kind: 'file',
+    label: path.basename(resolved),
+    source: raw,
+    url: pathToFileURL(resolved).toString()
+  }
+}
+
+function previewUrlTarget(rawTarget) {
+  const raw = String(rawTarget || '').trim()
+  const url = new URL(raw)
+
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    return null
+  }
+
+  if (!LOCAL_PREVIEW_HOSTS.has(url.hostname.toLowerCase())) {
+    return null
+  }
+
+  if (url.hostname === '0.0.0.0') {
+    url.hostname = '127.0.0.1'
+  }
+
+  return {
+    kind: 'url',
+    label: previewLabelForUrl(url),
+    source: raw,
+    url: url.toString()
+  }
+}
+
+function normalizePreviewTarget(rawTarget, baseDir) {
+  const raw = String(rawTarget || '').trim()
+
+  if (!raw) {
+    return null
+  }
+
+  try {
+    if (/^https?:\/\//i.test(raw)) {
+      return previewUrlTarget(raw)
+    }
+
+    return previewFileTarget(raw, baseDir)
+  } catch {
+    return null
+  }
+}
+
+function previewFilePathFromUrl(rawUrl) {
+  const filePath = fileURLToPath(String(rawUrl || ''))
+  const ext = path.extname(filePath).toLowerCase()
+
+  if (!PREVIEW_HTML_EXTENSIONS.has(ext) || !fileExists(filePath)) {
+    throw new Error('Preview file is not a readable HTML file')
+  }
+
+  return filePath
+}
+
+function sendPreviewFileChanged(payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const { webContents } = mainWindow
+  if (!webContents || webContents.isDestroyed()) return
+  webContents.send('hermes:preview-file-changed', payload)
+}
+
+function watchPreviewFile(rawUrl) {
+  const filePath = previewFilePathFromUrl(rawUrl)
+  const id = crypto.randomBytes(12).toString('base64url')
+  let timer = null
+  const watcher = fs.watch(filePath, () => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      sendPreviewFileChanged({ id, path: filePath, url: pathToFileURL(filePath).toString() })
+    }, 120)
+  })
+
+  previewWatchers.set(id, {
+    close: () => {
+      if (timer) clearTimeout(timer)
+      watcher.close()
+    }
+  })
+
+  return { id, path: filePath }
+}
+
+function stopPreviewFileWatch(id) {
+  const watcher = previewWatchers.get(id)
+
+  if (!watcher) {
+    return false
+  }
+
+  watcher.close()
+  previewWatchers.delete(id)
+
+  return true
+}
+
+function closePreviewWatchers() {
+  for (const id of previewWatchers.keys()) {
+    stopPreviewFileWatch(id)
+  }
 }
 
 async function waitForHermes(baseUrl, token) {
@@ -843,6 +1019,7 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
+      webviewTag: true,
       nodeIntegration: false,
       devTools: Boolean(DEV_SERVER)
     }
@@ -922,6 +1099,31 @@ ipcMain.handle('hermes:writeClipboard', (_event, text) => {
 
 ipcMain.handle('hermes:saveImageFromUrl', (_event, url) => saveImageFromUrl(String(url || '')))
 
+ipcMain.handle('hermes:saveImageBuffer', async (_event, payload) => {
+  const data = payload?.data
+  if (!data) throw new Error('saveImageBuffer: missing data')
+
+  const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data)
+  return writeComposerImage(buffer, payload?.ext || '.png')
+})
+
+ipcMain.handle('hermes:saveClipboardImage', async () => {
+  const image = clipboard.readImage()
+  if (!image || image.isEmpty()) {
+    return ''
+  }
+
+  return writeComposerImage(image.toPNG(), '.png')
+})
+
+ipcMain.handle('hermes:normalizePreviewTarget', (_event, target, baseDir) =>
+  normalizePreviewTarget(String(target || ''), baseDir ? String(baseDir) : '')
+)
+
+ipcMain.handle('hermes:watchPreviewFile', (_event, url) => watchPreviewFile(String(url || '')))
+
+ipcMain.handle('hermes:stopPreviewFileWatch', (_event, id) => stopPreviewFileWatch(String(id || '')))
+
 ipcMain.handle('hermes:openExternal', (_event, url) => shell.openExternal(url))
 
 app.whenReady().then(() => {
@@ -936,6 +1138,8 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  closePreviewWatchers()
+
   if (hermesProcess && !hermesProcess.killed) {
     hermesProcess.kill('SIGTERM')
   }

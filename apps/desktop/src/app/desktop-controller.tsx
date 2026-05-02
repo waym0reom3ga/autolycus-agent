@@ -15,15 +15,18 @@ import {
   listSessions,
   setGlobalModel
 } from '../hermes'
-import { toChatMessages } from '../lib/chat-messages'
+import { chatMessageText, toChatMessages } from '../lib/chat-messages'
 import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromConfig } from '../lib/chat-runtime'
+import { extractPreviewCandidates } from '../lib/preview-targets'
 import { $pinnedSessionIds, pinSession, unpinSession } from '../store/layout'
 import { notify, notifyError } from '../store/notifications'
+import { $previewTarget, setPreviewTarget } from '../store/preview'
 import {
   $activeSessionId,
   $currentCwd,
   $freshDraftReady,
   $gatewayState,
+  $messages,
   $selectedStoredSessionId,
   setAvailablePersonalities,
   setAwaitingResponse,
@@ -40,9 +43,10 @@ import {
   setSessions,
   setSessionsLoading
 } from '../store/session'
+import { useTheme } from '../themes/context'
 
 import { ArtifactsView } from './artifacts'
-import { ChatView, SESSION_INSPECTOR_WIDTH } from './chat'
+import { ChatView, PREVIEW_RAIL_WIDTH, SESSION_INSPECTOR_WIDTH } from './chat'
 import { useComposerActions } from './chat/hooks/use-composer-actions'
 import { ChatSidebar } from './chat/sidebar'
 import { useGatewayBoot } from './gateway/hooks/use-gateway-boot'
@@ -64,21 +68,40 @@ function normalizeRecordingLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_VOICE_RECORDING_SECONDS
 }
 
+function gatewayEventPreviewText(event: { payload?: unknown }): string {
+  const payload = event.payload && typeof event.payload === 'object' ? (event.payload as Record<string, unknown>) : {}
+  const fields = ['text', 'rendered', 'preview', 'context', 'summary', 'message']
+
+  return fields
+    .map(key => payload[key])
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join('\n')
+}
+
 export function DesktopController() {
   const queryClient = useQueryClient()
   const location = useLocation()
   const navigate = useNavigate()
   const busyRef = useRef(false)
+  const creatingSessionRef = useRef(false)
   const gatewayState = useStore($gatewayState)
+  const { availableThemes, setTheme, themeName } = useTheme()
   const activeSessionId = useStore($activeSessionId)
+  const previewTarget = useStore($previewTarget)
+  const messages = useStore($messages)
   const selectedStoredSessionId = useStore($selectedStoredSessionId)
   const currentCwd = useStore($currentCwd)
   const freshDraftReady = useStore($freshDraftReady)
   const routedSessionId = routeSessionId(location.pathname)
   const currentView = appViewForPath(location.pathname)
+  const routeToken = `${currentView}:${routedSessionId || ''}:${location.pathname}:${location.search}:${location.hash}`
+  const routeTokenRef = useRef(routeToken)
+  routeTokenRef.current = routeToken
+  const getRouteToken = useCallback(() => routeTokenRef.current, [])
   const settingsOpen = currentView === 'settings'
   const chatOpen = currentView === 'chat'
   const settingsReturnPathRef = useRef(NEW_CHAT_ROUTE)
+  const refreshSessionsRequestRef = useRef(0)
   const [titlebarActions, setTitlebarActions] = useState<ReactNode>(null)
   const [voiceMaxRecordingSeconds, setVoiceMaxRecordingSeconds] = useState(DEFAULT_VOICE_RECORDING_SECONDS)
   const [sttEnabled, setSttEnabled] = useState(true)
@@ -115,13 +138,20 @@ export function DesktopController() {
   }, [])
 
   const refreshSessions = useCallback(async () => {
+    const requestId = refreshSessionsRequestRef.current + 1
+    refreshSessionsRequestRef.current = requestId
     setSessionsLoading(true)
 
     try {
       const result = await listSessions(50)
-      setSessions(result.sessions)
+
+      if (refreshSessionsRequestRef.current === requestId) {
+        setSessions(result.sessions)
+      }
     } finally {
-      setSessionsLoading(false)
+      if (refreshSessionsRequestRef.current === requestId) {
+        setSessionsLoading(false)
+      }
     }
   }, [])
 
@@ -165,18 +195,25 @@ export function DesktopController() {
       return
     }
 
+    const sessionId = activeSessionId
+    const cwd = currentCwd || ''
+
     try {
       const result = await requestGateway<{ items?: ContextSuggestion[] }>('complete.path', {
-        session_id: activeSessionId,
+        session_id: sessionId,
         word: '@file:',
-        cwd: currentCwd || undefined
+        cwd: cwd || undefined
       })
 
-      setContextSuggestions((result.items || []).filter(item => item.text))
+      if (activeSessionIdRef.current === sessionId && $currentCwd.get() === cwd) {
+        setContextSuggestions((result.items || []).filter(item => item.text))
+      }
     } catch {
-      setContextSuggestions([])
+      if (activeSessionIdRef.current === sessionId && $currentCwd.get() === cwd) {
+        setContextSuggestions([])
+      }
     }
-  }, [activeSessionId, currentCwd, requestGateway])
+  }, [activeSessionId, activeSessionIdRef, currentCwd, requestGateway])
 
   const refreshCurrentModel = useCallback(async () => {
     try {
@@ -372,13 +409,6 @@ export function DesktopController() {
     [activeSessionId, refreshHermesConfig, requestGateway]
   )
 
-  const { addContextRefAttachment, pasteClipboardImage, pickContextPaths, pickImages, removeAttachment } =
-    useComposerActions({
-      activeSessionId,
-      currentCwd,
-      requestGateway
-    })
-
   const hydrateFromStoredSession = useCallback(
     async (
       attempts = 1,
@@ -423,6 +453,65 @@ export function DesktopController() {
     updateSessionState
   })
 
+  const lastPreviewUrlRef = useRef<string>('')
+
+  const openDetectedPreview = useCallback(
+    async (text: string) => {
+      const desktop = window.hermesDesktop
+      const routeKey = lastPreviewRouteRef.current
+      const sessionId = activeSessionIdRef.current
+      const cwd = currentCwd || ''
+
+      if (!desktop?.normalizePreviewTarget) {
+        return
+      }
+
+      for (const candidate of extractPreviewCandidates(text)) {
+        const target = await desktop.normalizePreviewTarget(candidate, cwd || undefined).catch(() => null)
+
+        if (lastPreviewRouteRef.current !== routeKey || activeSessionIdRef.current !== sessionId || $currentCwd.get() !== cwd) {
+          return
+        }
+
+        if (!target || target.url === lastPreviewUrlRef.current) {
+          continue
+        }
+
+        lastPreviewUrlRef.current = target.url
+        setPreviewTarget(target)
+
+        return
+      }
+    },
+    [activeSessionIdRef, currentCwd]
+  )
+
+  const handleDesktopGatewayEvent = useCallback(
+    (event: Parameters<typeof handleGatewayEvent>[0]) => {
+      handleGatewayEvent(event)
+
+      if (event.session_id && event.session_id !== activeSessionIdRef.current) {
+        return
+      }
+
+      const previewText = gatewayEventPreviewText(event)
+
+      if (previewText) {
+        void openDetectedPreview(previewText)
+      }
+    },
+    [activeSessionIdRef, handleGatewayEvent, openDetectedPreview]
+  )
+
+  useEffect(() => {
+    const latestAssistant = [...messages].reverse().find(message => message.role === 'assistant' && !message.pending)
+    const text = latestAssistant ? chatMessageText(latestAssistant) : ''
+
+    if (text) {
+      void openDetectedPreview(text)
+    }
+  }, [messages, openDetectedPreview])
+
   const {
     branchCurrentSession,
     createBackendSessionForSend,
@@ -435,7 +524,9 @@ export function DesktopController() {
     activeSessionId,
     activeSessionIdRef,
     busyRef,
+    creatingSessionRef,
     ensureSessionState,
+    getRouteToken,
     navigate,
     requestGateway,
     runtimeIdByStoredSessionIdRef,
@@ -446,41 +537,127 @@ export function DesktopController() {
     updateSessionState
   })
 
+  const {
+    addContextRefAttachment,
+    attachDroppedItems,
+    attachImageBlob,
+    pasteClipboardImage,
+    pickContextPaths,
+    pickImages,
+    removeAttachment
+  } = useComposerActions({
+    activeSessionId,
+    currentCwd,
+    requestGateway
+  })
+
   useEffect(() => {
     if (currentView !== 'settings') {
       settingsReturnPathRef.current = `${location.pathname}${location.search}${location.hash}`
     }
   }, [currentView, location.hash, location.pathname, location.search])
 
+  const previewRouteKey = `${currentView}:${routedSessionId || ''}:${selectedStoredSessionId || ''}`
+  const lastPreviewRouteRef = useRef(previewRouteKey)
+
+  useEffect(() => {
+    if (lastPreviewRouteRef.current !== previewRouteKey) {
+      lastPreviewRouteRef.current = previewRouteKey
+      lastPreviewUrlRef.current = ''
+      setPreviewTarget(null)
+    }
+  }, [previewRouteKey])
+
   const closeSettingsToPreviousRoute = useCallback(() => {
     navigate(settingsReturnPathRef.current || NEW_CHAT_ROUTE, { replace: true })
   }, [navigate])
 
   const branchInNewChat = useCallback(
-    async (messageId: string) => {
+    async (messageId?: string) => {
       const branched = await branchCurrentSession(messageId)
 
       if (branched) {
         await refreshSessions().catch(() => undefined)
       }
+
+      return branched
     },
     [branchCurrentSession, refreshSessions]
   )
 
-  const { cancelRun, handleThreadMessagesChange, reloadFromMessage, submitText, transcribeVoiceAudio } =
+  const handleSkinCommand = useCallback(
+    (rawArg: string) => {
+      const arg = rawArg.trim()
+      const names = availableThemes.map(theme => theme.name)
+
+      if (!availableThemes.length) {
+        return 'No desktop themes are available.'
+      }
+
+      const activeIndex = Math.max(
+        0,
+        availableThemes.findIndex(theme => theme.name === themeName)
+      )
+
+      if (!arg || arg === 'next') {
+        const next = availableThemes[(activeIndex + 1) % availableThemes.length]
+
+        setTheme(next.name)
+
+        return `Desktop theme switched to ${next.label}.`
+      }
+
+      if (arg === 'list' || arg === 'ls' || arg === 'status') {
+        const rows = availableThemes.map(theme => {
+          const marker = theme.name === themeName ? '*' : ' '
+
+          return `${marker} ${theme.name.padEnd(10)} ${theme.label}`
+        })
+
+        return [`Desktop themes:`, ...rows, '', 'Use /skin <name>, or /skin to cycle.'].join('\n')
+      }
+
+      const normalized = arg.toLowerCase()
+
+      const aliases: Record<string, string> = {
+        ares: 'ember',
+        hermes: 'default'
+      }
+
+      const targetName = aliases[normalized] || normalized
+
+      const target = availableThemes.find(
+        theme => theme.name.toLowerCase() === targetName || theme.label.toLowerCase() === normalized
+      )
+
+      if (!target) {
+        return `Unknown desktop theme: ${arg}\nAvailable: ${names.join(', ')}`
+      }
+
+      setTheme(target.name)
+
+      return `Desktop theme switched to ${target.label}.`
+    },
+    [availableThemes, setTheme, themeName]
+  )
+
+  const { cancelRun, editMessage, handleThreadMessagesChange, reloadFromMessage, submitText, transcribeVoiceAudio } =
     usePromptActions({
       activeSessionId,
       activeSessionIdRef,
+      branchCurrentSession: branchInNewChat,
       busyRef,
       createBackendSessionForSend,
+      handleSkinCommand,
       requestGateway,
       selectedStoredSessionIdRef,
+      startFreshSessionDraft,
       sttEnabled,
       updateSessionState
     })
 
   useGatewayBoot({
-    handleGatewayEvent,
+    handleGatewayEvent: handleDesktopGatewayEvent,
     onConnectionReady: setBootConnection,
     onGatewayReady: setBootGateway,
     refreshHermesConfig,
@@ -516,7 +693,27 @@ export function DesktopController() {
       if (!alreadyActive) {
         void resumeSession(routedSessionId, true)
       }
-    } else if (isNewChatRoute(location.pathname) && (selectedStoredSessionId || activeSessionId || !freshDraftReady)) {
+    } else if (
+      isNewChatRoute(location.pathname) &&
+      !creatingSessionRef.current &&
+      (selectedStoredSessionId || activeSessionId || !freshDraftReady)
+    ) {
+      // Guard: during HashRouter boot the `location.pathname` can read `/`
+      // briefly before the hash-portion (which holds the real route) is
+      // parsed. If the window hash clearly references a session, defer —
+      // `routedSessionId` will update in a tick and the routedSessionId
+      // branch above will handle resume. Without this guard, a ctrl+R on
+      // `#/:sessionId` calls startFreshSessionDraft → navigates to `/` →
+      // wipes messages → races the real resume, producing the visible
+      // "5 loading states" flash chain.
+      if (typeof window !== 'undefined') {
+        const rawHash = window.location.hash.replace(/^#/, '')
+
+        if (rawHash && rawHash !== '/' && !rawHash.startsWith('/settings') && !rawHash.startsWith('/skills') && !rawHash.startsWith('/artifacts')) {
+          return
+        }
+      }
+
       startFreshSessionDraft(true)
     }
   }, [
@@ -567,6 +764,8 @@ export function DesktopController() {
       maxVoiceRecordingSeconds={voiceMaxRecordingSeconds}
       onAddContextRef={addContextRefAttachment}
       onAddUrl={url => addContextRefAttachment(`@url:${formatRefValue(url)}`, url)}
+      onAttachDroppedItems={attachDroppedItems}
+      onAttachImageBlob={attachImageBlob}
       onBranchInNewChat={messageId => void branchInNewChat(messageId)}
       onBrowseCwd={() => void browseSessionCwd()}
       onCancel={() => void cancelRun()}
@@ -576,6 +775,7 @@ export function DesktopController() {
           void removeSession(selectedStoredSessionId)
         }
       }}
+      onEdit={editMessage}
       onOpenModelPicker={() => setModelPickerOpen(true)}
       onPasteClipboardImage={() => void pasteClipboardImage()}
       onPickFiles={() => void pickContextPaths('file')}
@@ -593,7 +793,7 @@ export function DesktopController() {
 
   return (
     <AppShell
-      inspectorWidth={SESSION_INSPECTOR_WIDTH}
+      inspectorWidth={previewTarget ? PREVIEW_RAIL_WIDTH : SESSION_INSPECTOR_WIDTH}
       onOpenSettings={openSettings}
       overlays={overlays}
       rightRailOpen={chatOpen}

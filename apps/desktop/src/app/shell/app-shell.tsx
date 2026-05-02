@@ -7,13 +7,13 @@ import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 import {
   $inspectorOpen,
-  $isSidebarResizing,
   $sidebarOpen,
   $sidebarWidth,
   setSidebarOpen,
   setSidebarResizing,
   setSidebarWidth
 } from '@/store/layout'
+import { $previewTarget } from '@/store/preview'
 import { $connection } from '@/store/session'
 
 import { TITLEBAR_HEIGHT, titlebarControlsPosition } from './titlebar'
@@ -44,11 +44,16 @@ export function AppShell({
   const connection = useStore($connection)
   const sidebarOpen = useStore($sidebarOpen)
   const inspectorOpen = useStore($inspectorOpen)
-  const isSidebarResizing = useStore($isSidebarResizing)
+  const previewTarget = useStore($previewTarget)
 
   const displayedSidebarWidth = sidebarOpen ? sidebarWidth : Math.round(sidebarWidth * 0.8)
   const titlebarControls = titlebarControlsPosition(connection?.windowButtonPosition)
-  const showRightRail = rightRailOpen && inspectorOpen
+  const showRightRail = rightRailOpen && (inspectorOpen || Boolean(previewTarget))
+
+  // Right rail yields to chat min-width before the chat column starts crushing the composer.
+  const inspectorColumn = showRightRail
+    ? 'min(var(--inspector-width), max(0px, calc(100vw - var(--sidebar-width) - var(--chat-min-width) - 2 * var(--shell-gap))))'
+    : '0px'
 
   const startSidebarResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -105,16 +110,13 @@ export function AppShell({
 
       <main
         className={cn(
-          'relative grid h-screen w-full grid-cols-[var(--sidebar-width)_minmax(0,1fr)_var(--inspector-col)] overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75',
-          isSidebarResizing
-            ? 'transition-none'
-            : 'transition-[grid-template-columns,gap] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
-          sidebarOpen || showRightRail ? 'gap-2.5' : 'gap-0'
+          'relative grid h-screen w-full grid-cols-[var(--sidebar-width)_minmax(0,1fr)_var(--inspector-col)] overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75 transition-none',
+          sidebarOpen || showRightRail ? 'gap-(--shell-gap)' : 'gap-0'
         )}
         style={
           {
             '--inspector-width': inspectorWidth,
-            '--inspector-col': showRightRail ? inspectorWidth : '0px'
+            '--inspector-col': inspectorColumn
           } as CSSProperties
         }
       >

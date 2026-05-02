@@ -2,20 +2,20 @@ import type { Unstable_TriggerAdapter, Unstable_TriggerItem } from '@assistant-u
 import { useCallback } from 'react'
 
 import type { HermesGateway } from '@/hermes'
+import {
+  desktopSlashDescription,
+  filterDesktopCommandsCatalog,
+  isDesktopSlashSuggestion,
+  type CommandsCatalogLike
+} from '@/lib/desktop-slash-commands'
 
 import type { CompletionEntry, CompletionPayload } from './use-live-completion-adapter'
 import { useLiveCompletionAdapter } from './use-live-completion-adapter'
-
-const PICKER_OWNED = new Set(['/model', '/provider', 'model', 'provider'])
 
 interface SlashItemMetadata extends Record<string, string> {
   command: string
   display: string
   meta: string
-}
-
-interface CommandsCatalogResponse {
-  pairs?: [string, string][]
 }
 
 function textValue(value: unknown, fallback = ''): string {
@@ -53,14 +53,9 @@ export function useSlashCompletions(options: { gateway: HermesGateway | null }):
 
       const text = `/${query}`
 
-      // Model/provider have a dedicated picker; suppress slash completions for them once typed.
-      if (text.startsWith('/model') || text.startsWith('/provider')) {
-        return { items: [], query }
-      }
-
       try {
         if (!query) {
-          const catalog = await gateway.request<CommandsCatalogResponse>('commands.catalog')
+          const catalog = filterDesktopCommandsCatalog(await gateway.request<CommandsCatalogLike>('commands.catalog'))
 
           const items = (catalog.pairs ?? [])
             .map(([command, meta]) => ({
@@ -68,13 +63,17 @@ export function useSlashCompletions(options: { gateway: HermesGateway | null }):
               display: command,
               meta
             }))
-            .filter(item => !PICKER_OWNED.has(item.text))
 
           return { items, query }
         }
 
         const result = await gateway.request<{ items?: CompletionEntry[] }>('complete.slash', { text })
-        const items = (result.items ?? []).filter(item => !PICKER_OWNED.has(item.text))
+        const items = (result.items ?? [])
+          .filter(item => isDesktopSlashSuggestion(item.text))
+          .map(item => ({
+            ...item,
+            meta: desktopSlashDescription(item.text, textValue(item.meta))
+          }))
 
         return { items, query }
       } catch {

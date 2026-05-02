@@ -3,8 +3,9 @@ import { useCallback, useRef } from 'react'
 import type { NavigateFunction } from 'react-router-dom'
 
 import { deleteSession, getSessionMessages } from '@/hermes'
-import { chatMessageText, toChatMessages } from '@/lib/chat-messages'
+import { type ChatMessage, chatMessageText, toChatMessages } from '@/lib/chat-messages'
 import { normalizePersonalityValue } from '@/lib/chat-runtime'
+import { embeddedImageUrls, textWithoutEmbeddedImages } from '@/lib/embedded-images'
 import { clearComposerAttachments, clearComposerDraft } from '@/store/composer'
 import { $pinnedSessionIds } from '@/store/layout'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
@@ -25,7 +26,7 @@ import {
   setSelectedStoredSessionId,
   setSessions
 } from '@/store/session'
-import type { SessionCreateResponse, SessionResumeResponse } from '@/types/hermes'
+import type { SessionCreateResponse, SessionInfo, SessionResumeResponse } from '@/types/hermes'
 
 import { NEW_CHAT_ROUTE, sessionRoute, SETTINGS_ROUTE } from '../../routes'
 import type { ClientSessionState, SidebarNavItem } from '../../types'
@@ -34,7 +35,9 @@ interface SessionActionsOptions {
   activeSessionId: string | null
   activeSessionIdRef: MutableRefObject<string | null>
   busyRef: MutableRefObject<boolean>
+  creatingSessionRef: MutableRefObject<boolean>
   ensureSessionState: (sessionId: string, storedSessionId?: string | null) => ClientSessionState
+  getRouteToken: () => string
   navigate: NavigateFunction
   requestGateway: <T>(method: string, params?: Record<string, unknown>) => Promise<T>
   runtimeIdByStoredSessionIdRef: MutableRefObject<Map<string, string>>
@@ -49,11 +52,156 @@ interface SessionActionsOptions {
   ) => ClientSessionState
 }
 
+function withAppendedText(message: ChatMessage, suffix: string): ChatMessage {
+  let appended = false
+  const parts = message.parts.map(part => {
+    if (part.type !== 'text' || appended) {
+      return part
+    }
+
+    appended = true
+
+    return { ...part, text: `${part.text}${suffix}` }
+  })
+
+  return appended ? { ...message, parts } : message
+}
+
+function preserveReasoningParts(message: ChatMessage, previous: ChatMessage): ChatMessage {
+  if (message.parts.some(part => part.type === 'reasoning')) {
+    return message
+  }
+
+  const reasoningParts = previous.parts.filter(part => part.type === 'reasoning')
+
+  return reasoningParts.length ? { ...message, parts: [...reasoningParts, ...message.parts] } : message
+}
+
+function chatMessagesEquivalent(a: ChatMessage, b: ChatMessage): boolean {
+  if (a.id !== b.id || a.role !== b.role || a.pending !== b.pending || a.hidden !== b.hidden || a.branchGroupId !== b.branchGroupId) {
+    return false
+  }
+
+  if (a.parts.length !== b.parts.length) {
+    return false
+  }
+
+  return a.parts.every((part, index) => JSON.stringify(part) === JSON.stringify(b.parts[index]))
+}
+
+function chatMessageArraysEquivalent(a: ChatMessage[], b: ChatMessage[]): boolean {
+  return a.length === b.length && a.every((message, index) => chatMessagesEquivalent(message, b[index]))
+}
+
+function reconcileResumeMessages(nextMessages: ChatMessage[], previousMessages: ChatMessage[]): ChatMessage[] {
+  if (!previousMessages.length) {
+    return nextMessages
+  }
+
+  const previousByRoleOrdinal = new Map<string, ChatMessage>()
+  const previousRoleCounts = new Map<string, number>()
+
+  for (const message of previousMessages) {
+    const ordinal = previousRoleCounts.get(message.role) ?? 0
+    previousRoleCounts.set(message.role, ordinal + 1)
+    previousByRoleOrdinal.set(`${message.role}:${ordinal}`, message)
+  }
+
+  const nextRoleCounts = new Map<string, number>()
+
+  return nextMessages.map(message => {
+    const ordinal = nextRoleCounts.get(message.role) ?? 0
+    nextRoleCounts.set(message.role, ordinal + 1)
+
+    const previous = previousByRoleOrdinal.get(`${message.role}:${ordinal}`)
+
+    if (!previous) {
+      return message
+    }
+
+    const nextText = chatMessageText(message).trim()
+    const previousText = chatMessageText(previous)
+    const previousVisibleText = textWithoutEmbeddedImages(previousText)
+    let preserved = message
+
+    if (nextText === previousVisibleText || nextText === previousText.trim()) {
+      preserved = preserveReasoningParts(preserved, previous)
+    }
+
+    const previousImages = embeddedImageUrls(previousText)
+
+    if (!previousImages.length || embeddedImageUrls(chatMessageText(preserved)).length) {
+      return preserved
+    }
+
+    if (nextText !== previousVisibleText) {
+      return preserved
+    }
+
+    return withAppendedText(preserved, previousImages.map(url => `\n${url}`).join(''))
+  })
+}
+
+function upsertOptimisticSession(
+  created: SessionCreateResponse,
+  id: string,
+  title: string | null = null,
+  preview: string | null = null
+) {
+  const now = Date.now() / 1000
+
+  const session: SessionInfo = {
+    ended_at: null,
+    id,
+    input_tokens: 0,
+    is_active: true,
+    last_active: now,
+    message_count: created.message_count ?? created.messages?.length ?? 0,
+    model: created.info?.model ?? null,
+    output_tokens: 0,
+    preview,
+    source: 'tui',
+    started_at: now,
+    title,
+    tool_call_count: 0
+  }
+
+  setSessions(prev => [session, ...prev.filter(s => s.id !== id)])
+}
+
+function applyRuntimeInfo(info: SessionCreateResponse['info'] | undefined) {
+  if (!info) {
+    return
+  }
+
+  if (info.model) {
+    setCurrentModel(info.model)
+  }
+
+  if (info.provider) {
+    setCurrentProvider(info.provider)
+  }
+
+  if (info.cwd) {
+    setCurrentCwd(info.cwd)
+  }
+
+  if (info.branch !== undefined) {
+    setCurrentBranch(info.branch || '')
+  }
+
+  if (typeof info.personality === 'string') {
+    setCurrentPersonality(normalizePersonalityValue(info.personality))
+  }
+}
+
 export function useSessionActions({
   activeSessionId,
   activeSessionIdRef,
   busyRef,
+  creatingSessionRef,
   ensureSessionState,
+  getRouteToken,
   navigate,
   requestGateway,
   runtimeIdByStoredSessionIdRef,
@@ -86,43 +234,47 @@ export function useSessionActions({
   )
 
   const createBackendSessionForSend = useCallback(async (): Promise<string | null> => {
-    const created = await requestGateway<SessionCreateResponse>('session.create', { cols: 96 })
+    const startingActiveSessionId = activeSessionIdRef.current
+    const startingStoredSessionId = selectedStoredSessionIdRef.current
+    const startingRouteToken = getRouteToken()
 
-    if (created.stored_session_id) {
-      navigate(sessionRoute(created.stored_session_id), { replace: true })
+    creatingSessionRef.current = true
+
+    try {
+      const created = await requestGateway<SessionCreateResponse>('session.create', { cols: 96 })
+      const stored = created.stored_session_id ?? null
+
+      if (
+        activeSessionIdRef.current !== startingActiveSessionId ||
+        selectedStoredSessionIdRef.current !== startingStoredSessionId ||
+        getRouteToken() !== startingRouteToken
+      ) {
+        await requestGateway('session.close', { session_id: created.session_id }).catch(() => undefined)
+
+        return null
+      }
+
+      activeSessionIdRef.current = created.session_id
+      selectedStoredSessionIdRef.current = stored
+      ensureSessionState(created.session_id, stored)
+
+      if (stored) {
+        upsertOptimisticSession(created, stored)
+        navigate(sessionRoute(stored), { replace: true })
+      }
+
+      setFreshDraftReady(false)
+      setActiveSessionId(created.session_id)
+      setSelectedStoredSessionId(stored)
+      applyRuntimeInfo(created.info)
+
+      return created.session_id
+    } finally {
+      window.setTimeout(() => {
+        creatingSessionRef.current = false
+      }, 0)
     }
-
-    setActiveSessionId(created.session_id)
-    activeSessionIdRef.current = created.session_id
-    ensureSessionState(created.session_id, created.stored_session_id ?? null)
-
-    if (created.stored_session_id) {
-      setSelectedStoredSessionId(created.stored_session_id)
-      selectedStoredSessionIdRef.current = created.stored_session_id
-    }
-
-    if (created.info?.model) {
-      setCurrentModel(created.info.model)
-    }
-
-    if (created.info?.provider) {
-      setCurrentProvider(created.info.provider)
-    }
-
-    if (created.info?.cwd) {
-      setCurrentCwd(created.info.cwd)
-    }
-
-    if (created.info?.branch) {
-      setCurrentBranch(created.info.branch)
-    }
-
-    if (typeof created.info?.personality === 'string') {
-      setCurrentPersonality(normalizePersonalityValue(created.info.personality))
-    }
-
-    return created.session_id
-  }, [activeSessionIdRef, ensureSessionState, navigate, requestGateway, selectedStoredSessionIdRef])
+  }, [activeSessionIdRef, creatingSessionRef, ensureSessionState, getRouteToken, navigate, requestGateway, selectedStoredSessionIdRef])
 
   const selectSidebarItem = useCallback(
     (item: SidebarNavItem) => {
@@ -187,33 +339,57 @@ export function useSessionActions({
       clearNotifications()
       setSelectedStoredSessionId(storedSessionId)
       selectedStoredSessionIdRef.current = storedSessionId
-      setMessages([])
 
       try {
-        let resumeApplied = false
+        // Load the local snapshot first, then ask the gateway to resume.
+        // Previously these raced:
+        //   1. clear messages to []
+        //   2. local getSessionMessages -> 45 msgs
+        //   3. a second resume path cleared [] again
+        //   4. gateway resume -> 43 msgs
+        // That is the ctrl+R flash chain. Avoid showing an empty thread
+        // while we already have a route-scoped session id, and don't race the
+        // local snapshot against gateway resume.
+        let localSnapshot = $messages.get()
 
-        const storedMessagesPromise = getSessionMessages(storedSessionId)
-          .then(storedMessages => {
-            if (!resumeApplied && isCurrentResume()) {
-              setMessages(toChatMessages(storedMessages.messages))
+        try {
+          const storedMessages = await getSessionMessages(storedSessionId)
+
+          if (isCurrentResume()) {
+            localSnapshot = toChatMessages(storedMessages.messages)
+
+            if (!chatMessageArraysEquivalent($messages.get(), localSnapshot)) {
+              setMessages(localSnapshot)
             }
-          })
-          .catch(() => undefined)
+          }
+        } catch {
+          // Non-fatal: gateway resume below can still hydrate the session.
+        }
 
-        const resumePromise = requestGateway<SessionResumeResponse>('session.resume', {
+        const resumed = await requestGateway<SessionResumeResponse>('session.resume', {
           session_id: storedSessionId,
           cols: 96
         })
 
-        void storedMessagesPromise
-
-        const resumed = await resumePromise
-
-        resumeApplied = true
-
         if (!isCurrentResume()) {
           return
         }
+
+        const currentMessages = $messages.get()
+        const resumedMessages = reconcileResumeMessages(toChatMessages(resumed.messages), currentMessages)
+        // Avoid a second visible transcript rebuild on resume/switch.
+        // `getSessionMessages()` is the stable stored transcript snapshot and
+        // paints first; `session.resume` can return a slightly different
+        // runtime-shaped projection (e.g. tool/system coalescing), which was
+        // causing a second full message-list replacement a second later.
+        // Keep the already-painted local snapshot for the view/cache when it
+        // exists; use gateway messages only as a fallback when no local
+        // snapshot was available.
+        const messagesForView = localSnapshot.length > 0
+          ? localSnapshot
+          : chatMessageArraysEquivalent(currentMessages, resumedMessages)
+            ? currentMessages
+            : resumedMessages
 
         setActiveSessionId(resumed.session_id)
         activeSessionIdRef.current = resumed.session_id
@@ -221,7 +397,7 @@ export function useSessionActions({
           resumed.session_id,
           state => ({
             ...state,
-            messages: toChatMessages(resumed.messages),
+            messages: messagesForView,
             busy: false,
             awaitingResponse: false
           }),
@@ -229,24 +405,7 @@ export function useSessionActions({
         )
         clearComposerDraft()
         clearComposerAttachments()
-
-        if (resumed.info?.model) {
-          setCurrentModel(resumed.info.model)
-        }
-
-        if (resumed.info?.provider) {
-          setCurrentProvider(resumed.info.provider)
-        }
-
-        if (resumed.info?.cwd) {
-          setCurrentCwd(resumed.info.cwd)
-        }
-
-        setCurrentBranch(resumed.info?.branch || '')
-
-        if (typeof resumed.info?.personality === 'string') {
-          setCurrentPersonality(normalizePersonalityValue(resumed.info.personality))
-        }
+        applyRuntimeInfo(resumed.info)
       } catch (err) {
         if (!isCurrentResume()) {
           return
@@ -304,9 +463,15 @@ export function useSessionActions({
         return false
       }
 
+      creatingSessionRef.current = true
+
       try {
         const currentMessages = $messages.get()
-        const targetIndex = messageId ? currentMessages.findIndex(message => message.id === messageId) : -1
+
+        const targetIndex = messageId
+          ? currentMessages.findIndex(message => message.id === messageId)
+          : currentMessages.findLastIndex(message => message.role === 'assistant' || message.role === 'user')
+
         const branchStart = targetIndex >= 0 ? targetIndex : Math.max(currentMessages.length - 1, 0)
         const branchEnd = targetIndex >= 0 ? targetIndex + 1 : currentMessages.length
 
@@ -317,7 +482,7 @@ export function useSessionActions({
             source: message,
             role: message.role
           }))
-          .filter(message => message.content.trim() && ['assistant', 'system', 'user'].includes(message.role))
+          .filter(message => message.content.trim() && ['assistant', 'user'].includes(message.role))
 
         if (!branchMessages.length) {
           notify({
@@ -338,8 +503,10 @@ export function useSessionActions({
         })
 
         const routedSessionId = branched.stored_session_id ?? branched.session_id
+        const preview = branchMessages.map(({ content }) => content).find(Boolean) ?? null
 
         setFreshDraftReady(false)
+        upsertOptimisticSession(branched, routedSessionId, 'Branch', preview)
         ensureSessionState(branched.session_id, routedSessionId)
         setActiveSessionId(branched.session_id)
         activeSessionIdRef.current = branched.session_id
@@ -359,35 +526,23 @@ export function useSessionActions({
 
         clearComposerDraft()
         clearComposerAttachments()
-
-        if (branched.info?.model) {
-          setCurrentModel(branched.info.model)
-        }
-
-        if (branched.info?.provider) {
-          setCurrentProvider(branched.info.provider)
-        }
-
-        if (branched.info?.cwd) {
-          setCurrentCwd(branched.info.cwd)
-        }
-
-        setCurrentBranch(branched.info?.branch || '')
-
-        if (typeof branched.info?.personality === 'string') {
-          setCurrentPersonality(normalizePersonalityValue(branched.info.personality))
-        }
+        applyRuntimeInfo(branched.info)
 
         return true
       } catch (err) {
         notifyError(err, 'Branch failed')
 
         return false
+      } finally {
+        window.setTimeout(() => {
+          creatingSessionRef.current = false
+        }, 0)
       }
     },
     [
       activeSessionIdRef,
       busyRef,
+      creatingSessionRef,
       ensureSessionState,
       navigate,
       requestGateway,
@@ -399,49 +554,60 @@ export function useSessionActions({
   const removeSession = useCallback(
     async (storedSessionId: string) => {
       clearNotifications()
+
       const removed = $sessions.get().find(s => s.id === storedSessionId)
       const wasSelected = selectedStoredSessionId === storedSessionId
+      const closingRuntimeId = wasSelected ? activeSessionId : null
       const previousMessages = $messages.get()
-      const previousPinnedSessionIds = $pinnedSessionIds.get()
+      const previousPinned = $pinnedSessionIds.get()
 
       setSessions(prev => prev.filter(s => s.id !== storedSessionId))
-      $pinnedSessionIds.set(previousPinnedSessionIds.filter(id => id !== storedSessionId))
+      $pinnedSessionIds.set(previousPinned.filter(id => id !== storedSessionId))
 
+      // Tear down before awaiting so the route effect can't resume the
+      // doomed session via the stale /<sid> URL.
       if (wasSelected) {
-        setSelectedStoredSessionId(null)
-        selectedStoredSessionIdRef.current = null
-        setMessages([])
+        startFreshSessionDraft(true)
       }
 
       try {
-        if (wasSelected && activeSessionId) {
-          await requestGateway('session.close', {
-            session_id: activeSessionId
-          }).catch(() => undefined)
+        if (closingRuntimeId) {
+          await requestGateway('session.close', { session_id: closingRuntimeId }).catch(() => undefined)
         }
 
         await deleteSession(storedSessionId)
-
-        if (wasSelected) {
-          startFreshSessionDraft()
-        }
       } catch (err) {
         if (removed) {
           setSessions(prev => [removed, ...prev])
         }
 
-        $pinnedSessionIds.set(previousPinnedSessionIds)
+        $pinnedSessionIds.set(previousPinned)
 
         if (wasSelected) {
+          setFreshDraftReady(false)
           setSelectedStoredSessionId(storedSessionId)
           selectedStoredSessionIdRef.current = storedSessionId
           setMessages(previousMessages)
+          navigate(sessionRoute(storedSessionId), { replace: true })
+
+          if (closingRuntimeId) {
+            setActiveSessionId(closingRuntimeId)
+            activeSessionIdRef.current = closingRuntimeId
+          }
         }
 
         notifyError(err, 'Delete failed')
       }
     },
-    [activeSessionId, selectedStoredSessionId, selectedStoredSessionIdRef, startFreshSessionDraft, requestGateway]
+    [
+      activeSessionId,
+      activeSessionIdRef,
+      navigate,
+      requestGateway,
+      selectedStoredSessionId,
+      selectedStoredSessionIdRef,
+      startFreshSessionDraft
+    ]
   )
 
   return {

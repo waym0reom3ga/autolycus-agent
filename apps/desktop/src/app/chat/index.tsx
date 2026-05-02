@@ -1,4 +1,5 @@
 import {
+  type AppendMessage,
   AssistantRuntimeProvider,
   ExportedMessageRepository,
   type ThreadMessage,
@@ -42,6 +43,7 @@ import { titlebarHeaderBaseClass, titlebarHeaderShadowClass } from '../shell/tit
 
 import { ChatBar, ChatBarFallback } from './composer'
 import type { ChatBarState } from './composer/types'
+import type { DroppedFile } from './hooks/use-composer-actions'
 import { ChatRightRail } from './right-rail'
 import { SessionActionsMenu } from './sidebar/session-actions-menu'
 
@@ -54,6 +56,8 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onAddUrl: (url: string) => void
   onBranchInNewChat: (messageId: string) => void
   maxVoiceRecordingSeconds?: number
+  onAttachImageBlob: (blob: Blob) => Promise<boolean | void> | boolean | void
+  onAttachDroppedItems: (candidates: DroppedFile[]) => Promise<boolean | void> | boolean | void
   onPasteClipboardImage: () => void
   onPickFiles: () => void
   onPickFolders: () => void
@@ -65,20 +69,33 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onOpenModelPicker: () => void
   onSelectPersonality: (name: string) => void
   onThreadMessagesChange: (messages: readonly ThreadMessage[]) => void
+  onEdit: (message: AppendMessage) => Promise<void>
   onReload: (parentId: string | null) => Promise<void>
   onTranscribeAudio?: (audio: Blob) => Promise<string>
 }
 
-function threadLoadingState(loadingSession: boolean, busy: boolean, awaitingResponse: boolean) {
+function threadLoadingState(
+  loadingSession: boolean,
+  busy: boolean,
+  awaitingResponse: boolean,
+  lastMessageIsUser: boolean
+) {
   if (loadingSession) {
     return 'session'
   }
 
-  if (!busy) {
-    return undefined
+  // Only show the response spinner when we're actually waiting for an
+  // assistant reply to a user message. Previously any `busy && awaiting`
+  // window showed the spinner — including the brief gateway-hydration blip
+  // right after a session resume, which produced a visible flicker chain:
+  //   session spinner → response spinner → content.
+  // Gating on `lastMessageIsUser` means the spinner only appears when the
+  // user actually just sent something and there's no assistant reply yet.
+  if (busy && awaitingResponse && lastMessageIsUser) {
+    return 'response'
   }
 
-  return awaitingResponse ? 'response' : 'working'
+  return undefined
 }
 
 export function ChatView({
@@ -88,6 +105,8 @@ export function ChatView({
   onCancel,
   onAddContextRef,
   onAddUrl,
+  onAttachImageBlob,
+  onAttachDroppedItems,
   onBranchInNewChat,
   maxVoiceRecordingSeconds,
   onPasteClipboardImage,
@@ -101,6 +120,7 @@ export function ChatView({
   onOpenModelPicker,
   onSelectPersonality,
   onThreadMessagesChange,
+  onEdit,
   onReload,
   onTranscribeAudio
 }: ChatViewProps) {
@@ -129,8 +149,14 @@ export function ChatView({
   const showIntro =
     freshDraftReady && !isRoutedSessionView && !selectedSessionId && !activeSessionId && messages.length === 0
 
-  const loadingSession = isRoutedSessionView && messages.length === 0
-  const threadLoading = threadLoadingState(loadingSession, busy, awaitingResponse)
+  // Session is still loading if the route references a session we haven't
+  // resumed yet. Once `activeSessionId` is set (runtime has resumed), the
+  // session exists — even if it has zero messages (a brand-new routed
+  // session). The flicker where `busy` flips true briefly during hydrate
+  // is handled by `threadLoadingState`'s `lastMessageIsUser` gate.
+  const loadingSession = isRoutedSessionView && messages.length === 0 && !activeSessionId
+  const lastMessageIsUser = messages.at(-1)?.role === 'user'
+  const threadLoading = threadLoadingState(loadingSession, busy, awaitingResponse, lastMessageIsUser)
   const showChatBar = !loadingSession
   const threadKey = selectedSessionId || activeSessionId || (isRoutedSessionView ? location.pathname : 'new')
   const title = activeStoredSession ? sessionTitle(activeStoredSession) : ''
@@ -221,6 +247,7 @@ export function ChatView({
       // Submission is handled explicitly by ChatBar.
       // Keeping this no-op avoids duplicate prompt.submit calls.
     },
+    onEdit,
     onCancel: async () => onCancel(),
     onReload
   })
@@ -236,6 +263,7 @@ export function ChatView({
                 onDelete={selectedSessionId ? onDeleteSelectedSession : undefined}
                 onPin={selectedSessionId ? onToggleSelectedPin : undefined}
                 pinned={selectedIsPinned}
+                sessionId={selectedSessionId || activeSessionId || ''}
                 sideOffset={8}
                 title={title}
               >
@@ -273,6 +301,8 @@ export function ChatView({
                   maxRecordingSeconds={maxVoiceRecordingSeconds}
                   onAddContextRef={onAddContextRef}
                   onAddUrl={onAddUrl}
+                  onAttachDroppedItems={onAttachDroppedItems}
+                  onAttachImageBlob={onAttachImageBlob}
                   onCancel={onCancel}
                   onPasteClipboardImage={onPasteClipboardImage}
                   onPickFiles={onPickFiles}
@@ -300,4 +330,4 @@ export function ChatView({
   )
 }
 
-export { SESSION_INSPECTOR_WIDTH } from './right-rail'
+export { PREVIEW_RAIL_WIDTH, SESSION_INSPECTOR_WIDTH } from './right-rail'

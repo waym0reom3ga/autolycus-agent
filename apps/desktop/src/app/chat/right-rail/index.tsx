@@ -3,6 +3,7 @@ import type * as React from 'react'
 
 import { SESSION_INSPECTOR_WIDTH, SessionInspector } from '@/components/session-inspector'
 import { $inspectorOpen } from '@/store/layout'
+import { $previewTarget } from '@/store/preview'
 import {
   $availablePersonalities,
   $busy,
@@ -13,6 +14,8 @@ import {
   $currentProvider,
   $gatewayState
 } from '@/store/session'
+
+import { PreviewPane } from './preview-pane'
 
 interface ChatRightRailProps extends Pick<
   React.ComponentProps<typeof SessionInspector>,
@@ -29,6 +32,7 @@ export function ChatRightRail({
   onSelectPersonality
 }: ChatRightRailProps) {
   const inspectorOpen = useStore($inspectorOpen)
+  const previewTarget = useStore($previewTarget)
   const gatewayOpen = useStore($gatewayState) === 'open'
   const busy = useStore($busy)
   const cwd = useStore($currentCwd)
@@ -37,6 +41,10 @@ export function ChatRightRail({
   const provider = useStore($currentProvider)
   const personality = useStore($currentPersonality)
   const personalities = useStore($availablePersonalities)
+
+  if (previewTarget) {
+    return <PreviewPane target={previewTarget} />
+  }
 
   return (
     <SessionInspector
@@ -58,3 +66,4 @@ export function ChatRightRail({
 }
 
 export { SESSION_INSPECTOR_WIDTH }
+export const PREVIEW_RAIL_WIDTH = 'clamp(18rem, 36vw, 38rem)'

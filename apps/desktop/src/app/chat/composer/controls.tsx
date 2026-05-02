@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import type { ConversationStatus } from './hooks/use-voice-conversation'
 import type { ChatBarState, VoiceStatus } from './types'
 
-export const ICON_BTN = 'h-8 w-8 shrink-0 rounded-full'
+export const ICON_BTN = 'size-(--composer-control-size) shrink-0 rounded-full'
 export const GHOST_ICON_BTN = cn(ICON_BTN, 'text-muted-foreground hover:bg-accent hover:text-foreground')
 
 interface ConversationProps {
@@ -47,7 +47,7 @@ export function ComposerControls({
   const showVoicePrimary = !busy && !hasComposerPayload
 
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+    <div className="ml-auto flex shrink-0 items-center gap-(--composer-control-gap)">
       <DictationButton disabled={disabled} onToggle={onDictate} state={state.voice} status={voiceStatus} />
       {showVoicePrimary ? (
         <Button
@@ -102,7 +102,7 @@ function ConversationPill({
             : 'Listening'
 
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-1">
+    <div className="ml-auto flex shrink-0 items-center gap-(--composer-control-gap)">
       <Button
         aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}
         aria-pressed={muted}
@@ -122,7 +122,7 @@ function ConversationPill({
       {listening && (
         <Button
           aria-label="Stop listening and send"
-          className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="h-(--composer-control-size) shrink-0 gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
           disabled={disabled}
           onClick={() => {
             triggerHaptic('submit')
@@ -138,7 +138,7 @@ function ConversationPill({
       )}
       <Button
         aria-label="End voice conversation"
-        className="h-8 gap-1.5 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+        className="h-(--composer-control-size) gap-1.5 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
         disabled={disabled}
         onClick={() => {
           triggerHaptic('close')

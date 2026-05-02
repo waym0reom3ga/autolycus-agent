@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { HermesGateway } from '@/hermes'
+import { setGateway } from '@/store/gateway'
 import { notify, notifyError } from '@/store/notifications'
 import { setConnection, setGatewayState, setSessionsLoading } from '@/store/session'
 import type { RpcEvent } from '@/types/hermes'
@@ -22,6 +23,22 @@ export function useGatewayBoot({
   refreshHermesConfig,
   refreshSessions
 }: GatewayBootOptions) {
+  const callbacksRef = useRef({
+    handleGatewayEvent,
+    onConnectionReady,
+    onGatewayReady,
+    refreshHermesConfig,
+    refreshSessions
+  })
+
+  callbacksRef.current = {
+    handleGatewayEvent,
+    onConnectionReady,
+    onGatewayReady,
+    refreshHermesConfig,
+    refreshSessions
+  }
+
   useEffect(() => {
     let cancelled = false
     const desktop = window.hermesDesktop
@@ -33,10 +50,11 @@ export function useGatewayBoot({
     }
 
     const gateway = new HermesGateway()
-    onGatewayReady(gateway)
+    callbacksRef.current.onGatewayReady(gateway)
+    setGateway(gateway)
 
     const offState = gateway.onState(st => void setGatewayState(st))
-    const offEvent = gateway.onEvent(handleGatewayEvent)
+    const offEvent = gateway.onEvent(event => callbacksRef.current.handleGatewayEvent(event))
 
     const offExit = desktop.onBackendExit(() => {
       notify({
@@ -55,7 +73,7 @@ export function useGatewayBoot({
           return
         }
 
-        onConnectionReady(conn)
+        callbacksRef.current.onConnectionReady(conn)
         setConnection(conn)
         await gateway.connect(conn.wsUrl)
 
@@ -63,13 +81,13 @@ export function useGatewayBoot({
           return
         }
 
-        await refreshHermesConfig()
+        await callbacksRef.current.refreshHermesConfig()
 
         if (cancelled) {
           return
         }
 
-        await refreshSessions()
+        await callbacksRef.current.refreshSessions()
       } catch (err) {
         if (!cancelled) {
           notifyError(err, 'Desktop boot failed')
@@ -86,8 +104,9 @@ export function useGatewayBoot({
       offEvent()
       offExit()
       gateway.close()
-      onConnectionReady(null)
-      onGatewayReady(null)
+      callbacksRef.current.onConnectionReady(null)
+      callbacksRef.current.onGatewayReady(null)
+      setGateway(null)
     }
-  }, [handleGatewayEvent, onConnectionReady, onGatewayReady, refreshHermesConfig, refreshSessions])
+  }, [])
 }

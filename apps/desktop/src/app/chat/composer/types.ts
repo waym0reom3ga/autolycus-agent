@@ -1,5 +1,7 @@
 import type { HermesGateway } from '@/hermes'
 
+import type { DroppedFile } from '../hooks/use-composer-actions'
+
 export interface ContextSuggestion {
   text: string
   display: string
@@ -36,6 +38,8 @@ export interface ChatBarProps {
   onCancel: () => void
   onAddContextRef?: (refText: string, label?: string, detail?: string) => void
   onAddUrl?: (url: string) => void
+  onAttachImageBlob?: (blob: Blob) => Promise<boolean | void> | boolean | void
+  onAttachDroppedItems?: (candidates: DroppedFile[]) => Promise<boolean | void> | boolean | void
   onPasteClipboardImage?: () => void
   onPickFiles?: () => void
   onPickFolders?: () => void

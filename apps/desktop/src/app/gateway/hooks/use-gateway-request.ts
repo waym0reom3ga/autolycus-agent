@@ -41,15 +41,17 @@ export function useGatewayRequest() {
         return null
       }
 
-      const conn = connectionRef.current || (await desktop.getConnection())
-      connectionRef.current = conn
-      setConnection(conn)
-
       try {
+        const conn = await desktop.getConnection()
+        connectionRef.current = conn
+        setConnection(conn)
         await existing.connect(conn.wsUrl)
 
         return existing
       } catch {
+        connectionRef.current = null
+        setConnection(null)
+
         return null
       } finally {
         reconnectingRef.current = null

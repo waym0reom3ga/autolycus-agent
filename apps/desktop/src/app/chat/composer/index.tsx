@@ -3,16 +3,26 @@ import './liquid-glass-overrides.css'
 import { ComposerPrimitive, useAui, useAuiState } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
 import LiquidGlass from 'liquid-glass-react'
-import { type ClipboardEvent, type CSSProperties, useEffect, useRef, useState } from 'react'
+import {
+  type ClipboardEvent,
+  type CSSProperties,
+  type DragEvent as ReactDragEvent,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
 
 import { hermesDirectiveFormatter } from '@/components/assistant-ui/directive-text'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { chatMessageText } from '@/lib/chat-messages'
+import { DATA_IMAGE_URL_RE, dataUrlToBlob } from '@/lib/embedded-images'
 import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
-import { $composerAttachments } from '@/store/composer'
+import { $composerAttachments, $composerDraft } from '@/store/composer'
 import { $messages } from '@/store/session'
 import { $threadScrolledUp } from '@/store/thread-scroll'
+
+import { extractDroppedFiles } from '../hooks/use-composer-actions'
 
 import { AttachmentList } from './attachments'
 import { ContextMenu } from './context-menu'
@@ -24,13 +34,73 @@ import { useComposerGlassTweaks } from './hooks/use-composer-glass-tweaks'
 import { useSlashCompletions } from './hooks/use-slash-completions'
 import { useVoiceConversation } from './hooks/use-voice-conversation'
 import { useVoiceRecorder } from './hooks/use-voice-recorder'
+import { SkinSlashPopover } from './skin-slash-popover'
 import { SlashPopover } from './slash-popover'
 import type { ChatBarProps } from './types'
 import { UrlDialog } from './url-dialog'
 import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
 
 const COMPOSER_SHELL_CLASS =
-  'group/composer absolute bottom-0 left-1/2 z-30 w-[min(calc(100%-1rem),clamp(26rem,61.8%,56rem))] max-w-full -translate-x-1/2 pt-2 pb-[var(--composer-shell-pad-block-end)]'
+  'group/composer absolute bottom-0 left-1/2 z-30 max-w-full -translate-x-1/2 pt-2 pb-[var(--composer-shell-pad-block-end)]'
+
+function extractClipboardImageBlobs(clipboard: DataTransfer): Blob[] {
+  const blobs: Blob[] = []
+  const seen = new Set<Blob>()
+
+  const push = (blob: Blob | null) => {
+    if (!blob || blob.size === 0 || seen.has(blob)) {
+      return
+    }
+
+    seen.add(blob)
+    blobs.push(blob)
+  }
+
+  if (clipboard.items?.length) {
+    for (const item of clipboard.items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        push(item.getAsFile())
+      }
+    }
+  }
+
+  if (clipboard.files?.length) {
+    for (let i = 0; i < clipboard.files.length; i += 1) {
+      const file = clipboard.files.item(i)
+
+      if (file && file.type.startsWith('image/')) {
+        push(file)
+      }
+    }
+  }
+
+  if (blobs.length > 0) {
+    return blobs
+  }
+
+  const text = clipboard.getData('text/plain').trim()
+
+  if (DATA_IMAGE_URL_RE.test(text)) {
+    push(dataUrlToBlob(text))
+  }
+
+  if (blobs.length === 0) {
+    const html = clipboard.getData('text/html')
+
+    if (html) {
+      const matches = html.matchAll(/<img\b[^>]*?\bsrc\s*=\s*["'](data:image\/[^"']+)["']/gi)
+
+      for (const match of matches) {
+        push(dataUrlToBlob(match[1]))
+      }
+    }
+  }
+
+  return blobs
+}
+
+// Below this composer width the input gets cramped — drop controls onto a second row.
+const COMPOSER_STACK_BREAKPOINT_PX = 380
 
 const COMPOSER_SCROLLED_DIM_CLASS =
   'opacity-30 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
@@ -58,6 +128,8 @@ export function ChatBar({
   state,
   onCancel,
   onAddUrl,
+  onAttachDroppedItems,
+  onAttachImageBlob,
   onPasteClipboardImage,
   onPickFiles,
   onPickFolders,
@@ -82,9 +154,11 @@ export function ChatBar({
   const [expanded, setExpanded] = useState(false)
   const [voiceConversationActive, setVoiceConversationActive] = useState(false)
   const [tight, setTight] = useState(false)
+  const [dragActive, setDragActive] = useState(false)
+  const dragDepthRef = useRef(0)
   const lastSpokenIdRef = useRef<string | null>(null)
 
-  const narrow = useMediaQuery('(max-width: 680px)')
+  const narrow = useMediaQuery('(max-width: 480px)')
 
   const [askPlaceholder] = useState(() => {
     const lines = [
@@ -108,9 +182,17 @@ export function ChatBar({
   const canSubmit = busy || hasComposerPayload
   const showHelpHint = draft === '?'
 
+  const placeholder = disabled
+    ? stacked
+      ? 'Starting...'
+      : 'Starting Hermes...'
+    : stacked
+      ? 'Ask anything'
+      : askPlaceholder
+
   const glassTweaks = useComposerGlassTweaks()
 
-  const focusInput = () => window.requestAnimationFrame(() => textareaRef.current?.focus())
+  const focusInput = () => window.requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }))
 
   useEffect(() => {
     if (!disabled) {
@@ -120,11 +202,22 @@ export function ChatBar({
 
   useEffect(() => {
     draftRef.current = draft
+    $composerDraft.set(draft)
   }, [draft])
+
+  useEffect(
+    () =>
+      $composerDraft.subscribe(value => {
+        if (value !== draftRef.current) {
+          aui.composer().setText(value)
+        }
+      }),
+    [aui]
+  )
 
   useEffect(() => {
     if (urlOpen) {
-      window.requestAnimationFrame(() => urlInputRef.current?.focus())
+      window.requestAnimationFrame(() => urlInputRef.current?.focus({ preventScroll: true }))
     }
   }, [urlOpen])
 
@@ -153,7 +246,7 @@ export function ChatBar({
       return
     }
 
-    const update = () => setTight(el.getBoundingClientRect().width < 500)
+    const update = () => setTight(el.getBoundingClientRect().width < COMPOSER_STACK_BREAKPOINT_PX)
 
     update()
     const ro = new ResizeObserver(update)
@@ -172,10 +265,42 @@ export function ChatBar({
     focusInput()
   }
 
+  const selectSkinSlashCommand = (command: string) => {
+    draftRef.current = command
+    aui.composer().setText(command)
+    focusInput()
+  }
+
   const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageBlobs = extractClipboardImageBlobs(event.clipboardData)
+
+    if (imageBlobs.length > 0) {
+      event.preventDefault()
+
+      if (onAttachImageBlob) {
+        triggerHaptic('selection')
+
+        for (const blob of imageBlobs) {
+          void onAttachImageBlob(blob)
+        }
+      }
+
+      return
+    }
+
     const pastedText = event.clipboardData.getData('text')
 
     if (!pastedText) {
+      return
+    }
+
+    // Some clipboard sources deliver an image as a giant `data:image/...;base64,...`
+    // text/plain payload. Without this guard the whole base64 string would be
+    // inserted into the textarea (and persisted as the user message). Drop it
+    // outright — image pastes belong on the image-blob path above.
+    if (DATA_IMAGE_URL_RE.test(pastedText.trim())) {
+      event.preventDefault()
+
       return
     }
 
@@ -202,9 +327,88 @@ export function ChatBar({
         return
       }
 
-      current.focus()
+      current.focus({ preventScroll: true })
       current.setSelectionRange(cursor, cursor)
     })
+  }
+
+  const dragHasAttachments = (transfer: DataTransfer | null) => {
+    if (!transfer) {
+      return false
+    }
+
+    if (Array.from(transfer.types || []).includes('Files')) {
+      return true
+    }
+
+    return Array.from(transfer.items || []).some(item => item.kind === 'file')
+  }
+
+  const resetDragState = () => {
+    dragDepthRef.current = 0
+    setDragActive(false)
+  }
+
+  const handleDragEnter = (event: ReactDragEvent<HTMLFormElement>) => {
+    if (!onAttachDroppedItems || !dragHasAttachments(event.dataTransfer)) {
+      return
+    }
+
+    event.preventDefault()
+    dragDepthRef.current += 1
+
+    if (!dragActive) {
+      setDragActive(true)
+    }
+  }
+
+  const handleDragOver = (event: ReactDragEvent<HTMLFormElement>) => {
+    if (!onAttachDroppedItems || !dragHasAttachments(event.dataTransfer)) {
+      return
+    }
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleDragLeave = (event: ReactDragEvent<HTMLFormElement>) => {
+    if (!onAttachDroppedItems) {
+      return
+    }
+
+    event.preventDefault()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+
+    if (dragDepthRef.current === 0) {
+      setDragActive(false)
+    }
+  }
+
+  const handleDrop = (event: ReactDragEvent<HTMLFormElement>) => {
+    if (!onAttachDroppedItems) {
+      return
+    }
+
+    event.preventDefault()
+    resetDragState()
+
+    const candidates = extractDroppedFiles(event.dataTransfer)
+
+    if (candidates.length === 0) {
+      return
+    }
+
+    void Promise.resolve(onAttachDroppedItems(candidates)).then(attached => {
+      if (attached) {
+        triggerHaptic('selection')
+        focusInput()
+      }
+    })
+  }
+
+  const clearDraft = () => {
+    aui.composer().setText('')
+    draftRef.current = ''
   }
 
   const submitDraft = () => {
@@ -212,9 +416,10 @@ export function ChatBar({
       triggerHaptic('cancel')
       onCancel()
     } else if (draft.trim() || attachments.length > 0) {
+      const submitted = draft
       triggerHaptic('submit')
-      void onSubmit(draft)
-      aui.composer().setText('')
+      clearDraft()
+      void onSubmit(submitted)
     }
 
     focusInput()
@@ -281,9 +486,8 @@ export function ChatBar({
     }
 
     triggerHaptic('submit')
+    clearDraft()
     await onSubmit(text)
-    aui.composer().setText('')
-    draftRef.current = ''
   }
 
   const conversation = useVoiceConversation({
@@ -339,13 +543,13 @@ export function ChatBar({
   const input = (
     <ComposerPrimitive.Input
       className={cn(
-        'min-h-8 max-h-37.5 resize-none overflow-y-auto bg-transparent pb-1 pr-1 pt-1 leading-normal text-foreground outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed',
+        'min-h-(--composer-input-min-height) max-h-(--composer-input-max-height) resize-none overflow-y-auto bg-transparent pb-1 pr-1 pt-1 leading-normal text-foreground outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed',
         stacked && 'pl-3',
-        stacked ? 'w-full' : 'min-w-48 flex-1'
+        stacked ? 'w-full' : 'min-w-(--composer-input-inline-min-width) flex-1'
       )}
       disabled={disabled}
       onPaste={handlePaste}
-      placeholder={disabled ? 'Starting Hermes...' : askPlaceholder}
+      placeholder={placeholder}
       ref={textareaRef}
       rows={1}
       unstable_focusOnScrollToBottom={false}
@@ -357,8 +561,13 @@ export function ChatBar({
       <ComposerPrimitive.Unstable_TriggerPopoverRoot>
         <ComposerPrimitive.Root
           className={COMPOSER_SHELL_CLASS}
+          data-drag-active={dragActive ? '' : undefined}
           data-slot="composer-root"
           data-thread-scrolled-up={scrolledUp ? '' : undefined}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
           onSubmit={e => {
             e.preventDefault()
             submitDraft()
@@ -378,6 +587,7 @@ export function ChatBar({
             loading={at.loading}
           />
           <SlashPopover adapter={slash.adapter} loading={slash.loading} />
+          <SkinSlashPopover draft={draft} onSelect={selectSkinSlashCommand} />
           <div className="pointer-events-none absolute inset-0" style={{ background: glassTweaks.fadeBackground }} />
           <div className="relative w-full">
             <div
@@ -413,14 +623,23 @@ export function ChatBar({
                 'relative z-4 isolate overflow-hidden rounded-(--composer-active-radius) border border-input/70 shadow-composer transition-[border-color,box-shadow] duration-200 ease-out',
                 'group-focus-within/composer:border-ring/35 group-focus-within/composer:shadow-composer-focus',
                 'group-has-data-[state=open]/composer:rounded-t-none group-has-data-[state=open]/composer:border-t-transparent',
-                'group-has-data-[state=open]/composer:shadow-[0_0.0625rem_0_0.0625rem_color-mix(in_srgb,var(--dt-ring)_35%,transparent),0_0.5rem_1.5rem_color-mix(in_srgb,var(--shadow-ink)_6%,transparent)]'
+                'group-has-data-[state=open]/composer:shadow-[0_0.0625rem_0_0.0625rem_color-mix(in_srgb,var(--dt-ring)_35%,transparent),0_0.5rem_1.5rem_color-mix(in_srgb,var(--shadow-ink)_6%,transparent)]',
+                dragActive && 'border-primary/70 shadow-composer-focus ring-2 ring-primary/40'
               )}
               data-slot="composer-surface"
             >
               <div aria-hidden className={COMPOSER_FROST_CLASS} />
+              {dragActive && (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 z-3 flex items-center justify-center rounded-(--composer-active-radius) bg-primary/10 text-sm font-medium text-primary backdrop-blur-[1px]"
+                >
+                  Drop files to attach
+                </div>
+              )}
               <div
                 className={cn(
-                  'relative z-1 flex min-h-0 w-full flex-col gap-1.5 px-2 py-1.5 transition-opacity duration-200 ease-out',
+                  'relative z-1 flex min-h-0 w-full flex-col gap-(--composer-row-gap) px-(--composer-surface-pad-x) py-(--composer-surface-pad-y) transition-opacity duration-200 ease-out',
                   scrolledUp ? COMPOSER_SCROLLED_DIM_CLASS : 'opacity-100'
                 )}
                 data-slot="composer-fade"
@@ -431,13 +650,13 @@ export function ChatBar({
                 {stacked ? (
                   <>
                     {input}
-                    <div className="flex w-full items-center gap-1.5">
+                    <div className="flex w-full items-center gap-(--composer-control-gap)">
                       {contextMenu}
                       {controls}
                     </div>
                   </>
                 ) : (
-                  <div className="flex w-full items-end gap-1.5">
+                  <div className="flex w-full items-end gap-(--composer-control-gap)">
                     {contextMenu}
                     {input}
                     {controls}
@@ -468,7 +687,7 @@ export function ChatBarFallback() {
       data-slot="composer-root"
       style={{ '--composer-active-radius': '1.25rem' } as CSSProperties}
     >
-      <div className="relative isolate h-11 w-full overflow-hidden rounded-(--composer-active-radius) border border-input/70 shadow-composer">
+      <div className="relative isolate h-(--composer-fallback-height) w-full overflow-hidden rounded-(--composer-active-radius) border border-input/70 shadow-composer">
         <div aria-hidden className={COMPOSER_FROST_CLASS} />
       </div>
     </div>

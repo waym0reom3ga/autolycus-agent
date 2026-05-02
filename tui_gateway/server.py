@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from hermes_constants import get_hermes_home
 from hermes_cli.env_loader import load_hermes_dotenv
+from utils import is_truthy_value
 from tui_gateway.transport import (
     StdioTransport,
     Transport,
@@ -126,9 +127,11 @@ _cfg_lock = threading.Lock()
 _cfg_cache: dict | None = None
 _cfg_mtime: float | None = None
 _cfg_path = None
-_SLASH_WORKER_TIMEOUT_S = max(
-    5.0, float(os.environ.get("HERMES_TUI_SLASH_TIMEOUT_S", "45") or 45)
-)
+try:
+    _slash_timeout = float(os.environ.get("HERMES_TUI_SLASH_TIMEOUT_S") or "45")
+except (ValueError, TypeError):
+    _slash_timeout = 45.0
+_SLASH_WORKER_TIMEOUT_S = max(5.0, _slash_timeout)
 _DETAIL_SECTION_NAMES = ("thinking", "tools", "subagents", "activity")
 _DETAIL_MODES = frozenset({"hidden", "collapsed", "expanded"})
 
@@ -154,8 +157,12 @@ _LONG_HANDLERS = frozenset(
     }
 )
 
+try:
+    _rpc_pool_workers = max(2, int(os.environ.get("HERMES_TUI_RPC_POOL_WORKERS") or "4"))
+except (ValueError, TypeError):
+    _rpc_pool_workers = 4
 _pool = concurrent.futures.ThreadPoolExecutor(
-    max_workers=max(2, int(os.environ.get("HERMES_TUI_RPC_POOL_WORKERS", "4") or 4)),
+    max_workers=_rpc_pool_workers,
     thread_name_prefix="tui-rpc",
 )
 atexit.register(lambda: _pool.shutdown(wait=False, cancel_futures=True))
@@ -274,7 +281,7 @@ def _notify_session_boundary(event_type: str, session_id: str | None) -> None:
         pass
 
 
-def _finalize_session(session: dict | None) -> None:
+def _finalize_session(session: dict | None, end_reason: str = "tui_close") -> None:
     """Best-effort finalize hook + memory commit for a session."""
     if not session or session.get("_finalized"):
         return
@@ -293,13 +300,24 @@ def _finalize_session(session: dict | None) -> None:
         except Exception:
             pass
 
-    session_id = getattr(agent, "session_id", None) or session.get("session_key")
+    session_key = session.get("session_key")
+    session_id = getattr(agent, "session_id", None) or session_key
     _notify_session_boundary("on_session_finalize", session_id)
+
+    # Mark session ended in DB so it doesn't linger as a ghost row in /resume.
+    # Adapted from #18283 (luyao618) and #18299 (Bartok9).
+    if session_key:
+        try:
+            db = _get_db()
+            if db is not None:
+                db.end_session(session_key, end_reason)
+        except Exception:
+            pass
 
 
 def _shutdown_sessions() -> None:
     for session in list(_sessions.values()):
-        _finalize_session(session)
+        _finalize_session(session, end_reason="tui_shutdown")
         try:
             worker = session.get("slash_worker")
             if worker:
@@ -418,11 +436,35 @@ def method(name: str):
     return dec
 
 
+def _normalize_request(req: Any) -> tuple[Any, str, dict] | dict:
+    """Validate a JSON-RPC request enough for safe local dispatch."""
+    if not isinstance(req, dict):
+        return _err(None, -32600, "invalid request: expected an object")
+
+    rid = req.get("id")
+    method = req.get("method")
+    if not isinstance(method, str) or not method:
+        return _err(rid, -32600, "invalid request: method must be a non-empty string")
+
+    params = req.get("params", {})
+    if params is None:
+        params = {}
+    elif not isinstance(params, dict):
+        return _err(rid, -32602, "invalid params: expected an object")
+
+    return rid, method, params
+
+
 def handle_request(req: dict) -> dict | None:
-    fn = _methods.get(req.get("method", ""))
+    normalized = _normalize_request(req)
+    if isinstance(normalized, dict):
+        return normalized
+
+    rid, method, params = normalized
+    fn = _methods.get(method)
     if not fn:
-        return _err(req.get("id"), -32601, f"unknown method: {req.get('method')}")
-    return fn(req.get("id"), req.get("params", {}))
+        return _err(rid, -32601, f"unknown method: {method}")
+    return fn(rid, params)
 
 
 def dispatch(req: dict, transport: Optional[Transport] = None) -> dict | None:
@@ -440,7 +482,12 @@ def dispatch(req: dict, transport: Optional[Transport] = None) -> dict | None:
     t = transport or _stdio_transport
     token = bind_transport(t)
     try:
-        if req.get("method") not in _LONG_HANDLERS:
+        normalized = _normalize_request(req)
+        if isinstance(normalized, dict):
+            return normalized
+
+        _rid, method, _params = normalized
+        if method not in _LONG_HANDLERS:
             return handle_request(req)
 
         # Snapshot the context so the pool worker sees the bound transport.
@@ -504,40 +551,8 @@ def _start_agent_build(sid: str, session: dict) -> None:
             finally:
                 _clear_session_context(tokens)
 
-            db = _get_db()
-            if db is not None:
-                db.create_session(key, source="tui", model=_resolve_model())
-                seed_history = current.get("history") or []
-                for msg in seed_history:
-                    if isinstance(msg, dict) and msg.get("role") in ("user", "assistant", "system"):
-                        db.append_message(
-                            session_id=key,
-                            role=msg.get("role", "user"),
-                            content=msg.get("content"),
-                        )
-                pending_title = (current.get("pending_title") or "").strip()
-                if pending_title:
-                    try:
-                        title_applied = db.set_session_title(key, pending_title)
-                        if title_applied:
-                            current["pending_title"] = None
-                        else:
-                            existing_row = db.get_session(key)
-                            existing_title = ((existing_row or {}).get("title") or "").strip()
-                            if existing_title == pending_title:
-                                current["pending_title"] = None
-                            else:
-                                logger.info(
-                                    "Pending title still queued for session %s (wanted=%r, current=%r)",
-                                    sid,
-                                    pending_title,
-                                    existing_title,
-                                )
-                    except ValueError as e:
-                        current["pending_title"] = None
-                        logger.info("Dropping pending title for session %s: %s", sid, e)
-                    except Exception:
-                        logger.warning("Failed to apply pending title for session %s", sid, exc_info=True)
+            # Session DB row deferred to first run_conversation() call.
+            # pending_title applied post-first-message (see cli.exec handler).
             current["agent"] = agent
 
             try:
@@ -1133,9 +1148,7 @@ def _apply_model_switch(sid: str, session: dict, raw_input: str) -> dict:
         from hermes_cli.config import get_compatible_custom_providers, load_config
 
         cfg = load_config()
-        user_provs = [
-            {"provider": k, **v} for k, v in (cfg.get("providers") or {}).items()
-        ]
+        user_provs = cfg.get("providers")
         custom_provs = get_compatible_custom_providers(cfg)
     except Exception:
         pass
@@ -1192,7 +1205,7 @@ def _compress_session_history(
     before_messages: list | None = None,
     history_version: int | None = None,
 ) -> tuple[int, dict]:
-    from agent.model_metadata import estimate_messages_tokens_rough
+    from agent.model_metadata import estimate_request_tokens_rough
 
     agent = session["agent"]
     # Snapshot history under the lock so the LLM-bound compression call
@@ -1208,7 +1221,13 @@ def _compress_session_history(
         usage = _get_usage(agent)
         return 0, usage
     if approx_tokens is None:
-        approx_tokens = estimate_messages_tokens_rough(history)
+        # Include system prompt + tool schemas so the figure reflects real
+        # request pressure, not a transcript-only underestimate (#6217).
+        _sys_prompt = getattr(agent, "_cached_system_prompt", "") or ""
+        _tools = getattr(agent, "tools", None) or None
+        approx_tokens = estimate_request_tokens_rough(
+            history, system_prompt=_sys_prompt, tools=_tools
+        )
     # Pass system_message=None so AIAgent._compress_context rebuilds the
     # system prompt cleanly via _build_system_prompt(None). Passing the
     # cached prompt (which already contains the agent identity block)
@@ -1745,6 +1764,17 @@ def _validate_personality(value: str, cfg: dict | None = None) -> tuple[str, str
     return name, _render_personality_prompt(personalities[name])
 
 
+def _prompt_text(value) -> str:
+    """Normalize config prompt values from YAML before handing them to AIAgent."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        return "\n".join(str(item).strip() for item in value if str(item).strip())
+    return str(value).strip()
+
+
 def _apply_personality_to_session(
     sid: str, session: dict, new_prompt: str, personality: str = ""
 ) -> tuple[bool, dict | None]:
@@ -1839,7 +1869,7 @@ def _make_agent(sid: str, key: str, session_id: str | None = None):
 
     cfg = _load_cfg()
     agent_cfg = cfg.get("agent") or {}
-    system_prompt = (agent_cfg.get("system_prompt", "") or "").strip()
+    system_prompt = _prompt_text(agent_cfg.get("system_prompt", ""))
     model, requested_provider = _resolve_startup_runtime()
     runtime = resolve_runtime_provider(
         requested=requested_provider,
@@ -1980,6 +2010,53 @@ def _enrich_with_attached_images(user_text: str, image_paths: list[str]) -> str:
     return text or "What do you see in this image?"
 
 
+def _coerce_message_text(content: Any) -> str:
+    """Render ``message['content']`` as a plain string for transport.
+
+    Provider-side, ``content`` may be a string (most common) or a list of
+    multimodal parts (e.g. ``[{"type": "text", "text": "..."},
+    {"type": "image_url", "image_url": {...}}]``). Calling ``.strip()`` on
+    the list raises ``'list' object has no attribute 'strip'`` and breaks
+    session resume entirely.
+
+    Image parts (``image_url``) are preserved by appending the underlying
+    URL (data: or http:) into the text. The desktop renderer pulls these
+    back out via ``extractEmbeddedImages`` so the user sees the image
+    instead of the URL — and it stops the resume payload from disagreeing
+    with the cached message (which would otherwise cause the inline image
+    to flash, then disappear when the resume payload overwrites the cache).
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        chunks: list[str] = []
+        for part in content:
+            if isinstance(part, str):
+                chunks.append(part)
+                continue
+            if not isinstance(part, dict):
+                continue
+            text = part.get("text")
+            if isinstance(text, str):
+                chunks.append(text)
+                continue
+            if part.get("type") == "image_url":
+                image_url = part.get("image_url")
+                url = ""
+                if isinstance(image_url, dict):
+                    candidate = image_url.get("url")
+                    if isinstance(candidate, str):
+                        url = candidate
+                elif isinstance(image_url, str):
+                    url = image_url
+                if url:
+                    chunks.append(f"\n{url}")
+        return "".join(chunks)
+    return str(content)
+
+
 def _history_to_messages(history: list[dict]) -> list[dict]:
     messages = []
     tool_call_args = {}
@@ -1990,6 +2067,7 @@ def _history_to_messages(history: list[dict]) -> list[dict]:
         role = m.get("role")
         if role not in ("user", "assistant", "tool", "system"):
             continue
+        content_text = _coerce_message_text(m.get("content"))
         if role == "assistant" and m.get("tool_calls"):
             for tc in m["tool_calls"]:
                 fn = tc.get("function", {})
@@ -2000,7 +2078,7 @@ def _history_to_messages(history: list[dict]) -> list[dict]:
                     except (json.JSONDecodeError, TypeError):
                         args = {}
                     tool_call_args[tc_id] = (fn["name"], args)
-            if not (m.get("content") or "").strip():
+            if not content_text.strip():
                 continue
         if role == "tool":
             tc_id = m.get("tool_call_id", "")
@@ -2011,9 +2089,19 @@ def _history_to_messages(history: list[dict]) -> list[dict]:
                 {"role": "tool", "name": name, "context": _tool_ctx(name, args)}
             )
             continue
-        if not (m.get("content") or "").strip():
+        if not content_text.strip():
             continue
-        messages.append({"role": role, "text": m.get("content") or ""})
+        msg = {"role": role, "text": content_text}
+        if role == "assistant":
+            for key in (
+                "reasoning",
+                "reasoning_content",
+                "reasoning_details",
+                "codex_reasoning_items",
+            ):
+                if key in m and m.get(key) is not None:
+                    msg[key] = m.get(key)
+        messages.append(msg)
 
     return messages
 
@@ -2446,14 +2534,21 @@ def _(rid, params: dict) -> dict:
     focus_topic = str(params.get("focus_topic", "") or "").strip()
     try:
         from agent.manual_compression_feedback import summarize_manual_compression
-        from agent.model_metadata import estimate_messages_tokens_rough
+        from agent.model_metadata import estimate_request_tokens_rough
 
         with session["history_lock"]:
             before_messages = list(session.get("history", []))
             history_version = int(session.get("history_version", 0))
         before_count = len(before_messages)
+        _agent = session["agent"]
+        _sys_prompt = getattr(_agent, "_cached_system_prompt", "") or ""
+        _tools = getattr(_agent, "tools", None) or None
         before_tokens = (
-            estimate_messages_tokens_rough(before_messages) if before_count else 0
+            estimate_request_tokens_rough(
+                before_messages, system_prompt=_sys_prompt, tools=_tools
+            )
+            if before_count
+            else 0
         )
 
         if before_count >= 4:
@@ -2476,8 +2571,18 @@ def _(rid, params: dict) -> dict:
             with session["history_lock"]:
                 messages = list(session.get("history", []))
             after_count = len(messages)
+            # Re-read system prompt + tools after compression — _compress_context
+            # may have rebuilt the system prompt (_cached_system_prompt=None).
+            _sys_prompt_after = getattr(_agent, "_cached_system_prompt", "") or _sys_prompt
+            _tools_after = getattr(_agent, "tools", None) or _tools
             after_tokens = (
-                estimate_messages_tokens_rough(messages) if after_count else 0
+                estimate_request_tokens_rough(
+                    messages,
+                    system_prompt=_sys_prompt_after,
+                    tools=_tools_after,
+                )
+                if after_count
+                else 0
             )
             agent = session["agent"]
             _sync_session_key_after_compress(sid, session)
@@ -2897,6 +3002,7 @@ def _(rid, params: dict) -> dict:
 @method("prompt.submit")
 def _(rid, params: dict) -> dict:
     sid, text = params.get("session_id", ""), params.get("text", "")
+    truncate_user_ordinal = params.get("truncate_before_user_ordinal")
     session, err = _sess_nowait(params, rid)
     if err:
         return err
@@ -2908,6 +3014,23 @@ def _(rid, params: dict) -> dict:
     with session["history_lock"]:
         if session.get("running"):
             return _err(rid, 4009, "session busy")
+        if truncate_user_ordinal is not None:
+            try:
+                ordinal = int(truncate_user_ordinal)
+            except (TypeError, ValueError):
+                return _err(rid, 4004, "truncate_before_user_ordinal must be an integer")
+            history = session.get("history", [])
+            user_indices = [i for i, m in enumerate(history) if m.get("role") == "user"]
+            if ordinal >= len(user_indices):
+                return _err(rid, 4018, "target user message is no longer in session history")
+            truncated = history[: user_indices[ordinal]]
+            session["history"] = truncated
+            session["history_version"] = int(session.get("history_version", 0)) + 1
+            if (db := _get_db()) is not None:
+                try:
+                    db.replace_messages(session["session_key"], truncated)
+                except Exception as exc:
+                    print(f"[tui_gateway] prompt.submit: replace_messages failed: {exc}", file=sys.stderr)
         session["running"] = True
 
     _start_agent_build(sid, session)
@@ -3102,6 +3225,17 @@ def _run_prompt_submit(rid, sid: str, session: dict, text: Any) -> None:
             if rendered:
                 payload["rendered"] = rendered
             _emit("message.complete", sid, payload)
+
+            # Apply pending_title now that the DB row exists.
+            _pending = session.get("pending_title")
+            if _pending and status == "complete":
+                _pdb = _get_db()
+                if _pdb:
+                    try:
+                        if _pdb.set_session_title(session.get("session_key") or sid, _pending):
+                            session["pending_title"] = None
+                    except Exception:
+                        pass  # Best effort — auto-title will handle it below
 
             if (
                 status == "complete"
@@ -3573,7 +3707,7 @@ def _(rid, params: dict) -> dict:
                     enable_session_yolo(session["session_key"])
                     nv = "1"
             else:
-                current = bool(os.environ.get("HERMES_YOLO_MODE"))
+                current = is_truthy_value(os.environ.get("HERMES_YOLO_MODE"))
                 if current:
                     os.environ.pop("HERMES_YOLO_MODE", None)
                     nv = "0"
@@ -4288,11 +4422,15 @@ def _(rid, params: dict) -> dict:
             return _ok(rid, {"type": "alias", "target": qc.get("target", "")})
 
     try:
-        from hermes_cli.plugins import get_plugin_command_handler
+        from hermes_cli.plugins import (
+            get_plugin_command_handler,
+            resolve_plugin_command_result,
+        )
 
         handler = get_plugin_command_handler(name)
         if handler:
-            return _ok(rid, {"type": "plugin", "output": str(handler(arg) or "")})
+            result = resolve_plugin_command_result(handler(arg))
+            return _ok(rid, {"type": "plugin", "output": str(result or "")})
     except Exception:
         pass
 
@@ -4879,6 +5017,7 @@ def _(rid, params: dict) -> dict:
 def _(rid, params: dict) -> dict:
     try:
         from hermes_cli.model_switch import list_authenticated_providers
+        from hermes_cli.models import CANONICAL_PROVIDERS, _PROVIDER_LABELS
 
         session = _sessions.get(params.get("session_id", ""))
         agent = session.get("agent") if session else None
@@ -4892,6 +5031,127 @@ def _(rid, params: dict) -> dict:
         # provider_model_ids() — that bypasses curation and pulls in
         # non-agentic models (e.g. Nous /models returns ~400 IDs including
         # TTS, embeddings, rerankers, image/video generators).
+        user_provs = (
+            cfg.get("providers") if isinstance(cfg.get("providers"), dict) else {}
+        )
+        custom_provs = (
+            cfg.get("custom_providers")
+            if isinstance(cfg.get("custom_providers"), list)
+            else []
+        )
+        authenticated = list_authenticated_providers(
+            current_provider=current_provider,
+            current_base_url=current_base_url,
+            current_model=current_model,
+            user_providers=user_provs,
+            custom_providers=custom_provs,
+            max_models=50,
+        )
+
+        # Mark authenticated providers and build lookup by slug
+        authed_map: dict = {}
+        authed_extra: list = []  # user-defined/custom not in CANONICAL_PROVIDERS
+        canonical_slugs = {e.slug for e in CANONICAL_PROVIDERS}
+        for p in authenticated:
+            p["authenticated"] = True
+            authed_map[p["slug"]] = p
+            if p["slug"] not in canonical_slugs:
+                authed_extra.append(p)
+
+        # Build final list in CANONICAL_PROVIDERS order, merging auth data
+        from hermes_cli.auth import PROVIDER_REGISTRY as _auth_reg
+        ordered: list = []
+        for entry in CANONICAL_PROVIDERS:
+            if entry.slug in authed_map:
+                ordered.append(authed_map[entry.slug])
+            else:
+                pconfig = _auth_reg.get(entry.slug)
+                auth_type = pconfig.auth_type if pconfig else "api_key"
+                key_env = pconfig.api_key_env_vars[0] if (pconfig and pconfig.api_key_env_vars) else ""
+                if auth_type == "api_key" and key_env:
+                    warning = f"paste {key_env} to activate"
+                else:
+                    warning = f"run `hermes model` to configure ({auth_type})"
+                ordered.append({
+                    "slug": entry.slug,
+                    "name": _PROVIDER_LABELS.get(entry.slug, entry.label),
+                    "is_current": entry.slug == current_provider,
+                    "is_user_defined": False,
+                    "models": [],
+                    "total_models": 0,
+                    "source": "built-in",
+                    "authenticated": False,
+                    "auth_type": auth_type,
+                    "key_env": key_env,
+                    "warning": warning,
+                })
+
+        # Append user-defined/custom providers not in canonical list
+        ordered.extend(authed_extra)
+
+        return _ok(
+            rid,
+            {
+                "providers": ordered,
+                "model": current_model,
+                "provider": current_provider,
+            },
+        )
+    except Exception as e:
+        return _err(rid, 5033, str(e))
+
+
+@method("model.save_key")
+def _(rid, params: dict) -> dict:
+    """Save an API key for a provider, then return its refreshed model list.
+
+    Params:
+        slug: provider slug (e.g. "deepseek", "xai")
+        api_key: the key value to save
+
+    Returns the provider dict with models populated (same shape as
+    model.options entries) on success.
+    """
+    try:
+        from hermes_cli.auth import PROVIDER_REGISTRY
+        from hermes_cli.config import is_managed, save_env_value
+        from hermes_cli.model_switch import list_authenticated_providers
+
+        slug = (params.get("slug") or "").strip()
+        api_key = (params.get("api_key") or "").strip()
+        if not slug or not api_key:
+            return _err(rid, 4001, "slug and api_key are required")
+
+        if is_managed():
+            return _err(rid, 4006, "managed install — credentials are read-only")
+
+        pconfig = PROVIDER_REGISTRY.get(slug)
+        if not pconfig:
+            return _err(rid, 4002, f"unknown provider: {slug}")
+        if pconfig.auth_type != "api_key":
+            return _err(
+                rid, 4003,
+                f"{pconfig.name} uses {pconfig.auth_type} auth — "
+                f"run `hermes model` to configure"
+            )
+        if not pconfig.api_key_env_vars:
+            return _err(rid, 4004, f"no env var defined for {pconfig.name}")
+
+        # Save the key to ~/.hermes/.env
+        env_var = pconfig.api_key_env_vars[0]
+        save_env_value(env_var, api_key)
+        # Also set in current process so list_authenticated_providers sees it
+        import os
+        os.environ[env_var] = api_key
+
+        # Refresh provider data
+        cfg = _load_cfg()
+        session = _sessions.get(params.get("session_id", ""))
+        agent = session.get("agent") if session else None
+        current_provider = getattr(agent, "provider", "") or ""
+        current_model = getattr(agent, "model", "") or _resolve_model()
+        current_base_url = getattr(agent, "base_url", "") or ""
+
         providers = list_authenticated_providers(
             current_provider=current_provider,
             current_base_url=current_base_url,
@@ -4906,16 +5166,72 @@ def _(rid, params: dict) -> dict:
             ),
             max_models=50,
         )
-        return _ok(
-            rid,
-            {
-                "providers": providers,
-                "model": current_model,
-                "provider": current_provider,
-            },
-        )
+
+        # Find the newly-authenticated provider
+        provider_data = None
+        for p in providers:
+            if p["slug"] == slug:
+                provider_data = p
+                break
+
+        if not provider_data:
+            # Key was saved but provider didn't appear — still return success
+            provider_data = {
+                "slug": slug,
+                "name": pconfig.name,
+                "is_current": False,
+                "models": [],
+                "total_models": 0,
+                "authenticated": True,
+            }
+
+        provider_data["authenticated"] = True
+        return _ok(rid, {"provider": provider_data})
     except Exception as e:
-        return _err(rid, 5033, str(e))
+        return _err(rid, 5034, str(e))
+
+
+@method("model.disconnect")
+def _(rid, params: dict) -> dict:
+    """Remove credentials for a provider.
+
+    Params:
+        slug: provider slug (e.g. "deepseek", "xai")
+
+    Returns success status and the provider's slug.
+    """
+    try:
+        from hermes_cli.auth import PROVIDER_REGISTRY, clear_provider_auth
+        from hermes_cli.config import remove_env_value
+
+        slug = (params.get("slug") or "").strip()
+        if not slug:
+            return _err(rid, 4001, "slug is required")
+
+        pconfig = PROVIDER_REGISTRY.get(slug)
+        cleared_env = False
+        cleared_auth = False
+
+        # Remove API key env vars from .env and process
+        if pconfig and pconfig.api_key_env_vars:
+            for ev in pconfig.api_key_env_vars:
+                if remove_env_value(ev):
+                    cleared_env = True
+
+        # Clear OAuth / credential pool state
+        cleared_auth = clear_provider_auth(slug)
+
+        if not cleared_env and not cleared_auth:
+            return _err(rid, 4005, f"no credentials found for {slug}")
+
+        provider_name = pconfig.name if pconfig else slug
+        return _ok(rid, {
+            "slug": slug,
+            "name": provider_name,
+            "disconnected": True,
+        })
+    except Exception as e:
+        return _err(rid, 5035, str(e))
 
 
 # ── Methods: slash.exec ──────────────────────────────────────────────
@@ -4950,7 +5266,7 @@ def _mirror_slash_side_effects(sid: str, session: dict, command: str) -> str:
             _apply_personality_to_session(sid, session, new_prompt, pname)
         elif name == "prompt" and agent:
             cfg = _load_cfg()
-            new_prompt = (cfg.get("agent") or {}).get("system_prompt", "") or ""
+            new_prompt = _prompt_text((cfg.get("agent") or {}).get("system_prompt", ""))
             agent.ephemeral_system_prompt = new_prompt or None
             agent._cached_system_prompt = None
         elif name == "compress" and agent:

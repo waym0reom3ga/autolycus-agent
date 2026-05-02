@@ -60,8 +60,8 @@ export const SessionInspector: FC<SessionInspectorProps> = ({
   <aside
     aria-hidden={!open}
     className={cn(
-      'relative flex h-screen w-full min-w-0 flex-col overflow-hidden bg-transparent pb-2 pl-2 pr-3 pt-[calc(var(--titlebar-height)+0.25rem)] text-muted-foreground transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
-      open ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-2 opacity-0'
+      'relative flex h-screen w-full min-w-0 flex-col overflow-hidden bg-transparent pb-2 pl-2 pr-3 pt-[calc(var(--titlebar-height)+0.25rem)] text-muted-foreground transition-none',
+      open ? 'opacity-100' : 'pointer-events-none opacity-0'
     )}
     data-open={open}
   >
@@ -132,7 +132,7 @@ function WorkspaceSection({
       <SectionLabel>cwd</SectionLabel>
       {editing ? (
         <Input
-          className="h-7 bg-background px-2 font-mono text-[0.6875rem]"
+          className={cn(bleed, 'h-7 bg-background px-1.5 font-mono text-[0.6875rem]')}
           onBlur={apply}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => {
@@ -152,7 +152,8 @@ function WorkspaceSection({
         <div
           className={cn(
             quietControl,
-            'group grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 px-1.5 py-1 font-mono text-[0.6875rem] text-foreground/75'
+            bleed,
+            'group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 px-1.5 py-1 font-mono text-[0.6875rem] text-foreground/75'
           )}
         >
           <button

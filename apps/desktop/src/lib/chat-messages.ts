@@ -1,5 +1,6 @@
 import type { ThreadMessageLike } from '@assistant-ui/react'
 
+import { mediaDisplayLabel, mediaMarkdownHref } from '@/lib/media'
 import type { SessionMessage } from '@/types/hermes'
 
 export type ChatMessagePart = Exclude<ThreadMessageLike['content'], string>[number]
@@ -25,6 +26,7 @@ export type GatewayEventPayload = {
   preview?: string
   summary?: string
   error?: string | boolean
+  inline_diff?: string
   duration_s?: number
   todos?: unknown
   model?: string
@@ -33,6 +35,10 @@ export type GatewayEventPayload = {
   cwd?: string
   branch?: string
   personality?: string
+  // clarify.request
+  request_id?: string
+  question?: string
+  choices?: string[] | null
 }
 
 export function textPart(text: string): ChatMessagePart {
@@ -41,6 +47,37 @@ export function textPart(text: string): ChatMessagePart {
 
 export function reasoningPart(text: string): ChatMessagePart {
   return { type: 'reasoning', text }
+}
+
+const MEDIA_LINE_RE =
+  /(^|\n)[\t ]*[`"']?MEDIA:\s*(?<line>`[^`\n]+`|"[^"\n]+"|'[^'\n]+'|\S+)[`"']?[\t ]*(?:\n|$)/g
+
+const MEDIA_TAG_RE = /[`"']?MEDIA:\s*(?<inline>`[^`\n]+`|"[^"\n]+"|'[^'\n]+'|\S+)[`"']?/g
+
+function unquoteMediaPath(value: string): string {
+  const trimmed = value.trim()
+  const quote = trimmed[0]
+
+  return quote && quote === trimmed.at(-1) && ['"', "'", '`'].includes(quote) ? trimmed.slice(1, -1) : trimmed
+}
+
+function mediaLink(value: string): string {
+  const path = unquoteMediaPath(value)
+
+  return `[${mediaDisplayLabel(path)}](${mediaMarkdownHref(path)})`
+}
+
+export function renderMediaTags(text: string): string {
+  return text
+    .replace(MEDIA_LINE_RE, (_match, lead: string, value: string) => `${lead}${mediaLink(value)}\n`)
+    .replace(MEDIA_TAG_RE, (_match, value: string) => mediaLink(value))
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+export function assistantTextPart(text: string): ChatMessagePart {
+  return textPart(renderMediaTags(text))
 }
 
 export function chatMessageText(message: ChatMessage): string {
@@ -54,19 +91,57 @@ const ATTACHED_CONTEXT_MARKER_RE = /(?:^|\n)--- Attached Context ---\s*\n/
 const CONTEXT_WARNINGS_MARKER_RE = /(?:^|\n)--- Context Warnings ---[\s\S]*$/
 const CONTEXT_REF_RE = /@(file|folder|url|image|tool):(?:"[^"\n]+"|'[^'\n]+'|`[^`\n]+`|\S+)/g
 
-function displayContentForMessage(role: SessionMessage['role'], content: string): string {
-  if (role !== 'user') {
-    return content
+function textFromUnknown(value: unknown, depth = 0): string {
+  if (typeof value === 'string') {
+    return value
   }
 
-  const marker = content.match(ATTACHED_CONTEXT_MARKER_RE)
+  if (value === null || value === undefined) {
+    return ''
+  }
+
+  if (depth > 2) {
+    return ''
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(item => textFromUnknown(item, depth + 1)).join('')
+  }
+
+  if (typeof value === 'object') {
+    const row = value as Record<string, unknown>
+    const textValue = row.text ?? row.output_text ?? row.content ?? row.message
+    const nestedText = textFromUnknown(textValue, depth + 1)
+
+    if (nestedText) {
+      return nestedText
+    }
+
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return ''
+    }
+  }
+
+  return String(value)
+}
+
+function displayContentForMessage(role: SessionMessage['role'], content: unknown): string {
+  const textContent = textFromUnknown(content)
+
+  if (role !== 'user') {
+    return textContent
+  }
+
+  const marker = textContent.match(ATTACHED_CONTEXT_MARKER_RE)
 
   if (!marker || marker.index === undefined) {
-    return content.replace(CONTEXT_WARNINGS_MARKER_RE, '').trim()
+    return textContent.replace(CONTEXT_WARNINGS_MARKER_RE, '').trim()
   }
 
-  const visibleText = content.slice(0, marker.index).replace(CONTEXT_WARNINGS_MARKER_RE, '').trim()
-  const attachedContext = content.slice(marker.index + marker[0].length)
+  const visibleText = textContent.slice(0, marker.index).replace(CONTEXT_WARNINGS_MARKER_RE, '').trim()
+  const attachedContext = textContent.slice(marker.index + marker[0].length)
   const refs = [...new Set(Array.from(attachedContext.matchAll(CONTEXT_REF_RE)).map(match => match[0]))]
 
   return [refs.join('\n'), visibleText].filter(Boolean).join('\n\n') || visibleText
@@ -83,6 +158,17 @@ export function appendTextPart(parts: ChatMessagePart[], delta: string): ChatMes
   }
 
   next.push(textPart(delta))
+
+  return next
+}
+
+export function appendAssistantTextPart(parts: ChatMessagePart[], delta: string): ChatMessagePart[] {
+  const next = appendTextPart(parts, delta)
+  const last = next.at(-1)
+
+  if (last?.type === 'text') {
+    next[next.length - 1] = { ...last, text: renderMediaTags(last.text) }
+  }
 
   return next
 }
@@ -119,6 +205,7 @@ function toolArgs(payload: GatewayEventPayload | undefined): Record<string, unkn
 
 function toolResult(payload: GatewayEventPayload | undefined): Record<string, unknown> {
   return {
+    ...(payload?.inline_diff ? { inline_diff: payload.inline_diff } : {}),
     ...(payload?.summary ? { summary: payload.summary } : {}),
     ...(payload?.message ? { message: payload.message } : {}),
     ...(payload?.preview ? { preview: payload.preview } : {}),
@@ -198,15 +285,21 @@ function firstNonEmptyObject(...values: unknown[]): Record<string, unknown> {
   return {}
 }
 
-function parseStoredToolResult(content: string): unknown {
-  if (!content.trim()) {
+function parseStoredToolResult(content: unknown): unknown {
+  if (content && typeof content === 'object') {
+    return content
+  }
+
+  const textContent = textFromUnknown(content)
+
+  if (!textContent.trim()) {
     return ''
   }
 
   try {
-    return JSON.parse(content)
+    return JSON.parse(textContent)
   } catch {
-    return content
+    return textContent
   }
 }
 
@@ -233,7 +326,7 @@ function toolPartFromStoredCall(call: unknown, fallbackIndex: number): ChatMessa
 function applyStoredToolResult(messages: ChatMessage[], toolMessage: SessionMessage): boolean {
   const toolCallId = toolMessage.tool_call_id || undefined
   const toolName = toolMessage.tool_name || toolMessage.name || 'tool'
-  const content = toolMessage.content || toolMessage.text || toolMessage.context || toolMessage.name || ''
+  const content = toolMessage.content || toolMessage.text || toolMessage.context || toolMessage.name
 
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i]
@@ -270,7 +363,7 @@ function applyStoredToolResult(messages: ChatMessage[], toolMessage: SessionMess
 function applyStoredToolResultToParts(parts: ChatMessagePart[], toolMessage: SessionMessage): ChatMessagePart[] | null {
   const toolCallId = toolMessage.tool_call_id || undefined
   const toolName = toolMessage.tool_name || toolMessage.name || 'tool'
-  const content = toolMessage.content || toolMessage.text || toolMessage.context || toolMessage.name || ''
+  const content = toolMessage.content || toolMessage.text || toolMessage.context || toolMessage.name
 
   const partIndex = parts.findIndex(
     part =>
@@ -295,7 +388,7 @@ function applyStoredToolResultToParts(parts: ChatMessagePart[], toolMessage: Ses
 
 function storedToolMessagePart(toolMessage: SessionMessage, fallbackIndex: number): ChatMessagePart {
   const name = toolMessage.tool_name || toolMessage.name || 'tool'
-  const context = toolMessage.context || toolMessage.text || toolMessage.content || ''
+  const context = textFromUnknown(toolMessage.context || toolMessage.text || toolMessage.content || '')
   const args = context ? { context } : {}
 
   return {
@@ -385,7 +478,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
       return
     }
 
-    const content = message.content || message.text || message.context || message.name || ''
+    const content = message.content || message.text || message.context || message.name
     const displayContent = displayContentForMessage(message.role, content)
     const parts: ChatMessagePart[] = []
 
@@ -399,7 +492,7 @@ export function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     }
 
     if (displayContent) {
-      parts.push(textPart(displayContent))
+      parts.push(message.role === 'assistant' ? assistantTextPart(displayContent) : textPart(displayContent))
     }
 
     if (message.role === 'assistant' && Array.isArray(message.tool_calls)) {

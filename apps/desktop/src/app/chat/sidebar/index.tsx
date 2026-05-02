@@ -18,7 +18,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { SessionInfo } from '@/hermes'
 import { cn } from '@/lib/utils'
 import {
-  $isSidebarResizing,
   $pinnedSessionIds,
   $sidebarOpen,
   $sidebarPinsOpen,
@@ -66,10 +65,10 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const sidebarOpen = useStore($sidebarOpen)
   const pinnedSessionIds = useStore($pinnedSessionIds)
-  const isSidebarResizing = useStore($isSidebarResizing)
   const pinsOpen = useStore($sidebarPinsOpen)
   const recentsOpen = useStore($sidebarRecentsOpen)
   const selectedSessionId = useStore($selectedStoredSessionId)
+  const activeSidebarSessionId = currentView === 'chat' ? selectedSessionId : null
   const sessions = useStore($sessions)
   const sessionsLoading = useStore($sessionsLoading)
   const workingSessionIds = useStore($workingSessionIds)
@@ -101,13 +100,10 @@ export function ChatSidebar({
   return (
     <Sidebar
       className={cn(
-        'relative h-screen min-w-0 overflow-hidden border-r border-t-0 border-b-0 border-l-0 text-foreground [backdrop-filter:blur(1.5rem)_saturate(1.08)]',
-        isSidebarResizing
-          ? 'transition-none'
-          : 'transition-[opacity,transform,border-color,background-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+        'relative h-screen min-w-0 overflow-hidden border-r border-t-0 border-b-0 border-l-0 text-foreground transition-none [backdrop-filter:blur(1.5rem)_saturate(1.08)]',
         sidebarOpen
-          ? 'translate-x-0 border-(--sidebar-edge-border) bg-[color-mix(in_srgb,var(--dt-sidebar-bg)_97%,transparent)] opacity-100'
-          : 'pointer-events-none -translate-x-2 border-transparent bg-transparent opacity-0'
+          ? 'border-(--sidebar-edge-border) bg-[color-mix(in_srgb,var(--dt-sidebar-bg)_97%,transparent)] opacity-100'
+          : 'pointer-events-none border-transparent bg-transparent opacity-0'
       )}
       collapsible="none"
     >
@@ -159,7 +155,7 @@ export function ChatSidebar({
                 {pinnedSessions.map(session => (
                   <SidebarSessionRow
                     isPinned
-                    isSelected={session.id === selectedSessionId}
+                    isSelected={session.id === activeSidebarSessionId}
                     isWorking={workingSessionIdSet.has(session.id)}
                     key={session.id}
                     onDelete={() => onDeleteSession(session.id)}
@@ -207,7 +203,7 @@ export function ChatSidebar({
                 {recentSessions.map(session => (
                   <SidebarSessionRow
                     isPinned={false}
-                    isSelected={session.id === selectedSessionId}
+                    isSelected={session.id === activeSidebarSessionId}
                     isWorking={workingSessionIdSet.has(session.id)}
                     key={session.id}
                     onDelete={() => onDeleteSession(session.id)}

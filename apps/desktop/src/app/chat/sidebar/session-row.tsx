@@ -72,7 +72,7 @@ export function SidebarSessionRow({
         <span className="truncate text-sm font-medium text-foreground/90">{title}</span>
       </button>
       <div className="relative z-2 grid w-6 place-items-center">
-        <SessionActionsMenu onDelete={onDelete} onPin={onPin} pinned={isPinned} title={title}>
+        <SessionActionsMenu onDelete={onDelete} onPin={onPin} pinned={isPinned} sessionId={session.id} title={title}>
           <Button
             aria-label={`Actions for ${title}`}
             className="size-6 rounded-md bg-transparent text-transparent transition-colors duration-150 hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground group-hover:text-muted-foreground"

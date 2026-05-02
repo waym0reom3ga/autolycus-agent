@@ -2,10 +2,12 @@ import {
   ActionBarPrimitive,
   AuiIf,
   BranchPickerPrimitive,
+  ComposerPrimitive,
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
   type ToolCallMessagePartProps,
+  useAuiEvent,
   useAuiState
 } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
@@ -17,19 +19,42 @@ import {
   GitBranchIcon,
   Loader2Icon,
   MoreHorizontalIcon,
+  PencilIcon,
   RefreshCwIcon,
   Volume2Icon,
-  VolumeXIcon
+  VolumeXIcon,
+  XIcon
 } from 'lucide-react'
-import { type FC, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type FC,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
+// Scroll behavior: delegated to `use-stick-to-bottom` (StackBlitz), the
+// reference implementation that powers bolt.new and several other streaming
+// chat UIs. It handles everything we care about — spring-animated catch-up,
+// resize-vs-user-scroll disambiguation, wheel/touch escape, text-selection
+// pause, subpixel overshoot, programmatic-scroll event suppression — via 665
+// lines of well-tested edge-case handling that we should NOT hand-roll.
+//
+// We only own the thin glue: jump-to-bottom on session switch / send, and
+// keeping `$threadScrolledUp` in sync with `isAtBottom` for the composer's
+// dim-when-scrolled-away treatment.
+import { StickToBottom, useStickToBottomContext } from 'use-stick-to-bottom'
+import spinners from 'unicode-animations'
 
 import { useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
 import { ActivityTimerText } from '@/components/assistant-ui/activity-timer-text'
+import { ClarifyTool } from '@/components/assistant-ui/clarify-tool'
 import { DirectiveText } from '@/components/assistant-ui/directive-text'
 import { GeneratedImageProvider, useGeneratedImageContext } from '@/components/assistant-ui/generated-image-context'
 import { ImageGenerationPlaceholder } from '@/components/assistant-ui/image-generation-placeholder'
 import { Intro, type IntroProps } from '@/components/assistant-ui/intro'
 import { MarkdownText } from '@/components/assistant-ui/markdown-text'
+import { PreviewAttachment } from '@/components/assistant-ui/preview-attachment'
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback'
 import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button'
 import {
@@ -41,49 +66,16 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Loader } from '@/components/ui/loader'
 import { triggerHaptic } from '@/lib/haptics'
+import { extractPreviewTargets } from '@/lib/preview-targets'
 import { cn } from '@/lib/utils'
 import { playSpeechText, stopVoicePlayback } from '@/lib/voice-playback'
 import { notifyError } from '@/store/notifications'
 import { setThreadScrolledUp } from '@/store/thread-scroll'
 import { $voicePlayback } from '@/store/voice-playback'
 
-const THINKING_FACES = [
-  '(｡•́︿•̀｡)',
-  '(◔_◔)',
-  '(¬‿¬)',
-  '( •_•)>⌐■-■',
-  '(⌐■_■)',
-  '(´･_･`)',
-  '◉_◉',
-  '(°ロ°)',
-  '( ˘⌣˘)♡',
-  'ヽ(>∀<☆)☆',
-  '٩(๑❛ᴗ❛๑)۶',
-  '(⊙_⊙)',
-  '(¬_¬)',
-  '( ͡° ͜ʖ ͡°)',
-  'ಠ_ಠ'
-]
+const RESPONSE_SPINNER = spinners.braille
 
-const THINKING_VERBS = [
-  'pondering',
-  'contemplating',
-  'musing',
-  'cogitating',
-  'ruminating',
-  'deliberating',
-  'mulling',
-  'reflecting',
-  'processing',
-  'reasoning',
-  'analyzing',
-  'computing',
-  'synthesizing',
-  'formulating',
-  'brainstorming'
-]
-
-type ThreadLoadingState = 'response' | 'session' | 'working'
+type ThreadLoadingState = 'response' | 'session'
 
 interface MessageActionProps {
   messageId: string
@@ -91,12 +83,7 @@ interface MessageActionProps {
   onBranchInNewChat?: (messageId: string) => void
 }
 
-const BOTTOM_DISTANCE_PX = 24
 let readAloudAudio: HTMLAudioElement | null = null
-
-function isNearBottom(el: HTMLElement): boolean {
-  return el.scrollHeight - (el.scrollTop + el.clientHeight) <= BOTTOM_DISTANCE_PX
-}
 
 function partText(part: unknown): string {
   if (typeof part === 'string') {
@@ -126,140 +113,296 @@ export const Thread: FC<{
   onBranchInNewChat?: (messageId: string) => void
   sessionKey?: string | null
 }> = ({ intro, loading, onBranchInNewChat, sessionKey }) => {
-  const viewportRef = useRef<HTMLDivElement | null>(null)
-  const contentRef = useRef<HTMLDivElement | null>(null)
-  const messageCount = useAuiState(s => s.thread.messages.length)
-  const isRunning = useAuiState(s => s.thread.isRunning)
-  const lastMessageId = useAuiState(s => s.thread.messages.at(-1)?.id ?? '')
-  const shouldStickToBottomRef = useRef(true)
-  const scrollFrameRef = useRef<number | null>(null)
-  const sessionKeyRef = useRef<string | null>(sessionKey ?? null)
-
-  const handleScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const nearBottom = isNearBottom(event.currentTarget)
-    shouldStickToBottomRef.current = nearBottom
-    setThreadScrolledUp(!nearBottom)
-  }, [])
-
-  const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
-    if (event.deltaY < 0) {
-      shouldStickToBottomRef.current = false
-      setThreadScrolledUp(true)
-    }
-  }, [])
-
-  const scrollToBottom = useCallback(() => {
-    const viewport = viewportRef.current
-
-    if (!viewport) {
-      return
-    }
-
-    viewport.scrollTop = viewport.scrollHeight
-    shouldStickToBottomRef.current = true
-    setThreadScrolledUp(false)
-  }, [])
-
-  const scheduleScrollToBottom = useCallback(() => {
-    if (scrollFrameRef.current !== null) {
-      window.cancelAnimationFrame(scrollFrameRef.current)
-    }
-
-    scrollFrameRef.current = window.requestAnimationFrame(() => {
-      scrollFrameRef.current = null
-      scrollToBottom()
-    })
-  }, [scrollToBottom])
-
-  useEffect(() => {
-    return () => {
-      if (scrollFrameRef.current !== null) {
-        window.cancelAnimationFrame(scrollFrameRef.current)
-      }
-
-      setThreadScrolledUp(false)
-    }
-  }, [])
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current
-
-    if (!viewport) {
-      return
-    }
-
-    const nextSessionKey = sessionKey ?? null
-    const sessionChanged = sessionKeyRef.current !== nextSessionKey
-    sessionKeyRef.current = nextSessionKey
-    const force = loading === 'session' || sessionChanged
-
-    if (!force && !shouldStickToBottomRef.current) {
-      return
-    }
-
-    scheduleScrollToBottom()
-  }, [isRunning, lastMessageId, loading, messageCount, scheduleScrollToBottom, sessionKey])
-
-  useLayoutEffect(() => {
-    const content = contentRef.current
-    const viewport = viewportRef.current
-
-    if (!content || !viewport) {
-      return
-    }
-
-    let previousHeight = content.getBoundingClientRect().height
-
-    const observer = new ResizeObserver(entries => {
-      const height = entries[0]?.contentRect.height ?? content.getBoundingClientRect().height
-
-      if (height === previousHeight) {
-        return
-      }
-
-      previousHeight = height
-
-      if (!shouldStickToBottomRef.current && !isNearBottom(viewport)) {
-        return
-      }
-
-      scheduleScrollToBottom()
-    })
-
-    observer.observe(content)
-
-    return () => observer.disconnect()
-  }, [scheduleScrollToBottom])
-
   return (
     <GeneratedImageProvider>
       <ThreadPrimitive.Root className="relative grid h-full min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden bg-transparent">
         <AuiIf condition={s => Boolean(intro) && s.thread.isEmpty}>{intro && <Intro {...intro} />}</AuiIf>
 
-        <ThreadPrimitive.Viewport
-          autoScroll={false}
-          className="h-full min-h-0 overflow-y-auto overscroll-contain px-[clamp(1rem,10%,12rem)] pt-[calc(var(--vsq)*19)]"
-          data-slot="aui_thread-viewport"
-          onScroll={handleScroll}
-          onWheel={handleWheel}
-          ref={viewportRef}
-          scrollToBottomOnInitialize
-          scrollToBottomOnRunStart
-          scrollToBottomOnThreadSwitch
-        >
-          <div className="flex w-full flex-col gap-3" ref={contentRef}>
-            <ThreadPrimitive.Messages>
-              {() => <ThreadMessage onBranchInNewChat={onBranchInNewChat} />}
-            </ThreadPrimitive.Messages>
-            {loading === 'response' && <ResponseLoadingIndicator />}
-            {loading === 'working' && <WorkingIndicator />}
-          </div>
-          <ThreadPrimitive.ViewportFooter className="h-(--thread-composer-clearance) shrink-0" />
-        </ThreadPrimitive.Viewport>
+        <ThreadPrimitive.ViewportProvider>
+          {/*
+           * <StickToBottom> renders a wrapper <div>; <StickToBottom.Content>
+           * renders an inner scroll container (inline height/width 100%) plus
+           * an inner content div. So:
+           *   - `className` on <StickToBottom>        = outer wrapper sizing
+           *   - `scrollClassName` on <.Content>       = scroll container
+           *   - `className` on <.Content>             = content (flex column)
+           *
+           * `initial: 'instant'`: no animation on first mount.
+           * `resize: 'instant'`: during streaming, snap to bottom each token.
+           *   Spring animation ('smooth') visibly lags behind fast token
+           *   streams; users read that as jank. 'instant' matches ChatGPT.
+           *
+           * The composer is rendered OUTSIDE the scroller as `position:
+           * absolute; bottom: 0` (floating glass treatment) and overlays the
+           * bottom of the scroll surface. We compensate by putting a tall
+           * bottom spacer (>= composer height + margin) inside the scroll
+           * content so "scroll to bottom" naturally parks the last line of
+           * content above the composer, not hidden behind it.
+           */}
+          <StickToBottom
+            className="relative h-full min-h-0"
+            initial="instant"
+            resize="instant"
+          >
+            <ThreadScrollSync sessionKey={sessionKey} />
+            <StickToBottom.Content
+              className="flex w-full flex-col gap-3 px-[clamp(1rem,10%,12rem)] pt-[calc(var(--vsq)*19)]"
+              data-slot="aui_thread-content"
+              scrollClassName="overflow-y-auto overscroll-contain"
+            >
+              <ThreadPrimitive.Messages
+                components={{
+                  AssistantMessage: () => <AssistantMessage onBranchInNewChat={onBranchInNewChat} />,
+                  SystemMessage,
+                  UserEditComposer,
+                  UserMessage
+                }}
+              />
+              {loading === 'response' && <ResponseLoadingIndicator />}
+              <ComposerClearance />
+            </StickToBottom.Content>
+          </StickToBottom>
+        </ThreadPrimitive.ViewportProvider>
         {loading === 'session' && <CenteredThreadSpinner />}
       </ThreadPrimitive.Root>
     </GeneratedImageProvider>
   )
+}
+
+/**
+ * Scroll glue for the chat thread. Replaces hand-rolled follow logic with
+ * the exact pattern that assistant-ui's own `useThreadViewportAutoScroll`
+ * uses internally: **raw DOM scroll + an armed behavior ref + a
+ * ResizeObserver loop that re-pins to bottom until we actually reach it.**
+ *
+ * Why not use the library's `scrollToBottom` for sends?
+ *   - It wraps its work in `new Promise(requestAnimationFrame)` so even
+ *     `animation: 'instant'` is 1+ frame async.
+ *   - It does NOT clear `escapedFromLock` on call — if the user had
+ *     scrolled up before sending, the library's resize handler keeps
+ *     un-setting `isAtBottom` between our scroll and the next resize.
+ *   - `ignoreEscapes` only blocks NEW escapes during the animation; it
+ *     doesn't unstick an already-escaped state.
+ *
+ * The armed-ref pattern handles all of that:
+ *   1. `thread.runStart` fires after the runtime has committed the user
+ *      message to state (so scrollHeight already reflects it).
+ *   2. We arm a ref ('instant') and write `scrollTop = scrollHeight`
+ *      synchronously.
+ *   3. A ResizeObserver on the content keeps re-pinning each time the
+ *      DOM grows (user message paints, assistant placeholder mounts,
+ *      assistant streams) until scrollTop is actually at bottom — then
+ *      we disarm.
+ *   4. Any wheel-up or touch-scroll-up disarms immediately so the user
+ *      can always escape.
+ *
+ * This mirrors:
+ *   - assistant-ui's `useThreadViewportAutoScroll` (scrollToBottomBehaviorRef
+ *     + useOnResizeContent loop)
+ *   - Vercel ai-chatbot's `useScrollToBottom` (MutationObserver + RO on
+ *     container and children + isAtBottom/isUserScrolling flags)
+ *
+ * Must be rendered INSIDE a <StickToBottom> because useStickToBottomContext
+ * reads from that component's context.
+ */
+const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) => {
+  const { scrollRef, isAtBottom, state } = useStickToBottomContext()
+  const sessionKeyRef = useRef<string | null>(sessionKey ?? null)
+
+  // "Armed" behavior ref. Non-null = "keep chasing bottom across resize
+  // ticks until we get there." Null = "user owns the viewport."
+  const armedRef = useRef<ScrollBehavior | null>(null)
+
+  const messageCount = useAuiState(s => s.thread.messages.length)
+  const prevMessageCountRef = useRef(messageCount)
+
+  useEffect(() => {
+    setThreadScrolledUp(!isAtBottom)
+  }, [isAtBottom])
+
+  useEffect(() => {
+    return () => {
+      setThreadScrolledUp(false)
+    }
+  }, [])
+
+  // Slam to bottom + arm the ref. Also forces library state flags off
+  // so its internal resize handler doesn't fight our re-pins.
+  const armAndPin = useCallback((behavior: ScrollBehavior) => {
+    const el = scrollRef.current
+
+    if (!el) {
+      return
+    }
+
+    armedRef.current = behavior
+    // Clear the library's escape/at-bottom flags directly on the mutable
+    // state object so its resize handler sees a clean follow state.
+    state.escapedFromLock = false
+    state.isAtBottom = true
+    el.scrollTop = el.scrollHeight
+  }, [scrollRef, state])
+
+  // ResizeObserver loop — re-pins to bottom while armed, disarms when
+  // actually at bottom. This is the assistant-ui pattern.
+  useEffect(() => {
+    const el = scrollRef.current
+
+    if (!el) {
+      return
+    }
+
+    const observer = new ResizeObserver(() => {
+      const behavior = armedRef.current
+
+      if (!behavior) {
+        return
+      }
+
+      const distance = el.scrollHeight - (el.scrollTop + el.clientHeight)
+
+      if (distance < 2) {
+        armedRef.current = null
+
+        return
+      }
+
+      el.scrollTop = el.scrollHeight
+    })
+
+    observer.observe(el)
+
+    const content = el.firstElementChild
+
+    if (content) {
+      observer.observe(content)
+    }
+
+    return () => observer.disconnect()
+  }, [scrollRef])
+
+  // User-intent detection — any upward gesture disarms the chase.
+  useEffect(() => {
+    const el = scrollRef.current
+
+    if (!el) {
+      return
+    }
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY < 0) {
+        armedRef.current = null
+      }
+    }
+    const onTouch = () => {
+      armedRef.current = null
+    }
+
+    el.addEventListener('wheel', onWheel, { passive: true })
+    el.addEventListener('touchmove', onTouch, { passive: true })
+
+    return () => {
+      el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('touchmove', onTouch)
+    }
+  }, [scrollRef])
+
+  // (1) Session switch — strong intent to see the bottom of the new thread.
+  useEffect(() => {
+    const next = sessionKey ?? null
+
+    if (sessionKeyRef.current === next) {
+      return
+    }
+
+    sessionKeyRef.current = next
+    prevMessageCountRef.current = 0
+    armAndPin('auto')
+  }, [armAndPin, sessionKey])
+
+  // (2) Bulk message load (session history arriving from storage) — pin
+  // to bottom and stay armed while the thread's markdown/code/images
+  // settle over the next several frames.
+  useEffect(() => {
+    const prev = prevMessageCountRef.current
+    prevMessageCountRef.current = messageCount
+
+    if (prev === 0 && messageCount > 0) {
+      armAndPin('auto')
+    }
+  }, [armAndPin, messageCount])
+
+  // (3) User send — the runtime event `thread.runStart` fires after the
+  // user message has been committed to state (scrollHeight already reflects
+  // it). This is the canonical signal per assistant-ui's own code. We
+  // arm-and-pin synchronously in the callback, then the RO loop above
+  // keeps us at bottom as the assistant message placeholder + reply stream.
+  useAuiEvent('thread.runStart', () => {
+    armAndPin('instant')
+  })
+
+  return null
+}
+
+/**
+ * Invisible bottom spacer whose height matches the currently-measured
+ * composer height (plus a small gap). Because the composer is rendered
+ * OUTSIDE the scroll container as `position: absolute; bottom: 0`, "scroll
+ * to bottom" would otherwise park the last content line behind it. By
+ * extending the scroll content down with real (blank) space equal to the
+ * composer's footprint, the library's scroll-to-scrollHeight naturally
+ * leaves the last message line sitting above the composer.
+ *
+ * A ResizeObserver on the composer keeps the spacer in sync when the
+ * textarea grows (multi-line input), attachments expand, or the composer
+ * enters a focused/expanded state.
+ */
+const COMPOSER_BREATHING_ROOM_PX = 20
+
+const ComposerClearance: FC = () => {
+  const [height, setHeight] = useState<number>(() => {
+    // Sensible default until the observer wires up (~ 8rem).
+    if (typeof document === 'undefined') return 128
+    const composer = document.querySelector<HTMLElement>('[data-slot="composer-root"]')
+
+    return composer ? composer.getBoundingClientRect().height + COMPOSER_BREATHING_ROOM_PX : 128
+  })
+
+  useEffect(() => {
+    const composer = document.querySelector<HTMLElement>('[data-slot="composer-root"]')
+
+    if (!composer) {
+      return
+    }
+
+    const apply = () => {
+      const h = composer.getBoundingClientRect().height
+
+      setHeight(prev => {
+        const next = Math.round(h + COMPOSER_BREATHING_ROOM_PX)
+
+        return Math.abs(prev - next) < 1 ? prev : next
+      })
+    }
+
+    apply()
+    const observer = new ResizeObserver(apply)
+    observer.observe(composer)
+
+    return () => observer.disconnect()
+  }, [])
+
+  return <div aria-hidden="true" className="shrink-0" style={{ height: `${height}px` }} />
+}
+
+function pickPrimaryPreviewTarget(targets: string[]): string[] {
+  if (targets.length <= 1) {
+    return targets
+  }
+
+  const localUrl = targets.find(value => /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/i.test(value))
+
+  return [localUrl || targets[targets.length - 1]]
 }
 
 const CenteredThreadSpinner: FC = () => (
@@ -279,38 +422,16 @@ const CenteredThreadSpinner: FC = () => (
   </div>
 )
 
-const ThreadMessage: FC<{ onBranchInNewChat?: (messageId: string) => void }> = ({ onBranchInNewChat }) => {
-  const role = useAuiState(s => s.message.role)
-  const isEditing = useAuiState(s => s.message.composer.isEditing)
-
-  // The runtime synthesizes an empty assistant placeholder while isRunning is true
-  // (last message is user). Rendering the full `MessagePrimitive.Root` for it adds
-  // ~36px of invisible chrome (gap-2 + min-h-7 footer) which can push the
-  // loading affordance too far below the user message. Skip it —
-  // `ResponseLoadingIndicator` in the viewport handles the loading affordance directly.
-  const isPlaceholder = useAuiState(
-    s => s.message.role === 'assistant' && s.message.status?.type === 'running' && s.message.content.length === 0
-  )
-
-  if (isEditing) {
-    return <EditComposer />
-  }
-
-  if (role === 'user') {
-    return <UserMessage />
-  }
-
-  if (isPlaceholder) {
-    return null
-  }
-
-  return <AssistantMessage onBranchInNewChat={onBranchInNewChat} />
-}
-
 const AssistantMessage: FC<{ onBranchInNewChat?: (messageId: string) => void }> = ({ onBranchInNewChat }) => {
   const messageId = useAuiState(s => s.message.id)
   const content = useAuiState(s => s.message.content)
   const messageText = messageContentText(content)
+  const previewTargets = pickPrimaryPreviewTarget(extractPreviewTargets(messageText))
+  const isPlaceholder = useAuiState(s => s.message.status?.type === 'running' && s.message.content.length === 0)
+
+  if (isPlaceholder) {
+    return null
+  }
 
   return (
     <MessagePrimitive.Root
@@ -326,6 +447,13 @@ const AssistantMessage: FC<{ onBranchInNewChat?: (messageId: string) => void }> 
             tools: { Fallback: ChainToolFallback }
           }}
         />
+        {previewTargets.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {previewTargets.map(target => (
+              <PreviewAttachment key={target} target={target} />
+            ))}
+          </div>
+        )}
         <MessagePrimitive.Error>
           <ErrorPrimitive.Root
             className="mt-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive"
@@ -351,40 +479,23 @@ const StatusRow: FC<{ children: ReactNode; label: string }> = ({ children, label
 )
 
 const ResponseLoadingIndicator: FC = () => {
-  const [tick, setTick] = useState(0)
+  const [frame, setFrame] = useState(0)
   const elapsed = useElapsedSeconds()
 
   useEffect(() => {
-    const id = window.setInterval(() => setTick(t => t + 1), 900)
+    const id = window.setInterval(
+      () => setFrame(current => (current + 1) % RESPONSE_SPINNER.frames.length),
+      RESPONSE_SPINNER.interval
+    )
 
     return () => window.clearInterval(id)
   }, [])
 
-  const face = THINKING_FACES[tick % THINKING_FACES.length]
-  const verb = THINKING_VERBS[tick % THINKING_VERBS.length]
-
   return (
     <StatusRow label="Hermes is loading a response">
-      <span className="shimmer shimmer-repeat-delay-0 min-w-0 truncate text-muted-foreground/55">
-        {face} {verb}…
+      <span aria-hidden="true" className="font-mono text-base leading-none text-muted-foreground/60">
+        {RESPONSE_SPINNER.frames[frame]}
       </span>
-      <ActivityTimerText seconds={elapsed} />
-    </StatusRow>
-  )
-}
-
-const WorkingIndicator: FC = () => {
-  const elapsed = useElapsedSeconds()
-
-  return (
-    <StatusRow label="Hermes is still working">
-      <Loader
-        className="size-4 text-muted-foreground/60"
-        label="Still working"
-        strokeScale={0.65}
-        type="spiral-search"
-      />
-      <span className="shimmer min-w-0 truncate text-muted-foreground/60">Still working…</span>
       <ActivityTimerText seconds={elapsed} />
     </StatusRow>
   )
@@ -412,6 +523,10 @@ const ImageGenerateTool: FC<ToolCallMessagePartProps> = ({ result }) => {
 const ChainToolFallback: FC<ToolCallMessagePartProps> = props => {
   if (props.toolName === 'image_generate') {
     return <ImageGenerateTool {...props} />
+  }
+
+  if (props.toolName === 'clarify') {
+    return <ClarifyTool {...props} />
   }
 
   return <ToolFallback {...props} />
@@ -637,21 +752,97 @@ const branchButtonClass =
   'grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-35'
 
 const UserMessage: FC = () => {
+  const content = useAuiState(s => s.message.content)
+  const messageText = messageContentText(content)
+
   return (
     <MessagePrimitive.Root
-      className="group flex max-w-[min(72%,34rem)] flex-col gap-2 self-end rounded-2xl border border-[color-mix(in_srgb,var(--dt-user-bubble-border)_78%,transparent)] bg-[color-mix(in_srgb,var(--dt-user-bubble)_94%,transparent)] px-3 py-2"
+      className="group flex max-w-[min(72%,34rem)] flex-col items-end gap-2 self-end"
       data-role="user"
       data-slot="aui_user-message-root"
     >
-      <div className="wrap-anywhere whitespace-pre-line leading-[1.48] text-foreground/95">
+      <div className="wrap-anywhere whitespace-pre-line rounded-2xl border border-[color-mix(in_srgb,var(--dt-user-bubble-border)_78%,transparent)] bg-[color-mix(in_srgb,var(--dt-user-bubble)_94%,transparent)] px-3 py-2 leading-[1.48] text-foreground/95">
         <MessagePrimitive.Parts components={{ Text: DirectiveText }} />
+      </div>
+      <div className="min-h-6">
+        <UserActionBar messageText={messageText} />
       </div>
     </MessagePrimitive.Root>
   )
 }
 
-const EditComposer: FC = () => {
-  // Editing requires a real onEdit implementation against Hermes history.
-  // Hide the edit composer until that contract is implemented.
-  return null
+const UserActionBar: FC<{ messageText: string }> = ({ messageText }) => (
+  <div className="relative h-6 w-14 shrink-0">
+    <ActionBarPrimitive.Root className={ACTION_BAR_CLASS} hideWhenRunning>
+      <CopyMessageButton text={messageText} />
+      <ActionBarPrimitive.Edit asChild>
+        <TooltipIconButton onClick={() => triggerHaptic('selection')} tooltip="Edit">
+          <PencilIcon />
+        </TooltipIconButton>
+      </ActionBarPrimitive.Edit>
+    </ActionBarPrimitive.Root>
+  </div>
+)
+
+const SLASH_STATUS_RE = /^slash:(?<command>\/[^\n]+)\n(?<output>[\s\S]*)$/
+
+const SystemMessage: FC = () => {
+  const text = useAuiState(s => messageContentText(s.message.content))
+
+  if (!text) {
+    return null
+  }
+
+  const slashStatus = text.match(SLASH_STATUS_RE)
+
+  if (slashStatus?.groups) {
+    return (
+      <MessagePrimitive.Root
+        className="max-w-[min(86%,44rem)] self-center px-2 py-0.5 text-center text-[0.6875rem] leading-5 text-muted-foreground/60"
+        data-role="system"
+        data-slot="aui_system-message-root"
+      >
+        <span className="font-mono text-muted-foreground/55">{slashStatus.groups.command}</span>
+        <span className="mx-1.5 text-muted-foreground/35">·</span>
+        <span className="whitespace-pre-wrap">{slashStatus.groups.output.trim()}</span>
+      </MessagePrimitive.Root>
+    )
+  }
+
+  return (
+    <MessagePrimitive.Root
+      className="max-w-[min(86%,44rem)] self-center px-2 py-0.5 text-center text-[0.6875rem] leading-5 text-muted-foreground/55"
+      data-role="system"
+      data-slot="aui_system-message-root"
+    >
+      <span className="whitespace-pre-wrap">{text}</span>
+    </MessagePrimitive.Root>
+  )
 }
+
+const UserEditComposer: FC = () => (
+  <ComposerPrimitive.Root
+    className="flex min-w-[min(18rem,72vw)] max-w-[min(72%,34rem)] flex-col gap-1.5 self-end rounded-2xl border border-[color-mix(in_srgb,var(--dt-user-bubble-border)_88%,transparent)] bg-[color-mix(in_srgb,var(--dt-user-bubble)_98%,transparent)] px-3 py-2 shadow-sm"
+    data-slot="aui_edit-composer-root"
+  >
+    <ComposerPrimitive.Input
+      autoFocus
+      className="min-h-8 w-full resize-none bg-transparent leading-[1.48] text-foreground/95 outline-none"
+      rows={1}
+      submitMode="enter"
+      unstable_focusOnScrollToBottom={false}
+    />
+    <div className="flex justify-end gap-1">
+      <ComposerPrimitive.Cancel asChild>
+        <TooltipIconButton tooltip="Cancel edit">
+          <XIcon />
+        </TooltipIconButton>
+      </ComposerPrimitive.Cancel>
+      <ComposerPrimitive.Send asChild>
+        <TooltipIconButton onClick={() => triggerHaptic('submit')} tooltip="Send edit">
+          <CheckIcon />
+        </TooltipIconButton>
+      </ComposerPrimitive.Send>
+    </div>
+  </ComposerPrimitive.Root>
+)

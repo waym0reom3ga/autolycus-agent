@@ -28,7 +28,7 @@ export function SlashPopover({ adapter, loading }: { adapter: Unstable_TriggerAd
           <div className="grid gap-0.5 pt-0.5">
             {items.length === 0 ? (
               <CompletionDrawerEmpty title={loading ? 'Looking up...' : 'No matching commands.'}>
-                Try <span className="font-mono text-foreground/80">/help</span> for the full list.
+                Try <span className="font-mono text-foreground/80">/help</span> for the desktop command list.
               </CompletionDrawerEmpty>
             ) : (
               items.map((item, index) => {

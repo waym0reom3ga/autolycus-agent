@@ -1,12 +1,14 @@
 'use client'
 
 import { type ToolCallMessagePartProps } from '@assistant-ui/react'
+import { useStore } from '@nanostores/react'
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
 import { ActivityTimerText } from '@/components/assistant-ui/activity-timer-text'
 import { cn } from '@/lib/utils'
+import { $toolInlineDiffs } from '@/store/tool-diffs'
 
 const TOOL_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
@@ -78,6 +80,24 @@ function prettyJson(value: unknown): string {
   return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
 }
 
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '')
+}
+
+function stripInlineDiffChrome(value: string): string {
+  return value ? stripAnsi(value).replace(/^\s*┊\s*review diff\s*\n/i, '').trim() : ''
+}
+
+function inlineDiffFromResult(result: unknown): string {
+  const value = recordValue(result).inline_diff
+
+  return typeof value === 'string' ? stripInlineDiffChrome(value) : ''
+}
+
 function detailLabel(toolName: string): string {
   if (toolName === 'image_generate') {
     return 'Prompt'
@@ -121,7 +141,7 @@ function detailText(args: unknown, result: unknown): string {
   return prettyJson(args)
 }
 
-export const ToolFallback = ({ toolName, args, result }: ToolCallMessagePartProps) => {
+export const ToolFallback = ({ toolCallId, toolName, args, result }: ToolCallMessagePartProps) => {
   const [open, setOpen] = useState(false)
   const isPending = result === undefined
   const [tick, setTick] = useState(0)
@@ -129,6 +149,9 @@ export const ToolFallback = ({ toolName, args, result }: ToolCallMessagePartProp
   const preview = compactPreview(args) || compactPreview(result)
   const label = toolLabel(toolName, isPending)
   const detail = detailText(args, result)
+  const liveDiffs = useStore($toolInlineDiffs)
+  const sideDiff = toolCallId ? liveDiffs[toolCallId] || '' : ''
+  const inlineDiff = stripInlineDiffChrome(sideDiff) || inlineDiffFromResult(result)
   const spinnerFrame = TOOL_SPINNER_FRAMES[tick % TOOL_SPINNER_FRAMES.length]
 
   useEffect(() => {
@@ -173,6 +196,35 @@ export const ToolFallback = ({ toolName, args, result }: ToolCallMessagePartProp
           {detail}
         </div>
       )}
+      {inlineDiff && <InlineDiff text={inlineDiff} />}
     </div>
+  )
+}
+
+function InlineDiff({ text }: { text: string }) {
+  return (
+    <pre className="ml-4 mt-2 max-h-96 max-w-full overflow-auto rounded-lg border border-border/60 bg-background/70 px-3 py-2 font-mono text-[0.6875rem] leading-relaxed">
+      {text.split('\n').map((line, index) => {
+        const added = line.startsWith('+') && !line.startsWith('+++')
+        const removed = line.startsWith('-') && !line.startsWith('---')
+        const hunk = line.startsWith('@@')
+        const fileHeader = line.startsWith('---') || line.startsWith('+++') || / → /.test(line.slice(0, 60))
+
+        return (
+          <span
+            className={cn(
+              'block min-w-max whitespace-pre',
+              added && 'text-emerald-700 dark:text-emerald-300',
+              removed && 'text-rose-700 dark:text-rose-300',
+              hunk && 'text-sky-700 dark:text-sky-300',
+              !added && !removed && !hunk && fileHeader && 'text-muted-foreground/80'
+            )}
+            key={`${index}-${line}`}
+          >
+            {line || ' '}
+          </span>
+        )
+      })}
+    </pre>
   )
 }

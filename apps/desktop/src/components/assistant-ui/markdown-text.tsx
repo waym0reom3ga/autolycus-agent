@@ -2,14 +2,24 @@
 
 import { type StreamdownTextComponents, StreamdownTextPrimitive } from '@assistant-ui/react-streamdown'
 import { code } from '@streamdown/code'
-import { Check, Copy, Download } from 'lucide-react'
-import { type ComponentProps, memo, useMemo, useState } from 'react'
+import { Check, Copy } from 'lucide-react'
+import { type ComponentProps, memo, useEffect, useMemo, useState } from 'react'
 
+import { PreviewAttachment } from '@/components/assistant-ui/preview-attachment'
 import { SyntaxHighlighter } from '@/components/assistant-ui/shiki-highlighter'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { ZoomableImage } from '@/components/assistant-ui/zoomable-image'
 import { triggerHaptic } from '@/lib/haptics'
+import {
+  filePathFromMediaPath,
+  mediaExternalUrl,
+  mediaKind,
+  mediaMime,
+  mediaName,
+  mediaPathFromMarkdownHref
+} from '@/lib/media'
+import { isLikelyProseCodeBlock, isLikelyProseFence, sanitizeLanguageTag } from '@/lib/markdown-code'
+import { previewTargetFromMarkdownHref, stripPreviewTargets } from '@/lib/preview-targets'
 import { cn } from '@/lib/utils'
-import { notify, notifyError } from '@/store/notifications'
 
 /**
  * Strip provider/model "thinking" blocks before markdown render.
@@ -18,13 +28,122 @@ import { notify, notifyError } from '@/store/notifications'
  * assistant text. Proper reasoning UI uses dedicated `reasoning.*` parts.
  */
 const REASONING_BLOCK_RE = /<(think|thinking|reasoning|scratchpad|analysis)>[\s\S]*?<\/\1>\s*/gi
+const PREVIEW_MARKER_RE = /\[Preview:[^\]]+\]\(#preview[:/][^)]+\)/gi
 
-function stripReasoning(text: string): string {
-  return text.replace(REASONING_BLOCK_RE, '')
+const FENCE_LINE_RE = /^([ \t]*)(`{3,}|~{3,})([^\n]*)$/
+const MIDLINE_FENCE_RE = /([^\n])```+(?=\s|$)/g
+
+function stripMidlineFenceStarts(text: string): string {
+  return text.replace(MIDLINE_FENCE_RE, '$1')
+}
+
+function pushProseFence(out: string[], indent: string, info: string, lines: string[]) {
+  if (info) {
+    out.push(`${indent}${info}`.trimEnd())
+  }
+
+  out.push(...lines)
+}
+
+function findClosingFence(lines: string[], start: number, marker: string): number {
+  for (let cursor = start + 1; cursor < lines.length; cursor += 1) {
+    const closeMatch = (lines[cursor] || '').match(FENCE_LINE_RE)
+
+    if (!closeMatch) {
+      continue
+    }
+
+    const closeMarker = closeMatch[2] || ''
+    const closeInfo = (closeMatch[3] || '').trim()
+
+    if (!closeInfo && closeMarker[0] === marker[0] && closeMarker.length >= marker.length) {
+      return cursor
+    }
+  }
+
+  return -1
+}
+
+function normalizeFenceBlocks(text: string): string {
+  const sourceLines = text.split('\n')
+  const out: string[] = []
+  let index = 0
+
+  while (index < sourceLines.length) {
+    const line = sourceLines[index] || ''
+    const match = line.match(FENCE_LINE_RE)
+
+    if (!match) {
+      out.push(line)
+      index += 1
+      continue
+    }
+
+    const indent = match[1] || ''
+    const marker = match[2] || '```'
+    const infoRaw = (match[3] || '').trim()
+    const languageToken = infoRaw.split(/\s+/, 1)[0] || ''
+    const language = sanitizeLanguageTag(languageToken)
+    const openerValid = !infoRaw || Boolean(language)
+
+    if (!openerValid) {
+      out.push(`${indent}${infoRaw}`.trimEnd())
+      index += 1
+      continue
+    }
+
+    const closeIndex = findClosingFence(sourceLines, index, marker)
+    const bodyLines = sourceLines.slice(index + 1, closeIndex === -1 ? sourceLines.length : closeIndex)
+    const body = bodyLines.join('\n')
+
+    if (closeIndex === -1) {
+      if (!body.trim()) {
+        index += 1
+        continue
+      }
+
+      if (isLikelyProseFence(infoRaw, body)) {
+        pushProseFence(out, indent, infoRaw, bodyLines)
+      } else {
+        out.push(`${indent}${marker}${language}`)
+        out.push(...bodyLines)
+      }
+
+      break
+    }
+
+    if (isLikelyProseFence(infoRaw, body)) {
+      pushProseFence(out, indent, infoRaw, bodyLines)
+      index = closeIndex + 1
+      continue
+    }
+
+    out.push(`${indent}${marker}${language}`)
+    out.push(...bodyLines)
+    out.push(`${indent}${marker}`)
+    index = closeIndex + 1
+  }
+
+  return out.join('\n')
+}
+
+export function preprocessMarkdown(text: string): string {
+  const cleaned = text.replace(REASONING_BLOCK_RE, '').replace(PREVIEW_MARKER_RE, '')
+  const normalizedFences = normalizeFenceBlocks(stripMidlineFenceStarts(cleaned))
+
+  return normalizedFences
+    .split(/((?:```|~~~)[\s\S]*?(?:```|~~~))/g)
+    .map(part => (/^(?:```|~~~)/.test(part) ? part : stripPreviewTargets(part)))
+    .join('')
+    .replace(/[ \t]+\n/g, '\n')
 }
 
 function CodeHeader({ language, code }: { language?: string; code?: string }) {
   const [copied, setCopied] = useState(false)
+
+  if (isLikelyProseCodeBlock(language, code)) {
+    return null
+  }
 
   async function handleCopy() {
     if (!code) {
@@ -46,11 +165,12 @@ function CodeHeader({ language, code }: { language?: string; code?: string }) {
     }
   }
 
-  const label = language && language !== 'unknown' ? language : 'code'
+  const cleanLanguage = sanitizeLanguageTag(language || '')
+  const label = cleanLanguage && cleanLanguage !== 'unknown' ? cleanLanguage : ''
 
   return (
-    <div className="mt-4 flex items-center justify-between gap-2 rounded-t-md border border-b-0 border-border bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground">
-      <span className="font-mono uppercase tracking-wide">{label}</span>
+    <div className="m-0 flex items-center justify-between gap-2 rounded-t-md border border-b-0 border-border bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground">
+      <span className="font-mono uppercase tracking-wide">{label || 'code'}</span>
       <button
         aria-label={copied ? 'Copied' : 'Copy code'}
         className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[0.75rem] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -64,164 +184,160 @@ function CodeHeader({ language, code }: { language?: string; code?: string }) {
   )
 }
 
-function imageFilename(src?: string): string {
-  if (!src) {
-    return 'image'
-  }
+async function typedBlobUrl(dataUrl: string, mime: string): Promise<string> {
+  const blob = await fetch(dataUrl).then(response => response.blob())
 
-  try {
-    const { pathname } = new URL(src, window.location.href)
-
-    return pathname.split('/').filter(Boolean).pop() || 'image'
-  } catch {
-    return src.split(/[\\/]/).filter(Boolean).pop() || 'image'
-  }
+  return URL.createObjectURL(new Blob([await blob.arrayBuffer()], { type: mime }))
 }
 
-function isMissingIpcHandler(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
-
-  return message.includes("No handler registered for 'hermes:saveImageFromUrl'")
-}
-
-async function startBrowserDownload(src: string) {
-  const response = await fetch(src)
-
-  if (!response.ok) {
-    throw new Error(`Could not fetch image: ${response.status}`)
+async function mediaSrc(path: string): Promise<string> {
+  if (/^(?:https?|data):/i.test(path)) {
+    return path
   }
 
-  const blobUrl = URL.createObjectURL(await response.blob())
-  const link = document.createElement('a')
-  link.href = blobUrl
-  link.download = imageFilename(src)
-  link.rel = 'noopener noreferrer'
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000)
+  if (!window.hermesDesktop?.readFileDataUrl) {
+    return mediaExternalUrl(path)
+  }
+
+  const dataUrl = await window.hermesDesktop.readFileDataUrl(filePathFromMediaPath(path))
+
+  return ['audio', 'video'].includes(mediaKind(path)) ? typedBlobUrl(dataUrl, mediaMime(path)) : dataUrl
 }
 
-const imageActionButtonClass =
-  'absolute right-2 top-2 grid size-8 place-items-center rounded-full border border-border/70 bg-background/80 text-muted-foreground opacity-0 shadow-sm backdrop-blur transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 disabled:opacity-50'
+function OpenMediaButton({ kind, path }: { kind: 'audio' | 'video'; path: string }) {
+  return (
+    <button
+      className="mt-2 bg-transparent text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground"
+      onClick={() => void window.hermesDesktop?.openExternal(mediaExternalUrl(path))}
+      type="button"
+    >
+      Open {kind} file
+    </button>
+  )
+}
 
-function MarkdownImage({ className, src, alt, ...props }: ComponentProps<'img'>) {
-  const [saving, setSaving] = useState(false)
-  const [lightboxOpen, setLightboxOpen] = useState(false)
-  const canOpen = Boolean(src)
+function MediaAttachment({ path }: { path: string }) {
+  const [src, setSrc] = useState('')
+  const [failed, setFailed] = useState(false)
+  const kind = mediaKind(path)
+  const name = mediaName(path)
 
-  async function handleDownload() {
-    if (!src || saving) {
-      return
-    }
+  useEffect(() => {
+    let cancelled = false
+    let objectUrl = ''
 
-    setSaving(true)
-
-    try {
-      if (window.hermesDesktop?.saveImageFromUrl) {
-        const saved = await window.hermesDesktop.saveImageFromUrl(src)
-
-        if (saved) {
-          notify({
-            kind: 'success',
-            title: 'Image saved',
-            message: imageFilename(src)
-          })
+    setFailed(false)
+    setSrc('')
+    void mediaSrc(path)
+      .then(value => {
+        if (value.startsWith('blob:')) {
+          objectUrl = value
         }
 
-        return
-      }
-
-      await startBrowserDownload(src)
-    } catch (error) {
-      if (isMissingIpcHandler(error)) {
-        try {
-          await startBrowserDownload(src)
-          notify({
-            kind: 'info',
-            title: 'Download started',
-            message: 'Restart Hermes Desktop to use Save Image.'
-          })
-        } catch (fallbackError) {
-          notifyError(fallbackError, 'Restart Hermes Desktop to save images')
+        if (!cancelled) {
+          setSrc(value)
+        } else if (objectUrl) {
+          URL.revokeObjectURL(objectUrl)
         }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFailed(true)
+        }
+      })
 
-        return
+    return () => {
+      cancelled = true
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
       }
-
-      notifyError(error, 'Image download failed')
-    } finally {
-      setSaving(false)
     }
+  }, [path])
+
+  if (kind === 'image' && src) {
+    return (
+      <span className="block">
+        <MarkdownImage alt={name} src={src} />
+      </span>
+    )
   }
 
-  function openLightbox() {
-    if (canOpen) {
-      setLightboxOpen(true)
-    }
+  if (kind === 'audio' && src) {
+    return (
+      <span className="my-3 block max-w-md rounded-xl border border-border/70 bg-card/70 p-3">
+        <span className="mb-2 block truncate text-xs font-medium text-muted-foreground">{name}</span>
+        <audio className="block w-full" controls onError={() => setFailed(true)} preload="metadata" src={src} />
+        {failed && <OpenMediaButton kind="audio" path={path} />}
+      </span>
+    )
   }
 
-  const lightbox = src ? (
-    <Dialog onOpenChange={setLightboxOpen} open={lightboxOpen}>
-      <DialogContent
-        className="grid max-h-[calc(100vh-2rem)] w-auto max-w-[calc(100vw-2rem)] place-items-center overflow-visible border-0 bg-transparent p-0 shadow-none"
-        showCloseButton={false}
-      >
-        <div className="group/lightbox relative max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-auto">
-          <img
-            alt={alt ?? ''}
-            className="block max-h-[calc(100vh-2rem)] max-w-full cursor-zoom-out select-auto rounded-lg object-contain shadow-2xl"
-            onClick={() => setLightboxOpen(false)}
-            src={src}
-          />
-          <button
-            aria-label={saving ? 'Saving image' : 'Download image'}
-            className={cn(imageActionButtonClass, 'group-hover/lightbox:opacity-100')}
-            disabled={saving}
-            onClick={event => {
-              event.stopPropagation()
-              void handleDownload()
-            }}
-            title={saving ? 'Saving image' : 'Download image'}
-            type="button"
-          >
-            <Download className={cn('size-4', saving && 'animate-pulse')} />
-          </button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  ) : null
+  if (kind === 'video' && src) {
+    return (
+      <span className="my-3 block max-w-2xl rounded-xl border border-border/70 bg-card/70 p-3">
+        <span className="mb-2 block truncate text-xs font-medium text-muted-foreground">{name}</span>
+        <video
+          className="block max-h-112 w-full rounded-lg bg-black"
+          controls
+          onError={() => setFailed(true)}
+          src={src}
+        />
+        {failed && <OpenMediaButton kind="video" path={path} />}
+      </span>
+    )
+  }
 
   return (
-    <>
-      <span className="group/image relative my-3 inline-block max-w-full align-top" data-slot="aui_markdown-image">
-        <button
-          className="block max-w-full cursor-zoom-in bg-transparent p-0 text-left"
-          disabled={!canOpen}
-          onClick={openLightbox}
-          title={canOpen ? 'Open image' : undefined}
-          type="button"
-        >
-          <img alt={alt ?? ''} className={className} src={src} {...props} />
-        </button>
-        {src && (
-          <button
-            aria-label={saving ? 'Saving image' : 'Download image'}
-            className={cn(imageActionButtonClass, 'group-hover/image:opacity-100')}
-            disabled={saving}
-            onClick={event => {
-              event.stopPropagation()
-              void handleDownload()
-            }}
-            title={saving ? 'Saving image' : 'Download image'}
-            type="button"
-          >
-            <Download className={cn('size-4', saving && 'animate-pulse')} />
-          </button>
-        )}
-      </span>
-      {lightbox}
-    </>
+    <a
+      className="font-medium text-foreground underline underline-offset-4 decoration-foreground/30 wrap-anywhere hover:decoration-foreground/70"
+      href="#"
+      onClick={event => {
+        event.preventDefault()
+        void window.hermesDesktop?.openExternal(mediaExternalUrl(path))
+      }}
+    >
+      {failed ? `Open ${name}` : `Loading ${name}...`}
+    </a>
+  )
+}
+
+function MarkdownLink({ className, href, ...props }: ComponentProps<'a'>) {
+  const mediaPath = mediaPathFromMarkdownHref(href)
+  const previewTarget = previewTargetFromMarkdownHref(href)
+
+  if (mediaPath) {
+    return <MediaAttachment path={mediaPath} />
+  }
+
+  if (previewTarget) {
+    return <PreviewAttachment target={previewTarget} />
+  }
+
+  return (
+    <a
+      className={cn(
+        'font-medium text-foreground underline underline-offset-4 decoration-foreground/30 wrap-anywhere hover:decoration-foreground/70',
+        className
+      )}
+      href={href}
+      rel="noopener noreferrer"
+      target="_blank"
+      {...props}
+    />
+  )
+}
+
+function MarkdownImage({ className, src, alt, ...props }: ComponentProps<'img'>) {
+  return (
+    <ZoomableImage
+      alt={alt}
+      className={className}
+      containerClassName="my-3"
+      slot="aui_markdown-image"
+      src={src}
+      {...props}
+    />
   )
 }
 
@@ -244,17 +360,7 @@ const MarkdownTextImpl = () => {
         p: ({ className, ...props }: ComponentProps<'p'>) => (
           <p className={cn('wrap-anywhere leading-relaxed', className)} {...props} />
         ),
-        a: ({ className, ...props }: ComponentProps<'a'>) => (
-          <a
-            className={cn(
-              'font-medium text-foreground underline underline-offset-4 decoration-foreground/30 wrap-anywhere hover:decoration-foreground/70',
-              className
-            )}
-            rel="noopener noreferrer"
-            target="_blank"
-            {...props}
-          />
-        ),
+        a: MarkdownLink,
         hr: ({ className, ...props }: ComponentProps<'hr'>) => (
           <hr className={cn('border-border/70', className)} {...props} />
         ),
@@ -315,7 +421,7 @@ const MarkdownTextImpl = () => {
       mode="streaming"
       parseIncompleteMarkdown
       plugins={{ code }}
-      preprocess={stripReasoning}
+      preprocess={preprocessMarkdown}
       shikiTheme={['github-light-default', 'github-dark-default']}
     />
   )
