@@ -20,10 +20,20 @@ import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromC
 import { extractPreviewCandidates } from '../lib/preview-targets'
 import { $pinnedSessionIds, pinSession, unpinSession } from '../store/layout'
 import { notify, notifyError } from '../store/notifications'
-import { setPreviewTarget } from '../store/preview'
+import {
+  $previewTarget,
+  beginPreviewServerRestart,
+  completePreviewServerRestart,
+  progressPreviewServerRestart,
+  requestPreviewReload,
+  setPreviewTarget
+} from '../store/preview'
 import {
   $activeSessionId,
   $currentCwd,
+  $currentFastMode,
+  $currentReasoningEffort,
+  $currentServiceTier,
   $freshDraftReady,
   $gatewayState,
   $messages,
@@ -34,9 +44,12 @@ import {
   setContextSuggestions,
   setCurrentBranch,
   setCurrentCwd,
+  setCurrentFastMode,
   setCurrentModel,
   setCurrentPersonality,
   setCurrentProvider,
+  setCurrentReasoningEffort,
+  setCurrentServiceTier,
   setIntroPersonality,
   setMessages,
   setModelPickerOpen,
@@ -69,14 +82,24 @@ function normalizeRecordingLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_VOICE_RECORDING_SECONDS
 }
 
-function gatewayEventPreviewText(event: { payload?: unknown }): string {
+function gatewayEventPreviewText(event: { payload?: unknown; type?: string }): string {
   const payload = event.payload && typeof event.payload === 'object' ? (event.payload as Record<string, unknown>) : {}
-  const fields = ['text', 'rendered', 'preview', 'context', 'summary', 'message']
+  const fields = event.type?.startsWith('message.') ? ['text', 'rendered', 'preview'] : ['preview']
 
   return fields
     .map(key => payload[key])
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join('\n')
+}
+
+function gatewayEventCompletedFileDiff(event: { payload?: unknown; type?: string }): boolean {
+  if (event.type !== 'tool.complete' || !event.payload || typeof event.payload !== 'object') {
+    return false
+  }
+
+  const inlineDiff = (event.payload as Record<string, unknown>).inline_diff
+
+  return typeof inlineDiff === 'string' && inlineDiff.trim().length > 0
 }
 
 export function DesktopController() {
@@ -102,9 +125,11 @@ export function DesktopController() {
   const chatOpen = currentView === 'chat'
   const settingsReturnPathRef = useRef(NEW_CHAT_ROUTE)
   const refreshSessionsRequestRef = useRef(0)
+
   const [titlebarToolGroups, setTitlebarToolGroups] = useState<
     Record<TitlebarToolSide, Record<string, readonly TitlebarTool[]>>
   >({ left: {}, right: {} })
+
   const [voiceMaxRecordingSeconds, setVoiceMaxRecordingSeconds] = useState(DEFAULT_VOICE_RECORDING_SECONDS)
   const [sttEnabled, setSttEnabled] = useState(true)
 
@@ -257,6 +282,30 @@ export function DesktopController() {
     }
   }, [])
 
+  const refreshProjectBranch = useCallback(
+    async (cwd: string) => {
+      const targetCwd = cwd.trim()
+
+      if (!targetCwd || activeSessionIdRef.current) {
+        return
+      }
+
+      try {
+        const info = await requestGateway<{ branch?: string; cwd?: string }>('config.get', {
+          key: 'project',
+          cwd: targetCwd
+        })
+
+        if (!activeSessionIdRef.current && ($currentCwd.get() || targetCwd) === (info.cwd || targetCwd)) {
+          setCurrentBranch(info.branch || '')
+        }
+      } catch {
+        setCurrentBranch('')
+      }
+    },
+    [activeSessionIdRef, requestGateway]
+  )
+
   const changeSessionCwd = useCallback(
     async (cwd: string) => {
       const trimmed = cwd.trim()
@@ -266,15 +315,18 @@ export function DesktopController() {
       }
 
       const persistGlobal = async () => {
-        await requestGateway('config.set', {
+        const info = await requestGateway<{ branch?: string; cwd?: string; value?: string }>('config.set', {
           ...(activeSessionId && { session_id: activeSessionId }),
           key: 'terminal.cwd',
           value: trimmed
         })
-        setCurrentCwd(trimmed)
+
+        const nextCwd = info.cwd || info.value || trimmed
+
+        setCurrentCwd(nextCwd)
 
         if (!activeSessionId) {
-          setCurrentBranch('')
+          setCurrentBranch(info.branch || '')
         }
       }
 
@@ -394,14 +446,24 @@ export function DesktopController() {
 
       if (cwd && cwd !== '.') {
         setCurrentCwd(prev => prev || cwd)
+        void refreshProjectBranch($currentCwd.get() || cwd)
       }
+
+      const reasoningEffort = (config.agent?.reasoning_effort ?? '').trim()
+      const serviceTier = (config.agent?.service_tier ?? '').trim()
+
+      setCurrentReasoningEffort(prev => (activeSessionIdRef.current ? prev : reasoningEffort))
+      setCurrentServiceTier(prev => (activeSessionIdRef.current ? prev : serviceTier))
+      setCurrentFastMode(prev =>
+        activeSessionIdRef.current ? prev : ['fast', 'priority', 'on'].includes(serviceTier.toLowerCase())
+      )
 
       setVoiceMaxRecordingSeconds(normalizeRecordingLimit(config.voice?.max_recording_seconds))
       setSttEnabled(config.stt?.enabled !== false)
     } catch {
       // Config is nice-to-have for the empty-state copy; the chat still works.
     }
-  }, [activeSessionIdRef])
+  }, [activeSessionIdRef, refreshProjectBranch])
 
   const selectPersonality = useCallback(
     async (name: string) => {
@@ -430,6 +492,50 @@ export function DesktopController() {
       } catch (err) {
         void refreshHermesConfig()
         notifyError(err, 'Personality change failed')
+      }
+    },
+    [activeSessionId, refreshHermesConfig, requestGateway]
+  )
+
+  const setReasoningEffort = useCallback(
+    async (effort: string) => {
+      const value = effort.trim().toLowerCase()
+      const previous = $currentReasoningEffort.get()
+      setCurrentReasoningEffort(value)
+
+      try {
+        await requestGateway('config.set', {
+          ...(activeSessionId && { session_id: activeSessionId }),
+          key: 'reasoning',
+          value
+        })
+      } catch (err) {
+        setCurrentReasoningEffort(previous)
+        void refreshHermesConfig()
+        notifyError(err, 'Reasoning change failed')
+      }
+    },
+    [activeSessionId, refreshHermesConfig, requestGateway]
+  )
+
+  const setFastMode = useCallback(
+    async (enabled: boolean) => {
+      const previousFast = $currentFastMode.get()
+      const previousTier = $currentServiceTier.get()
+      setCurrentFastMode(enabled)
+      setCurrentServiceTier(enabled ? 'priority' : '')
+
+      try {
+        await requestGateway('config.set', {
+          ...(activeSessionId && { session_id: activeSessionId }),
+          key: 'fast',
+          value: enabled ? 'fast' : 'normal'
+        })
+      } catch (err) {
+        setCurrentFastMode(previousFast)
+        setCurrentServiceTier(previousTier)
+        void refreshHermesConfig()
+        notifyError(err, 'Fast mode change failed')
       }
     },
     [activeSessionId, refreshHermesConfig, requestGateway]
@@ -512,9 +618,55 @@ export function DesktopController() {
     [activeSessionIdRef, currentCwd]
   )
 
+  const restartPreviewServer = useCallback(
+    async (url: string, context?: string) => {
+      const sessionId = activeSessionIdRef.current
+
+      if (!sessionId) {
+        throw new Error('No active session for background restart')
+      }
+
+      const cwd = $currentCwd.get() || currentCwd || ''
+      const result = await requestGateway<{ task_id?: string }>('preview.restart', {
+        context: context || undefined,
+        cwd: cwd || undefined,
+        session_id: sessionId,
+        url
+      })
+      const taskId = result.task_id || ''
+
+      if (!taskId) {
+        throw new Error('Background restart did not return a task id')
+      }
+
+      beginPreviewServerRestart(taskId, url)
+
+      return taskId
+    },
+    [activeSessionIdRef, currentCwd, requestGateway]
+  )
+
   const handleDesktopGatewayEvent = useCallback(
     (event: Parameters<typeof handleGatewayEvent>[0]) => {
       handleGatewayEvent(event)
+
+      if (event.type === 'preview.restart.complete') {
+        const payload = event.payload && typeof event.payload === 'object' ? (event.payload as Record<string, unknown>) : {}
+        const taskId = typeof payload.task_id === 'string' ? payload.task_id : ''
+
+        if (taskId) {
+          completePreviewServerRestart(taskId, typeof payload.text === 'string' ? payload.text : '')
+        }
+      }
+
+      if (event.type === 'preview.restart.progress') {
+        const payload = event.payload && typeof event.payload === 'object' ? (event.payload as Record<string, unknown>) : {}
+        const taskId = typeof payload.task_id === 'string' ? payload.task_id : ''
+
+        if (taskId) {
+          progressPreviewServerRestart(taskId, typeof payload.text === 'string' ? payload.text : '')
+        }
+      }
 
       if (event.session_id && event.session_id !== activeSessionIdRef.current) {
         return
@@ -524,6 +676,10 @@ export function DesktopController() {
 
       if (previewText) {
         void openDetectedPreview(previewText)
+      }
+
+      if ($previewTarget.get()?.kind === 'url' && gatewayEventCompletedFileDiff(event)) {
+        requestPreviewReload()
       }
     },
     [activeSessionIdRef, handleGatewayEvent, openDetectedPreview]
@@ -809,12 +965,15 @@ export function DesktopController() {
       onPickImages={() => void pickImages()}
       onReload={reloadFromMessage}
       onRemoveAttachment={id => void removeAttachment(id)}
+      onRestartPreviewServer={restartPreviewServer}
       onSelectPersonality={name => void selectPersonality(name)}
+      onSetFastMode={enabled => void setFastMode(enabled)}
+      onSetReasoningEffort={effort => void setReasoningEffort(effort)}
       onSubmit={submitText}
       onThreadMessagesChange={handleThreadMessagesChange}
-      setTitlebarToolGroup={setTitlebarToolGroup}
       onToggleSelectedPin={toggleSelectedPin}
       onTranscribeAudio={transcribeVoiceAudio}
+      setTitlebarToolGroup={setTitlebarToolGroup}
     />
   )
 

@@ -17,9 +17,12 @@ import {
   setBusy,
   setCurrentBranch,
   setCurrentCwd,
+  setCurrentFastMode,
   setCurrentModel,
   setCurrentPersonality,
   setCurrentProvider,
+  setCurrentReasoningEffort,
+  setCurrentServiceTier,
   setFreshDraftReady,
   setIntroSeed,
   setMessages,
@@ -54,6 +57,7 @@ interface SessionActionsOptions {
 
 function withAppendedText(message: ChatMessage, suffix: string): ChatMessage {
   let appended = false
+
   const parts = message.parts.map(part => {
     if (part.type !== 'text' || appended) {
       return part
@@ -192,6 +196,18 @@ function applyRuntimeInfo(info: SessionCreateResponse['info'] | undefined) {
 
   if (typeof info.personality === 'string') {
     setCurrentPersonality(normalizePersonalityValue(info.personality))
+  }
+
+  if (typeof info.reasoning_effort === 'string') {
+    setCurrentReasoningEffort(info.reasoning_effort)
+  }
+
+  if (typeof info.service_tier === 'string') {
+    setCurrentServiceTier(info.service_tier)
+  }
+
+  if (typeof info.fast === 'boolean') {
+    setCurrentFastMode(info.fast)
   }
 }
 
@@ -385,6 +401,7 @@ export function useSessionActions({
         // Keep the already-painted local snapshot for the view/cache when it
         // exists; use gateway messages only as a fallback when no local
         // snapshot was available.
+
         const messagesForView = localSnapshot.length > 0
           ? localSnapshot
           : chatMessageArraysEquivalent(currentMessages, resumedMessages)

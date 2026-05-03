@@ -1,9 +1,29 @@
 const LOCAL_HOSTS = new Set(['0.0.0.0', '127.0.0.1', '::1', '[::1]', 'localhost'])
+
+const PREVIEW_DIRECTORY_NAMES = new Set(['build', 'dist', 'out', 'public', 'site', 'web', 'www'])
+
 const HTML_EXT_RE = /\.html?(?:[?#].*)?$/i
+
+const ASSET_EXT_RE =
+  /\.(?:cjs|css|csv|gif|ico|jpe?g|js|json|jsx|map|mjs|otf|png|svg|ts|tsx|ttf|txt|wasm|webp|woff2?|xml)$/i
+
 const URL_RE = /\bhttps?:\/\/[^\s<>"'`)\]]+/gi
+
 const FILE_URL_RE = /\bfile:\/\/[^\s<>"'`)\]]+/gi
-const POSIX_HTML_PATH_RE = /(?:^|[\s("'`])(?<path>\/[^\s<>"'`]*?\.html?)(?:[),.;:!?]*)(?=$|[\s)"'`])/gi
-const RELATIVE_HTML_PATH_RE = /(?:^|[\s("'`])(?<path>\.{1,2}\/[^\s<>"'`]*?\.html?)(?:[),.;:!?]*)(?=$|[\s)"'`])/gi
+
+const POSIX_HTML_PATH_RE =
+  /(?:^|[\s("'`])(?<path>\/[^\s<>"'`]*?\.html?(?:[?#][^\s<>"'`)\]]*)?)(?:[),.;:!?]*)(?=$|[\s)"'`])/gi
+
+const RELATIVE_HTML_PATH_RE =
+  /(?:^|[\s("'`])(?<path>\.{1,2}\/[^\s<>"'`]*?\.html?(?:[?#][^\s<>"'`)\]]*)?)(?:[),.;:!?]*)(?=$|[\s)"'`])/gi
+
+const BARE_HTML_PATH_RE =
+  /(?:^|[\s("'`])(?<path>(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+\.html?(?:[?#][^\s<>"'`)\]]*)?)(?:[),.;:!?]*)(?=$|[\s)"'`])/gi
+
+const POSIX_PATH_RE = /(?:^|[\s("'`])(?<path>\/[^\s<>"'`]+)(?:[),.;:!?]*)(?=$|[\s)"'`])/gi
+
+const RELATIVE_PATH_RE = /(?:^|[\s("'`])(?<path>(?:\.{1,2}|~)\/[^\s<>"'`]+)(?:[),.;:!?]*)(?=$|[\s)"'`])/gi
+
 const PREVIEW_MARKDOWN_RE = /\[Preview:[^\]]+\]\((?<href>#preview[:/][^)]+)\)/gi
 
 interface PreviewCandidateMatch {
@@ -16,6 +36,40 @@ function stripTrailingPunctuation(value: string): string {
   return value.replace(/[),.;:!?]+$/, '')
 }
 
+function pathWithoutQuery(value: string): string {
+  return value.split(/[?#]/, 1)[0]
+}
+
+function pathBasename(value: string): string {
+  return pathWithoutQuery(value).replace(/\/+$/, '').split(/[\\/]/).filter(Boolean).pop()?.toLowerCase() || ''
+}
+
+function isHtmlFileUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+
+    return url.protocol === 'file:' && HTML_EXT_RE.test(url.pathname)
+  } catch {
+    return false
+  }
+}
+
+function isPreviewDirectoryCandidate(value: string): boolean {
+  const path = pathWithoutQuery(value)
+
+  if (!/^(?:\/|\.{1,2}\/|~\/)/.test(path) || HTML_EXT_RE.test(value)) {
+    return false
+  }
+
+  const name = pathBasename(path)
+
+  if (!name || /\.[a-z0-9]{1,8}$/i.test(name)) {
+    return false
+  }
+
+  return path.endsWith('/') || PREVIEW_DIRECTORY_NAMES.has(name)
+}
+
 function isLocalPreviewUrl(value: string): boolean {
   try {
     const url = new URL(value)
@@ -24,7 +78,17 @@ function isLocalPreviewUrl(value: string): boolean {
       return false
     }
 
-    return LOCAL_HOSTS.has(url.hostname.toLowerCase())
+    if (!LOCAL_HOSTS.has(url.hostname.toLowerCase())) {
+      return false
+    }
+
+    const pathname = url.pathname.toLowerCase()
+
+    if (/^\/(?:api|graphql|health|metrics|rpc)(?:\/|$)/.test(pathname)) {
+      return false
+    }
+
+    return !ASSET_EXT_RE.test(pathname)
   } catch {
     return false
   }
@@ -33,7 +97,7 @@ function isLocalPreviewUrl(value: string): boolean {
 export function isLikelyPreviewCandidate(value: string): boolean {
   const trimmed = stripTrailingPunctuation(value.trim())
 
-  return trimmed.startsWith('file://') || HTML_EXT_RE.test(trimmed) || isLocalPreviewUrl(trimmed)
+  return isHtmlFileUrl(trimmed) || HTML_EXT_RE.test(trimmed) || isPreviewDirectoryCandidate(trimmed) || isLocalPreviewUrl(trimmed)
 }
 
 function collectPreviewMatches(text: string): PreviewCandidateMatch[] {
@@ -73,6 +137,18 @@ function collectPreviewMatches(text: string): PreviewCandidateMatch[] {
   }
 
   for (const match of text.matchAll(RELATIVE_HTML_PATH_RE)) {
+    collect(match.index, match[0], match.groups?.path || '')
+  }
+
+  for (const match of text.matchAll(BARE_HTML_PATH_RE)) {
+    collect(match.index, match[0], match.groups?.path || '')
+  }
+
+  for (const match of text.matchAll(POSIX_PATH_RE)) {
+    collect(match.index, match[0], match.groups?.path || '')
+  }
+
+  for (const match of text.matchAll(RELATIVE_PATH_RE)) {
     collect(match.index, match[0], match.groups?.path || '')
   }
 

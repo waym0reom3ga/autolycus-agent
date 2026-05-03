@@ -92,6 +92,7 @@ const MEDIA_MIME_TYPES = {
 }
 
 const PREVIEW_HTML_EXTENSIONS = new Set(['.html', '.htm'])
+const PREVIEW_WATCH_DEBOUNCE_MS = 120
 const LOCAL_PREVIEW_HOSTS = new Set(['0.0.0.0', '127.0.0.1', '::1', '[::1]', 'localhost'])
 
 app.setName(APP_NAME)
@@ -690,13 +691,23 @@ function sendPreviewFileChanged(payload) {
 
 function watchPreviewFile(rawUrl) {
   const filePath = previewFilePathFromUrl(rawUrl)
+  const watchDir = path.dirname(filePath)
+  const targetName = path.basename(filePath)
   const id = crypto.randomBytes(12).toString('base64url')
   let timer = null
-  const watcher = fs.watch(filePath, () => {
+  const watcher = fs.watch(watchDir, (_eventType, filename) => {
+    const changedName = filename ? path.basename(String(filename)) : ''
+
+    if (changedName && changedName !== targetName) {
+      return
+    }
+
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => {
+      timer = null
+      if (!fileExists(filePath)) return
       sendPreviewFileChanged({ id, path: filePath, url: pathToFileURL(filePath).toString() })
-    }, 120)
+    }, PREVIEW_WATCH_DEBOUNCE_MS)
   })
 
   previewWatchers.set(id, {

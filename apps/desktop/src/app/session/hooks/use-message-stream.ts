@@ -20,9 +20,12 @@ import { notify } from '@/store/notifications'
 import {
   setCurrentBranch,
   setCurrentCwd,
+  setCurrentFastMode,
   setCurrentModel,
   setCurrentPersonality,
-  setCurrentProvider
+  setCurrentProvider,
+  setCurrentReasoningEffort,
+  setCurrentServiceTier
 } from '@/store/session'
 import { recordToolDiff } from '@/store/tool-diffs'
 import type { RpcEvent } from '@/types/hermes'
@@ -319,6 +322,18 @@ export function useMessageStream({
 
           if (typeof payload?.personality === 'string') {
             setCurrentPersonality(normalizePersonalityValue(payload.personality))
+          }
+
+          if (typeof payload?.reasoning_effort === 'string') {
+            setCurrentReasoningEffort(payload.reasoning_effort)
+          }
+
+          if (typeof payload?.service_tier === 'string') {
+            setCurrentServiceTier(payload.service_tier)
+          }
+
+          if (typeof payload?.fast === 'boolean') {
+            setCurrentFastMode(payload.fast)
           }
 
           if (runningChanged && sessionId) {

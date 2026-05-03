@@ -25,6 +25,21 @@ describe('preview target detection', () => {
     ])
   })
 
+  it('accepts bare html files and common preview directories', () => {
+    expect(extractPreviewCandidates('Open index.html, nested/demo.html, ./dist, and /tmp/site/.')).toEqual([
+      'index.html',
+      'nested/demo.html',
+      './dist',
+      '/tmp/site/'
+    ])
+  })
+
+  it('rejects non-html file URLs and obvious local API or asset URLs', () => {
+    expect(isLikelyPreviewCandidate('file:///tmp/demo.png')).toBe(false)
+    expect(isLikelyPreviewCandidate('http://localhost:3000/api/users')).toBe(false)
+    expect(isLikelyPreviewCandidate('http://localhost:3000/src/main.tsx')).toBe(false)
+  })
+
   it('ignores remote web URLs', () => {
     expect(isLikelyPreviewCandidate('https://example.com/demo')).toBe(false)
     expect(isLikelyPreviewCandidate('http://127.0.0.1:3000')).toBe(true)

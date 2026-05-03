@@ -31,6 +31,9 @@ export type GatewayEventPayload = {
   todos?: unknown
   model?: string
   provider?: string
+  reasoning_effort?: string
+  service_tier?: string
+  fast?: boolean
   running?: boolean
   cwd?: string
   branch?: string

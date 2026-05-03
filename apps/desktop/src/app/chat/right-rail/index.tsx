@@ -1,19 +1,22 @@
 import { useStore } from '@nanostores/react'
 import type * as React from 'react'
 
+import type { SetTitlebarToolGroup } from '@/app/shell/titlebar-controls'
 import { SESSION_INSPECTOR_WIDTH, SessionInspector } from '@/components/session-inspector'
 import { cn } from '@/lib/utils'
 import { $inspectorOpen } from '@/store/layout'
-import { $previewTarget } from '@/store/preview'
-import type { SetTitlebarToolGroup } from '@/app/shell/titlebar-controls'
+import { $previewReloadRequest, $previewTarget } from '@/store/preview'
 import {
   $availablePersonalities,
   $busy,
   $currentBranch,
   $currentCwd,
+  $currentFastMode,
   $currentModel,
   $currentPersonality,
   $currentProvider,
+  $currentReasoningEffort,
+  $currentServiceTier,
   $gatewayState
 } from '@/store/session'
 
@@ -24,6 +27,8 @@ interface ChatRightRailProps extends Pick<
   'onBrowseCwd' | 'onChangeCwd'
 > {
   onOpenModelPicker: () => void
+  onSetFastMode: (enabled: boolean) => void
+  onSetReasoningEffort: (effort: string) => void
   onSelectPersonality: (name: string) => void
 }
 
@@ -31,6 +36,8 @@ export function ChatRightRail({
   onBrowseCwd,
   onChangeCwd,
   onOpenModelPicker,
+  onSetFastMode,
+  onSetReasoningEffort,
   onSelectPersonality
 }: ChatRightRailProps) {
   const inspectorOpen = useStore($inspectorOpen)
@@ -40,32 +47,51 @@ export function ChatRightRail({
   const branch = useStore($currentBranch)
   const model = useStore($currentModel)
   const provider = useStore($currentProvider)
+  const reasoningEffort = useStore($currentReasoningEffort)
+  const serviceTier = useStore($currentServiceTier)
+  const fastMode = useStore($currentFastMode)
   const personality = useStore($currentPersonality)
   const personalities = useStore($availablePersonalities)
 
   return (
-    <div className="col-start-4 col-end-5 row-start-1 min-w-0 overflow-hidden">
+    <div
+      className={cn(
+        'col-start-4 col-end-5 row-start-1 min-w-0 overflow-hidden',
+        inspectorOpen && 'border-l border-border/60'
+      )}
+    >
       <SessionInspector
         branch={branch}
         busy={busy}
         cwd={cwd}
+        fastMode={fastMode}
         modelLabel={model ? model.split('/').pop() || model : ''}
         modelTitle={provider ? `${provider}: ${model || ''}` : model}
         onBrowseCwd={onBrowseCwd}
         onChangeCwd={onChangeCwd}
         onOpenModelPicker={gatewayOpen ? onOpenModelPicker : undefined}
         onSelectPersonality={gatewayOpen ? onSelectPersonality : undefined}
+        onSetFastMode={gatewayOpen ? onSetFastMode : undefined}
+        onSetReasoningEffort={gatewayOpen ? onSetReasoningEffort : undefined}
         open={inspectorOpen}
         personalities={personalities}
         personality={personality}
         providerName={provider}
+        reasoningEffort={reasoningEffort}
+        serviceTier={serviceTier}
       />
     </div>
   )
 }
 
-export function ChatPreviewRail({ setTitlebarToolGroup }: { setTitlebarToolGroup?: SetTitlebarToolGroup }) {
-  const inspectorOpen = useStore($inspectorOpen)
+export function ChatPreviewRail({
+  onRestartServer,
+  setTitlebarToolGroup
+}: {
+  onRestartServer?: (url: string, context?: string) => Promise<string>
+  setTitlebarToolGroup?: SetTitlebarToolGroup
+}) {
+  const previewReloadRequest = useStore($previewReloadRequest)
   const previewTarget = useStore($previewTarget)
 
   if (!previewTarget) {
@@ -74,12 +100,14 @@ export function ChatPreviewRail({ setTitlebarToolGroup }: { setTitlebarToolGroup
 
   return (
     <div
-      className={cn(
-        'pointer-events-none col-start-3 col-end-4 row-start-1 min-w-0 overflow-hidden',
-        inspectorOpen && 'border-r border-border/60'
-      )}
+      className="pointer-events-none col-start-3 col-end-4 row-start-1 min-w-0 overflow-hidden"
     >
-      <PreviewPane setTitlebarToolGroup={setTitlebarToolGroup} target={previewTarget} />
+      <PreviewPane
+        onRestartServer={onRestartServer}
+        reloadRequest={previewReloadRequest}
+        setTitlebarToolGroup={setTitlebarToolGroup}
+        target={previewTarget}
+      />
     </div>
   )
 }

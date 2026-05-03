@@ -1838,6 +1838,74 @@ def _background_agent_kwargs(agent, task_id: str) -> dict:
     }
 
 
+def _ephemeral_preview_agent_kwargs(agent, task_id: str) -> dict:
+    kwargs = _background_agent_kwargs(agent, task_id)
+    kwargs.update(
+        {
+            "enabled_toolsets": ["terminal", "file"],
+            "session_db": None,
+            "skip_memory": True,
+        }
+    )
+    return kwargs
+
+
+def _preview_tool_result_preview(name: str, result: str) -> str:
+    try:
+        data = json.loads(result)
+    except Exception:
+        return ""
+
+    if not isinstance(data, dict):
+        return ""
+
+    if name == "terminal":
+        output = str(data.get("output") or "").strip()
+        exit_code = data.get("exit_code")
+        if output:
+            return output[-1200:]
+        if data.get("session_id"):
+            return f"Background process started: {data.get('session_id')}"
+        if exit_code is not None:
+            return f"terminal exited with code {exit_code}"
+
+    return str(data.get("error") or "").strip()[:1200]
+
+
+def _preview_restart_callbacks(parent: str, task_id: str) -> dict:
+    started_at: dict[str, float] = {}
+
+    def progress(message: str, level: str = "info") -> None:
+        text = str(message or "").strip()
+        if text:
+            _emit("preview.restart.progress", parent, {"task_id": task_id, "level": level, "text": text})
+
+    def tool_start(tool_call_id: str, name: str, args: dict) -> None:
+        started_at[tool_call_id] = time.time()
+        ctx = _tool_ctx(name, args)
+        progress(f"Running {name}{f': {ctx}' if ctx else ''}")
+
+    def tool_complete(tool_call_id: str, name: str, _args: dict, result: str) -> None:
+        duration_s = time.time() - started_at.get(tool_call_id, time.time())
+        summary = _tool_summary(name, result, duration_s) or f"Finished {name}{f' in {_fmt_tool_duration(duration_s)}' if duration_s else ''}"
+        output = _preview_tool_result_preview(name, result)
+        progress(summary + (f"\n{output}" if output else ""))
+
+    def tool_progress(event_type: str, name: str | None = None, preview: str | None = None, **_kwargs) -> None:
+        if preview:
+            progress(str(preview))
+        elif name:
+            progress(f"{event_type.replace('.', ' ')}: {name}")
+
+    return {
+        "tool_start_callback": tool_start,
+        "tool_complete_callback": tool_complete,
+        "tool_progress_callback": tool_progress,
+        "tool_gen_callback": lambda name: progress(f"Preparing {name}"),
+        "status_callback": lambda kind, text=None: progress(text if text is not None else kind),
+    }
+
+
 def _reset_session_agent(sid: str, session: dict) -> dict:
     tokens = _set_session_context(session["session_key"])
     try:
@@ -3506,6 +3574,87 @@ def _(rid, params: dict) -> dict:
     return _ok(rid, {"task_id": task_id})
 
 
+@method("preview.restart")
+def _(rid, params: dict) -> dict:
+    session, err = _sess(params, rid)
+    if err:
+        return err
+
+    url = str(params.get("url") or "").strip()
+    cwd = str(params.get("cwd") or "").strip()
+    context = str(params.get("context") or "").strip()
+
+    if not url:
+        return _err(rid, 4012, "url required")
+
+    task_id = f"preview_{uuid.uuid4().hex[:6]}"
+    parent = params.get("session_id", "")
+    prompt = "\n".join(
+        line
+        for line in [
+            "The desktop preview pane cannot load a local server URL.",
+            "",
+            f"Preview URL: {url}",
+            f"Current working directory: {cwd or '(unknown)'}",
+            "",
+            f"Preview console:\n{context}" if context else "",
+            "" if context else "",
+            "Restart exactly the app intended for the Preview URL, not Hermes Desktop itself.",
+            "The Preview URL and port are the target. Preserve that target unless you conclude it is impossible.",
+            "First inspect what process, if any, owns the Preview URL port. If a stale server exists, inspect its cwd and prefer that cwd over the Hermes/Desktop process cwd.",
+            "The Current working directory is only a hint. Do not assume it is the preview app root when the port owner or files indicate another root.",
+            "If the console shows a module-script MIME error for src/main.tsx or similar, a static server is serving source files. Do not restart python -m http.server or any dumb static server for that app.",
+            "For module-script MIME failures, inspect package.json/vite config in the candidate app root and start the real dev server/bundler (for example npm/pnpm/yarn dev) so module transforms happen.",
+            "Before declaring success, verify the Preview URL responds with the intended app, not Hermes Desktop. If it serves Hermes/Desktop UI or another unrelated app, stop that process and report failure.",
+            "Do not modify files. Do not ask the user unless blocked.",
+            "Prefer existing project scripts or commands when they are clear.",
+            "If a stale process owns the needed port, handle it safely.",
+            "Start long-running servers detached/in the background, then return immediately.",
+            "Do not run a foreground dev server command that blocks this background task.",
+            "Keep the final response short: what command/server was started, or why it could not be restarted.",
+        ]
+        if line
+    )
+
+    def run():
+        session_tokens = _set_session_context(task_id)
+        try:
+            from run_agent import AIAgent
+            from tools.terminal_tool import register_task_env_overrides
+
+            if cwd and os.path.isdir(os.path.abspath(os.path.expanduser(cwd))):
+                register_task_env_overrides(task_id, {"cwd": os.path.abspath(os.path.expanduser(cwd))})
+
+            _emit("preview.restart.progress", parent, {"task_id": task_id, "text": "Starting hidden restart agent"})
+            result = AIAgent(
+                **_ephemeral_preview_agent_kwargs(session["agent"], task_id),
+                **_preview_restart_callbacks(parent, task_id),
+            ).run_conversation(user_message=prompt, task_id=task_id)
+            text = (
+                result.get("final_response", str(result))
+                if isinstance(result, dict)
+                else str(result)
+            )
+            _emit("preview.restart.complete", parent, {"task_id": task_id, "text": text})
+        except Exception as e:
+            _emit(
+                "preview.restart.complete",
+                parent,
+                {"task_id": task_id, "text": f"error: {e}"},
+            )
+        finally:
+            try:
+                from tools.terminal_tool import clear_task_env_overrides
+
+                clear_task_env_overrides(task_id)
+            except Exception:
+                pass
+            _clear_session_context(session_tokens)
+
+    threading.Thread(target=run, daemon=True).start()
+    return _ok(rid, {"task_id": task_id})
+
+
 # ── Methods: respond ─────────────────────────────────────────────────
 
 
@@ -3900,7 +4049,10 @@ def _(rid, params: dict) -> dict:
             return _err(rid, 4002, f"working directory does not exist: {raw}")
         _write_config_key("terminal.cwd", cwd)
         os.environ["TERMINAL_CWD"] = cwd
-        return _ok(rid, {"key": "terminal.cwd", "value": cwd})
+        return _ok(
+            rid,
+            {"key": "terminal.cwd", "value": cwd, "cwd": cwd, "branch": _git_branch_for_cwd(cwd)},
+        )
 
     if key in ("prompt", "personality", "skin"):
         try:
@@ -3964,6 +4116,11 @@ def _(rid, params: dict) -> dict:
         from hermes_constants import display_hermes_home
 
         return _ok(rid, {"home": str(_hermes_home), "display": display_hermes_home()})
+    if key == "project":
+        cfg_terminal = _load_cfg().get("terminal") or {}
+        raw = str(params.get("cwd", "") or cfg_terminal.get("cwd", "") or "").strip()
+        cwd = _completion_cwd({"cwd": raw} if raw else {})
+        return _ok(rid, {"cwd": cwd, "branch": _git_branch_for_cwd(cwd)})
     if key == "full":
         return _ok(rid, {"config": _load_cfg()})
     if key == "prompt":

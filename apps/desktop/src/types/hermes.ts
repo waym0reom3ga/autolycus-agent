@@ -51,7 +51,9 @@ export interface GatewayReadyPayload {
 
 export interface HermesConfig {
   agent?: {
+    reasoning_effort?: string
     personalities?: Record<string, unknown>
+    service_tier?: string
   }
   display?: {
     personality?: string

@@ -68,6 +68,9 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onChangeCwd: (cwd: string) => void
   onBrowseCwd: () => void
   onOpenModelPicker: () => void
+  onRestartPreviewServer?: (url: string, context?: string) => Promise<string>
+  onSetFastMode: (enabled: boolean) => void
+  onSetReasoningEffort: (effort: string) => void
   onSelectPersonality: (name: string) => void
   onThreadMessagesChange: (messages: readonly ThreadMessage[]) => void
   onEdit: (message: AppendMessage) => Promise<void>
@@ -121,6 +124,9 @@ export function ChatView({
   onChangeCwd,
   onBrowseCwd,
   onOpenModelPicker,
+  onRestartPreviewServer,
+  onSetFastMode,
+  onSetReasoningEffort,
   onSelectPersonality,
   onThreadMessagesChange,
   onEdit,
@@ -324,12 +330,14 @@ export function ChatView({
         </div>
       </div>
 
-      <ChatPreviewRail setTitlebarToolGroup={setTitlebarToolGroup} />
+      <ChatPreviewRail onRestartServer={onRestartPreviewServer} setTitlebarToolGroup={setTitlebarToolGroup} />
       <ChatRightRail
         onBrowseCwd={onBrowseCwd}
         onChangeCwd={onChangeCwd}
         onOpenModelPicker={onOpenModelPicker}
         onSelectPersonality={onSelectPersonality}
+        onSetFastMode={onSetFastMode}
+        onSetReasoningEffort={onSetReasoningEffort}
       />
     </>
   )

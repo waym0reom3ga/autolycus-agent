@@ -4,7 +4,6 @@ import { useCallback } from 'react'
 
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { triggerHaptic } from '@/lib/haptics'
-import { cn } from '@/lib/utils'
 import {
   $inspectorOpen,
   $sidebarOpen,
@@ -66,20 +65,13 @@ export function AppShell({
 
   const inspectorColumn = showInspectorRail ? 'var(--inspector-width)' : '0px'
 
-  // Preview yields first because it is the widest rail; keep chat usable before
-  // letting the webview consume horizontal space.
   const previewColumn = showPreviewRail
-    ? `min(var(--preview-width), max(0px, calc(100vw - var(--sidebar-width) - ${showInspectorRail ? 'var(--inspector-width)' : '0px'} - var(--chat-min-width) - 3 * var(--shell-gap))))`
+    ? `min(var(--preview-width), max(0px, calc(100vw - var(--sidebar-width) - ${showInspectorRail ? 'var(--inspector-width)' : '0px'} - var(--chat-min-width))))`
     : '0px'
 
   const titlebarToolCount = (titlebarTools?.filter(tool => !tool.hidden).length ?? 0) + (rightRailOpen ? 1 : 0) + 2
 
-  // Always keep the shell as fixed columns because sidebar/chat/preview/inspector
-  // are always rendered as grid children. Hidden rails collapse to 0px so they
-  // don't float over the chat surface or reorder into a new row.
   const shellGridColumns = 'var(--sidebar-width) minmax(0,1fr) var(--preview-col) var(--inspector-col)'
-
-  const hasSideGaps = sidebarOpen || showPreviewRail || showInspectorRail
 
   const startSidebarResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -149,10 +141,7 @@ export function AppShell({
       />
 
       <main
-        className={cn(
-          'relative grid h-screen w-full overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75 transition-none',
-          hasSideGaps ? 'gap-(--shell-gap)' : 'gap-0'
-        )}
+        className="relative grid h-screen w-full overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75 transition-none"
         style={
           {
             '--inspector-col': inspectorColumn,
