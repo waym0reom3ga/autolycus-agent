@@ -115,54 +115,34 @@ function titleForTool(name: string): string {
   )
 }
 
+const PREFIX_META: { icon: LucideIcon; prefix: string; tone: ToolTone; verb: string }[] = [
+  { prefix: 'browser_', verb: 'Browser', icon: Globe, tone: 'browser' },
+  { prefix: 'web_', verb: 'Web', icon: Search, tone: 'web' }
+]
+
 function toolMeta(name: string): ToolMeta {
-  const exact = TOOL_META[name]
-
-  if (exact) {
-    return exact
+  if (TOOL_META[name]) {
+    return TOOL_META[name]
   }
 
-  if (name.startsWith('browser_')) {
-    const action = titleForTool(name)
+  const action = titleForTool(name)
+  const prefix = PREFIX_META.find(p => name.startsWith(p.prefix))
 
-    return {
-      done: `Browser ${action}`,
-      pending: `Running browser ${action.toLowerCase()}`,
-      icon: Globe,
-      tone: 'browser'
-    }
-  }
-
-  if (name.startsWith('web_')) {
-    const action = titleForTool(name)
-
-    return {
-      done: `Web ${action}`,
-      pending: `Running web ${action.toLowerCase()}`,
-      icon: Search,
-      tone: 'web'
-    }
-  }
-
-  return {
-    done: titleForTool(name),
-    pending: `Running ${titleForTool(name).toLowerCase()}`,
-    icon: Wrench,
-    tone: 'default'
-  }
+  return prefix
+    ? {
+        done: `${prefix.verb} ${action}`,
+        pending: `Running ${prefix.verb.toLowerCase()} ${action.toLowerCase()}`,
+        icon: prefix.icon,
+        tone: prefix.tone
+      }
+    : { done: action, pending: `Running ${action.toLowerCase()}`, icon: Wrench, tone: 'default' }
 }
 
 function compactPreview(value: unknown, max = 72): string {
-  const text =
-    typeof value === 'string'
-      ? value
-      : value && typeof value === 'object' && 'context' in value
-        ? String((value as { context?: unknown }).context ?? '')
-        : ''
+  const raw = typeof value === 'string' ? value : (parseMaybeObject(value).context as string | undefined) || ''
+  const line = raw.replace(/\s+/g, ' ').trim()
 
-  const oneLine = text.replace(/\s+/g, ' ').trim()
-
-  return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine
+  return line.length > max ? `${line.slice(0, max - 1)}…` : line
 }
 
 function contextValue(value: unknown): string {
@@ -201,72 +181,45 @@ function parseMaybeObject(value: unknown): Record<string, unknown> {
   }
 }
 
-function recordValue(value: unknown): Record<string, unknown> {
-  return parseMaybeObject(value)
-}
-
 function numberValue(value: unknown): null | number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
-  }
+  const n = typeof value === 'number' ? value : Number(value)
 
-  if (typeof value === 'string') {
-    const parsed = Number(value)
-
-    return Number.isFinite(parsed) ? parsed : null
-  }
-
-  return null
+  return Number.isFinite(n) ? n : null
 }
 
 function looksLikeUrl(value: string): boolean {
   return /^https?:\/\//i.test(value)
 }
 
-function looksLikePreviewPath(value: string): boolean {
+function looksLikePath(value: string): boolean {
   return /^file:\/\//i.test(value) || /^(?:\/|\.{1,2}\/|~\/).+/.test(value)
 }
 
 function isPreviewableTarget(target: string): boolean {
-  if (!target) {
-    return false
-  }
-
-  if (/^file:\/\//i.test(target)) {
-    return true
-  }
-
-  if (/^(?:\/|\.{1,2}\/|~\/).+\.html?$/i.test(target)) {
-    return true
-  }
-
-  if (/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/i.test(target)) {
-    return true
-  }
-
-  return false
+  return Boolean(
+    target &&
+      (/^file:\/\//i.test(target) ||
+        /^(?:\/|\.{1,2}\/|~\/).+\.html?$/i.test(target) ||
+        /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/i.test(target))
+  )
 }
 
 const URL_PATTERN = /https?:\/\/[^\s'"<>)\]]+/i
 
 function findFirstUrl(...sources: unknown[]): string {
-  for (const source of sources) {
-    if (typeof source === 'string') {
-      const match = source.match(URL_PATTERN)
+  for (const src of sources) {
+    if (typeof src === 'string') {
+      const m = src.match(URL_PATTERN)
 
-      if (match) {
-        return match[0]
+      if (m) {
+        return m[0]
       }
+    } else if (src && typeof src === 'object') {
+      for (const v of Object.values(src as Record<string, unknown>)) {
+        const found = findFirstUrl(v)
 
-      continue
-    }
-
-    if (source && typeof source === 'object') {
-      for (const value of Object.values(source as Record<string, unknown>)) {
-        const nested = findFirstUrl(value)
-
-        if (nested) {
-          return nested
+        if (found) {
+          return found
         }
       }
     }
@@ -296,22 +249,20 @@ function looksRedundant(title: string, detail: string): boolean {
 }
 
 function summarizeBrowserSnapshot(snapshot: string): string {
-  const buttons = snapshot.match(/button\s+"[^"]+"/g)?.length ?? 0
-  const links = snapshot.match(/link\s+"[^"]+"/g)?.length ?? 0
-  const inputs = snapshot.match(/(?:textbox|combobox|searchbox)\s+"[^"]+"/g)?.length ?? 0
+  const count = (re: RegExp) => snapshot.match(re)?.length ?? 0
+
+  const stats = [
+    `${count(/button\s+"[^"]+"/g)} buttons`,
+    `${count(/link\s+"[^"]+"/g)} links`,
+    `${count(/(?:textbox|combobox|searchbox)\s+"[^"]+"/g)} inputs`
+  ].join(' · ')
 
   const labels = Array.from(snapshot.matchAll(/(?:button|link|combobox|textbox)\s+"([^"]+)"/g))
-    .map(match => match[1].trim())
+    .map(m => m[1].trim())
     .filter(Boolean)
     .slice(0, 4)
 
-  const stats = [`${buttons} buttons`, `${links} links`, `${inputs} inputs`].join(' · ')
-
-  if (!labels.length) {
-    return stats
-  }
-
-  return `${stats}\nTop controls: ${labels.join(', ')}`
+  return labels.length ? `${stats}\nTop controls: ${labels.join(', ')}` : stats
 }
 
 function firstStringField(record: Record<string, unknown>, keys: readonly string[]): string {
@@ -328,46 +279,38 @@ function firstStringField(record: Record<string, unknown>, keys: readonly string
 
 function extractSearchResults(result: unknown): SearchResultRow[] {
   const row = parseMaybeObject(result)
-
-  const list = Array.isArray(row.results)
-    ? row.results
-    : Array.isArray(row.items)
-      ? row.items
-      : Array.isArray(row.data)
-        ? row.data
-        : []
+  const list = (Array.isArray(row.results) ? row.results : Array.isArray(row.items) ? row.items : Array.isArray(row.data) ? row.data : []) as unknown[]
 
   return list
-    .map(item => parseMaybeObject(item))
-    .map(item => ({
-      title: firstStringField(item, ['title', 'name']),
-      url: firstStringField(item, ['url', 'href', 'link']),
-      snippet: firstStringField(item, ['snippet', 'description', 'body'])
-    }))
-    .filter(item => item.title || item.url)
+    .map(item => {
+      const r = parseMaybeObject(item)
+
+      return {
+        title: firstStringField(r, ['title', 'name']),
+        url: firstStringField(r, ['url', 'href', 'link']),
+        snippet: firstStringField(r, ['snippet', 'description', 'body'])
+      }
+    })
+    .filter(hit => hit.title || hit.url)
     .slice(0, 3)
 }
 
-function toolErrorText(part: ToolPart, resultRecord: Record<string, unknown>): string {
+function toolErrorText(part: ToolPart, result: Record<string, unknown>): string {
   if (part.isError) {
     return 'Tool returned an error.'
   }
 
-  if (typeof resultRecord.error === 'string' && resultRecord.error.trim()) {
-    return resultRecord.error.trim()
+  if (typeof result.error === 'string' && result.error.trim()) {
+    return result.error.trim()
   }
 
-  if (resultRecord.success === false) {
-    return firstStringField(resultRecord, ['message', 'reason']) || 'Tool returned success=false.'
+  if (result.success === false) {
+    return firstStringField(result, ['message', 'reason']) || 'Tool returned success=false.'
   }
 
-  const exitCode = numberValue(resultRecord.exit_code)
+  const exit = numberValue(result.exit_code)
 
-  if (exitCode !== null && exitCode !== 0) {
-    return `Command failed with exit code ${exitCode}.`
-  }
-
-  return ''
+  return exit !== null && exit !== 0 ? `Command failed with exit code ${exit}.` : ''
 }
 
 function toolStatus(part: ToolPart, resultRecord: Record<string, unknown>): ToolStatus {
@@ -388,55 +331,37 @@ function durationLabel(resultRecord: Record<string, unknown>): string | undefine
   return `${seconds.toFixed(seconds >= 10 ? 0 : 1)}s`
 }
 
-function toolPreviewTarget(toolName: string, argsRecord: Record<string, unknown>, resultRecord: Record<string, unknown>): string {
-  const direct = [
-    firstStringField(resultRecord, ['preview', 'url', 'target']),
-    firstStringField(argsRecord, ['preview', 'url', 'target', 'path', 'file', 'filepath']),
-    firstStringField(resultRecord, ['path', 'file', 'filepath'])
-  ].find(Boolean)
+function toolPreviewTarget(toolName: string, args: Record<string, unknown>, result: Record<string, unknown>): string {
+  const direct =
+    firstStringField(result, ['preview', 'url', 'target']) ||
+    firstStringField(args, ['preview', 'url', 'target', 'path', 'file', 'filepath']) ||
+    firstStringField(result, ['path', 'file', 'filepath'])
 
-  if (direct && (looksLikeUrl(direct) || looksLikePreviewPath(direct))) {
+  if (direct && (looksLikeUrl(direct) || looksLikePath(direct))) {
     return direct
   }
 
   if (toolName === 'browser_navigate' || toolName === 'web_extract' || toolName === 'web_search') {
-    const direct = firstStringField(argsRecord, ['url', 'search_term', 'query']) || firstStringField(resultRecord, ['url'])
+    const explicit = firstStringField(args, ['url', 'search_term', 'query']) || firstStringField(result, ['url'])
 
-    if (looksLikeUrl(direct)) {
-      return direct
-    }
-
-    const scanned = findFirstUrl(argsRecord, resultRecord)
-
-    if (scanned) {
-      return scanned
-    }
+    return looksLikeUrl(explicit) ? explicit : findFirstUrl(args, result)
   }
 
   return ''
 }
 
-function toolImageUrl(argsRecord: Record<string, unknown>, resultRecord: Record<string, unknown>): string {
-  const candidate = [
-    firstStringField(resultRecord, ['image_url', 'url', 'path', 'image_path']),
-    firstStringField(argsRecord, ['image_url', 'url', 'path'])
-  ].find(Boolean)
+function toolImageUrl(args: Record<string, unknown>, result: Record<string, unknown>): string {
+  const candidate =
+    firstStringField(result, ['image_url', 'url', 'path', 'image_path']) ||
+    firstStringField(args, ['image_url', 'url', 'path'])
 
   if (!candidate) {
     return ''
   }
 
-  const lower = candidate.toLowerCase()
-
-  if (lower.startsWith('data:image/')) {
-    return candidate
-  }
-
-  if (!/\.(png|jpe?g|gif|webp|bmp|svg)(\?|#|$)/i.test(lower)) {
-    return ''
-  }
-
-  return candidate
+  return candidate.toLowerCase().startsWith('data:image/') || /\.(png|jpe?g|gif|webp|bmp|svg)(\?|#|$)/i.test(candidate)
+    ? candidate
+    : ''
 }
 
 function stripAnsi(value: string): string {
@@ -452,7 +377,7 @@ function stripInlineDiffChrome(value: string): string {
 }
 
 function inlineDiffFromResult(result: unknown): string {
-  const value = recordValue(result).inline_diff
+  const value = parseMaybeObject(result).inline_diff
 
   return typeof value === 'string' ? stripInlineDiffChrome(value) : ''
 }
@@ -599,38 +524,28 @@ function toolDetailText(part: ToolPart, argsRecord: Record<string, unknown>, res
 
 function dynamicTitle(
   part: ToolPart,
-  argsRecord: Record<string, unknown>,
-  resultRecord: Record<string, unknown>,
+  args: Record<string, unknown>,
+  result: Record<string, unknown>,
   fallback: string
 ): string {
-  const isPending = part.result === undefined
+  const verb = (gerund: string, past: string) => (part.result === undefined ? gerund : past)
 
   if (part.toolName === 'web_extract') {
-    const url = findFirstUrl(argsRecord, resultRecord)
+    const url = findFirstUrl(args, result)
 
-    if (url) {
-      const host = hostnameOf(url)
-
-      return isPending ? `Reading ${host}` : `Read ${host}`
-    }
+    return url ? `${verb('Reading', 'Read')} ${hostnameOf(url)}` : fallback
   }
 
   if (part.toolName === 'browser_navigate') {
-    const url = findFirstUrl(argsRecord, resultRecord)
+    const url = findFirstUrl(args, result)
 
-    if (url) {
-      const host = hostnameOf(url)
-
-      return isPending ? `Opening ${host}` : `Opened ${host}`
-    }
+    return url ? `${verb('Opening', 'Opened')} ${hostnameOf(url)}` : fallback
   }
 
   if (part.toolName === 'web_search') {
-    const query = firstStringField(argsRecord, ['search_term', 'query']) || contextValue(argsRecord)
+    const query = firstStringField(args, ['search_term', 'query']) || contextValue(args)
 
-    if (query) {
-      return isPending ? `Searching “${compactPreview(query, 48)}”` : `Searched “${compactPreview(query, 48)}”`
-    }
+    return query ? `${verb('Searching', 'Searched')} “${compactPreview(query, 48)}”` : fallback
   }
 
   return fallback
@@ -704,35 +619,18 @@ function groupToolParts(content: unknown): ToolPart[][] {
 }
 
 function groupStatus(parts: ToolPart[]): ToolStatus {
-  if (parts.some(part => part.result === undefined)) {
+  if (parts.some(p => p.result === undefined)) {
     return 'running'
   }
 
-  const hasError = parts.some(part => {
-    const resultRecord = parseMaybeObject(part.result)
-
-    return toolStatus(part, resultRecord) === 'error'
-  })
-
-  return hasError ? 'error' : 'success'
+  return parts.some(p => toolStatus(p, parseMaybeObject(p.result)) === 'error') ? 'error' : 'success'
 }
 
 function groupTitle(parts: ToolPart[]): string {
-  const first = parts[0]
+  const prefix = PREFIX_META.find(p => parts.every(part => part.toolName.startsWith(p.prefix)))
+  const verb = prefix?.verb || 'Tool'
 
-  if (!first) {
-    return 'Tool calls'
-  }
-
-  if (parts.every(part => part.toolName.startsWith('browser_'))) {
-    return `Browser actions · ${parts.length} steps`
-  }
-
-  if (parts.every(part => part.toolName.startsWith('web_'))) {
-    return `Web actions · ${parts.length} steps`
-  }
-
-  return `Tool actions · ${parts.length} steps`
+  return `${verb} actions · ${parts.length} steps`
 }
 
 const STATUS_DOT_CLASS: Record<ToolStatus, string> = {
