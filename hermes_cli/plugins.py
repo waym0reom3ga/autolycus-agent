@@ -1,6 +1,5 @@
 """
 Hermes Plugin System
-====================
 
 Discovers, loads, and manages plugins from four sources:
 
