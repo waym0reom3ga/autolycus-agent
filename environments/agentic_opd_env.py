@@ -1,6 +1,5 @@
 """
 AgenticOPDEnv — On-Policy Distillation for Agentic Tool-Calling Tasks
-=====================================================================
 
 First Atropos environment to populate the distill_token_ids / distill_logprobs
 fields on ScoredDataGroup, enabling on-policy distillation (OPD) training.

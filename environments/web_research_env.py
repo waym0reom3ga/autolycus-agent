@@ -1,6 +1,5 @@
 """
 WebResearchEnv — RL Environment for Multi-Step Web Research
-============================================================
 
 Trains models to do accurate, efficient, multi-source web research.
 
