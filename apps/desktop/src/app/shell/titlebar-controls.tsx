@@ -3,12 +3,12 @@ import type { ComponentProps, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { triggerHaptic } from '@/lib/haptics'
-import { Command, NotebookTabs, Settings, SlidersHorizontal, Volume2, VolumeX } from '@/lib/icons'
+import { NotebookTabs, Settings, SlidersHorizontal, Volume2, VolumeX } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { $hapticsMuted, toggleHapticsMuted } from '@/store/haptics'
 import { $inspectorOpen, $sidebarOpen, toggleInspectorOpen, toggleSidebarOpen } from '@/store/layout'
 
-import { TITLEBAR_ICON_SIZE, titlebarButtonClass } from './titlebar'
+import { titlebarButtonClass } from './titlebar'
 
 export interface TitlebarTool {
   id: string
@@ -28,20 +28,16 @@ export type TitlebarToolSide = 'left' | 'right'
 export type SetTitlebarToolGroup = (id: string, tools: readonly TitlebarTool[], side?: TitlebarToolSide) => void
 
 interface TitlebarControlsProps extends ComponentProps<'div'> {
-  commandCenterOpen: boolean
   leftTools?: readonly TitlebarTool[]
   showInspectorToggle: boolean
   tools?: readonly TitlebarTool[]
-  onToggleCommandCenter: () => void
   onOpenSettings: () => void
 }
 
 export function TitlebarControls({
-  commandCenterOpen,
   leftTools = [],
   showInspectorToggle,
   tools = [],
-  onToggleCommandCenter,
   onOpenSettings
 }: TitlebarControlsProps) {
   const navigate = useNavigate()
@@ -69,17 +65,6 @@ export function TitlebarControls({
       onSelect: () => {
         triggerHaptic('tap')
         toggleSidebarOpen()
-      }
-    },
-    {
-      active: commandCenterOpen,
-      icon: <Command size={TITLEBAR_ICON_SIZE} />,
-      id: 'command-center',
-      label: commandCenterOpen ? 'Close command center' : 'Open command center',
-      title: commandCenterOpen ? 'Close command center' : 'Open command center',
-      onSelect: () => {
-        triggerHaptic('tap')
-        onToggleCommandCenter()
       }
     },
     ...leftTools

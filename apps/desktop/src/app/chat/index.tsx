@@ -39,6 +39,7 @@ import {
 import type { ModelOptionsResponse } from '@/types/hermes'
 
 import { routeSessionId } from '../routes'
+import type { SetStatusbarItemGroup } from '../shell/statusbar-controls'
 import { titlebarHeaderBaseClass, titlebarHeaderShadowClass } from '../shell/titlebar'
 import type { SetTitlebarToolGroup } from '../shell/titlebar-controls'
 
@@ -72,10 +73,13 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onSetFastMode: (enabled: boolean) => void
   onSetReasoningEffort: (effort: string) => void
   onSelectPersonality: (name: string) => void
+  onOpenCommandCenterSystem: () => void
+  onOpenSkills: () => void
   onThreadMessagesChange: (messages: readonly ThreadMessage[]) => void
   onEdit: (message: AppendMessage) => Promise<void>
   onReload: (parentId: string | null) => Promise<void>
   onTranscribeAudio?: (audio: Blob) => Promise<string>
+  setStatusbarItemGroup?: SetStatusbarItemGroup
   setTitlebarToolGroup?: SetTitlebarToolGroup
 }
 
@@ -121,17 +125,20 @@ export function ChatView({
   onPickImages,
   onRemoveAttachment,
   onSubmit,
-  onChangeCwd,
-  onBrowseCwd,
-  onOpenModelPicker,
+  onChangeCwd: _onChangeCwd,
+  onBrowseCwd: _onBrowseCwd,
+  onOpenModelPicker: _onOpenModelPicker,
   onRestartPreviewServer,
-  onSetFastMode,
-  onSetReasoningEffort,
-  onSelectPersonality,
+  onSetFastMode: _onSetFastMode,
+  onSetReasoningEffort: _onSetReasoningEffort,
+  onSelectPersonality: _onSelectPersonality,
+  onOpenCommandCenterSystem,
+  onOpenSkills,
   onThreadMessagesChange,
   onEdit,
   onReload,
   onTranscribeAudio,
+  setStatusbarItemGroup: _setStatusbarItemGroup,
   setTitlebarToolGroup
 }: ChatViewProps) {
   const location = useLocation()
@@ -266,7 +273,7 @@ export function ChatView({
     <>
       <div
         className={cn(
-          'relative col-start-2 col-end-3 row-start-1 flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent',
+          'relative col-start-2 col-end-3 row-start-1 flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent',
           className
         )}
       >
@@ -337,12 +344,8 @@ export function ChatView({
 
       <ChatPreviewRail onRestartServer={onRestartPreviewServer} setTitlebarToolGroup={setTitlebarToolGroup} />
       <ChatRightRail
-        onBrowseCwd={onBrowseCwd}
-        onChangeCwd={onChangeCwd}
-        onOpenModelPicker={onOpenModelPicker}
-        onSelectPersonality={onSelectPersonality}
-        onSetFastMode={onSetFastMode}
-        onSetReasoningEffort={onSetReasoningEffort}
+        onOpenCommandCenterSystem={onOpenCommandCenterSystem}
+        onOpenSkills={onOpenSkills}
       />
     </>
   )

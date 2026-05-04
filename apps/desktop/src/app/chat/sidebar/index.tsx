@@ -100,7 +100,7 @@ export function ChatSidebar({
   return (
     <Sidebar
       className={cn(
-        'relative h-screen min-w-0 overflow-hidden border-r border-t-0 border-b-0 border-l-0 text-foreground transition-none [backdrop-filter:blur(1.5rem)_saturate(1.08)]',
+        'relative h-full min-w-0 overflow-hidden border-r border-t-0 border-b-0 border-l-0 text-foreground transition-none [backdrop-filter:blur(1.5rem)_saturate(1.08)]',
         sidebarOpen
           ? 'border-(--sidebar-edge-border) bg-[color-mix(in_srgb,var(--dt-sidebar-bg)_97%,transparent)] opacity-100'
           : 'pointer-events-none border-transparent bg-transparent opacity-0'

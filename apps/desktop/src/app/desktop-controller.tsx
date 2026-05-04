@@ -3,24 +3,30 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 
-import type { ModelOptionsResponse, SessionRuntimeInfo } from '@/types/hermes'
+import type { ModelOptionsResponse, SessionRuntimeInfo, StatusResponse } from '@/types/hermes'
 
 import { formatRefValue } from '../components/assistant-ui/directive-text'
 import {
   getGlobalModelInfo,
   getHermesConfig,
   getHermesConfigDefaults,
+  getLogs,
   getSessionMessages,
+  getStatus,
   type HermesGateway,
   listSessions,
   setGlobalModel
 } from '../hermes'
 import { chatMessageText, toChatMessages } from '../lib/chat-messages'
 import { BUILTIN_PERSONALITIES, normalizePersonalityValue, personalityNamesFromConfig } from '../lib/chat-runtime'
+import { Activity, AlertCircle, Command, Cpu, FolderOpen, GitBranch, Loader2 } from '../lib/icons'
 import { extractPreviewCandidates } from '../lib/preview-targets'
+import { compactPath, contextBarLabel, LiveDuration, usageContextLabel } from '../lib/statusbar'
+import { $desktopActionTasks } from '../store/activity'
 import { $pinnedSessionIds, pinSession, unpinSession } from '../store/layout'
 import { notify, notifyError } from '../store/notifications'
 import {
+  $previewServerRestart,
   $previewTarget,
   beginPreviewServerRestart,
   completePreviewServerRestart,
@@ -30,14 +36,23 @@ import {
 } from '../store/preview'
 import {
   $activeSessionId,
+  $busy,
+  $currentBranch,
   $currentCwd,
   $currentFastMode,
+  $currentModel,
+  $currentProvider,
   $currentReasoningEffort,
   $currentServiceTier,
+  $currentUsage,
   $freshDraftReady,
   $gatewayState,
   $messages,
   $selectedStoredSessionId,
+  $sessions,
+  $sessionStartedAt,
+  $turnStartedAt,
+  $workingSessionIds,
   setAvailablePersonalities,
   setAwaitingResponse,
   setBusy,
@@ -62,7 +77,7 @@ import { ArtifactsView } from './artifacts'
 import { ChatView, PREVIEW_RAIL_WIDTH, SESSION_INSPECTOR_WIDTH } from './chat'
 import { useComposerActions } from './chat/hooks/use-composer-actions'
 import { ChatSidebar } from './chat/sidebar'
-import { CommandCenterView } from './command-center'
+import { type CommandCenterSection, CommandCenterView } from './command-center'
 import { useGatewayBoot } from './gateway/hooks/use-gateway-boot'
 import { useGatewayRequest } from './gateway/hooks/use-gateway-request'
 import { ModelPickerOverlay } from './model-picker-overlay'
@@ -72,7 +87,8 @@ import {
   isNewChatRoute,
   NEW_CHAT_ROUTE,
   routeSessionId,
-  sessionRoute
+  sessionRoute,
+  SKILLS_ROUTE
 } from './routes'
 import { useMessageStream } from './session/hooks/use-message-stream'
 import { usePromptActions } from './session/hooks/use-prompt-actions'
@@ -80,11 +96,16 @@ import { useSessionActions } from './session/hooks/use-session-actions'
 import { useSessionStateCache } from './session/hooks/use-session-state-cache'
 import { SettingsView } from './settings'
 import { AppShell } from './shell/app-shell'
-import type { SetTitlebarToolGroup, TitlebarTool, TitlebarToolSide } from './shell/titlebar-controls'
+import type { StatusbarItem, StatusbarMenuItem } from './shell/statusbar-controls'
+import type { TitlebarTool } from './shell/titlebar-controls'
+import { useGroupRegistry } from './shell/use-group-registry'
 import { SkillsView } from './skills'
 import type { ContextSuggestion } from './types'
 
 const DEFAULT_VOICE_RECORDING_SECONDS = 120
+const COMMAND_CENTER_SECTIONS = ['models', 'sessions', 'system'] as const
+const STATUS_REFRESH_MS = 15_000
+const GATEWAY_LOG_TAIL = 5
 
 function normalizeRecordingLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_VOICE_RECORDING_SECONDS
@@ -98,6 +119,26 @@ function gatewayEventPreviewText(event: { payload?: unknown; type?: string }): s
     .map(key => payload[key])
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join('\n')
+}
+
+function buildGatewayLogItems(lines: readonly string[]): readonly StatusbarMenuItem[] {
+  if (lines.length === 0) {
+    return [
+      {
+        className: 'text-muted-foreground',
+        disabled: true,
+        id: 'gateway-log-empty',
+        label: 'No recent gateway log lines'
+      }
+    ]
+  }
+
+  return lines.slice(-GATEWAY_LOG_TAIL).map((line, index) => ({
+    className: 'font-mono text-[0.68rem] text-muted-foreground',
+    disabled: true,
+    id: `gateway-log:${index}`,
+    label: line.trim().slice(0, 120) || '(blank log line)'
+  }))
 }
 
 function gatewayEventCompletedFileDiff(event: { payload?: unknown; type?: string }): boolean {
@@ -119,9 +160,20 @@ export function DesktopController() {
   const gatewayState = useStore($gatewayState)
   const { availableThemes, setTheme, themeName } = useTheme()
   const activeSessionId = useStore($activeSessionId)
+  const busy = useStore($busy)
+  const currentBranch = useStore($currentBranch)
+  const currentUsage = useStore($currentUsage)
   const messages = useStore($messages)
+  const currentModel = useStore($currentModel)
+  const currentProvider = useStore($currentProvider)
+  const desktopActionTasks = useStore($desktopActionTasks)
+  const previewServerRestart = useStore($previewServerRestart)
   const selectedStoredSessionId = useStore($selectedStoredSessionId)
+  const sessionStartedAt = useStore($sessionStartedAt)
+  const sessions = useStore($sessions)
+  const turnStartedAt = useStore($turnStartedAt)
   const currentCwd = useStore($currentCwd)
+  const workingSessionIds = useStore($workingSessionIds)
   const freshDraftReady = useStore($freshDraftReady)
   const routedSessionId = routeSessionId(location.pathname)
   const currentView = appViewForPath(location.pathname)
@@ -132,15 +184,25 @@ export function DesktopController() {
   const settingsOpen = currentView === 'settings'
   const commandCenterOpen = currentView === 'command-center'
   const chatOpen = currentView === 'chat'
+
+  const commandCenterInitialSection = useMemo<CommandCenterSection | undefined>(() => {
+    const section = new URLSearchParams(location.search).get('section')
+
+    return COMMAND_CENTER_SECTIONS.find(value => value === section)
+  }, [location.search])
+
   const overlayReturnPathRef = useRef(NEW_CHAT_ROUTE)
   const refreshSessionsRequestRef = useRef(0)
 
-  const [titlebarToolGroups, setTitlebarToolGroups] = useState<
-    Record<TitlebarToolSide, Record<string, readonly TitlebarTool[]>>
-  >({ left: {}, right: {} })
+  const titlebarToolGroups = useGroupRegistry<TitlebarTool>()
+  const statusbarItemGroups = useGroupRegistry<StatusbarItem>()
+  const setTitlebarToolGroup = titlebarToolGroups.set
+  const setStatusbarItemGroup = statusbarItemGroups.set
 
   const [voiceMaxRecordingSeconds, setVoiceMaxRecordingSeconds] = useState(DEFAULT_VOICE_RECORDING_SECONDS)
   const [sttEnabled, setSttEnabled] = useState(true)
+  const [gatewayLogLines, setGatewayLogLines] = useState<string[]>([])
+  const [statusSnapshot, setStatusSnapshot] = useState<StatusResponse | null>(null)
 
   const {
     activeSessionIdRef,
@@ -159,23 +221,112 @@ export function DesktopController() {
     setMessages
   })
 
-  const setTitlebarToolGroup = useCallback<SetTitlebarToolGroup>((id, tools, side = 'right') => {
-    setTitlebarToolGroups(current => {
-      const next = { ...current, [side]: { ...current[side] } }
+  const openCommandCenterSection = useCallback(
+    (section: CommandCenterSection) => {
+      navigate(`${COMMAND_CENTER_ROUTE}?section=${section}`)
+    },
+    [navigate]
+  )
 
-      if (tools.length === 0) {
-        delete next[side][id]
-      } else {
-        next[side][id] = tools
+  const closeOverlayToPreviousRoute = useCallback(() => {
+    navigate(overlayReturnPathRef.current || NEW_CHAT_ROUTE, { replace: true })
+  }, [navigate])
+
+  const toggleCommandCenter = useCallback(() => {
+    if (commandCenterOpen) {
+      closeOverlayToPreviousRoute()
+
+      return
+    }
+
+    navigate(COMMAND_CENTER_ROUTE)
+  }, [closeOverlayToPreviousRoute, commandCenterOpen, navigate])
+
+  const contextUsage = useMemo(() => usageContextLabel(currentUsage), [currentUsage])
+  const contextBar = useMemo(() => contextBarLabel(currentUsage), [currentUsage])
+
+  const platformMenuItems = useMemo<readonly StatusbarMenuItem[]>(
+    () =>
+      Object.entries(statusSnapshot?.gateway_platforms || {})
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([name, platform]) => ({
+          id: `platform:${name}`,
+          label: `${name} · ${platform.state}`,
+          disabled: true
+        })),
+    [statusSnapshot?.gateway_platforms]
+  )
+
+  const gatewayMenuItems = useMemo<readonly StatusbarMenuItem[]>(
+    () => [
+      {
+        id: 'gateway:open-system',
+        label: 'Open system panel',
+        onSelect: () => openCommandCenterSection('system')
+      },
+      ...buildGatewayLogItems(gatewayLogLines),
+      ...platformMenuItems
+    ],
+    [gatewayLogLines, openCommandCenterSection, platformMenuItems]
+  )
+
+  const backgroundSummary = useMemo(() => {
+    const actions = Object.values(desktopActionTasks)
+    const runningActions = actions.filter(task => task.status.running).length
+    const failedActions = actions.filter(task => !task.status.running && (task.status.exit_code ?? 0) !== 0).length
+    const runningPreview = previewServerRestart?.status === 'running' ? 1 : 0
+    const failedPreview = previewServerRestart?.status === 'error' ? 1 : 0
+
+    return {
+      running: workingSessionIds.length + runningActions + runningPreview,
+      failed: failedActions + failedPreview
+    }
+  }, [desktopActionTasks, previewServerRestart, workingSessionIds])
+
+  const gatewayUp = Boolean(statusSnapshot?.gateway_running)
+  const bgRunning = backgroundSummary.running
+  const bgFailed = backgroundSummary.failed
+
+  const coreLeftStatusbarItems = useMemo<readonly StatusbarItem[]>(
+    () => [
+      {
+        className: `h-6 w-6 justify-center px-0${commandCenterOpen ? ' bg-accent/55 text-foreground' : ''}`,
+        icon: <Command className="size-3.5" />,
+        id: 'command-center',
+        onSelect: toggleCommandCenter,
+        title: commandCenterOpen ? 'Close Command Center' : 'Open Command Center',
+        variant: 'action'
+      },
+      {
+        className: gatewayUp ? undefined : 'text-destructive hover:text-destructive',
+        detail: gatewayUp ? statusSnapshot?.gateway_state || 'online' : 'offline',
+        icon: gatewayUp ? <Activity className="size-3" /> : <AlertCircle className="size-3" />,
+        id: 'gateway-health',
+        label: 'Gateway',
+        menuClassName: 'w-96',
+        menuItems: gatewayMenuItems,
+        title: 'Gateway and platform health',
+        variant: 'menu'
+      },
+      {
+        className: bgFailed > 0 ? 'text-destructive hover:text-destructive' : undefined,
+        detail: bgFailed > 0 ? `${bgFailed} failed` : `${bgRunning} running`,
+        hidden: bgRunning === 0 && bgFailed === 0,
+        icon: bgFailed > 0 ? <AlertCircle className="size-3" /> : <Loader2 className="size-3 animate-spin" />,
+        id: 'background-summary',
+        label: 'Background',
+        onSelect: () => openCommandCenterSection('system'),
+        title: 'Open background task details',
+        variant: 'action'
       }
+    ],
+    [bgFailed, bgRunning, commandCenterOpen, gatewayMenuItems, gatewayUp, openCommandCenterSection, statusSnapshot?.gateway_state, toggleCommandCenter]
+  )
 
-      return next
-    })
-  }, [])
-
-  const leftTitlebarTools = useMemo(() => Object.values(titlebarToolGroups.left).flat(), [titlebarToolGroups.left])
-
-  const titlebarTools = useMemo(() => Object.values(titlebarToolGroups.right).flat(), [titlebarToolGroups.right])
+  const leftStatusbarItems = useMemo(
+    () => [...coreLeftStatusbarItems, ...statusbarItemGroups.flat.left],
+    [coreLeftStatusbarItems, statusbarItemGroups.flat.left]
+  )
 
   const toggleSelectedPin = useCallback(() => {
     const sessionId = $selectedStoredSessionId.get()
@@ -224,6 +375,36 @@ export function DesktopController() {
     },
     [connectionRef]
   )
+
+  useEffect(() => {
+    let cancelled = false
+
+    const refreshStatus = async () => {
+      try {
+        const [next, logs] = await Promise.all([
+          getStatus(),
+          getLogs({ file: 'gateway', lines: 12 }).catch(() => ({ lines: [] }))
+        ])
+
+        if (cancelled) {
+          return
+        }
+
+        setStatusSnapshot(next)
+        setGatewayLogLines(logs.lines.map(line => line.trim()).filter(Boolean))
+      } catch {
+        // Keep the last successful snapshot.
+      }
+    }
+
+    void refreshStatus()
+    const timer = window.setInterval(() => void refreshStatus(), STATUS_REFRESH_MS)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [gatewayState])
 
   const updateModelOptionsCache = useCallback(
     (provider: string, model: string, includeGlobal: boolean) => {
@@ -387,6 +568,67 @@ export function DesktopController() {
       await changeSessionCwd(paths[0])
     }
   }, [changeSessionCwd, currentCwd])
+
+  const coreRightStatusbarItems = useMemo<readonly StatusbarItem[]>(
+    () => [
+      {
+        hidden: !busy || !turnStartedAt,
+        icon: <Loader2 className="size-3 animate-spin" />,
+        id: 'running-timer',
+        label: 'Running',
+        detail: <LiveDuration since={turnStartedAt} />,
+        title: 'Current turn elapsed',
+        variant: 'text'
+      },
+      {
+        detail: contextBar || undefined,
+        hidden: !contextUsage,
+        id: 'context-usage',
+        label: contextUsage,
+        title: 'Context usage',
+        variant: 'text'
+      },
+      {
+        hidden: !sessionStartedAt,
+        id: 'session-timer',
+        label: 'Session',
+        detail: <LiveDuration since={sessionStartedAt} />,
+        title: 'Runtime session elapsed',
+        variant: 'text'
+      },
+      {
+        detail: currentProvider || '',
+        icon: <Cpu className="size-3" />,
+        id: 'model-summary',
+        label: currentModel || 'No model selected',
+        onSelect: () => setModelPickerOpen(true),
+        title: currentProvider ? `Switch model · ${currentProvider}: ${currentModel || ''}` : 'Open model picker',
+        variant: 'action'
+      },
+      {
+        id: 'cwd',
+        icon: <FolderOpen className="size-3" />,
+        label: currentCwd ? compactPath(currentCwd) : 'No project cwd',
+        onSelect: () => void browseSessionCwd(),
+        title: currentCwd ? `Change working directory · ${currentCwd}` : 'Choose working directory',
+        variant: 'action'
+      },
+      {
+        hidden: !currentBranch,
+        id: 'branch',
+        icon: <GitBranch className="size-3" />,
+        label: currentBranch,
+        title: currentBranch ? `Current branch: ${currentBranch}` : undefined,
+        variant: 'text'
+      }
+    ],
+    [browseSessionCwd, busy, contextBar, contextUsage, currentBranch, currentCwd, currentModel, currentProvider, sessionStartedAt, turnStartedAt]
+  )
+
+  const statusbarItems = useMemo(
+    () => [...statusbarItemGroups.flat.right, ...coreRightStatusbarItems],
+    [coreRightStatusbarItems, statusbarItemGroups.flat.right]
+  )
 
   const selectModel = useCallback(
     (selection: { provider: string; model: string; persistGlobal: boolean }) => {
@@ -662,6 +904,7 @@ export function DesktopController() {
       if (event.type === 'preview.restart.complete') {
         const payload =
           event.payload && typeof event.payload === 'object' ? (event.payload as Record<string, unknown>) : {}
+
         const taskId = typeof payload.task_id === 'string' ? payload.task_id : ''
 
         if (taskId) {
@@ -672,6 +915,7 @@ export function DesktopController() {
       if (event.type === 'preview.restart.progress') {
         const payload =
           event.payload && typeof event.payload === 'object' ? (event.payload as Record<string, unknown>) : {}
+
         const taskId = typeof payload.task_id === 'string' ? payload.task_id : ''
 
         if (taskId) {
@@ -760,20 +1004,6 @@ export function DesktopController() {
       setPreviewTarget(null)
     }
   }, [previewRouteKey])
-
-  const closeOverlayToPreviousRoute = useCallback(() => {
-    navigate(overlayReturnPathRef.current || NEW_CHAT_ROUTE, { replace: true })
-  }, [navigate])
-
-  const toggleCommandCenter = useCallback(() => {
-    if (commandCenterOpen) {
-      closeOverlayToPreviousRoute()
-
-      return
-    }
-
-    navigate(COMMAND_CENTER_ROUTE)
-  }, [closeOverlayToPreviousRoute, commandCenterOpen, navigate])
 
   const branchInNewChat = useCallback(
     async (messageId?: string) => {
@@ -967,6 +1197,7 @@ export function DesktopController() {
 
       {commandCenterOpen && (
         <CommandCenterView
+          initialSection={commandCenterInitialSection}
           onClose={closeOverlayToPreviousRoute}
           onDeleteSession={removeSession}
           onMainModelChanged={(provider, model) => {
@@ -1001,7 +1232,9 @@ export function DesktopController() {
         }
       }}
       onEdit={editMessage}
+      onOpenCommandCenterSystem={() => openCommandCenterSection('system')}
       onOpenModelPicker={() => setModelPickerOpen(true)}
+      onOpenSkills={() => navigate(SKILLS_ROUTE)}
       onPasteClipboardImage={() => void pasteClipboardImage()}
       onPickFiles={() => void pickContextPaths('file')}
       onPickFolders={() => void pickContextPaths('folder')}
@@ -1016,28 +1249,37 @@ export function DesktopController() {
       onThreadMessagesChange={handleThreadMessagesChange}
       onToggleSelectedPin={toggleSelectedPin}
       onTranscribeAudio={transcribeVoiceAudio}
+      setStatusbarItemGroup={setStatusbarItemGroup}
       setTitlebarToolGroup={setTitlebarToolGroup}
     />
   )
 
   return (
     <AppShell
-      commandCenterOpen={commandCenterOpen}
       inspectorWidth={SESSION_INSPECTOR_WIDTH}
-      leftTitlebarTools={leftTitlebarTools}
+      leftStatusbarItems={leftStatusbarItems}
+      leftTitlebarTools={titlebarToolGroups.flat.left}
       onOpenSettings={openSettings}
-      onToggleCommandCenter={toggleCommandCenter}
       overlays={overlays}
       previewWidth={PREVIEW_RAIL_WIDTH}
       rightRailOpen={chatOpen}
       sidebar={sidebar}
-      titlebarTools={titlebarTools}
+      statusbarItems={statusbarItems}
+      titlebarTools={titlebarToolGroups.flat.right}
     >
       <Routes>
         <Route element={chatView} index />
         <Route element={chatView} path=":sessionId" />
-        <Route element={<SkillsView setTitlebarToolGroup={setTitlebarToolGroup} />} path="skills" />
-        <Route element={<ArtifactsView setTitlebarToolGroup={setTitlebarToolGroup} />} path="artifacts" />
+        <Route
+          element={<SkillsView setStatusbarItemGroup={setStatusbarItemGroup} setTitlebarToolGroup={setTitlebarToolGroup} />}
+          path="skills"
+        />
+        <Route
+          element={
+            <ArtifactsView setStatusbarItemGroup={setStatusbarItemGroup} setTitlebarToolGroup={setTitlebarToolGroup} />
+          }
+          path="artifacts"
+        />
         <Route element={null} path="settings" />
         <Route element={null} path="command-center" />
         <Route element={<Navigate replace to={NEW_CHAT_ROUTE} />} path="new" />

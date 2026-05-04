@@ -23,13 +23,16 @@ import {
   setCurrentProvider,
   setCurrentReasoningEffort,
   setCurrentServiceTier,
+  setCurrentUsage,
   setFreshDraftReady,
   setIntroSeed,
   setMessages,
   setSelectedStoredSessionId,
-  setSessions
+  setSessionStartedAt,
+  setSessions,
+  setTurnStartedAt
 } from '@/store/session'
-import type { SessionCreateResponse, SessionInfo, SessionResumeResponse } from '@/types/hermes'
+import type { SessionCreateResponse, SessionInfo, SessionResumeResponse, UsageStats } from '@/types/hermes'
 
 import { NEW_CHAT_ROUTE, sessionRoute, SETTINGS_ROUTE } from '../../routes'
 import type { ClientSessionState, SidebarNavItem } from '../../types'
@@ -215,6 +218,10 @@ function applyRuntimeInfo(info: SessionCreateResponse['info'] | undefined) {
   if (typeof info.fast === 'boolean') {
     setCurrentFastMode(info.fast)
   }
+
+  if (info.usage) {
+    setCurrentUsage(current => ({ ...current, ...info.usage }))
+  }
 }
 
 export function useSessionActions({
@@ -248,6 +255,14 @@ export function useSessionActions({
       setSelectedStoredSessionId(null)
       selectedStoredSessionIdRef.current = null
       setMessages([])
+      setCurrentUsage({
+        calls: 0,
+        input: 0,
+        output: 0,
+        total: 0
+      })
+      setSessionStartedAt(null)
+      setTurnStartedAt(null)
       clearComposerDraft()
       clearComposerAttachments()
       setFreshDraftReady(true)
@@ -288,6 +303,7 @@ export function useSessionActions({
       setFreshDraftReady(false)
       setActiveSessionId(created.session_id)
       setSelectedStoredSessionId(stored)
+      setSessionStartedAt(Date.now())
       applyRuntimeInfo(created.info)
 
       return created.session_id
@@ -354,8 +370,17 @@ export function useSessionActions({
         setActiveSessionId(cachedRuntimeId)
         activeSessionIdRef.current = cachedRuntimeId
         syncSessionStateToView(cachedRuntimeId, cachedState)
+        setSessionStartedAt(Date.now())
         clearComposerDraft()
         clearComposerAttachments()
+
+        void requestGateway<UsageStats>('session.usage', { session_id: cachedRuntimeId })
+          .then(usage => {
+            if (isCurrentResume() && usage) {
+              setCurrentUsage(current => ({ ...current, ...usage }))
+            }
+          })
+          .catch(() => undefined)
 
         return
       }
@@ -369,6 +394,17 @@ export function useSessionActions({
       clearNotifications()
       setSelectedStoredSessionId(storedSessionId)
       selectedStoredSessionIdRef.current = storedSessionId
+      setSessionStartedAt(Date.now())
+      const stored = $sessions.get().find(session => session.id === storedSessionId)
+
+      if (stored) {
+        setCurrentUsage(current => ({
+          ...current,
+          input: stored.input_tokens || 0,
+          output: stored.output_tokens || 0,
+          total: (stored.input_tokens || 0) + (stored.output_tokens || 0)
+        }))
+      }
 
       try {
         // Load the local snapshot first, then ask the gateway to resume.
@@ -619,6 +655,17 @@ export function useSessionActions({
           setFreshDraftReady(false)
           setSelectedStoredSessionId(storedSessionId)
           selectedStoredSessionIdRef.current = storedSessionId
+      const stored = $sessions.get().find(session => session.id === storedSessionId)
+
+      if (stored) {
+        setCurrentUsage(current => ({
+          ...current,
+          input: stored.input_tokens || 0,
+          output: stored.output_tokens || 0,
+          total: (stored.input_tokens || 0) + (stored.output_tokens || 0)
+        }))
+      }
+
           setMessages(previousMessages)
           navigate(sessionRoute(storedSessionId), { replace: true })
 

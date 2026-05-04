@@ -1,6 +1,9 @@
+import { useStore } from '@nanostores/react'
+
 import { triggerHaptic } from '@/lib/haptics'
 import { Check, Palette } from '@/lib/icons'
 import { cn } from '@/lib/utils'
+import { $toolViewMode, setToolViewMode } from '@/store/tool-view'
 import { useTheme } from '@/themes/context'
 import { BUILTIN_THEMES } from '@/themes/presets'
 
@@ -50,6 +53,7 @@ function ThemePreview({ name }: { name: string }) {
 
 export function AppearanceSettings() {
   const { themeName, mode, availableThemes, setTheme, setMode } = useTheme()
+  const toolViewMode = useStore($toolViewMode)
   const activeTheme = availableThemes.find(t => t.name === themeName)
 
   return (
@@ -102,6 +106,61 @@ export function AppearanceSettings() {
                   </div>
                   <div className="mt-3 text-sm font-medium">{label}</div>
                   <div className="mt-1 text-xs leading-5 text-muted-foreground">{description}</div>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border/50 bg-card/55 p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium">Tool Call Display</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Product hides raw tool payloads; Technical shows full input/output.
+              </div>
+            </div>
+            <Pill>{toolViewMode === 'technical' ? 'Technical' : 'Product'}</Pill>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(
+              [
+                {
+                  id: 'product',
+                  label: 'Product',
+                  description: 'Human-friendly tool activity with concise summaries.'
+                },
+                {
+                  id: 'technical',
+                  label: 'Technical',
+                  description: 'Include raw tool args/results and low-level details.'
+                }
+              ] as const
+            ).map(option => {
+              const active = toolViewMode === option.id
+
+              return (
+                <button
+                  className={cn(
+                    'group rounded-xl border border-border/45 bg-background/55 p-3 text-left transition hover:border-primary/35 hover:bg-accent/45',
+                    active && 'border-primary/65 bg-primary/8 ring-2 ring-primary/25'
+                  )}
+                  key={option.id}
+                  onClick={() => {
+                    triggerHaptic('selection')
+                    setToolViewMode(option.id)
+                  }}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-sm font-medium">{option.label}</div>
+                    {active && (
+                      <span className="grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
+                        <Check className="size-3.5" />
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</div>
                 </button>
               )
             })}

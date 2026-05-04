@@ -3,7 +3,7 @@ import { atom } from 'nanostores'
 import type { ContextSuggestion } from '@/app/types'
 import type { HermesConnection } from '@/global'
 import type { ChatMessage } from '@/lib/chat-messages'
-import type { SessionInfo } from '@/types/hermes'
+import type { SessionInfo, UsageStats } from '@/types/hermes'
 
 type Updater<T> = T | ((current: T) => T)
 
@@ -34,6 +34,14 @@ export const $currentServiceTier = atom('')
 export const $currentFastMode = atom(false)
 export const $currentCwd = atom('')
 export const $currentBranch = atom('')
+export const $currentUsage = atom<UsageStats>({
+  calls: 0,
+  input: 0,
+  output: 0,
+  total: 0
+})
+export const $sessionStartedAt = atom<number | null>(null)
+export const $turnStartedAt = atom<number | null>(null)
 export const $introPersonality = atom('')
 export const $currentPersonality = atom('')
 export const $availablePersonalities = atom<string[]>([])
@@ -59,6 +67,9 @@ export const setCurrentServiceTier = (next: Updater<string>) => updateAtom($curr
 export const setCurrentFastMode = (next: Updater<boolean>) => updateAtom($currentFastMode, next)
 export const setCurrentCwd = (next: Updater<string>) => updateAtom($currentCwd, next)
 export const setCurrentBranch = (next: Updater<string>) => updateAtom($currentBranch, next)
+export const setCurrentUsage = (next: Updater<UsageStats>) => updateAtom($currentUsage, next)
+export const setSessionStartedAt = (next: Updater<number | null>) => updateAtom($sessionStartedAt, next)
+export const setTurnStartedAt = (next: Updater<number | null>) => updateAtom($turnStartedAt, next)
 export const setIntroPersonality = (next: Updater<string>) => updateAtom($introPersonality, next)
 export const setCurrentPersonality = (next: Updater<string>) => updateAtom($currentPersonality, next)
 export const setAvailablePersonalities = (next: Updater<string[]>) => updateAtom($availablePersonalities, next)

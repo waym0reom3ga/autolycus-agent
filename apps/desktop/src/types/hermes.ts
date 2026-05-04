@@ -174,7 +174,19 @@ export interface SessionRuntimeInfo {
   service_tier?: string
   skills?: Record<string, string[]> | string[]
   tools?: Record<string, string[]>
+  usage?: Partial<UsageStats>
   version?: string
+}
+
+export interface UsageStats {
+  calls: number
+  context_max?: number
+  context_percent?: number
+  context_used?: number
+  cost_usd?: number
+  input: number
+  output: number
+  total: number
 }
 
 export interface SkillInfo {

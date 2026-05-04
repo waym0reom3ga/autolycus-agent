@@ -51,7 +51,7 @@ export const SessionInspector: FC<SessionInspectorProps> = ({
   <aside
     aria-hidden={!open}
     className={cn(
-      'relative flex h-screen w-full min-w-0 flex-col overflow-hidden bg-transparent pb-2 pl-2 pr-3 pt-[calc(var(--titlebar-height)+0.25rem)] text-muted-foreground transition-none',
+      'relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-transparent pb-2 pl-2 pr-3 pt-[calc(var(--titlebar-height)+0.25rem)] text-muted-foreground transition-none',
       open ? 'opacity-100' : 'pointer-events-none opacity-0'
     )}
     data-open={open}

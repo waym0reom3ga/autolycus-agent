@@ -769,7 +769,7 @@ export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToo
   }, [appendConsoleEntry, target.url])
 
   return (
-    <aside className="relative flex h-screen w-full min-w-0 flex-col overflow-hidden border-l border-border/60 bg-background text-muted-foreground">
+    <aside className="relative flex h-full w-full min-w-0 flex-col overflow-hidden border-l border-border/60 bg-background text-muted-foreground">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="pointer-events-none flex min-h-(--titlebar-height) items-center gap-1.5 border-b border-border/60 bg-background px-2 py-1">
           <div className="min-w-0 flex-1">

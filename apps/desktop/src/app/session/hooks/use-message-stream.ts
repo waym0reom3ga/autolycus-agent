@@ -25,7 +25,9 @@ import {
   setCurrentPersonality,
   setCurrentProvider,
   setCurrentReasoningEffort,
-  setCurrentServiceTier
+  setCurrentServiceTier,
+  setCurrentUsage,
+  setTurnStartedAt
 } from '@/store/session'
 import { recordToolDiff } from '@/store/tool-diffs'
 import type { RpcEvent } from '@/types/hermes'
@@ -366,6 +368,10 @@ export function useMessageStream({
           }
         }
 
+        if (payload?.usage && (!explicitSid || isActiveEvent)) {
+          setCurrentUsage(current => ({ ...current, ...payload.usage }))
+        }
+
         void refreshHermesConfig()
 
         if (modelChanged || providerChanged) {
@@ -389,6 +395,10 @@ export function useMessageStream({
           sawAssistantPayload: false,
           interrupted: false
         }))
+
+        if (isActiveEvent) {
+          setTurnStartedAt(Date.now())
+        }
       } else if (event.type === 'message.delta') {
         if (sessionId) {
           appendAssistantDelta(sessionId, coerceGatewayText(payload?.text))
@@ -417,6 +427,14 @@ export function useMessageStream({
 
         const finalText = coerceGatewayText(payload?.text) || coerceGatewayText(payload?.rendered)
         completeAssistantMessage(sessionId, finalText)
+
+        if (isActiveEvent) {
+          setTurnStartedAt(null)
+        }
+
+        if (payload?.usage) {
+          setCurrentUsage(current => ({ ...current, ...payload.usage }))
+        }
       } else if (event.type === 'tool.start' || event.type === 'tool.progress' || event.type === 'tool.generating') {
         if (!sessionId) {
           return
@@ -465,6 +483,10 @@ export function useMessageStream({
             awaitingResponse: false,
             busy: false
           }))
+        }
+
+        if (isActiveEvent) {
+          setTurnStartedAt(null)
         }
       }
     },

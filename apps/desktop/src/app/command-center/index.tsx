@@ -35,6 +35,7 @@ import { triggerHaptic } from '@/lib/haptics'
 import { Activity, AlertCircle, Cpu, Pin } from '@/lib/icons'
 import { exportSession } from '@/lib/session-export'
 import { cn } from '@/lib/utils'
+import { upsertDesktopActionTask } from '@/store/activity'
 import { $pinnedSessionIds, pinSession, unpinSession } from '@/store/layout'
 import { $sessions } from '@/store/session'
 
@@ -44,9 +45,10 @@ import { OverlayMain, OverlayNavItem, OverlaySidebar, OverlaySplitLayout } from 
 import { OverlayView } from '../overlays/overlay-view'
 import { ARTIFACTS_ROUTE, NEW_CHAT_ROUTE, SETTINGS_ROUTE, SKILLS_ROUTE } from '../routes'
 
-type CommandCenterSection = 'models' | 'sessions' | 'system'
+export type CommandCenterSection = 'models' | 'sessions' | 'system'
 
 interface CommandCenterViewProps {
+  initialSection?: CommandCenterSection
   onClose: () => void
   onDeleteSession: (sessionId: string) => Promise<void>
   onMainModelChanged?: (provider: string, model: string) => void
@@ -174,6 +176,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 export function CommandCenterView({
+  initialSection,
   onClose,
   onDeleteSession,
   onMainModelChanged,
@@ -182,7 +185,7 @@ export function CommandCenterView({
 }: CommandCenterViewProps) {
   const sessions = useStore($sessions)
   const pinnedSessionIds = useStore($pinnedSessionIds)
-  const [section, setSection] = useState<CommandCenterSection>('sessions')
+  const [section, setSection] = useState<CommandCenterSection>(initialSection ?? 'sessions')
   const [query, setQuery] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchGroups, setSearchGroups] = useState<CommandCenterSearchGroup[]>([])
@@ -317,6 +320,12 @@ export function CommandCenterView({
   }, [])
 
   useEffect(() => {
+    if (initialSection && initialSection !== section) {
+      setSection(initialSection)
+    }
+  }, [initialSection, section])
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -405,6 +414,7 @@ export function CommandCenterView({
           const polled = await getActionStatus(started.name, 180)
           nextStatus = polled
           setSystemAction(polled)
+          upsertDesktopActionTask(polled)
 
           if (!polled.running) {
             break
@@ -412,13 +422,16 @@ export function CommandCenterView({
         }
 
         if (!nextStatus) {
-          setSystemAction({
+          const pendingStatus = {
             exit_code: null,
             lines: ['Action started, waiting for status...'],
             name: started.name,
             pid: started.pid,
             running: true
-          })
+          }
+
+          setSystemAction(pendingStatus)
+          upsertDesktopActionTask(pendingStatus)
         }
       } catch (error) {
         setSystemError(error instanceof Error ? error.message : String(error))

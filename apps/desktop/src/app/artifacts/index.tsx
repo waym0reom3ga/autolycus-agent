@@ -23,6 +23,7 @@ import { notify, notifyError } from '@/store/notifications'
 import type { SessionInfo, SessionMessage } from '@/types/hermes'
 
 import { sessionRoute } from '../routes'
+import type { SetStatusbarItemGroup } from '../shell/statusbar-controls'
 import { titlebarHeaderBaseClass } from '../shell/titlebar'
 import type { SetTitlebarToolGroup } from '../shell/titlebar-controls'
 
@@ -341,10 +342,11 @@ function paginationItems(page: number, pageCount: number): Array<number | 'ellip
 }
 
 interface ArtifactsViewProps extends React.ComponentProps<'section'> {
+  setStatusbarItemGroup?: SetStatusbarItemGroup
   setTitlebarToolGroup?: SetTitlebarToolGroup
 }
 
-export function ArtifactsView({ setTitlebarToolGroup, ...props }: ArtifactsViewProps) {
+export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, setTitlebarToolGroup, ...props }: ArtifactsViewProps) {
   const navigate = useNavigate()
   const [artifacts, setArtifacts] = useState<ArtifactRecord[] | null>(null)
   const [query, setQuery] = useState('')
@@ -510,7 +512,7 @@ export function ArtifactsView({ setTitlebarToolGroup, ...props }: ArtifactsViewP
   return (
     <section
       {...props}
-      className="flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background"
+      className="flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background"
     >
       <header className={titlebarHeaderBaseClass}>
         <h2 className="pointer-events-auto text-base font-semibold leading-none tracking-tight">Artifacts</h2>

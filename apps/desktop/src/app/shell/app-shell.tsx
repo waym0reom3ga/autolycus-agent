@@ -15,33 +15,34 @@ import {
 import { $previewTarget } from '@/store/preview'
 import { $connection } from '@/store/session'
 
+import { StatusbarControls, type StatusbarItem } from './statusbar-controls'
 import { TITLEBAR_HEIGHT, titlebarControlsPosition } from './titlebar'
 import { TitlebarControls, type TitlebarTool } from './titlebar-controls'
 
 interface AppShellProps {
-  commandCenterOpen: boolean
   children: ReactNode
   inspectorWidth: string
   leftTitlebarTools?: readonly TitlebarTool[]
+  leftStatusbarItems?: readonly StatusbarItem[]
   previewWidth: string
   rightRailOpen: boolean
   sidebar: ReactNode
+  statusbarItems?: readonly StatusbarItem[]
   titlebarTools?: readonly TitlebarTool[]
-  onToggleCommandCenter: () => void
   onOpenSettings: () => void
   overlays?: ReactNode
 }
 
 export function AppShell({
-  commandCenterOpen,
   children,
   inspectorWidth,
   leftTitlebarTools,
+  leftStatusbarItems,
   previewWidth,
   rightRailOpen,
   sidebar,
+  statusbarItems,
   titlebarTools,
-  onToggleCommandCenter,
   onOpenSettings,
   overlays
 }: AppShellProps) {
@@ -135,10 +136,8 @@ export function AppShell({
       }
     >
       <TitlebarControls
-        commandCenterOpen={commandCenterOpen}
         leftTools={leftTitlebarTools}
         onOpenSettings={onOpenSettings}
-        onToggleCommandCenter={onToggleCommandCenter}
         showInspectorToggle={rightRailOpen}
         tools={titlebarTools}
       />
@@ -149,7 +148,8 @@ export function AppShell({
           {
             '--inspector-col': inspectorColumn,
             '--preview-col': previewColumn,
-            gridTemplateColumns: shellGridColumns
+            gridTemplateColumns: shellGridColumns,
+            gridTemplateRows: 'minmax(0,1fr) auto'
           } as CSSProperties
         }
       >
@@ -162,7 +162,7 @@ export function AppShell({
           className="pointer-events-none absolute top-0 z-1 h-(--titlebar-height) left-[calc(var(--titlebar-controls-left)+(var(--titlebar-control-size)*2)+0.75rem)] right-[calc(var(--titlebar-tools-right)+var(--titlebar-tools-width)+0.75rem)] [-webkit-app-region:drag]"
         />
 
-        {sidebar}
+        <div className="col-start-1 col-end-2 row-start-1 min-h-0 overflow-hidden">{sidebar}</div>
 
         {sidebarOpen && (
           <div
@@ -178,6 +178,8 @@ export function AppShell({
         )}
 
         {children}
+
+        <StatusbarControls items={statusbarItems} leftItems={leftStatusbarItems} />
       </main>
 
       {overlays}

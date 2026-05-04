@@ -484,9 +484,11 @@ const AssistantMessage: FC<{ onBranchInNewChat?: (messageId: string) => void }> 
           </ErrorPrimitive.Root>
         </MessagePrimitive.Error>
       </div>
-      <div className="min-h-6">
-        <AssistantFooter messageId={messageId} messageText={messageText} onBranchInNewChat={onBranchInNewChat} />
-      </div>
+      {messageText.trim().length > 0 && (
+        <div className="min-h-6">
+          <AssistantFooter messageId={messageId} messageText={messageText} onBranchInNewChat={onBranchInNewChat} />
+        </div>
+      )}
     </MessagePrimitive.Root>
   )
 }

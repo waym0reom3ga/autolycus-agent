@@ -13,6 +13,7 @@ import { notify, notifyError } from '@/store/notifications'
 import type { SkillInfo, ToolsetInfo } from '@/types/hermes'
 
 import { asText, includesQuery, prettyName, toolNames } from '../settings/helpers'
+import type { SetStatusbarItemGroup } from '../shell/statusbar-controls'
 import { titlebarHeaderBaseClass } from '../shell/titlebar'
 import type { SetTitlebarToolGroup } from '../shell/titlebar-controls'
 
@@ -60,10 +61,11 @@ function filteredToolsets(toolsets: ToolsetInfo[], query: string): ToolsetInfo[]
 }
 
 interface SkillsViewProps extends React.ComponentProps<'section'> {
+  setStatusbarItemGroup?: SetStatusbarItemGroup
   setTitlebarToolGroup?: SetTitlebarToolGroup
 }
 
-export function SkillsView({ setTitlebarToolGroup, ...props }: SkillsViewProps) {
+export function SkillsView({ setStatusbarItemGroup: _setStatusbarItemGroup, setTitlebarToolGroup, ...props }: SkillsViewProps) {
   const [mode, setMode] = useState<SkillsMode>('skills')
   const [query, setQuery] = useState('')
   const [skills, setSkills] = useState<SkillInfo[] | null>(null)
@@ -168,7 +170,7 @@ export function SkillsView({ setTitlebarToolGroup, ...props }: SkillsViewProps) 
   return (
     <section
       {...props}
-      className="flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background"
+      className="flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background"
     >
       <header className={titlebarHeaderBaseClass}>
         <h2 className="pointer-events-auto text-base font-semibold leading-none tracking-tight">Skills</h2>

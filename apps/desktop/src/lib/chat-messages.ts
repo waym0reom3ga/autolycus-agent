@@ -1,7 +1,7 @@
 import type { ThreadMessageLike } from '@assistant-ui/react'
 
 import { mediaDisplayLabel, mediaMarkdownHref } from '@/lib/media'
-import type { SessionMessage } from '@/types/hermes'
+import type { SessionMessage, UsageStats } from '@/types/hermes'
 
 export type ChatMessagePart = Exclude<ThreadMessageLike['content'], string>[number]
 
@@ -38,6 +38,7 @@ export type GatewayEventPayload = {
   cwd?: string
   branch?: string
   personality?: string
+  usage?: Partial<UsageStats>
   // clarify.request
   request_id?: string
   question?: string
