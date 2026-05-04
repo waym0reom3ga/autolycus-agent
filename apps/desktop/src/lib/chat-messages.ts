@@ -53,7 +53,7 @@ export function reasoningPart(text: string): ChatMessagePart {
 }
 
 const MEDIA_LINE_RE =
-  /(^|\n)[\t ]*[`"']?MEDIA:\s*(?<line>`[^`\n]+`|"[^"\n]+"|'[^'\n]+'|\S+)[`"']?[\t ]*(?:\n|$)/g
+  /(^|\n)[\t ]*[`"']?MEDIA:\s*(?<line>`[^`\n]+`|"[^"\n]+"|'[^'\n]+'|\S+)[`"']?[\t ]*(\n|$)/g
 
 const MEDIA_TAG_RE = /[`"']?MEDIA:\s*(?<inline>`[^`\n]+`|"[^"\n]+"|'[^'\n]+'|\S+)[`"']?/g
 
@@ -72,11 +72,13 @@ function mediaLink(value: string): string {
 
 export function renderMediaTags(text: string): string {
   return text
-    .replace(MEDIA_LINE_RE, (_match, lead: string, value: string) => `${lead}${mediaLink(value)}\n`)
+    .replace(
+      MEDIA_LINE_RE,
+      (_match, lead: string, value: string, trailer: string) => `${lead}${mediaLink(value)}${trailer}`
+    )
     .replace(MEDIA_TAG_RE, (_match, value: string) => mediaLink(value))
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
-    .trim()
 }
 
 export function assistantTextPart(text: string): ChatMessagePart {
