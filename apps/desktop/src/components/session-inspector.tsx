@@ -57,13 +57,7 @@ export const SessionInspector: FC<SessionInspectorProps> = ({
     data-open={open}
   >
     <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain pl-1.5 pr-1 text-xs">
-      <ProjectSection
-        branch={branch}
-        busy={busy}
-        cwd={cwd}
-        onBrowseCwd={onBrowseCwd}
-        onChangeCwd={onChangeCwd}
-      />
+      <ProjectSection branch={branch} busy={busy} cwd={cwd} onBrowseCwd={onBrowseCwd} onChangeCwd={onChangeCwd} />
       <AgentSection
         fastMode={fastMode}
         modelLabel={modelLabel}

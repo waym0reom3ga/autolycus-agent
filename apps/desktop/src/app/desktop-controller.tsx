@@ -62,10 +62,18 @@ import { ArtifactsView } from './artifacts'
 import { ChatView, PREVIEW_RAIL_WIDTH, SESSION_INSPECTOR_WIDTH } from './chat'
 import { useComposerActions } from './chat/hooks/use-composer-actions'
 import { ChatSidebar } from './chat/sidebar'
+import { CommandCenterView } from './command-center'
 import { useGatewayBoot } from './gateway/hooks/use-gateway-boot'
 import { useGatewayRequest } from './gateway/hooks/use-gateway-request'
 import { ModelPickerOverlay } from './model-picker-overlay'
-import { appViewForPath, isNewChatRoute, NEW_CHAT_ROUTE, routeSessionId, sessionRoute } from './routes'
+import {
+  appViewForPath,
+  COMMAND_CENTER_ROUTE,
+  isNewChatRoute,
+  NEW_CHAT_ROUTE,
+  routeSessionId,
+  sessionRoute
+} from './routes'
 import { useMessageStream } from './session/hooks/use-message-stream'
 import { usePromptActions } from './session/hooks/use-prompt-actions'
 import { useSessionActions } from './session/hooks/use-session-actions'
@@ -122,8 +130,9 @@ export function DesktopController() {
   routeTokenRef.current = routeToken
   const getRouteToken = useCallback(() => routeTokenRef.current, [])
   const settingsOpen = currentView === 'settings'
+  const commandCenterOpen = currentView === 'command-center'
   const chatOpen = currentView === 'chat'
-  const settingsReturnPathRef = useRef(NEW_CHAT_ROUTE)
+  const overlayReturnPathRef = useRef(NEW_CHAT_ROUTE)
   const refreshSessionsRequestRef = useRef(0)
 
   const [titlebarToolGroups, setTitlebarToolGroups] = useState<
@@ -164,15 +173,9 @@ export function DesktopController() {
     })
   }, [])
 
-  const leftTitlebarTools = useMemo(
-    () => Object.values(titlebarToolGroups.left).flat(),
-    [titlebarToolGroups.left]
-  )
+  const leftTitlebarTools = useMemo(() => Object.values(titlebarToolGroups.left).flat(), [titlebarToolGroups.left])
 
-  const titlebarTools = useMemo(
-    () => Object.values(titlebarToolGroups.right).flat(),
-    [titlebarToolGroups.right]
-  )
+  const titlebarTools = useMemo(() => Object.values(titlebarToolGroups.right).flat(), [titlebarToolGroups.right])
 
   const toggleSelectedPin = useCallback(() => {
     const sessionId = $selectedStoredSessionId.get()
@@ -601,7 +604,11 @@ export function DesktopController() {
       for (const candidate of extractPreviewCandidates(text)) {
         const target = await desktop.normalizePreviewTarget(candidate, cwd || undefined).catch(() => null)
 
-        if (lastPreviewRouteRef.current !== routeKey || activeSessionIdRef.current !== sessionId || $currentCwd.get() !== cwd) {
+        if (
+          lastPreviewRouteRef.current !== routeKey ||
+          activeSessionIdRef.current !== sessionId ||
+          $currentCwd.get() !== cwd
+        ) {
           return
         }
 
@@ -627,12 +634,14 @@ export function DesktopController() {
       }
 
       const cwd = $currentCwd.get() || currentCwd || ''
+
       const result = await requestGateway<{ task_id?: string }>('preview.restart', {
         context: context || undefined,
         cwd: cwd || undefined,
         session_id: sessionId,
         url
       })
+
       const taskId = result.task_id || ''
 
       if (!taskId) {
@@ -651,7 +660,8 @@ export function DesktopController() {
       handleGatewayEvent(event)
 
       if (event.type === 'preview.restart.complete') {
-        const payload = event.payload && typeof event.payload === 'object' ? (event.payload as Record<string, unknown>) : {}
+        const payload =
+          event.payload && typeof event.payload === 'object' ? (event.payload as Record<string, unknown>) : {}
         const taskId = typeof payload.task_id === 'string' ? payload.task_id : ''
 
         if (taskId) {
@@ -660,7 +670,8 @@ export function DesktopController() {
       }
 
       if (event.type === 'preview.restart.progress') {
-        const payload = event.payload && typeof event.payload === 'object' ? (event.payload as Record<string, unknown>) : {}
+        const payload =
+          event.payload && typeof event.payload === 'object' ? (event.payload as Record<string, unknown>) : {}
         const taskId = typeof payload.task_id === 'string' ? payload.task_id : ''
 
         if (taskId) {
@@ -734,8 +745,8 @@ export function DesktopController() {
   })
 
   useEffect(() => {
-    if (currentView !== 'settings') {
-      settingsReturnPathRef.current = `${location.pathname}${location.search}${location.hash}`
+    if (currentView !== 'settings' && currentView !== 'command-center') {
+      overlayReturnPathRef.current = `${location.pathname}${location.search}${location.hash}`
     }
   }, [currentView, location.hash, location.pathname, location.search])
 
@@ -750,9 +761,19 @@ export function DesktopController() {
     }
   }, [previewRouteKey])
 
-  const closeSettingsToPreviousRoute = useCallback(() => {
-    navigate(settingsReturnPathRef.current || NEW_CHAT_ROUTE, { replace: true })
+  const closeOverlayToPreviousRoute = useCallback(() => {
+    navigate(overlayReturnPathRef.current || NEW_CHAT_ROUTE, { replace: true })
   }, [navigate])
+
+  const toggleCommandCenter = useCallback(() => {
+    if (commandCenterOpen) {
+      closeOverlayToPreviousRoute()
+
+      return
+    }
+
+    navigate(COMMAND_CENTER_ROUTE)
+  }, [closeOverlayToPreviousRoute, commandCenterOpen, navigate])
 
   const branchInNewChat = useCallback(
     async (messageId?: string) => {
@@ -891,7 +912,13 @@ export function DesktopController() {
       if (typeof window !== 'undefined') {
         const rawHash = window.location.hash.replace(/^#/, '')
 
-        if (rawHash && rawHash !== '/' && !rawHash.startsWith('/settings') && !rawHash.startsWith('/skills') && !rawHash.startsWith('/artifacts')) {
+        if (
+          rawHash &&
+          rawHash !== '/' &&
+          !rawHash.startsWith('/settings') &&
+          !rawHash.startsWith('/skills') &&
+          !rawHash.startsWith('/artifacts')
+        ) {
           return
         }
       }
@@ -929,12 +956,28 @@ export function DesktopController() {
 
       {settingsOpen && (
         <SettingsView
-          onClose={closeSettingsToPreviousRoute}
+          onClose={closeOverlayToPreviousRoute}
           onConfigSaved={() => {
             void refreshHermesConfig()
             void refreshCurrentModel()
             void queryClient.invalidateQueries({ queryKey: ['model-options'] })
           }}
+        />
+      )}
+
+      {commandCenterOpen && (
+        <CommandCenterView
+          onClose={closeOverlayToPreviousRoute}
+          onDeleteSession={removeSession}
+          onMainModelChanged={(provider, model) => {
+            setCurrentProvider(provider)
+            setCurrentModel(model)
+            updateModelOptionsCache(provider, model, true)
+            void refreshCurrentModel()
+            void queryClient.invalidateQueries({ queryKey: ['model-options'] })
+          }}
+          onNavigateRoute={path => navigate(path)}
+          onOpenSession={sessionId => navigate(sessionRoute(sessionId))}
         />
       )}
     </>
@@ -979,13 +1022,14 @@ export function DesktopController() {
 
   return (
     <AppShell
+      commandCenterOpen={commandCenterOpen}
       inspectorWidth={SESSION_INSPECTOR_WIDTH}
       leftTitlebarTools={leftTitlebarTools}
       onOpenSettings={openSettings}
+      onToggleCommandCenter={toggleCommandCenter}
       overlays={overlays}
       previewWidth={PREVIEW_RAIL_WIDTH}
       rightRailOpen={chatOpen}
-      settingsOpen={settingsOpen}
       sidebar={sidebar}
       titlebarTools={titlebarTools}
     >
@@ -995,6 +1039,7 @@ export function DesktopController() {
         <Route element={<SkillsView setTitlebarToolGroup={setTitlebarToolGroup} />} path="skills" />
         <Route element={<ArtifactsView setTitlebarToolGroup={setTitlebarToolGroup} />} path="artifacts" />
         <Route element={null} path="settings" />
+        <Route element={null} path="command-center" />
         <Route element={<Navigate replace to={NEW_CHAT_ROUTE} />} path="new" />
         <Route element={<LegacySessionRedirect />} path="sessions/:sessionId" />
         <Route element={<Navigate replace to={NEW_CHAT_ROUTE} />} path="*" />

@@ -1,10 +1,9 @@
 import { useStore } from '@nanostores/react'
-import { NotebookTabs, Search, Settings, SlidersHorizontal, Volume2, VolumeX } from 'lucide-react'
-import type { ReactNode } from 'react'
-import type * as React from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { triggerHaptic } from '@/lib/haptics'
+import { Command, NotebookTabs, Settings, SlidersHorizontal, Volume2, VolumeX } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { $hapticsMuted, toggleHapticsMuted } from '@/store/haptics'
 import { $inspectorOpen, $sidebarOpen, toggleInspectorOpen, toggleSidebarOpen } from '@/store/layout'
@@ -28,19 +27,21 @@ export interface TitlebarTool {
 export type TitlebarToolSide = 'left' | 'right'
 export type SetTitlebarToolGroup = (id: string, tools: readonly TitlebarTool[], side?: TitlebarToolSide) => void
 
-interface TitlebarControlsProps extends React.ComponentProps<'div'> {
+interface TitlebarControlsProps extends ComponentProps<'div'> {
+  commandCenterOpen: boolean
   leftTools?: readonly TitlebarTool[]
-  settingsOpen: boolean
   showInspectorToggle: boolean
   tools?: readonly TitlebarTool[]
+  onToggleCommandCenter: () => void
   onOpenSettings: () => void
 }
 
 export function TitlebarControls({
+  commandCenterOpen,
   leftTools = [],
-  settingsOpen,
   showInspectorToggle,
   tools = [],
+  onToggleCommandCenter,
   onOpenSettings
 }: TitlebarControlsProps) {
   const navigate = useNavigate()
@@ -71,9 +72,15 @@ export function TitlebarControls({
       }
     },
     {
-      icon: <Search size={TITLEBAR_ICON_SIZE} />,
-      id: 'search',
-      label: 'Search'
+      active: commandCenterOpen,
+      icon: <Command size={TITLEBAR_ICON_SIZE} />,
+      id: 'command-center',
+      label: commandCenterOpen ? 'Close command center' : 'Open command center',
+      title: commandCenterOpen ? 'Close command center' : 'Open command center',
+      onSelect: () => {
+        triggerHaptic('tap')
+        onToggleCommandCenter()
+      }
     },
     ...leftTools
   ]
@@ -113,7 +120,7 @@ export function TitlebarControls({
     <>
       <div
         aria-label="Window controls"
-        className="fixed left-(--titlebar-controls-left) top-(--titlebar-controls-top) z-2147483647 flex translate-y-[2px] flex-row items-center gap-px pointer-events-auto [-webkit-app-region:no-drag]"
+        className="fixed left-(--titlebar-controls-left) top-(--titlebar-controls-top) z-70 flex translate-y-[2px] flex-row items-center gap-px pointer-events-auto select-none [-webkit-app-region:no-drag]"
       >
         {leftToolbarTools
           .filter(tool => !tool.hidden)
@@ -122,37 +129,24 @@ export function TitlebarControls({
           ))}
       </div>
 
-      {!settingsOpen && (
-        <div
-          aria-label="App controls"
-          className="fixed right-(--titlebar-tools-right) top-(--titlebar-controls-top) z-2147483647 flex flex-row items-center justify-end gap-px pointer-events-auto [-webkit-app-region:no-drag]"
-        >
-          {rightToolbarTools
-            .filter(tool => !tool.hidden)
-            .map(tool => (
-              <TitlebarToolButton
-                key={tool.id}
-                navigate={navigate}
-                tool={tool}
-              />
-            ))}
-        </div>
-      )}
+      <div
+        aria-label="App controls"
+        className="fixed right-(--titlebar-tools-right) top-(--titlebar-controls-top) z-70 flex flex-row items-center justify-end gap-px pointer-events-auto select-none [-webkit-app-region:no-drag]"
+      >
+        {rightToolbarTools
+          .filter(tool => !tool.hidden)
+          .map(tool => (
+            <TitlebarToolButton key={tool.id} navigate={navigate} tool={tool} />
+          ))}
+      </div>
     </>
   )
 }
 
-function TitlebarToolButton({
-  navigate,
-  tool
-}: {
-  navigate: ReturnType<typeof useNavigate>
-  tool: TitlebarTool
-}) {
+function TitlebarToolButton({ navigate, tool }: { navigate: ReturnType<typeof useNavigate>; tool: TitlebarTool }) {
   const className = cn(
     titlebarButtonClass,
-    'grid place-items-center bg-transparent [&_svg]:size-3.5',
-    tool.active && 'bg-muted text-muted-foreground',
+    'grid place-items-center bg-transparent select-none [&_svg]:size-4',
     tool.className
   )
 
@@ -175,7 +169,7 @@ function TitlebarToolButton({
   return (
     <button
       aria-label={tool.label}
-      aria-pressed={tool.active}
+      aria-pressed={tool.active ?? undefined}
       className={className}
       disabled={tool.disabled}
       onClick={() => {

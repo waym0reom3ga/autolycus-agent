@@ -1,6 +1,6 @@
-import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react'
 import * as React from 'react'
 
+import { ChevronLeft, ChevronRight, MoreHorizontal } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
 function Pagination({ className, ...props }: React.ComponentProps<'nav'>) {
@@ -15,7 +15,9 @@ function Pagination({ className, ...props }: React.ComponentProps<'nav'>) {
 }
 
 function PaginationContent({ className, ...props }: React.ComponentProps<'ul'>) {
-  return <ul className={cn('flex h-5 flex-row items-center gap-0.5', className)} data-slot="pagination-content" {...props} />
+  return (
+    <ul className={cn('flex h-5 flex-row items-center gap-0.5', className)} data-slot="pagination-content" {...props} />
+  )
 }
 
 function PaginationItem({ className, ...props }: React.ComponentProps<'li'>) {

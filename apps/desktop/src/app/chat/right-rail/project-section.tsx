@@ -1,9 +1,9 @@
 'use client'
 
-import { FolderOpen, GitBranch, Pencil } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { Input } from '@/components/ui/input'
+import { FolderOpen, GitBranch, Pencil } from '@/lib/icons'
 
 import { RailSection } from './rail-section'
 

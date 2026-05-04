@@ -1,9 +1,9 @@
 import { useStore } from '@nanostores/react'
-import { Bug, Check, Copy, PanelBottom, RefreshCw, Send, Trash2, X } from 'lucide-react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { SetTitlebarToolGroup, TitlebarTool } from '@/app/shell/titlebar-controls'
+import { Bug, Check, Copy, PanelBottom, RefreshCw, Send, Trash2, X } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { $composerDraft, setComposerDraft } from '@/store/composer'
 import { notify, notifyError } from '@/store/notifications'
@@ -265,12 +265,7 @@ async function writeClipboardText(text: string) {
   }
 }
 
-export function PreviewPane({
-  onRestartServer,
-  reloadRequest = 0,
-  setTitlebarToolGroup,
-  target
-}: PreviewPaneProps) {
+export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToolGroup, target }: PreviewPaneProps) {
   const consoleBodyRef = useRef<HTMLDivElement | null>(null)
   const consoleShouldStickRef = useRef(true)
   const hostRef = useRef<HTMLDivElement | null>(null)
@@ -295,6 +290,7 @@ export function PreviewPane({
 
   const previewLabel =
     target.label && target.label.replace(/\/$/, '') !== currentLabel.replace(/\/$/, '') ? target.label : currentLabel
+
   const restartingServer =
     previewServerRestart?.status === 'running' &&
     (previewServerRestart.url === target.url || previewServerRestart.url === currentUrl)
@@ -532,10 +528,10 @@ export function PreviewPane({
         previewServerRestart.status === 'running'
           ? previewServerRestart.message
           : previewServerRestart.status === 'complete'
-          ? `Hermes finished restarting the preview server${
-              previewServerRestart.message ? `: ${previewServerRestart.message}` : ''
-            }`
-          : `Server restart failed: ${previewServerRestart.message || 'unknown error'}`
+            ? `Hermes finished restarting the preview server${
+                previewServerRestart.message ? `: ${previewServerRestart.message}` : ''
+              }`
+            : `Server restart failed: ${previewServerRestart.message || 'unknown error'}`
     })
 
     if (previewServerRestart.status === 'complete') {
@@ -549,6 +545,7 @@ export function PreviewPane({
     }
 
     const taskId = previewServerRestart.taskId
+
     const timer = window.setTimeout(() => {
       failPreviewServerRestart(
         taskId,
@@ -578,7 +575,11 @@ export function PreviewPane({
   }, [appendConsoleEntry, reloadPreview, reloadRequest, target.kind])
 
   useEffect(() => {
-    if (target.kind !== 'file' || !window.hermesDesktop?.watchPreviewFile || !window.hermesDesktop?.onPreviewFileChanged) {
+    if (
+      target.kind !== 'file' ||
+      !window.hermesDesktop?.watchPreviewFile ||
+      !window.hermesDesktop?.onPreviewFileChanged
+    ) {
       return
     }
 
@@ -688,6 +689,7 @@ export function PreviewPane({
         message?: string
         sourceId?: string
       }
+
       const message = detail.message || ''
 
       appendConsoleEntry({
@@ -783,7 +785,10 @@ export function PreviewPane({
           </div>
         </div>
 
-        <div className="pointer-events-auto relative min-h-0 flex-1 overflow-hidden bg-background" ref={previewContentRef}>
+        <div
+          className="pointer-events-auto relative min-h-0 flex-1 overflow-hidden bg-background"
+          ref={previewContentRef}
+        >
           <div
             className={cn('absolute inset-0 flex bg-background', loadError && 'pointer-events-none opacity-0')}
             ref={hostRef}
@@ -843,7 +848,9 @@ export function PreviewPane({
                     onClick={async () => {
                       await copyConsoleText(
                         sendableLogs,
-                        visibleSelection.length > 0 ? `${visibleSelection.length} selected entries` : 'All console entries'
+                        visibleSelection.length > 0
+                          ? `${visibleSelection.length} selected entries`
+                          : 'All console entries'
                       )
                       setCopiedAll(true)
                       setTimeout(() => setCopiedAll(false), 1500)
@@ -869,7 +876,10 @@ export function PreviewPane({
                   </button>
                 </div>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5 font-mono text-[0.6875rem] leading-relaxed" ref={consoleBodyRef}>
+              <div
+                className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5 font-mono text-[0.6875rem] leading-relaxed"
+                ref={consoleBodyRef}
+              >
                 {logs.length > 0 ? (
                   logs.map(log => {
                     const selected = selectedLogIds.has(log.id)

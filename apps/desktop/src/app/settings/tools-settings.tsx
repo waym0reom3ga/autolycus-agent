@@ -1,8 +1,8 @@
-import { Brain, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { Switch } from '@/components/ui/switch'
 import { getSkills, getToolsets, toggleSkill } from '@/hermes'
+import { Brain, Wrench } from '@/lib/icons'
 import { notify, notifyError } from '@/store/notifications'
 import type { SkillInfo, ToolsetInfo } from '@/types/hermes'
 

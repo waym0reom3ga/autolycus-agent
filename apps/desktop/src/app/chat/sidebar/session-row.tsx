@@ -1,10 +1,10 @@
-import { MoreVertical } from 'lucide-react'
 import type * as React from 'react'
 
 import { Button } from '@/components/ui/button'
 import type { SessionInfo } from '@/hermes'
 import { sessionTitle } from '@/lib/chat-runtime'
 import { triggerHaptic } from '@/lib/haptics'
+import { MoreVertical } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
 import { SessionActionsMenu } from './session-actions-menu'

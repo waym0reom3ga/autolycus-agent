@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { appendAssistantTextPart, chatMessageText, renderMediaTags, toChatMessages, upsertToolPart } from './chat-messages'
+import {
+  appendAssistantTextPart,
+  chatMessageText,
+  renderMediaTags,
+  toChatMessages,
+  upsertToolPart
+} from './chat-messages'
 
 describe('toChatMessages', () => {
   it('keeps a turn with interleaved tool-only rows in a single bubble', () => {
@@ -65,8 +71,7 @@ describe('toChatMessages', () => {
     const [message] = toChatMessages([
       {
         content: {
-          text:
-            'look\n\n--- Attached Context ---\n\n📄 @file:foo.ts (10 tokens)\n```ts\nconst x = 1\n```'
+          text: 'look\n\n--- Attached Context ---\n\n📄 @file:foo.ts (10 tokens)\n```ts\nconst x = 1\n```'
         },
         role: 'user',
         timestamp: 1

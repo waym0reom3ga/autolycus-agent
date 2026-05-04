@@ -1,8 +1,8 @@
-import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { PageLoader } from '@/components/page-loader'
 import { Button } from '@/components/ui/button'
+import type { LucideIcon } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
 export function SettingsContent({ children }: { children: ReactNode }) {

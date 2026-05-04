@@ -1,6 +1,5 @@
 'use client'
 
-import { ChevronDown } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 
 import {
@@ -11,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import { ChevronDown } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
 export interface RailSelectOption {

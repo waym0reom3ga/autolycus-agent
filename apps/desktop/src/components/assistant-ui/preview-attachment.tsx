@@ -1,7 +1,7 @@
 import { useStore } from '@nanostores/react'
-import { MonitorPlay } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { MonitorPlay } from '@/lib/icons'
 import { previewName } from '@/lib/preview-targets'
 import { notifyError } from '@/store/notifications'
 import { $previewTarget, setPreviewTarget } from '@/store/preview'
@@ -79,13 +79,15 @@ export function PreviewAttachment({ target }: { target: string }) {
     setOpening(true)
 
     try {
-      const preview = await window.hermesDesktop?.normalizePreviewTarget(requestTarget, requestCwd || undefined).catch(error => {
-        if (isMissingPreviewIpc(error)) {
-          return localFallbackPreview(requestTarget)
-        }
+      const preview = await window.hermesDesktop
+        ?.normalizePreviewTarget(requestTarget, requestCwd || undefined)
+        .catch(error => {
+          if (isMissingPreviewIpc(error)) {
+            return localFallbackPreview(requestTarget)
+          }
 
-        throw error
-      })
+          throw error
+        })
 
       if (
         !mountedRef.current ||

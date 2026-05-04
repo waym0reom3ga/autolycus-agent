@@ -1,5 +1,6 @@
 const VALID_LANGUAGE_RE = /^[a-z0-9][a-z0-9+#-]*$/i
 const NON_CODE_FENCE_LANGUAGES = new Set(['', 'text', 'plain', 'plaintext', 'md', 'markdown'])
+
 const COMMON_CODE_LANGUAGES = new Set([
   'bash',
   'c',
@@ -48,14 +49,11 @@ export function sanitizeLanguageTag(tag: string): string {
 }
 
 function proseLineCount(body: string): number {
-  return body
-    .split('\n')
-    .filter(line => {
-      const trimmed = line.trim()
+  return body.split('\n').filter(line => {
+    const trimmed = line.trim()
 
-      return Boolean(trimmed) && /^[A-Za-z0-9"'`*-]/.test(trimmed)
-    })
-    .length
+    return Boolean(trimmed) && /^[A-Za-z0-9"'`*-]/.test(trimmed)
+  }).length
 }
 
 const CODE_SIGNAL_RE = [

@@ -1,6 +1,5 @@
-import { Check, Palette } from 'lucide-react'
-
 import { triggerHaptic } from '@/lib/haptics'
+import { Check, Palette } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/themes/context'
 import { BUILTIN_THEMES } from '@/themes/presets'

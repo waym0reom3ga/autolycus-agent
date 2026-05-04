@@ -2,13 +2,14 @@
 
 import { type StreamdownTextComponents, StreamdownTextPrimitive } from '@assistant-ui/react-streamdown'
 import { code } from '@streamdown/code'
-import { Check, Copy } from 'lucide-react'
 import { type ComponentProps, memo, useEffect, useMemo, useState } from 'react'
 
 import { PreviewAttachment } from '@/components/assistant-ui/preview-attachment'
 import { SyntaxHighlighter } from '@/components/assistant-ui/shiki-highlighter'
 import { ZoomableImage } from '@/components/assistant-ui/zoomable-image'
 import { triggerHaptic } from '@/lib/haptics'
+import { Check, Copy } from '@/lib/icons'
+import { isLikelyProseCodeBlock, isLikelyProseFence, sanitizeLanguageTag } from '@/lib/markdown-code'
 import {
   filePathFromMediaPath,
   mediaExternalUrl,
@@ -17,7 +18,6 @@ import {
   mediaName,
   mediaPathFromMarkdownHref
 } from '@/lib/media'
-import { isLikelyProseCodeBlock, isLikelyProseFence, sanitizeLanguageTag } from '@/lib/markdown-code'
 import { isLikelyPreviewCandidate, previewTargetFromMarkdownHref, stripPreviewTargets } from '@/lib/preview-targets'
 import { cn } from '@/lib/utils'
 
@@ -98,6 +98,7 @@ function normalizeFenceBlocks(text: string): string {
     if (!match) {
       out.push(line)
       index += 1
+
       continue
     }
 
@@ -111,6 +112,7 @@ function normalizeFenceBlocks(text: string): string {
     if (!openerValid) {
       out.push(`${indent}${infoRaw}`.trimEnd())
       index += 1
+
       continue
     }
 
@@ -122,6 +124,7 @@ function normalizeFenceBlocks(text: string): string {
       // Empty fenced block: drop both delimiters. This prevents Streamdown's
       // code plugin from rendering an empty shell/card.
       index = closeIndex + 1
+
       continue
     }
 
@@ -130,12 +133,14 @@ function normalizeFenceBlocks(text: string): string {
       // already renders a preview card for that URL, so don't show code fences.
       out.push(...bodyLines)
       index = closeIndex + 1
+
       continue
     }
 
     if (closeIndex === -1) {
       if (!body.trim()) {
         index += 1
+
         continue
       }
 
@@ -152,6 +157,7 @@ function normalizeFenceBlocks(text: string): string {
     if (isLikelyProseFence(infoRaw, body)) {
       pushProseFence(out, indent, infoRaw, bodyLines)
       index = closeIndex + 1
+
       continue
     }
 

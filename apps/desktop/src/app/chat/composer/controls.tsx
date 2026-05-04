@@ -1,7 +1,6 @@
-import { ArrowUp, AudioLines, Loader2, Mic, MicOff, Square } from 'lucide-react'
-
 import { Button } from '@/components/ui/button'
 import { triggerHaptic } from '@/lib/haptics'
+import { ArrowUp, AudioLines, Loader2, Mic, MicOff, Square } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
 import type { ConversationStatus } from './hooks/use-voice-conversation'

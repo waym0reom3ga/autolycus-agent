@@ -97,7 +97,12 @@ function isLocalPreviewUrl(value: string): boolean {
 export function isLikelyPreviewCandidate(value: string): boolean {
   const trimmed = stripTrailingPunctuation(value.trim())
 
-  return isHtmlFileUrl(trimmed) || HTML_EXT_RE.test(trimmed) || isPreviewDirectoryCandidate(trimmed) || isLocalPreviewUrl(trimmed)
+  return (
+    isHtmlFileUrl(trimmed) ||
+    HTML_EXT_RE.test(trimmed) ||
+    isPreviewDirectoryCandidate(trimmed) ||
+    isLocalPreviewUrl(trimmed)
+  )
 }
 
 function collectPreviewMatches(text: string): PreviewCandidateMatch[] {

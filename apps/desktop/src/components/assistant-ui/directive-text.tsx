@@ -2,12 +2,12 @@
 
 import type { Unstable_DirectiveFormatter, Unstable_DirectiveSegment, Unstable_TriggerItem } from '@assistant-ui/core'
 import type { TextMessagePartComponent, TextMessagePartProps } from '@assistant-ui/react'
-import { AtSign, FileText, FolderOpen, ImageIcon, Link as LinkIcon, Wrench } from 'lucide-react'
 import type { ComponentType, FC } from 'react'
 import { Fragment, useMemo } from 'react'
 
 import { ZoomableImage } from '@/components/assistant-ui/zoomable-image'
 import { extractEmbeddedImages } from '@/lib/embedded-images'
+import { AtSign, FileText, FolderOpen, ImageIcon, Link as LinkIcon, Wrench } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
 const HERMES_REF_TYPES = ['file', 'folder', 'url', 'image', 'tool'] as const

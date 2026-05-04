@@ -2,13 +2,13 @@
 
 import { type ToolCallMessagePartProps } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
-import { HelpCircle, Loader2, PencilLine } from 'lucide-react'
 import { type FormEvent, type KeyboardEvent, useCallback, useMemo, useRef, useState } from 'react'
 
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { triggerHaptic } from '@/lib/haptics'
+import { HelpCircle, Loader2, PencilLine } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { $clarifyRequest, clearClarifyRequest } from '@/store/clarify'
 import { $gateway } from '@/store/gateway'
@@ -213,7 +213,10 @@ function ClarifyToolPending({ args }: ToolCallMessagePartProps) {
             }}
             type="button"
           >
-            <span aria-hidden className="grid size-5 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+            <span
+              aria-hidden
+              className="grid size-5 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"
+            >
               <PencilLine className="size-3" />
             </span>
             <span className="flex-1">Other (type your answer)</span>

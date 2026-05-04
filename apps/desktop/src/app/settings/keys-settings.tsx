@@ -1,9 +1,9 @@
-import { Check, Eye, EyeOff, Save, Settings2, Trash2, X, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { deleteEnvVar, getEnvVars, revealEnvVar, setEnvVar } from '@/hermes'
+import { Check, Eye, EyeOff, Save, Settings2, Trash2, X, Zap } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { notify, notifyError } from '@/store/notifications'
 import type { EnvVarInfo } from '@/types/hermes'
@@ -20,6 +20,8 @@ import {
 } from './helpers'
 import { LoadingState, Pill, SectionHeading, SettingsContent } from './primitives'
 import type { EnvPatch, EnvRowProps, ProviderGroup, SearchProps } from './types'
+
+const SHOW_ADVANCED_STORAGE_KEY = 'desktop.settings.keys.show_advanced'
 
 interface EnvActionsProps {
   varKey: string
@@ -218,7 +220,28 @@ export function KeysSettings({ query }: SearchProps) {
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [revealed, setRevealed] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<string | null>(null)
-  const [showAdvanced, setShowAdvanced] = useState(true)
+
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(() => {
+    try {
+      const stored = window.localStorage.getItem(SHOW_ADVANCED_STORAGE_KEY)
+
+      if (stored === null) {
+        return false
+      }
+
+      return stored === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SHOW_ADVANCED_STORAGE_KEY, showAdvanced ? 'true' : 'false')
+    } catch {
+      // Ignore persistence failures and keep in-memory preference.
+    }
+  }, [showAdvanced])
 
   useEffect(() => {
     let cancelled = false

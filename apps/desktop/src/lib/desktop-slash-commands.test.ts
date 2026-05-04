@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  desktopSkinSlashCompletions,
   desktopSlashDescription,
   desktopSlashUnavailableMessage,
-  desktopSkinSlashCompletions,
   filterDesktopCommandsCatalog,
   isDesktopSlashCommand,
   isDesktopSlashSuggestion

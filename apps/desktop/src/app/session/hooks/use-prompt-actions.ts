@@ -18,7 +18,12 @@ import {
   isDesktopSlashCommand
 } from '@/lib/desktop-slash-commands'
 import { triggerHaptic } from '@/lib/haptics'
-import { $composerAttachments, addComposerAttachment, clearComposerAttachments, type ComposerAttachment } from '@/store/composer'
+import {
+  $composerAttachments,
+  addComposerAttachment,
+  clearComposerAttachments,
+  type ComposerAttachment
+} from '@/store/composer'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
 import { $busy, $messages, setAwaitingResponse, setBusy, setMessages } from '@/store/session'
 
@@ -647,6 +652,7 @@ export function usePromptActions({
 
       updateSessionState(sessionId, state => {
         let changed = false
+
         const messages = state.messages.map(message => {
           if (message.role !== 'assistant' || !message.branchGroupId) {
             return message

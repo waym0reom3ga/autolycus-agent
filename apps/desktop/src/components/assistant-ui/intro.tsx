@@ -1,4 +1,4 @@
-import { type FC, useCallback, useEffect, useState } from 'react'
+import { type FC, useCallback, useState } from 'react'
 
 import introCopyJsonl from './intro-copy.jsonl?raw'
 
@@ -19,6 +19,9 @@ export type IntroProps = {
 const NEUTRAL_PERSONALITIES = new Set(['', 'default', 'none', 'neutral'])
 
 const HERMES_FRAME_COUNT = 8
+// Optical centering offsets tuned per frame so Hermes' body stays centered
+// even when the staff extends farther left/right in certain poses.
+const HERMES_DEFAULT_FRAME_OPTICAL_OFFSET_PX = [8, 4, 4, 0, 9, 2, 5, 9] as const
 const ASSET_BASE_URL = import.meta.env.BASE_URL || '/'
 
 const FALLBACK_COPY: IntroCopy[] = [
@@ -165,16 +168,11 @@ export const Intro: FC<IntroProps> = ({ personality, seed }) => {
   const introSeed = mountSeed + (seed ?? 0)
   const copy = resolveCopy(personality, introSeed)
   const frameIndex = Math.abs(introSeed + frameOffset) % HERMES_FRAME_COUNT
+  const spriteOffsetPx = HERMES_DEFAULT_FRAME_OPTICAL_OFFSET_PX[frameIndex] ?? 0
 
   const advanceFrame = useCallback(() => {
     setFrameOffset(offset => offset + 1 + Math.floor(Math.random() * (HERMES_FRAME_COUNT - 1)))
   }, [])
-
-  useEffect(() => {
-    const id = window.setTimeout(advanceFrame, 7000)
-
-    return () => window.clearTimeout(id)
-  }, [advanceFrame, frameOffset])
 
   return (
     <div className="pointer-events-none flex min-h-[calc(100vh-var(--titlebar-height)-var(--thread-composer-clearance)-var(--composer-shell-pad-block-end))] flex-col items-center justify-center px-[calc(var(--vsq)*50)] text-center text-muted-foreground">
@@ -187,9 +185,10 @@ export const Intro: FC<IntroProps> = ({ personality, seed }) => {
         <img
           alt=""
           aria-hidden="true"
-          className="h-full w-full scale-110 object-contain select-none"
+          className="h-full w-full object-contain select-none"
           draggable={false}
           src={publicAssetPath(`hermes-frames/hermes-frame-${frameIndex}.png?v=matte-clean-6`)}
+          style={{ transform: `translateX(${spriteOffsetPx}px) scale(1.1)` }}
         />
       </button>
       <p className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/75">Hermes Agent</p>

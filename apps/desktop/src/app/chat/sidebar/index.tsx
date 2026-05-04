@@ -1,5 +1,4 @@
 import { useStore } from '@nanostores/react'
-import { ChevronDown, Layers3, Pin, Plus, RefreshCw, Sparkles } from 'lucide-react'
 import { useMemo } from 'react'
 import type * as React from 'react'
 
@@ -16,6 +15,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { SessionInfo } from '@/hermes'
+import { Brain, ChevronDown, Layers3, Pin, Plus, RefreshCw } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
   $pinnedSessionIds,
@@ -41,7 +41,7 @@ const SIDEBAR_NAV: SidebarNavItem[] = [
     icon: Plus,
     action: 'new-session'
   },
-  { id: 'skills', label: 'Skills', icon: Sparkles, route: SKILLS_ROUTE },
+  { id: 'skills', label: 'Skills', icon: Brain, route: SKILLS_ROUTE },
   { id: 'artifacts', label: 'Artifacts', icon: Layers3, route: ARTIFACTS_ROUTE }
 ]
 

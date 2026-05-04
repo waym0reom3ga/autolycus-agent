@@ -1,5 +1,4 @@
-import { FileText, FolderOpen, ImageIcon, Link, X } from 'lucide-react'
-
+import { FileText, FolderOpen, ImageIcon, Link, X } from '@/lib/icons'
 import type { ComposerAttachment } from '@/store/composer'
 
 export function AttachmentList({
@@ -22,10 +21,7 @@ function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachme
   const Icon = { folder: FolderOpen, url: Link, image: ImageIcon, file: FileText }[attachment.kind]
 
   return (
-    <div
-      className="group/attachment relative shrink-0"
-      title={attachment.label}
-    >
+    <div className="group/attachment relative shrink-0" title={attachment.label}>
       {attachment.previewUrl && attachment.kind === 'image' ? (
         <img
           alt={attachment.label}

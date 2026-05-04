@@ -1,4 +1,3 @@
-import { Globe } from 'lucide-react'
 import type * as React from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -11,6 +10,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Globe } from '@/lib/icons'
 
 const URL_HINT = /^https?:\/\//i
 

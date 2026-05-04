@@ -1,4 +1,12 @@
-import { Archive, Copy, Pencil, Pin, Trash2 } from 'lucide-react'
+import {
+  IconArchive,
+  IconBookmark,
+  IconBookmarkFilled,
+  IconCircleX,
+  IconCopy,
+  IconFileDownload,
+  IconPencil
+} from '@tabler/icons-react'
 import type * as React from 'react'
 import type { ReactNode } from 'react'
 
@@ -10,6 +18,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { triggerHaptic } from '@/lib/haptics'
+import { exportSession } from '@/lib/session-export'
 import { cn } from '@/lib/utils'
 import { notify, notifyError } from '@/store/notifications'
 
@@ -60,19 +69,30 @@ export function SessionActionsMenu({
             onPin?.()
           }}
         >
-          <Pin />
+          {pinned ? <IconBookmarkFilled /> : <IconBookmark />}
           <span>{pinned ? 'Unpin' : 'Pin'}</span>
         </DropdownMenuItem>
         <DropdownMenuItem className={itemClass} onSelect={() => void copyId()}>
-          <Copy />
+          <IconCopy />
           <span>Copy ID</span>
         </DropdownMenuItem>
+        <DropdownMenuItem
+          className={itemClass}
+          disabled={!sessionId}
+          onSelect={() => {
+            triggerHaptic('selection')
+            void exportSession(sessionId, { title })
+          }}
+        >
+          <IconFileDownload />
+          <span>Export</span>
+        </DropdownMenuItem>
         <DropdownMenuItem className={itemClass}>
-          <Pencil />
+          <IconPencil />
           <span>Rename</span>
         </DropdownMenuItem>
         <DropdownMenuItem className={itemClass}>
-          <Archive />
+          <IconArchive />
           <span>Add to project</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator className="my-3" />
@@ -85,7 +105,7 @@ export function SessionActionsMenu({
           }}
           variant="destructive"
         >
-          <Trash2 />
+          <IconCircleX />
           <span>Delete</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

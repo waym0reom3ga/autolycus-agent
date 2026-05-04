@@ -1,10 +1,9 @@
-import { Copy, ExternalLink, FileImage, FileText, FolderOpen, Layers3, Link2, RefreshCw, Search, X } from 'lucide-react'
 import type * as React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { PageLoader } from '@/components/page-loader'
 import { ZoomableImage } from '@/components/assistant-ui/zoomable-image'
+import { PageLoader } from '@/components/page-loader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -18,6 +17,7 @@ import {
 } from '@/components/ui/pagination'
 import { getSessionMessages, listSessions } from '@/hermes'
 import { sessionTitle } from '@/lib/chat-runtime'
+import { Copy, ExternalLink, FileImage, FileText, FolderOpen, Layers3, Link2, RefreshCw, Search, X } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { notify, notifyError } from '@/store/notifications'
 import type { SessionInfo, SessionMessage } from '@/types/hermes'

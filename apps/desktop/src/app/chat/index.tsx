@@ -7,7 +7,6 @@ import {
 } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronDown } from 'lucide-react'
 import type * as React from 'react'
 import { Suspense, useMemo, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
@@ -18,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { getGlobalModelOptions, type HermesGateway } from '@/hermes'
 import type { ChatMessage } from '@/lib/chat-messages'
 import { quickModelOptions, sessionTitle, toRuntimeMessage } from '@/lib/chat-runtime'
+import { ChevronDown } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { $pinnedSessionIds } from '@/store/layout'
 import {
@@ -264,7 +264,12 @@ export function ChatView({
 
   return (
     <>
-      <div className={cn('relative col-start-2 col-end-3 row-start-1 flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent', className)}>
+      <div
+        className={cn(
+          'relative col-start-2 col-end-3 row-start-1 flex h-[calc(100vh-0.375rem)] min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent',
+          className
+        )}
+      >
         <header className={cn(titlebarHeaderBaseClass, isRoutedSessionView && titlebarHeaderShadowClass)}>
           <div className="min-w-0 flex-1">
             {title && (

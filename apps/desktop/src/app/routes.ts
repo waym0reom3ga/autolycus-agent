@@ -1,12 +1,13 @@
 export const SESSION_ROUTE_PREFIX = '/'
 export const NEW_CHAT_ROUTE = '/'
 export const SETTINGS_ROUTE = '/settings'
+export const COMMAND_CENTER_ROUTE = '/command-center'
 export const SKILLS_ROUTE = '/skills'
 export const ARTIFACTS_ROUTE = '/artifacts'
 
-export type AppView = 'chat' | 'settings' | 'skills' | 'artifacts'
+export type AppView = 'chat' | 'settings' | 'command-center' | 'skills' | 'artifacts'
 
-export type AppRouteId = 'new' | 'settings' | 'skills' | 'artifacts'
+export type AppRouteId = 'new' | 'settings' | 'command-center' | 'skills' | 'artifacts'
 
 export interface AppRoute {
   id: AppRouteId
@@ -17,6 +18,7 @@ export interface AppRoute {
 export const APP_ROUTES = [
   { id: 'new', path: NEW_CHAT_ROUTE, view: 'chat' },
   { id: 'settings', path: SETTINGS_ROUTE, view: 'settings' },
+  { id: 'command-center', path: COMMAND_CENTER_ROUTE, view: 'command-center' },
   { id: 'skills', path: SKILLS_ROUTE, view: 'skills' },
   { id: 'artifacts', path: ARTIFACTS_ROUTE, view: 'artifacts' }
 ] as const satisfies readonly AppRoute[]

@@ -36,14 +36,15 @@
     "preview": "vite preview --host 127.0.0.1 --port 4174"
   },
   "dependencies": {
-    "@hermes/shared": "file:../shared",
     "@assistant-ui/react": "^0.12.28",
     "@assistant-ui/react-streamdown": "^0.1.11",
     "@audiowave/react": "^0.6.2",
     "@chenglou/pretext": "^0.0.6",
+    "@hermes/shared": "file:../shared",
     "@nanostores/react": "^1.1.0",
     "@radix-ui/react-slot": "^1.2.4",
     "@streamdown/code": "^1.1.1",
+    "@tabler/icons-react": "^3.41.1",
     "@tailwindcss/vite": "^4.2.4",
     "@tanstack/react-query": "^5.100.6",
     "class-variance-authority": "^0.7.1",

@@ -192,3 +192,88 @@ export interface ToolsetInfo {
   name: string
   tools: string[]
 }
+
+export interface SessionSearchResult {
+  model: string | null
+  role: string | null
+  session_id: string
+  session_started: number | null
+  snippet: string
+  source: string | null
+}
+
+export interface SessionSearchResponse {
+  results: SessionSearchResult[]
+}
+
+export interface LogsResponse {
+  file: string
+  lines: string[]
+}
+
+export interface PlatformStatus {
+  error_code?: string
+  error_message?: string
+  state: string
+  updated_at: string
+}
+
+export interface StatusResponse {
+  active_sessions: number
+  config_path: string
+  config_version: number
+  env_path: string
+  gateway_exit_reason: string | null
+  gateway_health_url: string | null
+  gateway_pid: number | null
+  gateway_platforms: Record<string, PlatformStatus>
+  gateway_running: boolean
+  gateway_state: string | null
+  gateway_updated_at: string | null
+  hermes_home: string
+  latest_config_version: number
+  release_date: string
+  version: string
+}
+
+export interface ActionResponse {
+  name: string
+  ok: boolean
+  pid: number
+}
+
+export interface ActionStatusResponse {
+  exit_code: number | null
+  lines: string[]
+  name: string
+  pid: number | null
+  running: boolean
+}
+
+export interface AuxiliaryTaskAssignment {
+  base_url: string
+  model: string
+  provider: string
+  task: string
+}
+
+export interface AuxiliaryModelsResponse {
+  main: { model: string; provider: string }
+  tasks: AuxiliaryTaskAssignment[]
+}
+
+export interface ModelAssignmentRequest {
+  model: string
+  provider: string
+  scope: 'main' | 'auxiliary'
+  task?: string
+}
+
+export interface ModelAssignmentResponse {
+  model?: string
+  ok: boolean
+  provider?: string
+  reset?: boolean
+  scope?: string
+  tasks?: string[]
+}

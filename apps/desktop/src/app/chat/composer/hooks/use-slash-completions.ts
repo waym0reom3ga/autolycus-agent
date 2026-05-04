@@ -3,10 +3,10 @@ import { useCallback } from 'react'
 
 import type { HermesGateway } from '@/hermes'
 import {
+  type CommandsCatalogLike,
   desktopSlashDescription,
   filterDesktopCommandsCatalog,
-  isDesktopSlashSuggestion,
-  type CommandsCatalogLike
+  isDesktopSlashSuggestion
 } from '@/lib/desktop-slash-commands'
 
 import type { CompletionEntry, CompletionPayload } from './use-live-completion-adapter'
@@ -57,17 +57,17 @@ export function useSlashCompletions(options: { gateway: HermesGateway | null }):
         if (!query) {
           const catalog = filterDesktopCommandsCatalog(await gateway.request<CommandsCatalogLike>('commands.catalog'))
 
-          const items = (catalog.pairs ?? [])
-            .map(([command, meta]) => ({
-              text: command,
-              display: command,
-              meta
-            }))
+          const items = (catalog.pairs ?? []).map(([command, meta]) => ({
+            text: command,
+            display: command,
+            meta
+          }))
 
           return { items, query }
         }
 
         const result = await gateway.request<{ items?: CompletionEntry[] }>('complete.slash', { text })
+
         const items = (result.items ?? [])
           .filter(item => isDesktopSlashSuggestion(item.text))
           .map(item => ({

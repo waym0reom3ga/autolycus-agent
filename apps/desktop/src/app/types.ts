@@ -1,6 +1,5 @@
-import type { LucideIcon } from 'lucide-react'
-
 import type { ChatMessage } from '@/lib/chat-messages'
+import type { LucideIcon } from '@/lib/icons'
 
 export interface ContextSuggestion {
   text: string

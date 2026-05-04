@@ -1,9 +1,9 @@
 'use client'
 
-import { XIcon } from 'lucide-react'
 import { Dialog as SheetPrimitive } from 'radix-ui'
 import * as React from 'react'
 
+import { XIcon } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {

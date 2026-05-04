@@ -82,7 +82,13 @@ function preserveReasoningParts(message: ChatMessage, previous: ChatMessage): Ch
 }
 
 function chatMessagesEquivalent(a: ChatMessage, b: ChatMessage): boolean {
-  if (a.id !== b.id || a.role !== b.role || a.pending !== b.pending || a.hidden !== b.hidden || a.branchGroupId !== b.branchGroupId) {
+  if (
+    a.id !== b.id ||
+    a.role !== b.role ||
+    a.pending !== b.pending ||
+    a.hidden !== b.hidden ||
+    a.branchGroupId !== b.branchGroupId
+  ) {
     return false
   }
 
@@ -290,7 +296,15 @@ export function useSessionActions({
         creatingSessionRef.current = false
       }, 0)
     }
-  }, [activeSessionIdRef, creatingSessionRef, ensureSessionState, getRouteToken, navigate, requestGateway, selectedStoredSessionIdRef])
+  }, [
+    activeSessionIdRef,
+    creatingSessionRef,
+    ensureSessionState,
+    getRouteToken,
+    navigate,
+    requestGateway,
+    selectedStoredSessionIdRef
+  ])
 
   const selectSidebarItem = useCallback(
     (item: SidebarNavItem) => {
@@ -402,11 +416,12 @@ export function useSessionActions({
         // exists; use gateway messages only as a fallback when no local
         // snapshot was available.
 
-        const messagesForView = localSnapshot.length > 0
-          ? localSnapshot
-          : chatMessageArraysEquivalent(currentMessages, resumedMessages)
-            ? currentMessages
-            : resumedMessages
+        const messagesForView =
+          localSnapshot.length > 0
+            ? localSnapshot
+            : chatMessageArraysEquivalent(currentMessages, resumedMessages)
+              ? currentMessages
+              : resumedMessages
 
         setActiveSessionId(resumed.session_id)
         activeSessionIdRef.current = resumed.session_id

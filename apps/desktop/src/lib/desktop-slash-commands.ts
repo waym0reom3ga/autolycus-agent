@@ -196,6 +196,7 @@ export function desktopSkinSlashCompletions(
   argPrefix: string
 ): DesktopSlashCompletion[] {
   const prefix = argPrefix.trim().toLowerCase()
+
   const commands: DesktopSlashCompletion[] = [
     {
       text: '/skin list',
@@ -243,9 +244,5 @@ export function filterDesktopCommandsCatalog(catalog: CommandsCatalogLike): Comm
 }
 
 function isKnownHermesSlashCommand(command: string): boolean {
-  return (
-    DESKTOP_COMMANDS.has(command) ||
-    DESKTOP_ALIASES.has(command) ||
-    BLOCKED_COMMANDS.has(command)
-  )
+  return DESKTOP_COMMANDS.has(command) || DESKTOP_ALIASES.has(command) || BLOCKED_COMMANDS.has(command)
 }

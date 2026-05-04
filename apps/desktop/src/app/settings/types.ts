@@ -1,6 +1,6 @@
-import type { LucideIcon } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 
+import type { LucideIcon } from '@/lib/icons'
 import type { EnvVarInfo } from '@/types/hermes'
 
 export type SettingsView = 'keys' | 'tools' | `config:${string}`

@@ -1,9 +1,9 @@
 import { useStore } from '@nanostores/react'
-import { AlertCircle, AlertTriangle, CheckCircle2, Copy, Info, type LucideIcon, X } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { triggerHaptic } from '@/lib/haptics'
+import { AlertCircle, AlertTriangle, CheckCircle2, Copy, Info, type LucideIcon, X } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
   $notifications,

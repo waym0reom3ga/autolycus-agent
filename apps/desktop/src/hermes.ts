@@ -1,24 +1,35 @@
+import { JsonRpcGatewayClient } from '@hermes/shared'
+
 import type {
+  ActionResponse,
+  ActionStatusResponse,
   AudioSpeakResponse,
   AudioTranscriptionResponse,
+  AuxiliaryModelsResponse,
   ConfigSchemaResponse,
   ElevenLabsVoicesResponse,
   EnvVarInfo,
   HermesConfig,
   HermesConfigRecord,
+  LogsResponse,
+  ModelAssignmentRequest,
+  ModelAssignmentResponse,
   ModelInfoResponse,
   ModelOptionsResponse,
   PaginatedSessions,
-  RpcEvent,
   SessionMessagesResponse,
+  SessionSearchResponse,
   SkillInfo,
+  StatusResponse,
   ToolsetInfo
 } from '@/types/hermes'
-import { JsonRpcGatewayClient } from '@hermes/shared'
 
 export type {
+  ActionResponse,
+  ActionStatusResponse,
   AudioSpeakResponse,
   AudioTranscriptionResponse,
+  AuxiliaryModelsResponse,
   ConfigFieldSchema,
   ConfigSchemaResponse,
   ElevenLabsVoice,
@@ -27,6 +38,9 @@ export type {
   GatewayReadyPayload,
   HermesConfig,
   HermesConfigRecord,
+  LogsResponse,
+  ModelAssignmentRequest,
+  ModelAssignmentResponse,
   ModelInfoResponse,
   ModelOptionProvider,
   ModelOptionsResponse,
@@ -38,7 +52,10 @@ export type {
   SessionMessagesResponse,
   SessionResumeResponse,
   SessionRuntimeInfo,
+  SessionSearchResponse,
+  SessionSearchResult,
   SkillInfo,
+  StatusResponse,
   ToolsetInfo
 } from '@/types/hermes'
 
@@ -66,6 +83,12 @@ export async function listSessions(limit = 40, minMessages = 0): Promise<Paginat
   }
 }
 
+export function searchSessions(query: string): Promise<SessionSearchResponse> {
+  return window.hermesDesktop.api<SessionSearchResponse>({
+    path: `/api/sessions/search?q=${encodeURIComponent(query)}`
+  })
+}
+
 export function getSessionMessages(id: string): Promise<SessionMessagesResponse> {
   return window.hermesDesktop.api<SessionMessagesResponse>({
     path: `/api/sessions/${encodeURIComponent(id)}/messages`
@@ -82,6 +105,43 @@ export function deleteSession(id: string): Promise<{ ok: boolean }> {
 export function getGlobalModelInfo(): Promise<ModelInfoResponse> {
   return window.hermesDesktop.api<ModelInfoResponse>({
     path: '/api/model/info'
+  })
+}
+
+export function getStatus(): Promise<StatusResponse> {
+  return window.hermesDesktop.api<StatusResponse>({
+    path: '/api/status'
+  })
+}
+
+export function getLogs(params: {
+  component?: string
+  file?: string
+  level?: string
+  lines?: number
+}): Promise<LogsResponse> {
+  const query = new URLSearchParams()
+
+  if (params.file) {
+    query.set('file', params.file)
+  }
+
+  if (typeof params.lines === 'number') {
+    query.set('lines', String(params.lines))
+  }
+
+  if (params.level && params.level !== 'ALL') {
+    query.set('level', params.level)
+  }
+
+  if (params.component && params.component !== 'all') {
+    query.set('component', params.component)
+  }
+
+  const suffix = query.toString()
+
+  return window.hermesDesktop.api<LogsResponse>({
+    path: suffix ? `/api/logs?${suffix}` : '/api/logs'
   })
 }
 
@@ -185,6 +245,40 @@ export function setGlobalModel(
       provider,
       model
     }
+  })
+}
+
+export function getAuxiliaryModels(): Promise<AuxiliaryModelsResponse> {
+  return window.hermesDesktop.api<AuxiliaryModelsResponse>({
+    path: '/api/model/auxiliary'
+  })
+}
+
+export function setModelAssignment(body: ModelAssignmentRequest): Promise<ModelAssignmentResponse> {
+  return window.hermesDesktop.api<ModelAssignmentResponse>({
+    path: '/api/model/set',
+    method: 'POST',
+    body
+  })
+}
+
+export function restartGateway(): Promise<ActionResponse> {
+  return window.hermesDesktop.api<ActionResponse>({
+    path: '/api/gateway/restart',
+    method: 'POST'
+  })
+}
+
+export function updateHermes(): Promise<ActionResponse> {
+  return window.hermesDesktop.api<ActionResponse>({
+    path: '/api/hermes/update',
+    method: 'POST'
+  })
+}
+
+export function getActionStatus(name: string, lines = 200): Promise<ActionStatusResponse> {
+  return window.hermesDesktop.api<ActionStatusResponse>({
+    path: `/api/actions/${encodeURIComponent(name)}/status?lines=${Math.max(1, lines)}`
   })
 }
 

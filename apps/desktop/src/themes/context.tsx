@@ -38,6 +38,7 @@ const DENSITY_MULTIPLIERS: Record<ThemeDensity, string> = {
 
 const INJECTED_FONT_URLS = new Set<string>()
 const SKIN_THEME_LIST = BUILTIN_THEME_LIST.filter(t => t.name !== 'nous-light')
+
 const NOUS_FONT_FAMILY_FALLBACK = {
   fontSans: nousTheme.typography?.fontSans ?? DEFAULT_TYPOGRAPHY.fontSans,
   fontMono: nousTheme.typography?.fontMono ?? DEFAULT_TYPOGRAPHY.fontMono

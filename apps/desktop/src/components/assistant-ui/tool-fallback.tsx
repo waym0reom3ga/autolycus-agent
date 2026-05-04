@@ -2,11 +2,11 @@
 
 import { type ToolCallMessagePartProps } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
-import { ChevronRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
 import { ActivityTimerText } from '@/components/assistant-ui/activity-timer-text'
+import { ChevronRight } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { $toolInlineDiffs } from '@/store/tool-diffs'
 
@@ -89,7 +89,11 @@ function stripAnsi(value: string): string {
 }
 
 function stripInlineDiffChrome(value: string): string {
-  return value ? stripAnsi(value).replace(/^\s*┊\s*review diff\s*\n/i, '').trim() : ''
+  return value
+    ? stripAnsi(value)
+        .replace(/^\s*┊\s*review diff\s*\n/i, '')
+        .trim()
+    : ''
 }
 
 function inlineDiffFromResult(result: unknown): string {

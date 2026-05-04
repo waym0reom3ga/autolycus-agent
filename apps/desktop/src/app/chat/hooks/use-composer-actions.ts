@@ -48,12 +48,17 @@ export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
   const getPath = window.hermesDesktop?.getPathForFile
 
   const fileList = transfer.files
+
   if (fileList) {
     for (let i = 0; i < fileList.length; i += 1) {
       const file = fileList.item(i)
-      if (!file || seen.has(file)) continue
+
+      if (!file || seen.has(file)) {
+        continue
+      }
       seen.add(file)
       let path = ''
+
       if (getPath) {
         try {
           path = getPath(file) || ''
@@ -61,19 +66,28 @@ export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
           path = ''
         }
       }
+
       result.push({ file, path })
     }
   }
 
   const items = transfer.items
+
   if (items) {
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i]
-      if (!item || item.kind !== 'file') continue
+
+      if (!item || item.kind !== 'file') {
+        continue
+      }
       const file = item.getAsFile()
-      if (!file || seen.has(file)) continue
+
+      if (!file || seen.has(file)) {
+        continue
+      }
       seen.add(file)
       let path = ''
+
       if (getPath) {
         try {
           path = getPath(file) || ''
@@ -81,6 +95,7 @@ export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
           path = ''
         }
       }
+
       result.push({ file, path })
     }
   }
@@ -94,11 +109,7 @@ interface ComposerActionsOptions {
   requestGateway: <T>(method: string, params?: Record<string, unknown>) => Promise<T>
 }
 
-export function useComposerActions({
-  activeSessionId,
-  currentCwd,
-  requestGateway
-}: ComposerActionsOptions) {
+export function useComposerActions({ activeSessionId, currentCwd, requestGateway }: ComposerActionsOptions) {
   const addContextRefAttachment = useCallback((refText: string, label?: string, detail?: string) => {
     let kind: ComposerAttachment['kind'] = 'file'
 
@@ -169,38 +180,35 @@ export function useComposerActions({
     [currentCwd]
   )
 
-  const attachImagePath = useCallback(
-    async (filePath: string) => {
-      if (!filePath) {
-        return false
+  const attachImagePath = useCallback(async (filePath: string) => {
+    if (!filePath) {
+      return false
+    }
+
+    const baseAttachment: ComposerAttachment = {
+      id: attachmentId('image', filePath),
+      kind: 'image',
+      label: pathLabel(filePath),
+      detail: filePath,
+      path: filePath
+    }
+
+    addComposerAttachment(baseAttachment)
+
+    try {
+      const previewUrl = await window.hermesDesktop?.readFileDataUrl(filePath)
+
+      if (previewUrl) {
+        addComposerAttachment({ ...baseAttachment, previewUrl })
       }
 
-      const baseAttachment: ComposerAttachment = {
-        id: attachmentId('image', filePath),
-        kind: 'image',
-        label: pathLabel(filePath),
-        detail: filePath,
-        path: filePath
-      }
+      return true
+    } catch (err) {
+      notifyError(err, 'Image preview failed')
 
-      addComposerAttachment(baseAttachment)
-
-      try {
-        const previewUrl = await window.hermesDesktop?.readFileDataUrl(filePath)
-
-        if (previewUrl) {
-          addComposerAttachment({ ...baseAttachment, previewUrl })
-        }
-
-        return true
-      } catch (err) {
-        notifyError(err, 'Image preview failed')
-
-        return true
-      }
-    },
-    []
-  )
+      return true
+    }
+  }, [])
 
   const attachImageBlob = useCallback(
     async (blob: Blob) => {
@@ -284,22 +292,26 @@ export function useComposerActions({
       let lastFailure: string | null = null
 
       for (const { file, path: knownPath } of candidates) {
-        const fallbackPath = !knownPath && window.hermesDesktop?.getPathForFile ? window.hermesDesktop.getPathForFile(file) : ''
+        const fallbackPath =
+          !knownPath && window.hermesDesktop?.getPathForFile ? window.hermesDesktop.getPathForFile(file) : ''
         const filePath = knownPath || fallbackPath || ''
         const isImage = file.type.startsWith('image/') || isImagePath(file.name) || (filePath && isImagePath(filePath))
 
         if (isImage) {
           if ((filePath && (await attachImagePath(filePath))) || (await attachImageBlob(file))) {
             attached = true
+
             continue
           }
 
           lastFailure = `Could not attach ${file.name || 'image'}`
+
           continue
         }
 
         if (filePath && attachContextFilePath(filePath)) {
           attached = true
+
           continue
         }
 

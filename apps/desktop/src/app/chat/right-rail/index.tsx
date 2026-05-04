@@ -99,9 +99,7 @@ export function ChatPreviewRail({
   }
 
   return (
-    <div
-      className="pointer-events-none col-start-3 col-end-4 row-start-1 min-w-0 overflow-hidden"
-    >
+    <div className="pointer-events-none col-start-3 col-end-4 row-start-1 min-w-0 overflow-hidden">
       <PreviewPane
         onRestartServer={onRestartServer}
         reloadRequest={previewReloadRequest}

@@ -11,28 +11,7 @@ import {
   useAuiState
 } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
-import {
-  CheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CopyIcon,
-  GitBranchIcon,
-  Loader2Icon,
-  MoreHorizontalIcon,
-  PencilIcon,
-  RefreshCwIcon,
-  Volume2Icon,
-  VolumeXIcon,
-  XIcon
-} from 'lucide-react'
-import {
-  type FC,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState
-} from 'react'
+import { type FC, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import spinners from 'unicode-animations'
 // Scroll behavior: delegated to `use-stick-to-bottom` (StackBlitz), the
 // reference implementation that powers bolt.new and several other streaming
@@ -66,6 +45,20 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Loader } from '@/components/ui/loader'
 import { triggerHaptic } from '@/lib/haptics'
+import {
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CopyIcon,
+  GitBranchIcon,
+  Loader2Icon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  RefreshCwIcon,
+  Volume2Icon,
+  VolumeXIcon,
+  XIcon
+} from '@/lib/icons'
 import { extractPreviewTargets } from '@/lib/preview-targets'
 import { cn } from '@/lib/utils'
 import { playSpeechText, stopVoicePlayback } from '@/lib/voice-playback'
@@ -227,20 +220,23 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
 
   // Slam to bottom + arm the ref. Also forces library state flags off
   // so its internal resize handler doesn't fight our re-pins.
-  const armAndPin = useCallback((behavior: ScrollBehavior) => {
-    const el = scrollRef.current
+  const armAndPin = useCallback(
+    (behavior: ScrollBehavior) => {
+      const el = scrollRef.current
 
-    if (!el) {
-      return
-    }
+      if (!el) {
+        return
+      }
 
-    armedRef.current = behavior
-    // Clear the library's escape/at-bottom flags directly on the mutable
-    // state object so its resize handler sees a clean follow state.
-    state.escapedFromLock = false
-    state.isAtBottom = true
-    el.scrollTop = el.scrollHeight
-  }, [scrollRef, state])
+      armedRef.current = behavior
+      // Clear the library's escape/at-bottom flags directly on the mutable
+      // state object so its resize handler sees a clean follow state.
+      state.escapedFromLock = false
+      state.isAtBottom = true
+      el.scrollTop = el.scrollHeight
+    },
+    [scrollRef, state]
+  )
 
   // ResizeObserver loop — re-pins to bottom while armed, disarms when
   // actually at bottom. This is the assistant-ui pattern.
@@ -293,6 +289,7 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
         armedRef.current = null
       }
     }
+
     const onTouch = () => {
       armedRef.current = null
     }
@@ -368,7 +365,9 @@ const ComposerClearance: FC = () => {
 
     const composer = document.querySelector<HTMLElement>('[data-slot="composer-root"]')
 
-    return composer ? composer.getBoundingClientRect().height + COMPOSER_BREATHING_ROOM_PX : DEFAULT_COMPOSER_CLEARANCE_PX
+    return composer
+      ? composer.getBoundingClientRect().height + COMPOSER_BREATHING_ROOM_PX
+      : DEFAULT_COMPOSER_CLEARANCE_PX
   })
 
   useEffect(() => {
@@ -458,7 +457,10 @@ const AssistantMessage: FC<{ onBranchInNewChat?: (messageId: string) => void }> 
       data-role="assistant"
       data-slot="aui_assistant-message-root"
     >
-      <div className="wrap-anywhere min-w-0 max-w-full overflow-hidden text-pretty text-foreground" data-slot="aui_assistant-message-content">
+      <div
+        className="wrap-anywhere min-w-0 max-w-full overflow-hidden text-pretty text-foreground"
+        data-slot="aui_assistant-message-content"
+      >
         <MessagePrimitive.Parts
           components={{
             Text: MarkdownText,

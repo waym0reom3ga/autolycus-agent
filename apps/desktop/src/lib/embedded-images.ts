@@ -37,6 +37,7 @@ export function extractEmbeddedImages(text: string): EmbeddedImageExtraction {
   }
 
   const images: string[] = []
+
   const cleanedText = text
     .replace(EMBEDDED_IMAGE_RE, (_match, _open, dataUrl: string) => {
       images.push(dataUrl)

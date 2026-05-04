@@ -1,14 +1,3 @@
-import {
-  Clipboard,
-  FileText,
-  FolderOpen,
-  ImageIcon,
-  Link,
-  type LucideIcon,
-  MessageSquareText,
-  Plus
-} from 'lucide-react'
-
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -21,6 +10,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import { Clipboard, FileText, FolderOpen, ImageIcon, Link, type LucideIcon, MessageSquareText, Plus } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
 import { GHOST_ICON_BTN } from './controls'

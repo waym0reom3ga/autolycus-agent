@@ -394,9 +394,10 @@ export function useMessageStream({
           appendAssistantDelta(sessionId, coerceGatewayText(payload?.text))
         }
       } else if (event.type === 'thinking.delta') {
-        if (sessionId) {
-          appendReasoningDelta(sessionId, coerceThinkingText(payload?.text))
-        }
+        // thinking.delta carries the kawaii spinner status (face + verb from
+        // KawaiiSpinner), not real reasoning. The bottom-of-thread loading
+        // indicator already covers that UX, so we ignore these events to
+        // avoid a duplicative "Thinking" disclosure showing spinner text.
       } else if (event.type === 'reasoning.delta') {
         if (sessionId) {
           appendReasoningDelta(sessionId, coerceThinkingText(payload?.text))

@@ -22,6 +22,7 @@ describe('preprocessMarkdown', () => {
 
   it('demotes invalid fenced prose blocks with closers', () => {
     const fence = '```'
+
     const input = [
       `${fence} http://localhost:8812/`,
       '- **Scroll wheel** - zoom',
@@ -48,7 +49,9 @@ describe('preprocessMarkdown', () => {
   })
 
   it('demotes prose sentence masquerading as fence info', () => {
-    const input = ['```Heads up - a bunny got added', '- Pure white (`#ffffff`)', '- Ambient dropped to 0.18'].join('\n')
+    const input = ['```Heads up - a bunny got added', '- Pure white (`#ffffff`)', '- Ambient dropped to 0.18'].join(
+      '\n'
+    )
     const output = preprocessMarkdown(input)
 
     expect(output).not.toContain('```heads')

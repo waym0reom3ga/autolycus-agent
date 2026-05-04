@@ -19,27 +19,29 @@ import { TITLEBAR_HEIGHT, titlebarControlsPosition } from './titlebar'
 import { TitlebarControls, type TitlebarTool } from './titlebar-controls'
 
 interface AppShellProps {
+  commandCenterOpen: boolean
   children: ReactNode
   inspectorWidth: string
   leftTitlebarTools?: readonly TitlebarTool[]
   previewWidth: string
   rightRailOpen: boolean
-  settingsOpen: boolean
   sidebar: ReactNode
   titlebarTools?: readonly TitlebarTool[]
+  onToggleCommandCenter: () => void
   onOpenSettings: () => void
   overlays?: ReactNode
 }
 
 export function AppShell({
+  commandCenterOpen,
   children,
   inspectorWidth,
   leftTitlebarTools,
   previewWidth,
   rightRailOpen,
-  settingsOpen,
   sidebar,
   titlebarTools,
+  onToggleCommandCenter,
   onOpenSettings,
   overlays
 }: AppShellProps) {
@@ -133,9 +135,10 @@ export function AppShell({
       }
     >
       <TitlebarControls
+        commandCenterOpen={commandCenterOpen}
         leftTools={leftTitlebarTools}
         onOpenSettings={onOpenSettings}
-        settingsOpen={settingsOpen}
+        onToggleCommandCenter={onToggleCommandCenter}
         showInspectorToggle={rightRailOpen}
         tools={titlebarTools}
       />

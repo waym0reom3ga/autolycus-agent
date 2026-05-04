@@ -10,8 +10,7 @@ import {
   Sparkles,
   Sun,
   Wrench
-} from 'lucide-react'
-
+} from '@/lib/icons'
 import type { ThemeMode } from '@/themes/context'
 
 import type { DesktopConfigSection } from './types'
