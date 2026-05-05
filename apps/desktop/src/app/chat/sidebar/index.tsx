@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { SessionInfo } from '@/hermes'
-import { Brain, ChevronDown, Layers3, Pin, Plus, RefreshCw } from '@/lib/icons'
+import { Brain, ChevronDown, Command, Layers3, Pin, Plus, RefreshCw, Settings } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
   $pinnedSessionIds,
@@ -29,7 +29,7 @@ import {
 } from '@/store/layout'
 import { $selectedStoredSessionId, $sessions, $sessionsLoading, $workingSessionIds } from '@/store/session'
 
-import { type AppView, ARTIFACTS_ROUTE, SKILLS_ROUTE } from '../../routes'
+import { type AppView, ARTIFACTS_ROUTE, COMMAND_CENTER_ROUTE, SETTINGS_ROUTE, SKILLS_ROUTE } from '../../routes'
 import type { SidebarNavItem } from '../../types'
 
 import { SidebarSessionRow } from './session-row'
@@ -37,16 +37,21 @@ import { SidebarSessionRow } from './session-row'
 const SIDEBAR_NAV: SidebarNavItem[] = [
   {
     id: 'new-session',
-    label: 'New session',
+    label: 'New chat',
     icon: Plus,
     action: 'new-session'
   },
+  { id: 'command-center', label: 'Command Center', icon: Command, route: COMMAND_CENTER_ROUTE },
   { id: 'skills', label: 'Skills', icon: Brain, route: SKILLS_ROUTE },
-  { id: 'artifacts', label: 'Artifacts', icon: Layers3, route: ARTIFACTS_ROUTE }
+  { id: 'artifacts', label: 'Artifacts', icon: Layers3, route: ARTIFACTS_ROUTE },
+  { id: 'settings', label: 'Settings', icon: Settings, route: SETTINGS_ROUTE }
 ]
 
 const sidebarNavItemClass =
-  'flex h-7 w-full justify-start gap-2 rounded-md px-2 text-left text-sm font-medium text-muted-foreground transition-colors duration-300 ease-out hover:bg-accent hover:text-foreground hover:transition-none'
+  'flex h-7 w-full justify-start gap-2 rounded-md border border-transparent px-2 text-left text-sm font-medium text-muted-foreground transition-colors duration-300 ease-out hover:border-[color-mix(in_srgb,var(--dt-border)_60%,transparent)] hover:bg-[color-mix(in_srgb,var(--dt-card)_78%,transparent)] hover:text-foreground hover:transition-none'
+
+const sidebarNavItemActiveClass =
+  'border-[color-mix(in_srgb,var(--dt-primary)_34%,var(--dt-border))] bg-[color-mix(in_srgb,var(--dt-primary)_10%,var(--dt-card))] text-foreground shadow-[inset_0_0.0625rem_0_color-mix(in_srgb,white_40%,transparent)]'
 
 interface ChatSidebarProps extends React.ComponentProps<typeof Sidebar> {
   currentView: AppView
@@ -109,12 +114,17 @@ export function ChatSidebar({
     >
       <SidebarContent className="gap-0 overflow-hidden bg-transparent">
         <SidebarGroup className="shrink-0 pl-4 pr-2 pb-2 pt-[calc(var(--titlebar-height)+0.25rem)]">
+          <SidebarGroupLabel className="h-auto px-2 pb-1 pt-1 text-[0.64rem] font-semibold uppercase tracking-[0.07em] text-muted-foreground/70">
+            Workspace
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-px">
               {SIDEBAR_NAV.map(item => {
                 const isInteractive = Boolean(item.action) || Boolean(item.route)
 
                 const active =
+                  (item.id === 'command-center' && currentView === 'command-center') ||
+                  (item.id === 'settings' && currentView === 'settings') ||
                   (item.id === 'skills' && currentView === 'skills') ||
                   (item.id === 'artifacts' && currentView === 'artifacts')
 
@@ -124,8 +134,9 @@ export function ChatSidebar({
                       aria-disabled={!isInteractive}
                       className={cn(
                         sidebarNavItemClass,
-                        active && 'bg-accent text-foreground',
-                        !isInteractive && 'cursor-default hover:bg-transparent hover:text-muted-foreground'
+                        active && sidebarNavItemActiveClass,
+                        !isInteractive &&
+                          'cursor-default hover:border-transparent hover:bg-transparent hover:text-muted-foreground'
                       )}
                       onClick={() => onNavigate(item)}
                       tooltip={item.label}
@@ -147,9 +158,9 @@ export function ChatSidebar({
             {pinsOpen && (
               <SidebarGroupContent className="flex min-h-10 shrink-0 flex-col gap-px rounded-lg pb-2 pt-1">
                 {pinnedSessions.length === 0 && (
-                  <div className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-xs text-muted-foreground opacity-50">
+                  <div className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-xs text-muted-foreground/80">
                     <Pin size={14} />
-                    <span>Shift+click to pin</span>
+                    <span>Pin important chats from the ••• menu</span>
                   </div>
                 )}
                 {pinnedSessions.map(session => (
@@ -188,7 +199,7 @@ export function ChatSidebar({
                   <RefreshCw className={cn(sessionsLoading && 'animate-spin')} />
                 </Button>
               }
-              label="Sessions"
+              label="Recent chats"
               onToggle={() => setSidebarRecentsOpen(!recentsOpen)}
               open={recentsOpen}
             />
@@ -270,7 +281,7 @@ function SidebarSessionSkeletons() {
 function SidebarEmptySessionState() {
   return (
     <div className="grid min-h-35 place-items-center rounded-lg px-3 text-center text-xs text-muted-foreground">
-      Recent chats will appear here.
+      Start a chat to build your history.
     </div>
   )
 }
@@ -278,7 +289,7 @@ function SidebarEmptySessionState() {
 function SidebarAllPinnedState() {
   return (
     <div className="grid min-h-24 place-items-center rounded-lg px-3 text-center text-xs text-muted-foreground">
-      Pinned sessions stay above.
+      Everything here is pinned. Unpin a chat to show it in recents.
     </div>
   )
 }

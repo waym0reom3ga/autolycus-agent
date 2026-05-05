@@ -2,8 +2,9 @@ import { useStore } from '@nanostores/react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { CopyButton } from '@/components/ui/copy-button'
 import { triggerHaptic } from '@/lib/haptics'
-import { AlertCircle, AlertTriangle, CheckCircle2, Copy, Info, type LucideIcon, X } from '@/lib/icons'
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, type LucideIcon, X } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
   $notifications,
@@ -116,18 +117,6 @@ function NotificationItem({ notification }: { notification: AppNotification }) {
 }
 
 function NotificationDetail({ detail }: { detail: string }) {
-  const [copied, setCopied] = useState(false)
-
-  async function copyDetail() {
-    try {
-      await navigator.clipboard.writeText(detail)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1200)
-    } catch {
-      // Best effort; details remain visible even if clipboard access fails.
-    }
-  }
-
   return (
     <details className="mt-2 text-xs text-muted-foreground">
       <summary className="cursor-pointer select-none font-medium text-muted-foreground hover:text-foreground">
@@ -137,14 +126,16 @@ function NotificationDetail({ detail }: { detail: string }) {
         <pre className="max-h-32 whitespace-pre-wrap wrap-break-word font-mono text-[0.6875rem] leading-relaxed">
           {detail}
         </pre>
-        <button
+        <CopyButton
+          appearance="inline"
           className="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.6875rem] text-muted-foreground hover:bg-accent hover:text-foreground"
-          onClick={copyDetail}
-          type="button"
+          errorMessage="Could not copy notification detail"
+          iconClassName="size-3"
+          label="Copy detail"
+          text={detail}
         >
-          <Copy className="size-3" />
-          {copied ? 'Copied' : 'Copy detail'}
-        </button>
+          Copy detail
+        </CopyButton>
       </div>
     </details>
   )

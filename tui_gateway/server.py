@@ -1850,6 +1850,65 @@ def _ephemeral_preview_agent_kwargs(agent, task_id: str) -> dict:
     return kwargs
 
 
+def _preview_restart_history(session: dict, max_messages: int = 24, max_tool_chars: int = 1200) -> list[dict]:
+    """Distill the parent session's recent history into a context the
+    ephemeral preview-restart agent can actually use.
+
+    The restart agent has no idea what app the user was building, what
+    server they ran, what cwd was active, or which port belongs to which
+    project. Without this, it would take the bare URL + console logs and
+    guess — usually starting the wrong thing.
+
+    We keep the last ``max_messages`` messages from the parent session so
+    the restart agent sees recent user prompts, assistant replies, and
+    most importantly any terminal/tool calls. Tool result payloads are
+    truncated so we don't blow the context window with file dumps.
+    """
+    try:
+        with session["history_lock"]:
+            history = list(session.get("history", []) or [])
+    except Exception:
+        history = list(session.get("history", []) or [])
+
+    if not history:
+        return []
+
+    # Anchor on the last user turn so we always include at least the most
+    # recent request and the assistant/tool work that followed it. Then
+    # extend backwards up to max_messages so we capture the prior context.
+    last_user_idx = None
+    for idx in range(len(history) - 1, -1, -1):
+        if history[idx].get("role") == "user":
+            last_user_idx = idx
+            break
+
+    start = max(0, len(history) - max_messages)
+    if last_user_idx is not None:
+        start = min(start, last_user_idx)
+
+    trimmed: list[dict] = []
+    for msg in history[start:]:
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role")
+        if role not in ("user", "assistant", "tool", "system"):
+            continue
+
+        copy = {k: v for k, v in msg.items() if k != "reasoning"}
+        # Truncate heavy tool outputs so a single 50KB file read doesn't
+        # crowd out the rest of the context.
+        if role == "tool":
+            content = copy.get("content")
+            if isinstance(content, str) and len(content) > max_tool_chars:
+                copy["content"] = (
+                    content[:max_tool_chars]
+                    + f"\n... (truncated, original {len(content)} chars)"
+                )
+        trimmed.append(copy)
+
+    return trimmed
+
+
 def _preview_tool_result_preview(name: str, result: str) -> str:
     try:
         data = json.loads(result)
@@ -3670,6 +3729,8 @@ def _(rid, params: dict) -> dict:
 
     task_id = f"preview_{uuid.uuid4().hex[:6]}"
     parent = params.get("session_id", "")
+    parent_history = _preview_restart_history(session)
+    has_history = bool(parent_history)
     prompt = "\n".join(
         line
         for line in [
@@ -3680,8 +3741,14 @@ def _(rid, params: dict) -> dict:
             "",
             f"Preview console:\n{context}" if context else "",
             "" if context else "",
+            (
+                "The conversation history above is from the user's main session — including the commands you (the assistant) previously ran to start servers, edit files, or check ports. Use it to figure out exactly which server should be running at this Preview URL. The user did not start a brand new task; recover what they had working."
+                if has_history
+                else None
+            ),
             "Restart exactly the app intended for the Preview URL, not Hermes Desktop itself.",
             "The Preview URL and port are the target. Preserve that target unless you conclude it is impossible.",
+            "If the prior conversation shows a specific command that bound this URL/port, prefer re-running THAT exact command (in the same cwd) over guessing a new one.",
             "First inspect what process, if any, owns the Preview URL port. If a stale server exists, inspect its cwd and prefer that cwd over the Hermes/Desktop process cwd.",
             "The Current working directory is only a hint. Do not assume it is the preview app root when the port owner or files indicate another root.",
             "If the console shows a module-script MIME error for src/main.tsx or similar, a static server is serving source files. Do not restart python -m http.server or any dumb static server for that app.",
@@ -3706,11 +3773,24 @@ def _(rid, params: dict) -> dict:
             if cwd and os.path.isdir(os.path.abspath(os.path.expanduser(cwd))):
                 register_task_env_overrides(task_id, {"cwd": os.path.abspath(os.path.expanduser(cwd))})
 
-            _emit("preview.restart.progress", parent, {"task_id": task_id, "text": "Starting hidden restart agent"})
+            history_note = (
+                f" (with {len(parent_history)} parent-session messages of context)"
+                if parent_history
+                else ""
+            )
+            _emit(
+                "preview.restart.progress",
+                parent,
+                {"task_id": task_id, "text": f"Starting hidden restart agent{history_note}"},
+            )
             result = AIAgent(
                 **_ephemeral_preview_agent_kwargs(session["agent"], task_id),
                 **_preview_restart_callbacks(parent, task_id),
-            ).run_conversation(user_message=prompt, task_id=task_id)
+            ).run_conversation(
+                user_message=prompt,
+                task_id=task_id,
+                conversation_history=parent_history or None,
+            )
             text = (
                 result.get("final_response", str(result))
                 if isinstance(result, dict)

@@ -7,9 +7,9 @@ import { type ComponentProps, memo, useEffect, useMemo, useState } from 'react'
 import { PreviewAttachment } from '@/components/assistant-ui/preview-attachment'
 import { SyntaxHighlighter } from '@/components/assistant-ui/shiki-highlighter'
 import { ZoomableImage } from '@/components/assistant-ui/zoomable-image'
-import { triggerHaptic } from '@/lib/haptics'
-import { Check, Copy } from '@/lib/icons'
-import { isLikelyProseCodeBlock, isLikelyProseFence, sanitizeLanguageTag } from '@/lib/markdown-code'
+import { CopyButton } from '@/components/ui/copy-button'
+import { isLikelyProseCodeBlock, sanitizeLanguageTag } from '@/lib/markdown-code'
+import { preprocessMarkdown } from '@/lib/markdown-preprocess'
 import {
   filePathFromMediaPath,
   mediaExternalUrl,
@@ -18,172 +18,10 @@ import {
   mediaName,
   mediaPathFromMarkdownHref
 } from '@/lib/media'
-import { isLikelyPreviewCandidate, previewTargetFromMarkdownHref, stripPreviewTargets } from '@/lib/preview-targets'
+import { previewTargetFromMarkdownHref } from '@/lib/preview-targets'
 import { cn } from '@/lib/utils'
 
-/**
- * Strip provider/model "thinking" blocks before markdown render.
- *
- * Some Hermes providers stream raw `<think>…</think>` and similar into
- * assistant text. Proper reasoning UI uses dedicated `reasoning.*` parts.
- */
-const REASONING_BLOCK_RE = /<(think|thinking|reasoning|scratchpad|analysis)>[\s\S]*?<\/\1>\s*/gi
-const PREVIEW_MARKER_RE = /\[Preview:[^\]]+\]\(#preview[:/][^)]+\)/gi
-
-const FENCE_LINE_RE = /^([ \t]*)(`{3,}|~{3,})([^\n]*)$/
-const MIDLINE_FENCE_RE = /([^\n])(`{3,}|~{3,})(?=\s|$)/g
-const EMPTY_FENCE_BLOCK_RE = /(^|\n)[ \t]*(?:`{3,}|~{3,})[^\n]*\n[ \t]*(?:`{3,}|~{3,})[ \t]*(?=\n|$)/g
-
-function stripMidlineFenceStarts(text: string): string {
-  // Providers often stream inline fence noise like `200.``` http://...`.
-  // A real fenced block must start at the beginning of a line; anything
-  // mid-line should be treated as literal/prose and never allowed to create
-  // an empty Streamdown code-card shell.
-  return text.replace(MIDLINE_FENCE_RE, '$1')
-}
-
-function stripEmptyFenceBlocks(text: string): string {
-  // Remove already-balanced but empty fences before Streamdown sees them.
-  // Returning null from our CodeHeader/SyntaxHighlighter is not enough: the
-  // code plugin still renders its outer code-block wrapper, producing the
-  // blank bordered element seen during streaming.
-  return text.replace(EMPTY_FENCE_BLOCK_RE, '$1')
-}
-
-function pushProseFence(out: string[], indent: string, info: string, lines: string[]) {
-  if (info) {
-    out.push(`${indent}${info}`.trimEnd())
-  }
-
-  out.push(...lines)
-}
-
-function findClosingFence(lines: string[], start: number, marker: string): number {
-  for (let cursor = start + 1; cursor < lines.length; cursor += 1) {
-    const closeMatch = (lines[cursor] || '').match(FENCE_LINE_RE)
-
-    if (!closeMatch) {
-      continue
-    }
-
-    const closeMarker = closeMatch[2] || ''
-    const closeInfo = (closeMatch[3] || '').trim()
-
-    if (!closeInfo && closeMarker[0] === marker[0] && closeMarker.length >= marker.length) {
-      return cursor
-    }
-  }
-
-  return -1
-}
-
-function isPreviewOnlyFence(body: string): boolean {
-  const lines = body
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-
-  return lines.length === 1 && isLikelyPreviewCandidate(lines[0])
-}
-
-function normalizeFenceBlocks(text: string): string {
-  const sourceLines = text.split('\n')
-  const out: string[] = []
-  let index = 0
-
-  while (index < sourceLines.length) {
-    const line = sourceLines[index] || ''
-    const match = line.match(FENCE_LINE_RE)
-
-    if (!match) {
-      out.push(line)
-      index += 1
-
-      continue
-    }
-
-    const indent = match[1] || ''
-    const marker = match[2] || '```'
-    const infoRaw = (match[3] || '').trim()
-    const languageToken = infoRaw.split(/\s+/, 1)[0] || ''
-    const language = sanitizeLanguageTag(languageToken)
-    const openerValid = !infoRaw || Boolean(language)
-
-    if (!openerValid) {
-      out.push(`${indent}${infoRaw}`.trimEnd())
-      index += 1
-
-      continue
-    }
-
-    const closeIndex = findClosingFence(sourceLines, index, marker)
-    const bodyLines = sourceLines.slice(index + 1, closeIndex === -1 ? sourceLines.length : closeIndex)
-    const body = bodyLines.join('\n')
-
-    if (closeIndex !== -1 && !body.trim()) {
-      // Empty fenced block: drop both delimiters. This prevents Streamdown's
-      // code plugin from rendering an empty shell/card.
-      index = closeIndex + 1
-
-      continue
-    }
-
-    if (closeIndex !== -1 && isPreviewOnlyFence(body)) {
-      // Agents often fence a lone preview URL to make it copyable. The chat UI
-      // already renders a preview card for that URL, so don't show code fences.
-      out.push(...bodyLines)
-      index = closeIndex + 1
-
-      continue
-    }
-
-    if (closeIndex === -1) {
-      if (!body.trim()) {
-        index += 1
-
-        continue
-      }
-
-      if (isLikelyProseFence(infoRaw, body)) {
-        pushProseFence(out, indent, infoRaw, bodyLines)
-      } else {
-        out.push(`${indent}${marker}${language}`)
-        out.push(...bodyLines)
-      }
-
-      break
-    }
-
-    if (isLikelyProseFence(infoRaw, body)) {
-      pushProseFence(out, indent, infoRaw, bodyLines)
-      index = closeIndex + 1
-
-      continue
-    }
-
-    out.push(`${indent}${marker}${language}`)
-    out.push(...bodyLines)
-    out.push(`${indent}${marker}`)
-    index = closeIndex + 1
-  }
-
-  return out.join('\n')
-}
-
-export function preprocessMarkdown(text: string): string {
-  const cleaned = text.replace(REASONING_BLOCK_RE, '').replace(PREVIEW_MARKER_RE, '')
-  const normalizedFences = normalizeFenceBlocks(stripMidlineFenceStarts(cleaned))
-  const strippedEmptyFences = stripEmptyFenceBlocks(normalizedFences)
-
-  return strippedEmptyFences
-    .split(/((?:```|~~~)[\s\S]*?(?:```|~~~))/g)
-    .map(part => (/^(?:```|~~~)/.test(part) ? part : stripPreviewTargets(part)))
-    .join('')
-    .replace(/[ \t]+\n/g, '\n')
-}
-
 function CodeHeader({ language, code }: { language?: string; code?: string }) {
-  const [copied, setCopied] = useState(false)
   const normalizedCode = (code ?? '').replace(/^\n+/, '').trimEnd()
 
   // Streamdown can transiently parse stray backticks / incomplete fences as
@@ -194,41 +32,15 @@ function CodeHeader({ language, code }: { language?: string; code?: string }) {
     return null
   }
 
-  async function handleCopy() {
-    if (!normalizedCode) {
-      return
-    }
-
-    try {
-      if (window.hermesDesktop?.writeClipboard) {
-        await window.hermesDesktop.writeClipboard(normalizedCode)
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(normalizedCode)
-      }
-
-      triggerHaptic('selection')
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // Best-effort copy; silent failure is OK for a chat surface.
-    }
-  }
-
   const cleanLanguage = sanitizeLanguageTag(language || '')
   const label = cleanLanguage && cleanLanguage !== 'unknown' ? cleanLanguage : ''
 
   return (
     <div className="m-0 flex items-center justify-between gap-2 rounded-t-md border border-b-0 border-border bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground">
       <span className="font-mono uppercase tracking-wide">{label || 'code'}</span>
-      <button
-        aria-label={copied ? 'Copied' : 'Copy code'}
-        className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[0.75rem] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        onClick={handleCopy}
-        type="button"
-      >
-        {copied ? <Check size={12} /> : <Copy size={12} />}
-        {copied ? 'Copied' : 'Copy'}
-      </button>
+      <CopyButton appearance="inline" iconClassName="size-3" label="Copy code" text={normalizedCode}>
+        Copy
+      </CopyButton>
     </div>
   )
 }
@@ -360,7 +172,7 @@ function MarkdownLink({ className, href, ...props }: ComponentProps<'a'>) {
   }
 
   if (previewTarget) {
-    return <PreviewAttachment target={previewTarget} />
+    return <PreviewAttachment source="explicit-link" target={previewTarget} />
   }
 
   return (

@@ -13,6 +13,8 @@ export type ChatMessage = {
   pending?: boolean
   branchGroupId?: string
   hidden?: boolean
+  /** Composer attachment ref strings (`@file:...`, `@image:...`) sent with this user message. */
+  attachmentRefs?: string[]
 }
 
 export type GatewayEventPayload = {

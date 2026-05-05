@@ -28,7 +28,7 @@ import { StickToBottom, useStickToBottomContext } from 'use-stick-to-bottom'
 import { useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
 import { ActivityTimerText } from '@/components/assistant-ui/activity-timer-text'
 import { ClarifyTool } from '@/components/assistant-ui/clarify-tool'
-import { DirectiveText } from '@/components/assistant-ui/directive-text'
+import { DirectiveContent, DirectiveText } from '@/components/assistant-ui/directive-text'
 import { GeneratedImageProvider, useGeneratedImageContext } from '@/components/assistant-ui/generated-image-context'
 import { ImageGenerationPlaceholder } from '@/components/assistant-ui/image-generation-placeholder'
 import { Intro, type IntroProps } from '@/components/assistant-ui/intro'
@@ -36,6 +36,7 @@ import { MarkdownText } from '@/components/assistant-ui/markdown-text'
 import { PreviewAttachment } from '@/components/assistant-ui/preview-attachment'
 import { ToolFallback } from '@/components/assistant-ui/tool-fallback'
 import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button'
+import { CopyButton } from '@/components/ui/copy-button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +50,6 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  CopyIcon,
   GitBranchIcon,
   Loader2Icon,
   MoreHorizontalIcon,
@@ -137,7 +137,7 @@ export const Thread: FC<{
           >
             <ThreadScrollSync sessionKey={sessionKey} />
             <StickToBottom.Content
-              className="mx-auto flex w-full max-w-[48rem] min-w-0 flex-col gap-3 px-4 pt-[calc(var(--vsq)*19)] sm:px-6 lg:px-8"
+              className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-3 px-4 pt-[calc(var(--vsq)*19)] sm:px-6 lg:px-8"
               data-slot="aui_thread-content"
               scrollClassName="overflow-x-hidden overflow-y-auto overscroll-contain"
             >
@@ -371,6 +371,10 @@ const ComposerClearance: FC = () => {
   })
 
   useEffect(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+
     let composerObserver: ResizeObserver | null = null
     let observedComposer: HTMLElement | null = null
 
@@ -385,6 +389,10 @@ const ComposerClearance: FC = () => {
     }
 
     const bindComposer = () => {
+      if (typeof document === 'undefined') {
+        return false
+      }
+
       const composer = document.querySelector<HTMLElement>('[data-slot="composer-root"]')
 
       if (!composer || composer === observedComposer) {
@@ -471,7 +479,7 @@ const AssistantMessage: FC<{ onBranchInNewChat?: (messageId: string) => void }> 
         {previewTargets.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
             {previewTargets.map(target => (
-              <PreviewAttachment key={target} target={target} />
+              <PreviewAttachment key={target} source="explicit-link" target={target} />
             ))}
           </div>
         )}
@@ -563,42 +571,59 @@ const ThinkingDisclosure: FC<{
   const elapsed = useElapsedSeconds(pending)
 
   return (
-    <div className="mb-2 text-sm text-muted-foreground">
+    <div className="text-sm text-muted-foreground" data-slot="tool-block">
       <button
         aria-expanded={open}
-        className="inline-flex max-w-full items-center gap-1 rounded-md py-0.5 pr-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="group/thinking-row flex w-full max-w-full min-w-0 items-start gap-2 rounded-md px-2 py-0.5 text-left text-muted-foreground transition-colors hover:bg-accent/35 hover:text-foreground"
         onClick={() => setOpen(value => !value)}
         type="button"
       >
-        <ChevronRightIcon
-          className={cn('size-3 shrink-0 text-muted-foreground/80 transition-transform', open && 'rotate-90')}
-        />
-        <span
-          className={cn('shrink-0 text-xs font-medium text-foreground/70', pending && 'shimmer text-foreground/55')}
-        >
-          Thinking
+        <span className="flex h-[1.1rem] shrink-0 items-center">
+          <ChevronRightIcon
+            className={cn(
+              'size-3 text-muted-foreground/55 transition-transform group-hover/thinking-row:text-muted-foreground/85',
+              open && 'rotate-90'
+            )}
+          />
         </span>
-        {pending && <ActivityTimerText seconds={elapsed} />}
+        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span
+            className={cn(
+              'text-[0.78rem] font-medium leading-[1.1rem] text-foreground/75',
+              pending && 'shimmer text-foreground/55'
+            )}
+          >
+            Thinking
+          </span>
+          {pending && (
+            <ActivityTimerText className="text-[0.625rem] tabular-nums text-muted-foreground/55" seconds={elapsed} />
+          )}
+        </span>
       </button>
-      {open && <div className="ml-4 mt-1 max-w-full wrap-anywhere border-l border-border pl-3">{children}</div>}
+      {open && (
+        <div className="mt-2 w-full min-w-0 max-w-full overflow-hidden pl-6 pr-2 wrap-anywhere pb-1">{children}</div>
+      )}
     </div>
   )
 }
 
-const ReasoningPart: FC<{ text: string; status?: { type: string } }> = ({ text, status }) => (
-  <div className="mb-1 mt-1">
+const ReasoningPart: FC<{ text: string; status?: { type: string } }> = ({ text, status }) => {
+  const displayText = text.trimStart()
+
+  return (
     <ThinkingDisclosure pending={status?.type === 'running'}>
       <div
         className={cn(
           'whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground/85',
           status?.type === 'running' && 'shimmer text-muted-foreground/55'
         )}
+        data-slot="aui_reasoning-text"
       >
-        {text}
+        {displayText}
       </div>
     </ThinkingDisclosure>
-  </div>
-)
+  )
+}
 
 const TIME_FMT = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 
@@ -679,27 +704,15 @@ const AssistantActionBar: FC<MessageActionProps> = ({ messageId, messageText, on
 }
 
 const CopyMessageButton: FC<{ text: string }> = ({ text }) => {
-  const [copied, setCopied] = useState(false)
-
-  const copy = useCallback(async () => {
-    if (!text) {
-      return
-    }
-
-    try {
-      await navigator.clipboard.writeText(text)
-      triggerHaptic('selection')
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch (error) {
-      notifyError(error, 'Copy failed')
-    }
-  }, [text])
-
   return (
-    <TooltipIconButton disabled={!text} onClick={() => void copy()} tooltip={copied ? 'Copied' : 'Copy'}>
-      {copied ? <CheckIcon /> : <CopyIcon />}
-    </TooltipIconButton>
+    <CopyButton
+      appearance="icon"
+      buttonSize="icon"
+      className="aui-button-icon size-6 p-1"
+      disabled={!text}
+      label="Copy"
+      text={text}
+    />
   )
 }
 
@@ -774,9 +787,27 @@ const AssistantFooter: FC<MessageActionProps> = props => (
 const branchButtonClass =
   'grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-35'
 
+const EMPTY_ATTACHMENT_REFS: string[] = []
+
+function messageAttachmentRefs(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return EMPTY_ATTACHMENT_REFS
+  }
+
+  return value.every(ref => typeof ref === 'string') ? value : EMPTY_ATTACHMENT_REFS
+}
+
 const UserMessage: FC = () => {
   const content = useAuiState(s => s.message.content)
   const messageText = messageContentText(content)
+
+  const attachmentRefs = useAuiState(s => {
+    const custom = (s.message.metadata?.custom ?? {}) as { attachmentRefs?: unknown }
+
+    return messageAttachmentRefs(custom.attachmentRefs)
+  })
+
+  const hasBody = messageText.trim().length > 0
 
   return (
     <MessagePrimitive.Root
@@ -784,8 +815,17 @@ const UserMessage: FC = () => {
       data-role="user"
       data-slot="aui_user-message-root"
     >
-      <div className="wrap-anywhere max-w-full overflow-hidden whitespace-pre-line rounded-2xl border border-[color-mix(in_srgb,var(--dt-user-bubble-border)_78%,transparent)] bg-[color-mix(in_srgb,var(--dt-user-bubble)_94%,transparent)] px-3 py-2 leading-[1.48] text-foreground/95">
-        <MessagePrimitive.Parts components={{ Text: DirectiveText }} />
+      <div className="flex min-w-0 max-w-full flex-col gap-1.5 overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--dt-user-bubble-border)_78%,transparent)] bg-[color-mix(in_srgb,var(--dt-user-bubble)_94%,transparent)] px-3 py-2 leading-[1.48] text-foreground/95">
+        {attachmentRefs.length > 0 && (
+          <div className="-mx-1 flex flex-wrap gap-1 border-b border-border/45 pb-1.5">
+            <DirectiveContent text={attachmentRefs.join(' ')} />
+          </div>
+        )}
+        {hasBody && (
+          <div className="wrap-anywhere whitespace-pre-line">
+            <MessagePrimitive.Parts components={{ Text: DirectiveText }} />
+          </div>
+        )}
       </div>
       <div className="min-h-6">
         <UserActionBar messageText={messageText} />

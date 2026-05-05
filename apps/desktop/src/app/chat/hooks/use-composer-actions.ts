@@ -31,12 +31,22 @@ function isImagePath(filePath: string): boolean {
 }
 
 export interface DroppedFile {
-  file: File
+  /** Browser-native File handle. Absent for in-app drags (e.g. project tree). */
+  file?: File
+  /** Absolute filesystem path. Empty when an OS drop didn't carry one. */
   path: string
+  /** True if the entry is a directory. Currently only set by in-app drags. */
+  isDirectory?: boolean
 }
 
+/** MIME emitted by in-app drag sources (project tree, etc.). Payload is JSON
+ * `{ path: string; isDirectory?: boolean }[]`. */
+export const HERMES_PATHS_MIME = 'application/x-hermes-paths'
+
 /**
- * Eagerly resolve files from a drop event into [File, path] pairs.
+ * Eagerly resolve files from a drop event into [File?, path, isDirectory?]
+ * triples. Internal Hermes sources (e.g. the project tree) ride on a custom
+ * MIME and produce path-only entries; OS drops produce File-bearing entries.
  *
  * Must be called synchronously from inside the drop handler — `DataTransfer`
  * items are detached as soon as the handler returns, and `webUtils.getPathForFile`
@@ -44,8 +54,30 @@ export interface DroppedFile {
  */
 export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
   const result: DroppedFile[] = []
-  const seen = new Set<File>()
+  const seenPaths = new Set<string>()
+  const seenFiles = new Set<File>()
   const getPath = window.hermesDesktop?.getPathForFile
+
+  // In-app drags first — they carry richer metadata (isDirectory) than the
+  // File-based fallback can provide, and produce no overlapping native files.
+  try {
+    const internalRaw = transfer.getData(HERMES_PATHS_MIME)
+
+    if (internalRaw) {
+      const parsed = JSON.parse(internalRaw) as { path?: unknown; isDirectory?: unknown }[]
+
+      for (const entry of parsed) {
+        if (!entry || typeof entry.path !== 'string' || !entry.path || seenPaths.has(entry.path)) {
+          continue
+        }
+
+        seenPaths.add(entry.path)
+        result.push({ isDirectory: entry.isDirectory === true, path: entry.path })
+      }
+    }
+  } catch {
+    // Malformed payload — fall through to native files.
+  }
 
   const fileList = transfer.files
 
@@ -53,10 +85,11 @@ export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
     for (let i = 0; i < fileList.length; i += 1) {
       const file = fileList.item(i)
 
-      if (!file || seen.has(file)) {
+      if (!file || seenFiles.has(file)) {
         continue
       }
-      seen.add(file)
+
+      seenFiles.add(file)
       let path = ''
 
       if (getPath) {
@@ -65,6 +98,14 @@ export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
         } catch {
           path = ''
         }
+      }
+
+      if (path && seenPaths.has(path)) {
+        continue
+      }
+
+      if (path) {
+        seenPaths.add(path)
       }
 
       result.push({ file, path })
@@ -80,12 +121,14 @@ export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
       if (!item || item.kind !== 'file') {
         continue
       }
+
       const file = item.getAsFile()
 
-      if (!file || seen.has(file)) {
+      if (!file || seenFiles.has(file)) {
         continue
       }
-      seen.add(file)
+
+      seenFiles.add(file)
       let path = ''
 
       if (getPath) {
@@ -94,6 +137,14 @@ export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
         } catch {
           path = ''
         }
+      }
+
+      if (path && seenPaths.has(path)) {
+        continue
+      }
+
+      if (path) {
+        seenPaths.add(path)
       }
 
       result.push({ file, path })
@@ -282,6 +333,26 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
     }
   }, [attachImagePath])
 
+  const attachContextFolderPath = useCallback(
+    (folderPath: string) => {
+      if (!folderPath) {return false}
+
+      const rel = contextPath(folderPath, currentCwd)
+
+      addComposerAttachment({
+        id: attachmentId('folder', rel),
+        kind: 'folder',
+        label: pathLabel(folderPath),
+        detail: rel,
+        refText: `@folder:${formatRefValue(rel)}`,
+        path: folderPath
+      })
+
+      return true
+    },
+    [currentCwd]
+  )
+
   const attachDroppedItems = useCallback(
     async (candidates: DroppedFile[]) => {
       if (candidates.length === 0) {
@@ -291,9 +362,49 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
       let attached = false
       let lastFailure: string | null = null
 
-      for (const { file, path: knownPath } of candidates) {
+      for (const candidate of candidates) {
+        const { file, isDirectory, path: knownPath } = candidate
+
+        // Path-only entry (in-app drag from the file browser tree, etc.).
+        if (!file) {
+          if (isDirectory) {
+            if (knownPath && attachContextFolderPath(knownPath)) {
+              attached = true
+
+              continue
+            }
+
+            lastFailure = `Could not attach folder ${knownPath || ''}`
+
+            continue
+          }
+
+          if (knownPath && isImagePath(knownPath)) {
+            if (await attachImagePath(knownPath)) {
+              attached = true
+
+              continue
+            }
+
+            lastFailure = `Could not attach ${knownPath}`
+
+            continue
+          }
+
+          if (knownPath && attachContextFilePath(knownPath)) {
+            attached = true
+
+            continue
+          }
+
+          lastFailure = `Could not attach ${knownPath || 'file'}`
+
+          continue
+        }
+
         const fallbackPath =
           !knownPath && window.hermesDesktop?.getPathForFile ? window.hermesDesktop.getPathForFile(file) : ''
+
         const filePath = knownPath || fallbackPath || ''
         const isImage = file.type.startsWith('image/') || isImagePath(file.name) || (filePath && isImagePath(filePath))
 
@@ -324,7 +435,7 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
 
       return attached
     },
-    [attachContextFilePath, attachImageBlob, attachImagePath]
+    [attachContextFilePath, attachContextFolderPath, attachImageBlob, attachImagePath]
   )
 
   const removeAttachment = useCallback(
@@ -349,6 +460,7 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
 
   return {
     addContextRefAttachment,
+    attachContextFilePath,
     attachDroppedItems,
     attachImageBlob,
     attachImagePath,

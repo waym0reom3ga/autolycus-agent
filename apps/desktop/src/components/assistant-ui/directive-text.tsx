@@ -186,10 +186,10 @@ function shortLabel(type: HermesRefType, id: string): string {
 }
 
 /**
- * Renders a text message part with our directive segments as inline chips.
- * Unknown directive types fall through as plain text.
+ * Renders text containing Hermes directives (`@file:...`, `@image:...`) as
+ * inline chips. Embedded MEDIA images render below as a thumbnail row.
  */
-export const DirectiveText: TextMessagePartComponent = ({ text }: TextMessagePartProps) => {
+export function DirectiveContent({ text }: { text: string }) {
   const { cleanedText, images } = useMemo(() => extractEmbeddedImages(text ?? ''), [text])
   const segments = useMemo(() => hermesDirectiveFormatter.parse(cleanedText), [cleanedText])
 
@@ -220,6 +220,11 @@ export const DirectiveText: TextMessagePartComponent = ({ text }: TextMessagePar
   )
 }
 
+/** assistant-ui adapter: same renderer, exposed as a TextMessagePartComponent. */
+export const DirectiveText: TextMessagePartComponent = ({ text }: TextMessagePartProps) => (
+  <DirectiveContent text={text ?? ''} />
+)
+
 const DirectiveChip: FC<{
   type: string
   label: string
@@ -230,14 +235,14 @@ const DirectiveChip: FC<{
   return (
     <span
       className={cn(
-        'mx-0.5 inline-flex max-w-64 items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--dt-primary)_16%,transparent)] px-2 py-0.5 align-[0.02em] text-[0.92em] font-semibold leading-tight text-primary ring-1 ring-inset ring-primary/10'
+        'mx-0.5 inline-flex max-w-56 items-center gap-1 border border-primary/20 bg-primary/8 px-1.5 py-0.5 align-[0.02em] text-[0.86em] font-medium leading-none text-primary'
       )}
       data-directive-id={id}
       data-directive-type={type}
       data-slot="aui_directive-chip"
       title={id}
     >
-      {Icon && <Icon className="size-3.5 shrink-0 text-primary" />}
+      {Icon && <Icon className="size-3 shrink-0 text-primary" />}
       <span className="truncate">{label}</span>
     </span>
   )

@@ -1,20 +1,25 @@
 import './liquid-glass-overrides.css'
 
+import type { Unstable_TriggerAdapter, Unstable_TriggerItem } from '@assistant-ui/core'
 import { ComposerPrimitive, useAui, useAuiState } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
 import LiquidGlass from 'liquid-glass-react'
 import {
   type ClipboardEvent,
   type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent,
   type DragEvent as ReactDragEvent,
+  useCallback,
   useEffect,
   useRef,
   useState
 } from 'react'
 
-import { hermesDirectiveFormatter } from '@/components/assistant-ui/directive-text'
+import { formatRefValue, hermesDirectiveFormatter } from '@/components/assistant-ui/directive-text'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { chatMessageText } from '@/lib/chat-messages'
+import { contextPath } from '@/lib/chat-runtime'
 import { DATA_IMAGE_URL_RE, dataUrlToBlob } from '@/lib/embedded-images'
 import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
@@ -22,20 +27,27 @@ import { $composerAttachments, $composerDraft } from '@/store/composer'
 import { $messages } from '@/store/session'
 import { $threadScrolledUp } from '@/store/thread-scroll'
 
-import { extractDroppedFiles } from '../hooks/use-composer-actions'
+import { type DroppedFile, extractDroppedFiles, HERMES_PATHS_MIME } from '../hooks/use-composer-actions'
 
 import { AttachmentList } from './attachments'
 import { ContextMenu } from './context-menu'
 import { ComposerControls } from './controls'
-import { DirectivePopover } from './directive-popover'
 import { HelpHint } from './help-hint'
 import { useAtCompletions } from './hooks/use-at-completions'
 import { useComposerGlassTweaks } from './hooks/use-composer-glass-tweaks'
 import { useSlashCompletions } from './hooks/use-slash-completions'
 import { useVoiceConversation } from './hooks/use-voice-conversation'
 import { useVoiceRecorder } from './hooks/use-voice-recorder'
+import {
+  composerHtml,
+  composerPlainText,
+  escapeHtml,
+  placeCaretEnd,
+  refChipHtml,
+  RICH_INPUT_SLOT
+} from './rich-editor'
 import { SkinSlashPopover } from './skin-slash-popover'
-import { SlashPopover } from './slash-popover'
+import { ComposerTriggerPopover } from './trigger-popover'
 import type { ChatBarProps } from './types'
 import { UrlDialog } from './url-dialog'
 import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
@@ -117,6 +129,36 @@ const COMPOSER_FROST_CLASS = cn(
   'group-focus-within/composer:[-webkit-backdrop-filter:none]'
 )
 
+interface TriggerState {
+  kind: '@' | '/'
+  query: string
+  tokenLength: number
+}
+
+const TRIGGER_RE = /(?:^|[\s])([@/])([^\s@/]*)$/
+
+/** Caret-anchored text before the cursor, or null if the selection isn't a collapsed caret inside `editor`. */
+function textBeforeCaret(editor: HTMLDivElement): string | null {
+  const sel = window.getSelection()
+  const range = sel?.rangeCount ? sel.getRangeAt(0) : null
+
+  if (!range?.collapsed || !editor.contains(range.commonAncestorContainer)) {return null}
+
+  const before = range.cloneRange()
+  before.selectNodeContents(editor)
+  before.setEnd(range.startContainer, range.startOffset)
+
+  return before.toString()
+}
+
+function detectTrigger(textBefore: string): TriggerState | null {
+  const match = TRIGGER_RE.exec(textBefore)
+
+  if (!match) {return null}
+
+  return { kind: match[1] as '@' | '/', query: match[2], tokenLength: 1 + match[2].length }
+}
+
 export function ChatBar({
   busy,
   cwd,
@@ -144,9 +186,9 @@ export function ChatBar({
   const scrolledUp = useStore($threadScrolledUp)
 
   const composerRef = useRef<HTMLFormElement | null>(null)
+  const editorRef = useRef<HTMLDivElement | null>(null)
   const glassShellRef = useRef<HTMLDivElement | null>(null)
   const draftRef = useRef(draft)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const urlInputRef = useRef<HTMLInputElement | null>(null)
 
   const [urlOpen, setUrlOpen] = useState(false)
@@ -192,7 +234,7 @@ export function ChatBar({
 
   const glassTweaks = useComposerGlassTweaks()
 
-  const focusInput = () => window.requestAnimationFrame(() => textareaRef.current?.focus({ preventScroll: true }))
+  const focusInput = () => window.requestAnimationFrame(() => editorRef.current?.focus({ preventScroll: true }))
 
   useEffect(() => {
     if (!disabled) {
@@ -203,6 +245,12 @@ export function ChatBar({
   useEffect(() => {
     draftRef.current = draft
     $composerDraft.set(draft)
+
+    const editor = editorRef.current
+
+    if (editor && document.activeElement !== editor && composerPlainText(editor) !== draft) {
+      editor.innerHTML = composerHtml(draft)
+    }
   }, [draft])
 
   useEffect(
@@ -232,7 +280,7 @@ export function ChatBar({
       return
     }
 
-    const wraps = (textareaRef.current?.scrollHeight ?? 0) > 42
+    const wraps = (editorRef.current?.scrollHeight ?? 0) > 42
 
     if (draft.includes('\n') || wraps) {
       setExpanded(true)
@@ -265,13 +313,108 @@ export function ChatBar({
     focusInput()
   }
 
+  const insertInlineRefs = (refs: string[]) => {
+    const editor = editorRef.current
+
+    if (!refs.length || !editor) {
+      return false
+    }
+
+    const inline = refs.join(' ')
+    const selection = window.getSelection()
+
+    const range =
+      selection?.rangeCount && editor.contains(selection.getRangeAt(0).commonAncestorContainer)
+        ? selection.getRangeAt(0)
+        : null
+
+    editor.focus({ preventScroll: true })
+
+    if (range) {
+      const beforeRange = range.cloneRange()
+      beforeRange.selectNodeContents(editor)
+      beforeRange.setEnd(range.startContainer, range.startOffset)
+      const beforeContainer = document.createElement('div')
+      beforeContainer.appendChild(beforeRange.cloneContents())
+
+      const afterRange = range.cloneRange()
+      afterRange.selectNodeContents(editor)
+      afterRange.setStart(range.endContainer, range.endOffset)
+      const afterContainer = document.createElement('div')
+      afterContainer.appendChild(afterRange.cloneContents())
+
+      const beforeText = composerPlainText(beforeContainer)
+      const afterText = composerPlainText(afterContainer)
+      const needsBeforeSpace = beforeText.length > 0 && !/\s$/.test(beforeText)
+      const needsAfterSpace = afterText.length === 0 || !/^\s/.test(afterText)
+      range.deleteContents()
+      const fragment = document.createDocumentFragment()
+
+      if (needsBeforeSpace) {
+        fragment.appendChild(document.createTextNode(' '))
+      }
+
+      refs.forEach((ref, index) => {
+        const match = ref.match(/^@([^:]+):(.+)$/)
+        const holder = document.createElement('span')
+        holder.innerHTML = match ? refChipHtml(match[1], match[2]) : escapeHtml(ref)
+        fragment.appendChild(holder.firstChild || document.createTextNode(ref))
+
+        if (index < refs.length - 1) {
+          fragment.appendChild(document.createTextNode(' '))
+        }
+      })
+
+      const trailingSpace = needsAfterSpace ? document.createTextNode(' ') : null
+
+      if (trailingSpace) {
+        fragment.appendChild(trailingSpace)
+      }
+
+      range.insertNode(fragment)
+
+      const nextRange = document.createRange()
+
+      if (trailingSpace) {
+        nextRange.setStart(trailingSpace, trailingSpace.length)
+      } else {
+        nextRange.setStartAfter(fragment.lastChild || range.startContainer)
+      }
+
+      nextRange.collapse(true)
+      selection?.removeAllRanges()
+      selection?.addRange(nextRange)
+    } else {
+      const current = composerPlainText(editor)
+      editor.innerHTML = composerHtml(`${current}${current && !/\s$/.test(current) ? ' ' : ''}${inline} `)
+      placeCaretEnd(editor)
+    }
+
+    const nextDraft = composerPlainText(editor)
+    draftRef.current = nextDraft
+    aui.composer().setText(nextDraft)
+
+    return true
+  }
+
+  const droppedFileInlineRef = (candidate: DroppedFile) => {
+    if (!candidate.path) {
+      return null
+    }
+
+    const kind = candidate.isDirectory ? 'folder' : 'file'
+    const rel = contextPath(candidate.path, cwd || '')
+
+    return `@${kind}:${formatRefValue(rel)}`
+  }
+
   const selectSkinSlashCommand = (command: string) => {
     draftRef.current = command
     aui.composer().setText(command)
     focusInput()
   }
 
-  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = (event: ClipboardEvent<HTMLDivElement>) => {
     const imageBlobs = extractClipboardImageBlobs(event.clipboardData)
 
     if (imageBlobs.length > 0) {
@@ -304,37 +447,214 @@ export function ChatBar({
       return
     }
 
-    const trimmedText = pastedText.replace(/^[\t ]*(?:\r\n|\r|\n)+|(?:\r\n|\r|\n)+[\t ]*$/g, '')
+    event.preventDefault()
+    document.execCommand('insertText', false, pastedText)
+    const nextDraft = composerPlainText(event.currentTarget)
+    draftRef.current = nextDraft
+    aui.composer().setText(nextDraft)
+  }
 
-    if (trimmedText === pastedText) {
+  const [trigger, setTrigger] = useState<TriggerState | null>(null)
+  const [triggerActive, setTriggerActive] = useState(0)
+  const [triggerItems, setTriggerItems] = useState<readonly Unstable_TriggerItem[]>([])
+
+  // Try caret-anchored detection first; fall back to whole-draft so blur/select-all
+  // edge cases still surface the popover instead of silently closing it.
+  const refreshTrigger = useCallback(() => {
+    const editor = editorRef.current
+
+    if (!editor) {return}
+
+    const before = textBeforeCaret(editor)
+    const detected = detectTrigger(before ?? composerPlainText(editor))
+
+    setTrigger(detected)
+    setTriggerActive(0)
+  }, [])
+
+  const handleEditorInput = (event: FormEvent<HTMLDivElement>) => {
+    const editor = event.currentTarget
+
+    // Strip Chrome's stray <br> when the editor is otherwise empty so :empty
+    // pseudo-class works for the placeholder.
+    if (editor.childNodes.length === 1 && editor.firstChild?.nodeName === 'BR') {
+      editor.replaceChildren()
+    }
+
+    const nextDraft = composerPlainText(editor)
+
+    if (nextDraft !== draftRef.current) {
+      draftRef.current = nextDraft
+      aui.composer().setText(nextDraft)
+    }
+
+    window.setTimeout(refreshTrigger, 0)
+  }
+
+  const triggerAdapter: Unstable_TriggerAdapter | null = trigger?.kind === '@' ? at.adapter : trigger?.kind === '/' ? slash.adapter : null
+
+  useEffect(() => {
+    if (!trigger || !triggerAdapter?.search) {
+      setTriggerItems([])
+
       return
     }
 
-    event.preventDefault()
-    const textarea = event.currentTarget
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
+    setTriggerItems(triggerAdapter.search(trigger.query))
+  }, [trigger, triggerAdapter])
 
-    const nextDraft = textarea.value.slice(0, start) + trimmedText + textarea.value.slice(end)
+  const triggerLoading = trigger?.kind === '@' ? at.loading : trigger?.kind === '/' ? slash.loading : false
 
-    const cursor = start + trimmedText.length
+  const closeTrigger = () => {
+    setTrigger(null)
+    setTriggerItems([])
+    setTriggerActive(0)
+  }
 
+  useEffect(() => {
+    if (!triggerItems.length) {
+      setTriggerActive(0)
+
+      return
+    }
+
+    if (triggerActive >= triggerItems.length) {
+      setTriggerActive(triggerItems.length - 1)
+    }
+  }, [triggerActive, triggerItems.length])
+
+  const replaceTriggerWithChip = (item: Unstable_TriggerItem) => {
+    const editor = editorRef.current
+    const sel = window.getSelection()
+
+    if (!editor || !trigger) {
+      return
+    }
+
+    const serialized = hermesDirectiveFormatter.serialize(item)
+
+    const replaceDraftFallback = () => {
+      const current = composerPlainText(editor)
+
+      const nextDraft = `${current.slice(0, Math.max(0, current.length - trigger.tokenLength))}${serialized}${
+        serialized.endsWith(' ') ? '' : ' '
+      }`
+
+      editor.innerHTML = composerHtml(nextDraft)
+      placeCaretEnd(editor)
+      draftRef.current = nextDraft
+      aui.composer().setText(nextDraft)
+      closeTrigger()
+    }
+
+    if (!sel?.rangeCount) {
+      replaceDraftFallback()
+
+      return
+    }
+
+    const range = sel.getRangeAt(0)
+    const startNode = range.startContainer
+    const startOffset = range.startOffset
+
+    if (startNode.nodeType !== Node.TEXT_NODE || startOffset < trigger.tokenLength) {
+      replaceDraftFallback()
+
+      return
+    }
+
+    const replaceRange = document.createRange()
+    replaceRange.setStart(startNode, startOffset - trigger.tokenLength)
+    replaceRange.setEnd(startNode, startOffset)
+
+    const fragment = document.createDocumentFragment()
+    const directiveMatch = serialized.match(/^@([^:]+):(.+)$/)
+
+    if (directiveMatch) {
+      const holder = document.createElement('span')
+      holder.innerHTML = refChipHtml(directiveMatch[1], directiveMatch[2])
+      const chipNode = holder.firstChild
+
+      if (chipNode) {
+        fragment.appendChild(chipNode)
+        const space = document.createTextNode(' ')
+        fragment.appendChild(space)
+
+        replaceRange.deleteContents()
+        replaceRange.insertNode(fragment)
+
+        const after = document.createRange()
+        after.setStart(space, 1)
+        after.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(after)
+      } else {
+        replaceRange.deleteContents()
+        document.execCommand('insertText', false, `${serialized} `)
+      }
+    } else {
+      replaceRange.deleteContents()
+      document.execCommand('insertText', false, serialized.endsWith(' ') ? serialized : `${serialized} `)
+    }
+
+    const nextDraft = composerPlainText(editor)
+    draftRef.current = nextDraft
     aui.composer().setText(nextDraft)
-    window.requestAnimationFrame(() => {
-      const current = textareaRef.current
+    closeTrigger()
+  }
 
-      if (!current) {
+  const handleEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (trigger && triggerItems.length > 0) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setTriggerActive(idx => (idx + 1) % triggerItems.length)
+
         return
       }
 
-      current.focus({ preventScroll: true })
-      current.setSelectionRange(cursor, cursor)
-    })
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setTriggerActive(idx => (idx - 1 + triggerItems.length) % triggerItems.length)
+
+        return
+      }
+
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault()
+        const item = triggerItems[triggerActive]
+
+        if (item) {
+          replaceTriggerWithChip(item)
+        }
+
+        return
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeTrigger()
+
+        return
+      }
+    }
+
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      submitDraft()
+    }
+  }
+
+  const handleEditorKeyUp = () => {
+    window.setTimeout(refreshTrigger, 0)
   }
 
   const dragHasAttachments = (transfer: DataTransfer | null) => {
     if (!transfer) {
       return false
+    }
+
+    if (Array.from(transfer.types || []).includes(HERMES_PATHS_MIME)) {
+      return true
     }
 
     if (Array.from(transfer.types || []).includes('Files')) {
@@ -398,6 +718,16 @@ export function ChatBar({
       return
     }
 
+    if (Array.from(event.dataTransfer.types || []).includes(HERMES_PATHS_MIME)) {
+      const refs = candidates.map(droppedFileInlineRef).filter((ref): ref is string => Boolean(ref))
+
+      if (insertInlineRefs(refs)) {
+        triggerHaptic('selection')
+      }
+
+      return
+    }
+
     void Promise.resolve(onAttachDroppedItems(candidates)).then(attached => {
       if (attached) {
         triggerHaptic('selection')
@@ -406,9 +736,44 @@ export function ChatBar({
     })
   }
 
+  const handleInputDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!dragHasAttachments(event.dataTransfer)) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleInputDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!dragHasAttachments(event.dataTransfer)) {
+      return
+    }
+
+    const candidates = extractDroppedFiles(event.dataTransfer)
+    const refs = candidates.map(droppedFileInlineRef).filter((ref): ref is string => Boolean(ref))
+
+    if (!refs.length) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    resetDragState()
+
+    if (insertInlineRefs(refs)) {
+      triggerHaptic('selection')
+    }
+  }
+
   const clearDraft = () => {
     aui.composer().setText('')
     draftRef.current = ''
+
+    if (editorRef.current) {
+      editorRef.current.innerHTML = ''
+    }
   }
 
   const submitDraft = () => {
@@ -541,19 +906,42 @@ export function ChatBar({
   )
 
   const input = (
-    <ComposerPrimitive.Input
-      className={cn(
-        'min-h-(--composer-input-min-height) max-h-(--composer-input-max-height) resize-none overflow-y-auto bg-transparent pb-1 pr-1 pt-1 leading-normal text-foreground outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed',
-        stacked && 'pl-3',
-        stacked ? 'w-full' : 'min-w-(--composer-input-inline-min-width) flex-1'
+    <div className={cn('relative', stacked ? 'w-full' : 'min-w-(--composer-input-inline-min-width) flex-1')}>
+      {!draft && (
+        <div
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute inset-0 pb-1 pr-1 pt-1 leading-normal text-muted-foreground/80',
+            stacked && 'pl-3'
+          )}
+        >
+          {placeholder}
+        </div>
       )}
-      disabled={disabled}
-      onPaste={handlePaste}
-      placeholder={placeholder}
-      ref={textareaRef}
-      rows={1}
-      unstable_focusOnScrollToBottom={false}
-    />
+      <div
+        aria-label="Message"
+        className={cn(
+          'min-h-(--composer-input-min-height) max-h-(--composer-input-max-height) overflow-y-auto bg-transparent pb-1 pr-1 pt-1 leading-normal text-foreground outline-none empty:before:content-[attr(data-placeholder)] disabled:cursor-not-allowed **:data-ref-text:cursor-default',
+          stacked && 'pl-3',
+          stacked ? 'w-full' : 'min-w-(--composer-input-inline-min-width) flex-1'
+        )}
+        contentEditable={!disabled}
+        data-placeholder={placeholder}
+        data-slot={RICH_INPUT_SLOT}
+        onBlur={() => window.setTimeout(closeTrigger, 80)}
+        onDragOver={handleInputDragOver}
+        onDrop={handleInputDrop}
+        onInput={handleEditorInput}
+        onKeyDown={handleEditorKeyDown}
+        onKeyUp={handleEditorKeyUp}
+        onMouseUp={refreshTrigger}
+        onPaste={handlePaste}
+        ref={editorRef}
+        role="textbox"
+        suppressContentEditableWarning
+      />
+      <ComposerPrimitive.Input className="sr-only" tabIndex={-1} unstable_focusOnScrollToBottom={false} />
+    </div>
   )
 
   return (
@@ -581,12 +969,16 @@ export function ChatBar({
           }
         >
           {showHelpHint && <HelpHint />}
-          <DirectivePopover
-            adapter={at.adapter}
-            directive={{ formatter: hermesDirectiveFormatter }}
-            loading={at.loading}
-          />
-          <SlashPopover adapter={slash.adapter} loading={slash.loading} />
+          {trigger && (
+            <ComposerTriggerPopover
+              activeIndex={triggerActive}
+              items={triggerItems}
+              kind={trigger.kind}
+              loading={triggerLoading}
+              onHover={setTriggerActive}
+              onPick={replaceTriggerWithChip}
+            />
+          )}
           <SkinSlashPopover draft={draft} onSelect={selectSkinSlashCommand} />
           <div className="pointer-events-none absolute inset-0" style={{ background: glassTweaks.fadeBackground }} />
           <div className="relative w-full">

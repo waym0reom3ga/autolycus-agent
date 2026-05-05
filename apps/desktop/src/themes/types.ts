@@ -1,10 +1,12 @@
 /**
  * Desktop app theme model.
  *
- * Three orthogonal layers:
- *   1. `colors`     — all Tailwind token values written directly to CSS vars.
- *   2. `typography` — font families, base size, line-height, letter-spacing.
- *   3. `layout`     — corner radius, spacing density.
+ * Two theme layers:
+ *   1. `colors`     — Tailwind color token values written directly to CSS vars.
+ *   2. `typography` — font families and optional font stylesheet URL.
+ *
+ * Layout, sizing, spacing, radius, line-height, and letter-spacing live in
+ * `styles.css` so CSS remains the source of truth for app geometry.
  *
  * Every field except `name`, `label`, and `description` is optional —
  * missing values fall back to the `default` theme.
@@ -66,21 +68,6 @@ export interface DesktopThemeTypography {
   fontMono: string
   /** Optional Google/Bunny/self-hosted font stylesheet URL. */
   fontUrl?: string
-  /** Root font size: `"0.875rem"`, `"0.9375rem"`, `"1rem"`. */
-  baseSize: string
-  /** Default line height: `"1.5"`, `"1.6"`. */
-  lineHeight: string
-  /** Default letter spacing: `"0"`, `"-0.01em"`. */
-  letterSpacing: string
-}
-
-export type ThemeDensity = 'compact' | 'comfortable' | 'spacious'
-
-export interface DesktopThemeLayout {
-  /** Corner-radius token: `"0"`, `"0.5rem"`, `"1rem"`. */
-  radius: string
-  /** Spacing multiplier. */
-  density: ThemeDensity
 }
 
 export interface DesktopTheme {
@@ -89,5 +76,4 @@ export interface DesktopTheme {
   description: string
   colors: DesktopThemeColors
   typography?: Partial<DesktopThemeTypography>
-  layout?: Partial<DesktopThemeLayout>
 }

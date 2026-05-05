@@ -2445,6 +2445,28 @@ async def delete_session_endpoint(session_id: str):
         db.close()
 
 
+class SessionRename(BaseModel):
+    title: str
+
+
+@app.patch("/api/sessions/{session_id}")
+async def rename_session_endpoint(session_id: str, body: SessionRename):
+    from hermes_state import SessionDB
+    db = SessionDB()
+    try:
+        sid = db.resolve_session_id(session_id) or session_id
+        try:
+            ok = db.set_session_title(sid, body.title)
+        except ValueError as exc:
+            # Title collision or validation failure (e.g. duplicate title).
+            raise HTTPException(status_code=409, detail=str(exc))
+        if not ok:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {"ok": True, "title": db.get_session_title(sid) or ""}
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # Log viewer endpoint
 # ---------------------------------------------------------------------------

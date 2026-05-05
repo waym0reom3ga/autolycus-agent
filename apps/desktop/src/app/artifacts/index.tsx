@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { ZoomableImage } from '@/components/assistant-ui/zoomable-image'
 import { PageLoader } from '@/components/page-loader'
 import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/ui/copy-button'
 import { Input } from '@/components/ui/input'
 import {
   Pagination,
@@ -17,9 +18,9 @@ import {
 } from '@/components/ui/pagination'
 import { getSessionMessages, listSessions } from '@/hermes'
 import { sessionTitle } from '@/lib/chat-runtime'
-import { Copy, ExternalLink, FileImage, FileText, FolderOpen, Layers3, Link2, RefreshCw, Search, X } from '@/lib/icons'
+import { ExternalLink, FileImage, FileText, FolderOpen, Layers3, Link2, RefreshCw, Search, X } from '@/lib/icons'
 import { cn } from '@/lib/utils'
-import { notify, notifyError } from '@/store/notifications'
+import { notifyError } from '@/store/notifications'
 import type { SessionInfo, SessionMessage } from '@/types/hermes'
 
 import { sessionRoute } from '../routes'
@@ -346,7 +347,11 @@ interface ArtifactsViewProps extends React.ComponentProps<'section'> {
   setTitlebarToolGroup?: SetTitlebarToolGroup
 }
 
-export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, setTitlebarToolGroup, ...props }: ArtifactsViewProps) {
+export function ArtifactsView({
+  setStatusbarItemGroup: _setStatusbarItemGroup,
+  setTitlebarToolGroup,
+  ...props
+}: ArtifactsViewProps) {
   const navigate = useNavigate()
   const [artifacts, setArtifacts] = useState<ArtifactRecord[] | null>(null)
   const [query, setQuery] = useState('')
@@ -469,24 +474,6 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, s
     }
   }, [artifacts])
 
-  const copyArtifact = useCallback(async (value: string) => {
-    try {
-      if (window.hermesDesktop?.writeClipboard) {
-        await window.hermesDesktop.writeClipboard(value)
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(value)
-      }
-
-      notify({
-        kind: 'success',
-        title: 'Copied',
-        message: value
-      })
-    } catch (err) {
-      notifyError(err, 'Copy failed')
-    }
-  }, [])
-
   const openArtifact = useCallback(async (href: string) => {
     try {
       if (window.hermesDesktop?.openExternal) {
@@ -510,10 +497,7 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, s
   }, [])
 
   return (
-    <section
-      {...props}
-      className="flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background"
-    >
+    <section {...props} className="flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background">
       <header className={titlebarHeaderBaseClass}>
         <h2 className="pointer-events-auto text-base font-semibold leading-none tracking-tight">Artifacts</h2>
         <span className="pointer-events-auto text-xs text-muted-foreground">{counts.all} found</span>
@@ -645,7 +629,6 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, s
                           <ArtifactListRow
                             artifact={artifact}
                             key={artifact.id}
-                            onCopy={copyArtifact}
                             onOpen={openArtifact}
                             onOpenChat={sessionId => navigate(sessionRoute(sessionId))}
                           />
@@ -804,12 +787,11 @@ function ArtifactImageCard({ artifact, failedImage, onImageError, onOpenChat }: 
 
 interface ArtifactListRowProps {
   artifact: ArtifactRecord
-  onCopy: (value: string) => void | Promise<void>
   onOpen: (href: string) => void | Promise<void>
   onOpenChat: (sessionId: string) => void
 }
 
-function ArtifactListRow({ artifact, onCopy, onOpen, onOpenChat }: ArtifactListRowProps) {
+function ArtifactListRow({ artifact, onOpen, onOpenChat }: ArtifactListRowProps) {
   const Icon = artifact.kind === 'file' ? FileText : Link2
 
   return (
@@ -852,16 +834,14 @@ function ArtifactListRow({ artifact, onCopy, onOpen, onOpenChat }: ArtifactListR
           >
             <ExternalLink className="size-3.5" />
           </Button>
-          <Button
+          <CopyButton
+            appearance="button"
+            buttonSize="icon-xs"
             className="text-muted-foreground hover:text-foreground"
-            onClick={() => void onCopy(artifact.value)}
-            size="icon-xs"
-            title="Copy"
-            type="button"
-            variant="ghost"
-          >
-            <Copy className="size-3.5" />
-          </Button>
+            iconClassName="size-3.5"
+            label="Copy"
+            text={artifact.value}
+          />
           <Button
             className="text-muted-foreground hover:text-foreground"
             onClick={() => onOpenChat(artifact.sessionId)}

@@ -102,6 +102,14 @@ export function deleteSession(id: string): Promise<{ ok: boolean }> {
   })
 }
 
+export function renameSession(id: string, title: string): Promise<{ ok: boolean; title: string }> {
+  return window.hermesDesktop.api<{ ok: boolean; title: string }>({
+    path: `/api/sessions/${encodeURIComponent(id)}`,
+    method: 'PATCH',
+    body: { title }
+  })
+}
+
 export function getGlobalModelInfo(): Promise<ModelInfoResponse> {
   return window.hermesDesktop.api<ModelInfoResponse>({
     path: '/api/model/info'

@@ -30,7 +30,7 @@ export function OverlaySplitLayout({ children, className }: OverlaySplitLayoutPr
   return (
     <div
       className={cn(
-        'grid h-full min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] overflow-hidden rounded-[0.95rem] border border-[color-mix(in_srgb,var(--dt-border)_58%,transparent)] bg-[color-mix(in_srgb,var(--dt-card)_94%,transparent)] shadow-[inset_0_0.0625rem_0_color-mix(in_srgb,white_46%,transparent),0_0.5rem_1.5rem_-1rem_color-mix(in_srgb,#000_22%,transparent)] max-[760px]:grid-cols-1',
+        'grid h-full min-h-0 flex-1 grid-cols-[13rem_minmax(0,1fr)] overflow-hidden rounded-[0.95rem] border border-[color-mix(in_srgb,var(--dt-border)_58%,transparent)] bg-[color-mix(in_srgb,var(--dt-card)_94%,transparent)] shadow-[inset_0_0.0625rem_0_color-mix(in_srgb,white_46%,transparent),0_0.5rem_1.5rem_-1rem_color-mix(in_srgb,#000_22%,transparent)] max-[760px]:grid-cols-1 dark:border-[color-mix(in_srgb,var(--dt-border)_36%,transparent)] dark:shadow-[inset_0_0.0625rem_0_color-mix(in_srgb,white_10%,transparent),0_0.5rem_1.5rem_-1rem_color-mix(in_srgb,#000_45%,transparent)]',
         className
       )}
     >

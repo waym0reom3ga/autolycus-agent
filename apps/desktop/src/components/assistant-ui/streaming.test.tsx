@@ -85,6 +85,23 @@ function assistantMessage(text: string, running = true): ThreadMessage {
   } as ThreadMessage
 }
 
+function assistantReasoningMessage(text: string): ThreadMessage {
+  return {
+    id: 'assistant-reasoning-1',
+    role: 'assistant',
+    content: [{ type: 'reasoning', text }],
+    status: { type: 'complete', reason: 'stop' },
+    createdAt,
+    metadata: {
+      unstable_state: null,
+      unstable_annotations: [],
+      unstable_data: [],
+      steps: [],
+      custom: {}
+    }
+  } as ThreadMessage
+}
+
 function StreamingHarness() {
   const [messages, setMessages] = useState<ThreadMessage[]>([userMessage()])
   const [isRunning, setIsRunning] = useState(true)
@@ -123,6 +140,20 @@ function StreamingHarness() {
   )
 }
 
+function ReasoningHarness() {
+  const runtime = useExternalStoreRuntime<ThreadMessage>({
+    messages: [assistantReasoningMessage(' The user is asking what this file is.')],
+    isRunning: false,
+    onNew: async () => {}
+  })
+
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <Thread />
+    </AssistantRuntimeProvider>
+  )
+}
+
 describe('assistant-ui streaming renderer', () => {
   beforeEach(() => {
     resizeObservers.clear()
@@ -157,7 +188,8 @@ describe('assistant-ui streaming renderer', () => {
   it('does not pull the viewport back down after the user scrolls up during streaming', async () => {
     const { container } = render(<StreamingHarness />)
 
-    const viewport = container.querySelector('[data-slot="aui_thread-viewport"]') as HTMLDivElement
+    const content = container.querySelector('[data-slot="aui_thread-content"]') as HTMLDivElement
+    const viewport = content.parentElement as HTMLDivElement
     let scrollHeight = 1_000
 
     Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 200 })
@@ -190,5 +222,15 @@ describe('assistant-ui streaming renderer', () => {
     await wait(0)
 
     expect(viewport.scrollTop).toBe(420)
+  })
+
+  it('renders reasoning text without a leading token space', () => {
+    const { container } = render(<ReasoningHarness />)
+
+    fireEvent.click(screen.getByRole('button', { name: /thinking/i }))
+
+    expect(container.querySelector('[data-slot="aui_reasoning-text"]')?.textContent).toBe(
+      'The user is asking what this file is.'
+    )
   })
 })

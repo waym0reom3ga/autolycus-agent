@@ -94,6 +94,85 @@ const MEDIA_MIME_TYPES = {
 const PREVIEW_HTML_EXTENSIONS = new Set(['.html', '.htm'])
 const PREVIEW_WATCH_DEBOUNCE_MS = 120
 const LOCAL_PREVIEW_HOSTS = new Set(['0.0.0.0', '127.0.0.1', '::1', '[::1]', 'localhost'])
+const TEXT_PREVIEW_MAX_BYTES = 512 * 1024
+const PREVIEW_LANGUAGE_BY_EXT = {
+  '.c': 'c',
+  '.conf': 'ini',
+  '.cpp': 'cpp',
+  '.css': 'css',
+  '.csv': 'csv',
+  '.go': 'go',
+  '.graphql': 'graphql',
+  '.h': 'c',
+  '.hpp': 'cpp',
+  '.html': 'html',
+  '.java': 'java',
+  '.js': 'javascript',
+  '.json': 'json',
+  '.jsx': 'jsx',
+  '.kt': 'kotlin',
+  '.lua': 'lua',
+  '.md': 'markdown',
+  '.mjs': 'javascript',
+  '.py': 'python',
+  '.rb': 'ruby',
+  '.rs': 'rust',
+  '.sh': 'shell',
+  '.sql': 'sql',
+  '.svg': 'xml',
+  '.toml': 'toml',
+  '.ts': 'typescript',
+  '.tsx': 'tsx',
+  '.txt': 'text',
+  '.xml': 'xml',
+  '.yaml': 'yaml',
+  '.yml': 'yaml',
+  '.zsh': 'shell'
+}
+
+function looksBinary(buffer) {
+  if (!buffer.length) return false
+
+  let suspicious = 0
+
+  for (const byte of buffer) {
+    if (byte === 0) return true
+    // Allow common whitespace controls: tab, LF, CR.
+    if (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13) suspicious += 1
+  }
+
+  return suspicious / buffer.length > 0.12
+}
+
+function previewFileMetadata(filePath, mimeType) {
+  let byteSize = 0
+  let binary = false
+
+  try {
+    const stat = fs.statSync(filePath)
+    byteSize = stat.size
+
+    if (!mimeType.startsWith('image/')) {
+      const fd = fs.openSync(filePath, 'r')
+
+      try {
+        const sample = Buffer.alloc(Math.min(byteSize, 4096))
+        const bytesRead = fs.readSync(fd, sample, 0, sample.length, 0)
+        binary = looksBinary(sample.subarray(0, bytesRead))
+      } finally {
+        fs.closeSync(fd)
+      }
+    }
+  } catch {
+    // Metadata is best-effort; the read handlers surface hard errors later.
+  }
+
+  return {
+    binary,
+    byteSize,
+    large: byteSize > TEXT_PREVIEW_MAX_BYTES
+  }
+}
 
 app.setName(APP_NAME)
 app.setAboutPanelOptions({
@@ -106,6 +185,7 @@ let hermesProcess = null
 let connectionPromise = null
 const hermesLog = []
 const previewWatchers = new Map()
+let previewShortcutActive = false
 
 function rememberLog(chunk) {
   const text = String(chunk || '').trim()
@@ -617,13 +697,26 @@ function previewFileTarget(rawTarget, baseDir) {
   }
 
   const ext = path.extname(resolved).toLowerCase()
-  if (!PREVIEW_HTML_EXTENSIONS.has(ext) || !fileExists(resolved)) {
+  if (!fileExists(resolved)) {
     return null
   }
 
+  const mimeType = mimeTypeForPath(resolved)
+  const metadata = previewFileMetadata(resolved, mimeType)
+  const isHtml = PREVIEW_HTML_EXTENSIONS.has(ext)
+  const isImage = mimeType.startsWith('image/')
+  const previewKind = isHtml ? 'html' : isImage ? 'image' : metadata.binary ? 'binary' : 'text'
+
   return {
+    binary: metadata.binary,
+    byteSize: metadata.byteSize,
     kind: 'file',
+    large: metadata.large,
     label: path.basename(resolved),
+    language: PREVIEW_LANGUAGE_BY_EXT[ext] || 'text',
+    mimeType,
+    path: resolved,
+    previewKind,
     source: raw,
     url: pathToFileURL(resolved).toString()
   }
@@ -671,12 +764,11 @@ function normalizePreviewTarget(rawTarget, baseDir) {
   }
 }
 
-function previewFilePathFromUrl(rawUrl) {
+function filePathFromPreviewUrl(rawUrl) {
   const filePath = fileURLToPath(String(rawUrl || ''))
-  const ext = path.extname(filePath).toLowerCase()
 
-  if (!PREVIEW_HTML_EXTENSIONS.has(ext) || !fileExists(filePath)) {
-    throw new Error('Preview file is not a readable HTML file')
+  if (!fileExists(filePath)) {
+    throw new Error('Preview file is not readable')
   }
 
   return filePath
@@ -690,7 +782,7 @@ function sendPreviewFileChanged(payload) {
 }
 
 function watchPreviewFile(rawUrl) {
-  const filePath = previewFilePathFromUrl(rawUrl)
+  const filePath = filePathFromPreviewUrl(rawUrl)
   const watchDir = path.dirname(filePath)
   const targetName = path.basename(filePath)
   const id = crypto.randomBytes(12).toString('base64url')
@@ -768,6 +860,13 @@ function sendBackendExit(payload) {
   webContents.send('hermes:backend-exit', payload)
 }
 
+function sendClosePreviewRequested() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const { webContents } = mainWindow
+  if (!webContents || webContents.isDestroyed()) return
+  webContents.send('hermes:close-preview-requested')
+}
+
 function getAppIconPath() {
   return APP_ICON_PATHS.find(fileExists)
 }
@@ -793,7 +892,21 @@ function buildApplicationMenu() {
 
   template.push({
     label: 'File',
-    submenu: [IS_MAC ? { role: 'close' } : { role: 'quit' }]
+    submenu: [
+      IS_MAC
+        ? {
+            accelerator: 'CommandOrControl+W',
+            click: () => {
+              if (previewShortcutActive) {
+                sendClosePreviewRequested()
+              } else {
+                mainWindow?.close()
+              }
+            },
+            label: 'Close'
+          }
+        : { role: 'quit' }
+    ]
   })
   template.push({
     label: 'Edit',
@@ -853,6 +966,22 @@ function installDevToolsShortcut(window) {
     if (!isInspectShortcut) return
     event.preventDefault()
     toggleDevTools(window)
+  })
+}
+
+function installPreviewShortcut(window) {
+  window.webContents.on('before-input-event', (event, input) => {
+    const key = String(input.key || '').toLowerCase()
+    const isPreviewCloseShortcut =
+      key === 'w' &&
+      (IS_MAC ? input.meta : input.control) &&
+      !input.alt &&
+      !input.shift
+
+    if (!isPreviewCloseShortcut || !previewShortcutActive) return
+
+    event.preventDefault()
+    sendClosePreviewRequested()
   })
 }
 
@@ -1043,6 +1172,7 @@ function createWindow() {
     }
   }
 
+  installPreviewShortcut(mainWindow)
   installDevToolsShortcut(mainWindow)
   installContextMenu(mainWindow)
 
@@ -1054,6 +1184,10 @@ function createWindow() {
 }
 
 ipcMain.handle('hermes:connection', async () => startHermes())
+
+ipcMain.on('hermes:previewShortcutActive', (_event, active) => {
+  previewShortcutActive = Boolean(active)
+})
 
 ipcMain.handle('hermes:requestMicrophoneAccess', async () => {
   if (!IS_MAC || typeof systemPreferences.askForMediaAccess !== 'function') {
@@ -1082,9 +1216,36 @@ ipcMain.handle('hermes:notify', (_event, payload) => {
 })
 
 ipcMain.handle('hermes:readFileDataUrl', async (_event, filePath) => {
-  const resolved = path.resolve(String(filePath || ''))
+  const input = String(filePath || '')
+  const resolved = input.startsWith('file:') ? fileURLToPath(input) : path.resolve(input)
   const data = await fs.promises.readFile(resolved)
   return `data:${mimeTypeForPath(resolved)};base64,${data.toString('base64')}`
+})
+
+ipcMain.handle('hermes:readFileText', async (_event, filePath) => {
+  const input = String(filePath || '')
+  const resolved = input.startsWith('file:') ? fileURLToPath(input) : path.resolve(input)
+  const ext = path.extname(resolved).toLowerCase()
+  const stat = await fs.promises.stat(resolved)
+  const handle = await fs.promises.open(resolved, 'r')
+  const bytesToRead = Math.min(stat.size, TEXT_PREVIEW_MAX_BYTES)
+
+  try {
+    const buffer = Buffer.alloc(bytesToRead)
+    const { bytesRead } = await handle.read(buffer, 0, bytesToRead, 0)
+
+    return {
+      binary: looksBinary(buffer.subarray(0, Math.min(bytesRead, 4096))),
+      byteSize: stat.size,
+      language: PREVIEW_LANGUAGE_BY_EXT[ext] || 'text',
+      mimeType: mimeTypeForPath(resolved),
+      path: resolved,
+      text: buffer.subarray(0, bytesRead).toString('utf8'),
+      truncated: stat.size > TEXT_PREVIEW_MAX_BYTES
+    }
+  } finally {
+    await handle.close()
+  }
 })
 
 ipcMain.handle('hermes:selectPaths', async (_event, options = {}) => {
@@ -1136,6 +1297,151 @@ ipcMain.handle('hermes:watchPreviewFile', (_event, url) => watchPreviewFile(Stri
 ipcMain.handle('hermes:stopPreviewFileWatch', (_event, id) => stopPreviewFileWatch(String(id || '')))
 
 ipcMain.handle('hermes:openExternal', (_event, url) => shell.openExternal(url))
+
+// Always-hidden noise (covers non-git projects too — gitignore would catch
+// these anyway when present, but we want the same hygiene without one).
+const FS_READDIR_HIDDEN = new Set(['.git', '.hg', '.svn', 'node_modules', '__pycache__', '.next', '.venv', 'venv'])
+
+const ignore = require('ignore')
+
+// Cache one Ignore instance per .gitignore path keyed by mtime so edits
+// invalidate automatically without us having to wire a watcher.
+const gitignoreCache = new Map() // gitignorePath → { mtime: number, ig: Ignore, base: string }
+
+function findGitRoot(start) {
+  let dir = start
+
+  for (let i = 0; i < 50; i += 1) {
+    try {
+      if (fs.existsSync(path.join(dir, '.git'))) {return dir}
+    } catch {
+      return null
+    }
+
+    const parent = path.dirname(dir)
+
+    if (parent === dir) {return null}
+
+    dir = parent
+  }
+
+  return null
+}
+
+function getGitignoreFile(giPath) {
+  let stat = null
+
+  try {
+    stat = fs.statSync(giPath)
+  } catch {
+    return null
+  }
+
+  if (!stat.isFile()) {return null}
+
+  const cached = gitignoreCache.get(giPath)
+
+  if (cached && cached.mtime === stat.mtimeMs) {return cached}
+
+  try {
+    const entry = {
+      base: path.dirname(giPath),
+      ig: ignore().add(fs.readFileSync(giPath, 'utf8')),
+      mtime: stat.mtimeMs
+    }
+
+    gitignoreCache.set(giPath, entry)
+
+    return entry
+  } catch {
+    return null
+  }
+}
+
+function gitignoreRulesFor(root, dir) {
+  const rules = []
+  const rel = path.relative(root, dir)
+  const dirs = [root]
+
+  if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+    const parts = rel.split(path.sep).filter(Boolean)
+    let current = root
+
+    for (const part of parts) {
+      current = path.join(current, part)
+      dirs.push(current)
+    }
+  }
+
+  for (const ruleDir of dirs) {
+    const rule = getGitignoreFile(path.join(ruleDir, '.gitignore'))
+
+    if (rule) {rules.push(rule)}
+  }
+
+  return rules
+}
+
+function ignoredByRules(rules, abs, isDirectory) {
+  for (const rule of rules) {
+    const rel = path.relative(rule.base, abs)
+
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {continue}
+
+    const probe = `${rel.split(path.sep).join('/')}${isDirectory ? '/' : ''}`
+
+    if (rule.ig.ignores(probe)) {return true}
+  }
+
+  return false
+}
+
+ipcMain.handle('hermes:fs:readDir', async (_event, dirPath) => {
+  const resolved = path.resolve(String(dirPath || ''))
+
+  if (!resolved) {
+    return { entries: [], error: 'invalid-path' }
+  }
+
+  try {
+    const dirents = await fs.promises.readdir(resolved, { withFileTypes: true })
+    const root = findGitRoot(resolved)
+    const gitignoreRules = root ? gitignoreRulesFor(root, resolved) : []
+
+    const entries = dirents
+      .filter(d => {
+        if (FS_READDIR_HIDDEN.has(d.name)) {return false}
+
+        if (gitignoreRules.length > 0) {
+          const abs = path.join(resolved, d.name)
+
+          if (ignoredByRules(gitignoreRules, abs, d.isDirectory())) {return false}
+        }
+
+        return true
+      })
+      .map(d => ({ name: d.name, path: path.join(resolved, d.name), isDirectory: d.isDirectory() }))
+      .sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name))
+
+    return { entries }
+  } catch (error) {
+    return { entries: [], error: error?.code || 'read-error' }
+  }
+})
+
+ipcMain.handle('hermes:fs:gitRoot', async (_event, startPath) => {
+  const input = String(startPath || '')
+  const resolved = input.startsWith('file:') ? fileURLToPath(input) : path.resolve(input)
+
+  try {
+    const stat = await fs.promises.stat(resolved)
+    const start = stat.isDirectory() ? resolved : path.dirname(resolved)
+
+    return findGitRoot(start)
+  } catch {
+    return findGitRoot(resolved)
+  }
+})
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(buildApplicationMenu())

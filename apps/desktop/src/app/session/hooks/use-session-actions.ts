@@ -28,8 +28,8 @@ import {
   setIntroSeed,
   setMessages,
   setSelectedStoredSessionId,
-  setSessionStartedAt,
   setSessions,
+  setSessionStartedAt,
   setTurnStartedAt
 } from '@/store/session'
 import type { SessionCreateResponse, SessionInfo, SessionResumeResponse, UsageStats } from '@/types/hermes'

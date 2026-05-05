@@ -102,13 +102,13 @@ export function ZoomableImage({ className, containerClassName, src, alt, slot, .
   const lightbox = src ? (
     <Dialog onOpenChange={setLightboxOpen} open={lightboxOpen}>
       <DialogContent
-        className="grid max-h-[calc(100vh-2rem)] w-auto max-w-[calc(100vw-2rem)] place-items-center overflow-visible border-0 bg-transparent p-0 shadow-none"
+        className="block w-auto max-h-[calc(100vh-12rem)] max-w-[calc(100vw-12rem)] overflow-visible border-0 bg-transparent p-0 shadow-none"
         showCloseButton={false}
       >
-        <div className="group/lightbox relative max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-auto">
+        <div className="group/lightbox relative inline-block">
           <img
             alt={alt ?? ''}
-            className="block max-h-[calc(100vh-2rem)] max-w-full cursor-zoom-out select-auto rounded-lg object-contain shadow-2xl"
+            className="block max-h-[calc(100vh-12rem)] max-w-[calc(100vw-12rem)] cursor-zoom-out select-auto rounded-lg object-contain shadow-2xl"
             onClick={() => setLightboxOpen(false)}
             src={src}
           />

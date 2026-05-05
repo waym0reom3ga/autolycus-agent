@@ -2,12 +2,13 @@ import { useStore } from '@nanostores/react'
 import { useEffect, useRef, useState } from 'react'
 
 import { MonitorPlay } from '@/lib/icons'
+import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
 import { previewName } from '@/lib/preview-targets'
 import { notifyError } from '@/store/notifications'
-import { $previewTarget, setPreviewTarget } from '@/store/preview'
+import { $previewTarget, dismissPreviewTarget, type PreviewRecordSource, setCurrentSessionPreviewTarget } from '@/store/preview'
 import { $currentCwd } from '@/store/session'
 
-export function PreviewAttachment({ target }: { target: string }) {
+export function PreviewAttachment({ source = 'manual', target }: { source?: PreviewRecordSource; target: string }) {
   const cwd = useStore($currentCwd)
   const activePreview = useStore($previewTarget)
   const [opening, setOpening] = useState(false)
@@ -37,37 +38,13 @@ export function PreviewAttachment({ target }: { target: string }) {
     setOpening(false)
   }, [cwd, target])
 
-  function localFallbackPreview(value: string) {
-    if (/^https?:\/\//i.test(value)) {
-      return { kind: 'url' as const, label: previewName(value), source: value, url: value }
-    }
-
-    if (/^file:\/\//i.test(value)) {
-      return { kind: 'file' as const, label: previewName(value), source: value, url: value }
-    }
-
-    if (/^(?:\/|\.{1,2}\/|~\/).+\.html?$/i.test(value)) {
-      const path = value.startsWith('file://') ? value : `file://${encodeURI(value)}`
-
-      return { kind: 'file' as const, label: previewName(value), source: value, url: path }
-    }
-
-    return null
-  }
-
-  function isMissingPreviewIpc(error: unknown): boolean {
-    const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
-
-    return message.includes("No handler registered for 'hermes:normalizePreviewTarget'")
-  }
-
   async function togglePreview() {
     if (opening) {
       return
     }
 
     if (isActive) {
-      setPreviewTarget(null)
+      dismissPreviewTarget()
 
       return
     }
@@ -79,15 +56,7 @@ export function PreviewAttachment({ target }: { target: string }) {
     setOpening(true)
 
     try {
-      const preview = await window.hermesDesktop
-        ?.normalizePreviewTarget(requestTarget, requestCwd || undefined)
-        .catch(error => {
-          if (isMissingPreviewIpc(error)) {
-            return localFallbackPreview(requestTarget)
-          }
-
-          throw error
-        })
+      const preview = await normalizeOrLocalPreviewTarget(requestTarget, requestCwd || undefined)
 
       if (
         !mountedRef.current ||
@@ -108,7 +77,7 @@ export function PreviewAttachment({ target }: { target: string }) {
         return
       }
 
-      setPreviewTarget(preview)
+      setCurrentSessionPreviewTarget(preview, source, requestTarget)
     } catch (error) {
       if (
         !mountedRef.current ||
@@ -128,21 +97,21 @@ export function PreviewAttachment({ target }: { target: string }) {
   }
 
   return (
-    <div className="inline-flex max-w-[min(100%,32rem)] items-center gap-3 rounded-xl border border-border/70 bg-card/70 p-3 text-sm">
-      <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-muted-foreground">
-        <MonitorPlay className="size-4" />
-      </div>
-      <div className="min-w-0 max-w-64">
-        <div className="truncate font-medium text-foreground">{name}</div>
-        <div className="truncate font-mono text-xs text-muted-foreground">{target}</div>
+    <div className="flex w-full max-w-160 flex-wrap items-center gap-2.5 rounded-lg border border-border/55 bg-card/55 px-2.5 py-1.5 text-sm">
+      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted/55 text-muted-foreground/85">
+        <MonitorPlay className="size-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[0.78rem] font-medium leading-[1.15rem] text-foreground/90">{name}</div>
+        <div className="truncate font-mono text-[0.66rem] leading-4 text-muted-foreground/70">{target}</div>
       </div>
       <button
-        className="shrink-0 rounded-lg border border-border/70 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+        className="ml-auto shrink-0 rounded-md border border-border/55 bg-background/40 px-2 py-1 text-[0.7rem] font-medium text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground disabled:opacity-50 max-[28rem]:ml-9 max-[28rem]:w-[calc(100%-2.25rem)]"
         disabled={opening}
         onClick={() => void togglePreview()}
         type="button"
       >
-        {opening ? 'Opening...' : isActive ? 'Hide Preview' : 'Toggle Preview'}
+        {opening ? 'Opening…' : isActive ? 'Hide' : 'Open preview'}
       </button>
     </div>
   )

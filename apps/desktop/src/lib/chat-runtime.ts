@@ -106,10 +106,20 @@ export function coerceGatewayText(value: unknown): string {
   return String(value)
 }
 
+/**
+ * Normalize a reasoning/thinking text payload from the gateway.
+ *
+ * Only the leading status prefix (e.g. "Hermes is thinking...") and the
+ * obvious placeholder echoes are stripped. We deliberately do NOT trim
+ * the delta — reasoning streams as small chunks (often individual tokens
+ * with leading or trailing spaces), and trimming each chunk before
+ * concatenation collapses adjacent words together. Whitespace between
+ * tokens belongs to the data, not chrome.
+ */
 export function coerceThinkingText(value: unknown): string {
-  const text = coerceGatewayText(value).replace(THINKING_STATUS_PREFIX_RE, '').trim()
+  const raw = coerceGatewayText(value).replace(THINKING_STATUS_PREFIX_RE, '')
 
-  return EMPTY_THINKING_PLACEHOLDER_RE.test(text) ? '' : text
+  return EMPTY_THINKING_PLACEHOLDER_RE.test(raw) ? '' : raw
 }
 
 export function isImageGenerationTool(name?: string): boolean {
@@ -281,7 +291,7 @@ export function toRuntimeMessage(message: ChatMessage): ThreadMessage {
       content: message.parts.filter((part): part is Extract<ChatMessagePart, { type: 'text' }> => part.type === 'text'),
       attachments: [],
       createdAt,
-      metadata: { custom: {} }
+      metadata: { custom: { attachmentRefs: message.attachmentRefs ?? [] } }
     } as ThreadMessage
   }
 

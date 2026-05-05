@@ -1,13 +1,25 @@
 import { useStore } from '@nanostores/react'
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
+import type {
+  ComponentProps,
+  CSSProperties,
+  MutableRefObject,
+  ReactNode,
+  PointerEvent as ReactPointerEvent,
+  RefObject
+} from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import ShikiHighlighter from 'react-shiki'
+import { Streamdown } from 'streamdown'
 
 import type { SetTitlebarToolGroup, TitlebarTool } from '@/app/shell/titlebar-controls'
-import { Bug, Check, Copy, PanelBottom, RefreshCw, Send, Trash2, X } from '@/lib/icons'
+import { CopyButton } from '@/components/ui/copy-button'
+import { Bug, PanelBottom, RefreshCw, Send, Trash2, X } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { $composerDraft, setComposerDraft } from '@/store/composer'
 import { notify, notifyError } from '@/store/notifications'
-import { $previewServerRestart, failPreviewServerRestart, type PreviewTarget, setPreviewTarget } from '@/store/preview'
+import { $previewServerRestart, failPreviewServerRestart, type PreviewTarget } from '@/store/preview'
+
+import { type ConsoleEntry, createPreviewConsoleState, type PreviewConsoleState } from './preview-console-state'
 
 type PreviewWebview = HTMLElement & {
   closeDevTools?: () => void
@@ -18,19 +30,13 @@ type PreviewWebview = HTMLElement & {
   reloadIgnoringCache?: () => void
 }
 
-interface ConsoleEntry {
-  id: number
-  level: number
-  line?: number
-  message: string
-  source?: string
-}
-
 interface PreviewPaneProps {
+  onClose: () => void
   onRestartServer?: (url: string, context?: string) => Promise<string>
   reloadRequest?: number
   setTitlebarToolGroup?: SetTitlebarToolGroup
   target: PreviewTarget
+  titlebarToolGroupId?: string
 }
 
 interface PreviewLoadErrorState {
@@ -54,10 +60,10 @@ const consoleLevelClass: Record<number, string> = {
 }
 
 const CONSOLE_BOTTOM_THRESHOLD = 24
-const CONSOLE_DEFAULT_HEIGHT = 240
 const CONSOLE_HEADER_HEIGHT = 32
 const FILE_RELOAD_DEBOUNCE_MS = 200
 const SERVER_RESTART_TIMEOUT_MS = 45_000
+const TEXT_PREVIEW_MAX_BYTES = 512 * 1024
 
 function compactUrl(value: string): string {
   try {
@@ -78,6 +84,10 @@ function formatLogLine(log: ConsoleEntry): string {
   const tail = log.source ? ` (${compactUrl(log.source)}${log.line ? `:${log.line}` : ''})` : ''
 
   return `${head} ${log.message}${tail}`.trim()
+}
+
+function formatConsoleEntries(entries: ConsoleEntry[]): string {
+  return entries.map(formatLogLine).join('\n')
 }
 
 function isNearConsoleBottom(element: HTMLDivElement | null): boolean {
@@ -113,14 +123,14 @@ function isModuleMimeError(message: string): boolean {
 }
 
 interface ConsoleRowProps {
+  copyText: string
   log: ConsoleEntry
-  onCopy: () => void | Promise<void>
   onSend: () => void
   onToggleSelect: () => void
   selected: boolean
 }
 
-function ConsoleRow({ log, onCopy, onSend, onToggleSelect, selected }: ConsoleRowProps) {
+function ConsoleRow({ copyText, log, onSend, onToggleSelect, selected }: ConsoleRowProps) {
   return (
     <div
       className={cn(
@@ -151,14 +161,15 @@ function ConsoleRow({ log, onCopy, onSend, onToggleSelect, selected }: ConsoleRo
         )}
       </div>
       <span className="opacity-0 transition-opacity group-hover/row:opacity-100">
-        <button
+        <CopyButton
+          appearance="inline"
           className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          onClick={() => void onCopy()}
-          title="Copy this entry"
-          type="button"
-        >
-          <Copy className="size-3" />
-        </button>
+          errorMessage="Could not copy console output"
+          iconClassName="size-3"
+          label="Copy this entry"
+          showLabel={false}
+          text={copyText}
+        />
         <button
           className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           onClick={onSend}
@@ -168,6 +179,88 @@ function ConsoleRow({ log, onCopy, onSend, onToggleSelect, selected }: ConsoleRo
           <Send className="size-3" />
         </button>
       </span>
+    </div>
+  )
+}
+
+function PreviewConsoleTitlebarIcon({ consoleState }: { consoleState: PreviewConsoleState }) {
+  const logCount = useStore(consoleState.$logCount)
+
+  return (
+    <>
+      <PanelBottom />
+      {logCount > 0 && <span className="sr-only">{logCount} console messages</span>}
+    </>
+  )
+}
+
+function PreviewCubeIcon() {
+  return (
+    <svg aria-hidden="true" className="size-16 text-muted-foreground/35" viewBox="0 0 64 64">
+      <path
+        d="M32 5 56 18.5v27L32 59 8 45.5v-27L32 5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.25"
+      />
+      <path
+        d="M8 18.5 32 32l24-13.5M32 32v27"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.25"
+      />
+      <path d="M20 11.75 44 25.25" fill="none" opacity="0.45" stroke="currentColor" strokeWidth="0.9" />
+    </svg>
+  )
+}
+
+interface PreviewEmptyStateProps {
+  body?: ReactNode
+  consoleHeight?: number
+  primaryAction?: { disabled?: boolean; label: string; onClick: () => void }
+  secondaryAction?: { disabled?: boolean; label: string; onClick: () => void }
+  title: string
+}
+
+function PreviewEmptyState({ body, consoleHeight = 0, primaryAction, secondaryAction, title }: PreviewEmptyStateProps) {
+  return (
+    <div
+      className="absolute inset-x-0 top-0 z-10 grid place-items-center bg-background px-6 text-center bottom-(--preview-error-bottom)"
+      style={{ '--preview-error-bottom': `${consoleHeight}px` } as CSSProperties}
+    >
+      <div className="grid max-w-72 justify-items-center gap-4">
+        <PreviewCubeIcon />
+        <div className="grid gap-1.5">
+          <div className="text-sm font-medium text-foreground">{title}</div>
+          {body}
+        </div>
+        {(primaryAction || secondaryAction) && (
+          <div className="grid justify-items-center gap-2">
+            {primaryAction && (
+              <button
+                className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-60"
+                disabled={primaryAction.disabled}
+                onClick={primaryAction.onClick}
+                type="button"
+              >
+                {primaryAction.label}
+              </button>
+            )}
+            {secondaryAction && (
+              <button
+                className="text-[0.6875rem] font-medium text-muted-foreground underline decoration-muted-foreground/25 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/55 disabled:cursor-default disabled:text-muted-foreground/55 disabled:no-underline"
+                disabled={secondaryAction.disabled}
+                onClick={secondaryAction.onClick}
+                type="button"
+              >
+                {secondaryAction.label}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -186,30 +279,9 @@ function PreviewLoadError({
   restarting?: boolean
 }) {
   return (
-    <div
-      className="absolute inset-x-0 top-0 z-10 grid place-items-center bg-background px-6 text-center bottom-(--preview-error-bottom)"
-      style={{ '--preview-error-bottom': `${consoleHeight}px` } as CSSProperties}
-    >
-      <div className="grid max-w-72 justify-items-center gap-4">
-        <svg aria-hidden="true" className="size-16 text-muted-foreground/35" viewBox="0 0 64 64">
-          <path
-            d="M32 5 56 18.5v27L32 59 8 45.5v-27L32 5Z"
-            fill="none"
-            stroke="currentColor"
-            strokeLinejoin="round"
-            strokeWidth="1.25"
-          />
-          <path
-            d="M8 18.5 32 32l24-13.5M32 32v27"
-            fill="none"
-            stroke="currentColor"
-            strokeLinejoin="round"
-            strokeWidth="1.25"
-          />
-          <path d="M20 11.75 44 25.25" fill="none" opacity="0.45" stroke="currentColor" strokeWidth="0.9" />
-        </svg>
-        <div className="grid gap-1.5">
-          <div className="text-sm font-medium text-foreground">{loadErrorTitle(error)}</div>
+    <PreviewEmptyState
+      body={
+        <>
           <div className="text-xs leading-5 text-muted-foreground">
             <a
               className="pointer-events-auto cursor-pointer font-mono text-muted-foreground/90 underline decoration-muted-foreground/30 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/70"
@@ -224,68 +296,565 @@ function PreviewLoadError({
             {error.code ? ` (${error.code})` : ''}
           </div>
           <div className="text-[0.6875rem] leading-5 text-muted-foreground/70">{error.description}</div>
-        </div>
-        <div className="grid justify-items-center gap-2">
-          <button
-            className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent"
-            onClick={onRetry}
-            type="button"
-          >
-            Try again
-          </button>
-          {onRestartServer && (
-            <button
-              className="text-[0.6875rem] font-medium text-muted-foreground underline decoration-muted-foreground/25 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/55 disabled:cursor-default disabled:text-muted-foreground/55 disabled:no-underline"
-              disabled={restarting}
-              onClick={onRestartServer}
-              type="button"
-            >
-              {restarting ? 'Hermes is restarting...' : 'Ask Hermes to restart the server'}
-            </button>
+        </>
+      }
+      consoleHeight={consoleHeight}
+      primaryAction={{ label: 'Try again', onClick: onRetry }}
+      secondaryAction={
+        onRestartServer
+          ? {
+              disabled: restarting,
+              label: restarting ? 'Hermes is restarting...' : 'Ask Hermes to restart the server',
+              onClick: onRestartServer
+            }
+          : undefined
+      }
+      title={loadErrorTitle(error)}
+    />
+  )
+}
+
+function PreviewConsolePanel({
+  consoleBodyRef,
+  consoleShouldStickRef,
+  consoleState,
+  startConsoleResize
+}: {
+  consoleBodyRef: RefObject<HTMLDivElement | null>
+  consoleShouldStickRef: MutableRefObject<boolean>
+  consoleState: PreviewConsoleState
+  startConsoleResize: (event: ReactPointerEvent<HTMLDivElement>) => void
+}) {
+  const consoleHeight = useStore(consoleState.$height)
+  const logs = useStore(consoleState.$logs)
+  const selectedLogIds = useStore(consoleState.$selectedLogIds)
+  const visibleSelection = useMemo(() => logs.filter(log => selectedLogIds.has(log.id)), [logs, selectedLogIds])
+  const sendableLogs = visibleSelection.length > 0 ? visibleSelection : logs
+
+  useEffect(() => {
+    if (!consoleShouldStickRef.current) {
+      return
+    }
+
+    const consoleBody = consoleBodyRef.current
+
+    consoleBody?.scrollTo({ top: consoleBody.scrollHeight })
+  }, [consoleBodyRef, consoleHeight, consoleShouldStickRef, logs])
+
+  function sendLogsToComposer(entries: ConsoleEntry[]) {
+    if (!entries.length) {
+      return
+    }
+
+    const block = ['Preview console:', '```', ...entries.map(formatLogLine), '```'].join('\n')
+    const draft = $composerDraft.get()
+    const next = draft && !draft.endsWith('\n') ? `${draft}\n\n${block}` : `${draft}${block}`
+
+    setComposerDraft(next)
+    consoleState.clearSelection()
+    notify({
+      kind: 'success',
+      title: 'Sent to chat',
+      message: `${entries.length} log entr${entries.length === 1 ? 'y' : 'ies'} added to composer`
+    })
+  }
+
+  return (
+    <div
+      className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 flex h-(--preview-console-height) min-h-8 flex-col overflow-hidden border-t border-border/60 bg-background"
+      style={{ '--preview-console-height': `${consoleHeight}px` } as CSSProperties}
+    >
+      <div
+        aria-label="Resize preview console"
+        className="group absolute inset-x-0 -top-1 z-1 h-2 cursor-row-resize"
+        onDoubleClick={() => consoleState.setHeight(CONSOLE_HEADER_HEIGHT)}
+        onPointerDown={startConsoleResize}
+        role="separator"
+      >
+        <span className="absolute left-1/2 top-1/2 h-0.75 w-23 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/80 opacity-0 transition-opacity duration-100 group-hover:opacity-[0.5]" />
+      </div>
+      <div className="flex h-8 shrink-0 items-center justify-between border-b border-border/50 px-2">
+        <div className="flex items-center gap-2 text-[0.6875rem] font-medium text-muted-foreground">
+          <PanelBottom className="size-3.5" />
+          Preview Console
+          {selectedLogIds.size > 0 && (
+            <span className="rounded-full bg-muted px-1.5 py-px text-[0.5625rem] text-muted-foreground">
+              {selectedLogIds.size} selected
+            </span>
           )}
         </div>
+        <div className="flex items-center gap-1">
+          <button
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.625rem] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+            disabled={sendableLogs.length === 0}
+            onClick={() => sendLogsToComposer(sendableLogs)}
+            title={
+              visibleSelection.length > 0
+                ? `Send ${visibleSelection.length} selected to chat`
+                : 'Send all log entries to chat'
+            }
+            type="button"
+          >
+            <Send className="size-3" />
+            Send to chat
+          </button>
+          <CopyButton
+            appearance="inline"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.625rem] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+            disabled={sendableLogs.length === 0}
+            errorMessage="Could not copy console output"
+            iconClassName="size-3"
+            label={visibleSelection.length > 0 ? 'Copy selected to clipboard' : 'Copy all to clipboard'}
+            text={() => formatConsoleEntries(sendableLogs)}
+          >
+            Copy
+          </CopyButton>
+          <button
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.625rem] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+            disabled={logs.length === 0}
+            onClick={consoleState.clear}
+            title="Clear console"
+            type="button"
+          >
+            <Trash2 className="size-3" />
+            Clear
+          </button>
+        </div>
+      </div>
+      <div
+        className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5 font-mono text-[0.6875rem] leading-relaxed"
+        ref={consoleBodyRef}
+      >
+        {logs.length > 0 ? (
+          logs.map(log => {
+            const selected = selectedLogIds.has(log.id)
+
+            return (
+              <ConsoleRow
+                copyText={formatLogLine(log)}
+                key={log.id}
+                log={log}
+                onSend={() => sendLogsToComposer([log])}
+                onToggleSelect={() => consoleState.toggleSelection(log.id)}
+                selected={selected}
+              />
+            )
+          })
+        ) : (
+          <div className="py-2 text-muted-foreground/70">No console messages yet.</div>
+        )}
       </div>
     </div>
   )
 }
 
-async function writeClipboardText(text: string) {
-  if (!text) {
-    return
+interface LocalPreviewState {
+  binary?: boolean
+  byteSize?: number
+  dataUrl?: string
+  error?: string
+  language?: string
+  loading: boolean
+  text?: string
+  truncated?: boolean
+}
+
+function filePathForTarget(target: PreviewTarget) {
+  if (target.path) {
+    return target.path
   }
 
-  if (window.hermesDesktop?.writeClipboard) {
-    await window.hermesDesktop.writeClipboard(text)
+  try {
+    const url = new URL(target.url)
 
-    return
-  }
-
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text)
+    return url.protocol === 'file:' ? decodeURIComponent(url.pathname) : target.url
+  } catch {
+    return target.url
   }
 }
 
-export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToolGroup, target }: PreviewPaneProps) {
+function formatBytes(bytes: number | undefined) {
+  if (!bytes) {
+    return 'unknown size'
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB']
+  let value = bytes
+  let unit = 0
+
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+
+  return `${value >= 10 || unit === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unit]}`
+}
+
+function looksBinaryBytes(bytes: Uint8Array) {
+  if (!bytes.length) {
+    return false
+  }
+
+  let suspicious = 0
+
+  for (const byte of bytes.slice(0, 4096)) {
+    if (byte === 0) {
+      return true
+    }
+
+    if (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13) {
+      suspicious += 1
+    }
+  }
+
+  return suspicious / Math.min(bytes.length, 4096) > 0.12
+}
+
+async function readTextPreview(filePath: string) {
+  if (window.hermesDesktop.readFileText) {
+    try {
+      return await window.hermesDesktop.readFileText(filePath)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+
+      if (!message.includes("No handler registered for 'hermes:readFileText'")) {
+        throw error
+      }
+    }
+  }
+
+  // Back-compat for a running Electron process whose preload hasn't been
+  // restarted since readFileText was added. readFileDataUrl already existed.
+  const dataUrl = await window.hermesDesktop.readFileDataUrl(filePath)
+  const [, metadata = '', data = ''] = dataUrl.match(/^data:([^,]*),(.*)$/) || []
+  const base64 = metadata.includes(';base64')
+  const mimeType = metadata.replace(/;base64$/, '') || undefined
+  const raw = base64 ? atob(data) : decodeURIComponent(data)
+  const bytes = Uint8Array.from(raw, ch => ch.charCodeAt(0))
+
+  return {
+    binary: looksBinaryBytes(bytes),
+    byteSize: bytes.byteLength,
+    mimeType,
+    path: filePath,
+    text: new TextDecoder().decode(bytes)
+  }
+}
+
+function MarkdownPreview({ text }: { text: string }) {
+  const components = useMemo(
+    () => ({
+      h1: ({ className, ...props }: ComponentProps<'h1'>) => (
+        <h1 className={cn('mb-3 mt-6 text-3xl font-bold leading-tight tracking-tight first:mt-0', className)} {...props} />
+      ),
+      h2: ({ className, ...props }: ComponentProps<'h2'>) => (
+        <h2 className={cn('mb-2.5 mt-5 text-2xl font-semibold leading-snug tracking-tight first:mt-0', className)} {...props} />
+      ),
+      h3: ({ className, ...props }: ComponentProps<'h3'>) => (
+        <h3 className={cn('mb-2 mt-4 text-xl font-semibold leading-snug first:mt-0', className)} {...props} />
+      ),
+      h4: ({ className, ...props }: ComponentProps<'h4'>) => (
+        <h4 className={cn('mb-2 mt-3 text-base font-semibold leading-snug first:mt-0', className)} {...props} />
+      ),
+      p: ({ className, ...props }: ComponentProps<'p'>) => (
+        <p className={cn('mb-4 leading-relaxed text-foreground last:mb-0', className)} {...props} />
+      ),
+      ul: ({ className, ...props }: ComponentProps<'ul'>) => (
+        <ul className={cn('mb-4 list-disc pl-6 marker:text-muted-foreground/70 last:mb-0', className)} {...props} />
+      ),
+      ol: ({ className, ...props }: ComponentProps<'ol'>) => (
+        <ol className={cn('mb-4 list-decimal pl-6 marker:text-muted-foreground/70 last:mb-0', className)} {...props} />
+      ),
+      li: ({ className, ...props }: ComponentProps<'li'>) => <li className={cn('mt-1 leading-relaxed', className)} {...props} />,
+      blockquote: ({ className, ...props }: ComponentProps<'blockquote'>) => (
+        <blockquote
+          className={cn('mb-4 border-l-2 border-border pl-3 text-muted-foreground italic last:mb-0', className)}
+          {...props}
+        />
+      ),
+      code: ({ className, children, ...props }: ComponentProps<'code'>) => {
+        const language = /language-([^\s]+)/.exec(className || '')?.[1]
+
+        if (!language) {
+          return (
+            <code
+              className={cn(
+                'rounded bg-muted px-1 py-0.5 font-mono text-[0.86em] text-pink-700 dark:text-pink-300',
+                className
+              )}
+              {...props}
+            >
+              {children}
+            </code>
+          )
+        }
+
+        return (
+          <ShikiHighlighter
+            addDefaultStyles={false}
+            as="div"
+            defaultColor="light-dark()"
+            delay={80}
+            language={language}
+            showLanguage={false}
+            theme={{
+              dark: 'github-dark-default',
+              light: 'github-light-default'
+            }}
+          >
+            {String(children).replace(/\n$/, '')}
+          </ShikiHighlighter>
+        )
+      },
+      pre: ({ className, ...props }: ComponentProps<'pre'>) => (
+        <pre
+          className={cn(
+            'mb-4 overflow-hidden rounded-lg border border-border bg-card font-mono text-xs leading-relaxed last:mb-0 [&_pre]:m-0 [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-3 [&_pre]:font-mono',
+            className
+          )}
+          {...props}
+        />
+      )
+    }),
+    []
+  )
+
+  return (
+    <div className="preview-markdown mx-auto max-w-3xl px-4 py-3 text-sm text-foreground">
+      <Streamdown
+        components={components}
+        controls={false}
+        mode="static"
+        parseIncompleteMarkdown={false}
+      >
+        {text}
+      </Streamdown>
+    </div>
+  )
+}
+
+function LocalFilePreview({ reloadKey, target }: { reloadKey: number; target: PreviewTarget }) {
+  const [state, setState] = useState<LocalPreviewState>({ loading: true })
+  const [forcePreview, setForcePreview] = useState(false)
+  const [renderMarkdownAsSource, setRenderMarkdownAsSource] = useState(false)
+  const filePath = filePathForTarget(target)
+  const isImage = target.previewKind === 'image'
+
+  // HTML files are rendered as source code, not in a webview — so they take
+  // the same path as plain text files. `previewKind === 'binary'` arrives
+  // when the file is forcibly previewed past the binary refusal screen.
+  const isText =
+    target.previewKind === 'text' || target.previewKind === 'binary' || target.previewKind === 'html'
+
+  const blockedByTarget = !isImage && !forcePreview && (target.binary || target.large)
+
+  useEffect(() => {
+    let active = true
+
+    async function load() {
+      if (blockedByTarget) {
+        setState({ loading: false })
+
+        return
+      }
+
+      if (!isImage && !isText) {
+        setState({ loading: false })
+
+        return
+      }
+
+      setState({ loading: true })
+
+      try {
+        if (isImage) {
+          const dataUrl = await window.hermesDesktop.readFileDataUrl(filePath)
+
+          if (active) {
+            setState({ dataUrl, loading: false })
+          }
+
+          return
+        }
+
+        const result = await readTextPreview(filePath)
+
+        if (active) {
+          const shouldBlock = !forcePreview && (result.binary || (result.byteSize ?? 0) > TEXT_PREVIEW_MAX_BYTES)
+
+          setState({
+            binary: result.binary,
+            byteSize: result.byteSize,
+            language: result.language || target.language || 'text',
+            loading: false,
+            text: shouldBlock ? undefined : result.text,
+            truncated: result.truncated
+          })
+        }
+      } catch (error) {
+        if (active) {
+          setState({
+            error: error instanceof Error ? error.message : String(error),
+            loading: false
+          })
+        }
+      }
+    }
+
+    void load()
+
+    return () => {
+      active = false
+    }
+  }, [blockedByTarget, filePath, forcePreview, isImage, isText, reloadKey, target.language])
+
+  if (state.loading) {
+    return <div className="grid h-full place-items-center text-xs text-muted-foreground">Loading preview…</div>
+  }
+
+  if (state.error) {
+    return (
+      <PreviewEmptyState
+        body={<div className="text-xs leading-5 text-muted-foreground">{state.error}</div>}
+        title="Preview unavailable"
+      />
+    )
+  }
+
+  if (
+    !isImage &&
+    !forcePreview &&
+    (target.binary || target.large || state.binary || (state.byteSize ?? 0) > TEXT_PREVIEW_MAX_BYTES)
+  ) {
+    const binary = target.binary || state.binary
+    const size = target.byteSize || state.byteSize
+
+    return (
+      <PreviewEmptyState
+        body={
+          <div className="text-xs leading-5 text-muted-foreground">
+            {binary
+              ? `Previewing ${target.label} may show unreadable text.`
+              : `${target.label} is ${formatBytes(size)}. Hermes will show the first 512 KB.`}
+          </div>
+        }
+        primaryAction={{ label: 'Preview anyway', onClick: () => setForcePreview(true) }}
+        title={binary ? 'This looks like a binary file' : 'This file is large'}
+      />
+    )
+  }
+
+  if (isImage && state.dataUrl) {
+    return (
+      <div className="flex h-full w-full items-center justify-center overflow-auto bg-[color-mix(in_srgb,var(--dt-card)_42%,transparent)] p-4">
+        <img
+          alt={target.label}
+          className="max-h-full max-w-full rounded-lg object-contain shadow-sm"
+          draggable={false}
+          src={state.dataUrl}
+        />
+      </div>
+    )
+  }
+
+  if (isText && state.text !== undefined) {
+    const isMarkdown = (state.language || target.language) === 'markdown'
+
+    const truncatedBanner = state.truncated ? (
+      <div className="border-b border-border/60 bg-muted/35 px-3 py-1.5 text-[0.68rem] text-muted-foreground">
+        Showing first 512 KB.
+      </div>
+    ) : null
+
+    if (isMarkdown && !renderMarkdownAsSource) {
+      return (
+        <div className="h-full overflow-auto bg-background">
+          {truncatedBanner}
+          <div className="sticky top-0 z-10 flex justify-end border-b border-border/40 bg-background/90 px-3 py-1 backdrop-blur">
+            <button
+              className="text-[0.625rem] font-bold text-muted-foreground underline decoration-muted-foreground/25 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/55"
+              onClick={() => setRenderMarkdownAsSource(true)}
+              type="button"
+            >
+              SOURCE
+            </button>
+          </div>
+          <MarkdownPreview text={state.text} />
+        </div>
+      )
+    }
+
+    return (
+      <div className="h-full overflow-auto bg-background">
+        {truncatedBanner}
+        {isMarkdown && (
+          <div className="sticky top-0 z-10 flex justify-end border-b border-border/40 bg-background/90 px-3 py-1 backdrop-blur">
+            <button
+              className="text-[0.625rem] font-bold text-muted-foreground underline decoration-muted-foreground/25 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/55"
+              onClick={() => setRenderMarkdownAsSource(false)}
+              type="button"
+            >
+              PREVIEW
+            </button>
+          </div>
+        )}
+        <div className="min-w-max font-mono text-xs leading-relaxed [&_pre]:m-0 [&_pre]:p-3">
+          <ShikiHighlighter
+            addDefaultStyles={false}
+            as="div"
+            defaultColor="light-dark()"
+            delay={80}
+            language={state.language || 'text'}
+            showLanguage={false}
+            theme={{
+              dark: 'github-dark-default',
+              light: 'github-light-default'
+            }}
+          >
+            {state.text}
+          </ShikiHighlighter>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <PreviewEmptyState
+      body={
+        <div className="text-xs leading-5 text-muted-foreground">
+          {target.mimeType || 'This file type'} can still be attached as context.
+        </div>
+      }
+      title="No inline preview"
+    />
+  )
+}
+
+export function PreviewPane({
+  onClose,
+  onRestartServer,
+  reloadRequest = 0,
+  setTitlebarToolGroup,
+  target,
+  titlebarToolGroupId = 'preview'
+}: PreviewPaneProps) {
+  const [consoleState] = useState(() => createPreviewConsoleState())
   const consoleBodyRef = useRef<HTMLDivElement | null>(null)
   const consoleShouldStickRef = useRef(true)
   const hostRef = useRef<HTMLDivElement | null>(null)
-  const logIdRef = useRef(0)
   const lastReloadRequestRef = useRef(reloadRequest)
   const lastRestartEventRef = useRef('')
   const previewContentRef = useRef<HTMLDivElement | null>(null)
   const webviewRef = useRef<PreviewWebview | null>(null)
   const previewServerRestart = useStore($previewServerRestart)
-  const [consoleHeight, setConsoleHeight] = useState(CONSOLE_DEFAULT_HEIGHT)
-  const [consoleOpen, setConsoleOpen] = useState(false)
+  const consoleHeight = useStore(consoleState.$height)
+  const consoleOpen = useStore(consoleState.$open)
   const [currentUrl, setCurrentUrl] = useState(target.url)
   const [devtoolsOpen, setDevtoolsOpen] = useState(false)
-  const [logs, setLogs] = useState<ConsoleEntry[]>([])
-  const [selectedLogIds, setSelectedLogIds] = useState<Set<number>>(() => new Set())
-  const [copiedAll, setCopiedAll] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<PreviewLoadErrorState | null>(null)
-  const visibleSelection = useMemo(() => logs.filter(log => selectedLogIds.has(log.id)), [logs, selectedLogIds])
-  const sendableLogs = visibleSelection.length > 0 ? visibleSelection : logs
+  const [localReloadKey, setLocalReloadKey] = useState(0)
+  const isWebPreview = target.kind === 'url' || (target.previewKind === 'html' && target.renderMode !== 'source')
   const currentLabel = compactUrl(currentUrl)
 
   const previewLabel =
@@ -317,7 +886,7 @@ export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToo
           return
         }
 
-        setConsoleHeight(clampConsoleHeight(startHeight + startY - moveEvent.clientY))
+        consoleState.setHeight(clampConsoleHeight(startHeight + startY - moveEvent.clientY))
       }
 
       const cleanup = () => {
@@ -342,36 +911,58 @@ export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToo
       window.addEventListener('blur', cleanup)
       handle.addEventListener('lostpointercapture', cleanup)
     },
-    [consoleHeight]
+    [consoleHeight, consoleState]
   )
 
   const reloadPreview = useCallback(() => {
     setLoadError(null)
+
+    if (!isWebPreview) {
+      setLocalReloadKey(key => key + 1)
+
+      return
+    }
 
     if (webviewRef.current?.reloadIgnoringCache) {
       webviewRef.current.reloadIgnoringCache()
     } else {
       webviewRef.current?.reload?.()
     }
-  }, [])
+  }, [isWebPreview])
 
-  const appendConsoleEntry = useCallback((entry: Omit<ConsoleEntry, 'id'>) => {
-    consoleShouldStickRef.current = isNearConsoleBottom(consoleBodyRef.current)
-    setLogs(prev => [...prev.slice(-199), { ...entry, id: ++logIdRef.current }])
-  }, [])
+  const appendConsoleEntry = useCallback(
+    (entry: Omit<ConsoleEntry, 'id'>) => {
+      consoleShouldStickRef.current = isNearConsoleBottom(consoleBodyRef.current)
+      consoleState.append(entry)
+    },
+    [consoleState]
+  )
 
   const restartServer = useCallback(async () => {
     if (!onRestartServer) {
       return
     }
 
+    // Auto-open the preview console so the user can see progress events
+    // streaming back from the background agent. Without this, clicking
+    // "Ask Hermes to restart the server" looked like it did nothing —
+    // the work was happening, but in a collapsed pane.
+    consoleState.setOpen(true)
+
     try {
-      const context = logs.slice(-12).map(formatLogLine).join('\n')
+      const context = consoleState.$logs.get().slice(-12).map(formatLogLine).join('\n')
       const taskId = await onRestartServer(currentUrl, context || undefined)
 
       appendConsoleEntry({
         level: 1,
         message: `Hermes is looking for a preview server to restart (${taskId})`
+      })
+
+      notify({
+        kind: 'info',
+        title: 'Restarting preview server',
+        message: 'Hermes is working in the background. Watch the preview console for progress.',
+        durationMs: 4000
       })
     } catch (error) {
       appendConsoleEntry({
@@ -380,50 +971,7 @@ export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToo
       })
       notifyError(error, 'Server restart failed')
     }
-  }, [appendConsoleEntry, currentUrl, logs, onRestartServer])
-
-  function toggleLogSelection(id: number) {
-    setSelectedLogIds(prev => {
-      const next = new Set(prev)
-
-      if (!next.delete(id)) {
-        next.add(id)
-      }
-
-      return next
-    })
-  }
-
-  async function copyConsoleText(entries: ConsoleEntry[], successMessage: string) {
-    if (!entries.length) {
-      return
-    }
-
-    try {
-      await writeClipboardText(entries.map(formatLogLine).join('\n'))
-      notify({ kind: 'success', title: 'Console copied', message: successMessage })
-    } catch (error) {
-      notifyError(error, 'Could not copy console output')
-    }
-  }
-
-  function sendLogsToComposer(entries: ConsoleEntry[]) {
-    if (!entries.length) {
-      return
-    }
-
-    const block = ['Preview console:', '```', ...entries.map(formatLogLine), '```'].join('\n')
-    const draft = $composerDraft.get()
-    const next = draft && !draft.endsWith('\n') ? `${draft}\n\n${block}` : `${draft}${block}`
-
-    setComposerDraft(next)
-    setSelectedLogIds(new Set())
-    notify({
-      kind: 'success',
-      title: 'Sent to chat',
-      message: `${entries.length} log entr${entries.length === 1 ? 'y' : 'ies'} added to composer`
-    })
-  }
+  }, [appendConsoleEntry, consoleState, currentUrl, onRestartServer])
 
   const toggleDevTools = useCallback(() => {
     const webview = webviewRef.current
@@ -449,61 +997,64 @@ export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToo
     }
 
     const tools: TitlebarTool[] = [
-      {
-        active: consoleOpen,
-        icon: (
-          <>
-            <PanelBottom />
-            {logs.length > 0 && <span className="sr-only">{logs.length} console messages</span>}
-          </>
-        ),
-        id: 'preview-console',
-        label: consoleOpen ? 'Hide preview console' : 'Show preview console',
-        onSelect: () => setConsoleOpen(open => !open)
-      },
-      {
-        active: devtoolsOpen,
-        icon: <Bug />,
-        id: 'preview-devtools',
-        label: devtoolsOpen ? 'Hide preview DevTools' : 'Open preview DevTools',
-        onSelect: toggleDevTools
-      },
+      ...(isWebPreview
+        ? [
+            {
+              active: consoleOpen,
+              icon: <PreviewConsoleTitlebarIcon consoleState={consoleState} />,
+              id: `${titlebarToolGroupId}-console`,
+              label: consoleOpen ? 'Hide preview console' : 'Show preview console',
+              onSelect: () => consoleState.setOpen(open => !open)
+            },
+            {
+              active: devtoolsOpen,
+              icon: <Bug />,
+              id: `${titlebarToolGroupId}-devtools`,
+              label: devtoolsOpen ? 'Hide preview DevTools' : 'Open preview DevTools',
+              onSelect: toggleDevTools
+            }
+          ]
+        : []),
       {
         icon: <RefreshCw className={cn(loading && 'animate-spin')} />,
-        id: 'preview-reload',
+        id: `${titlebarToolGroupId}-reload`,
         label: 'Reload preview',
         onSelect: reloadPreview
       },
       {
-        className: 'mr-(--shell-preview-toolbar-gap)',
         icon: <X />,
-        id: 'preview-close',
+        id: `${titlebarToolGroupId}-close`,
         label: 'Close preview',
-        onSelect: () => setPreviewTarget(null)
+        onSelect: onClose
       }
     ]
 
-    setTitlebarToolGroup('preview', tools)
+    setTitlebarToolGroup(titlebarToolGroupId, tools)
 
-    return () => setTitlebarToolGroup('preview', [])
-  }, [consoleOpen, currentUrl, devtoolsOpen, loading, logs.length, reloadPreview, setTitlebarToolGroup, toggleDevTools])
+    return () => setTitlebarToolGroup(titlebarToolGroupId, [])
+  }, [
+    consoleOpen,
+    consoleState,
+    devtoolsOpen,
+    isWebPreview,
+    loading,
+    onClose,
+    reloadPreview,
+    setTitlebarToolGroup,
+    titlebarToolGroupId,
+    toggleDevTools
+  ])
 
   useEffect(() => {
-    if (consoleOpen && consoleShouldStickRef.current) {
-      const consoleBody = consoleBodyRef.current
-
-      consoleBody?.scrollTo({ top: consoleBody.scrollHeight })
+    if (!consoleOpen) {
+      return
     }
-  }, [consoleHeight, consoleOpen, logs])
 
-  useEffect(() => {
-    if (consoleOpen) {
-      consoleShouldStickRef.current = true
+    consoleShouldStickRef.current = true
 
-      const consoleBody = consoleBodyRef.current
+    const consoleBody = consoleBodyRef.current
 
-      consoleBody?.scrollTo({ top: consoleBody.scrollHeight })
-    }
+    consoleBody?.scrollTo({ top: consoleBody.scrollHeight })
   }, [consoleOpen])
 
   useEffect(() => {
@@ -536,6 +1087,19 @@ export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToo
 
     if (previewServerRestart.status === 'complete') {
       reloadPreview()
+      notify({
+        kind: 'success',
+        title: 'Preview server restarted',
+        message: previewServerRestart.message?.slice(0, 160) || 'Reloading the preview now.',
+        durationMs: 3500
+      })
+    } else if (previewServerRestart.status === 'error') {
+      notify({
+        kind: 'warning',
+        title: 'Preview restart failed',
+        message: previewServerRestart.message?.slice(0, 200) || 'Hermes could not restart the server.',
+        durationMs: 6000
+      })
     }
   }, [appendConsoleEntry, currentUrl, previewServerRestart, reloadPreview, target.url])
 
@@ -673,8 +1237,14 @@ export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToo
     setCurrentUrl(target.url)
     setDevtoolsOpen(false)
     setLoadError(null)
-    setLogs([])
+    consoleState.reset()
     setLoading(true)
+
+    if (!isWebPreview) {
+      setLoading(false)
+
+      return
+    }
 
     const webview = document.createElement('webview') as PreviewWebview
     webview.className = 'hermes-preview-webview h-full w-full flex-1 bg-background'
@@ -766,7 +1336,7 @@ export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToo
       webview.removeEventListener('did-stop-loading', onStop)
       webview.remove()
     }
-  }, [appendConsoleEntry, target.url])
+  }, [appendConsoleEntry, consoleState, isWebPreview, target.url])
 
   return (
     <aside className="relative flex h-full w-full min-w-0 flex-col overflow-hidden border-l border-border/60 bg-background text-muted-foreground">
@@ -790,9 +1360,13 @@ export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToo
           ref={previewContentRef}
         >
           <div
-            className={cn('absolute inset-0 flex bg-background', loadError && 'pointer-events-none opacity-0')}
+            className={cn(
+              'absolute inset-0 flex bg-background',
+              (!isWebPreview || loadError) && 'pointer-events-none opacity-0'
+            )}
             ref={hostRef}
           />
+          {!isWebPreview && <LocalFilePreview reloadKey={localReloadKey} target={target} />}
           {loadError && (
             <PreviewLoadError
               consoleHeight={consoleOpen ? consoleHeight : 0}
@@ -803,103 +1377,13 @@ export function PreviewPane({ onRestartServer, reloadRequest = 0, setTitlebarToo
             />
           )}
 
-          {consoleOpen && (
-            <div
-              className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 flex h-(--preview-console-height) min-h-8 flex-col overflow-hidden border-t border-border/60 bg-background"
-              style={{ '--preview-console-height': `${consoleHeight}px` } as CSSProperties}
-            >
-              <div
-                aria-label="Resize preview console"
-                className="group absolute inset-x-0 -top-1 z-1 h-2 cursor-row-resize"
-                onDoubleClick={() => setConsoleHeight(CONSOLE_HEADER_HEIGHT)}
-                onPointerDown={startConsoleResize}
-                role="separator"
-              >
-                <span className="absolute left-1/2 top-1/2 h-0.75 w-23 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/80 opacity-0 transition-opacity duration-100 group-hover:opacity-[0.5]" />
-              </div>
-              <div className="flex h-8 shrink-0 items-center justify-between border-b border-border/50 px-2">
-                <div className="flex items-center gap-2 text-[0.6875rem] font-medium text-muted-foreground">
-                  <PanelBottom className="size-3.5" />
-                  Preview Console
-                  {selectedLogIds.size > 0 && (
-                    <span className="rounded-full bg-muted px-1.5 py-px text-[0.5625rem] text-muted-foreground">
-                      {selectedLogIds.size} selected
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.625rem] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-                    disabled={sendableLogs.length === 0}
-                    onClick={() => sendLogsToComposer(sendableLogs)}
-                    title={
-                      visibleSelection.length > 0
-                        ? `Send ${visibleSelection.length} selected to chat`
-                        : 'Send all log entries to chat'
-                    }
-                    type="button"
-                  >
-                    <Send className="size-3" />
-                    Send to chat
-                  </button>
-                  <button
-                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.625rem] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-                    disabled={sendableLogs.length === 0}
-                    onClick={async () => {
-                      await copyConsoleText(
-                        sendableLogs,
-                        visibleSelection.length > 0
-                          ? `${visibleSelection.length} selected entries`
-                          : 'All console entries'
-                      )
-                      setCopiedAll(true)
-                      setTimeout(() => setCopiedAll(false), 1500)
-                    }}
-                    title={visibleSelection.length > 0 ? 'Copy selected to clipboard' : 'Copy all to clipboard'}
-                    type="button"
-                  >
-                    {copiedAll ? <Check className="size-3" /> : <Copy className="size-3" />}
-                    Copy
-                  </button>
-                  <button
-                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.625rem] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
-                    disabled={logs.length === 0}
-                    onClick={() => {
-                      setLogs([])
-                      setSelectedLogIds(new Set())
-                    }}
-                    title="Clear console"
-                    type="button"
-                  >
-                    <Trash2 className="size-3" />
-                    Clear
-                  </button>
-                </div>
-              </div>
-              <div
-                className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5 font-mono text-[0.6875rem] leading-relaxed"
-                ref={consoleBodyRef}
-              >
-                {logs.length > 0 ? (
-                  logs.map(log => {
-                    const selected = selectedLogIds.has(log.id)
-
-                    return (
-                      <ConsoleRow
-                        key={log.id}
-                        log={log}
-                        onCopy={() => copyConsoleText([log], 'Log entry copied')}
-                        onSend={() => sendLogsToComposer([log])}
-                        onToggleSelect={() => toggleLogSelection(log.id)}
-                        selected={selected}
-                      />
-                    )
-                  })
-                ) : (
-                  <div className="py-2 text-muted-foreground/70">No console messages yet.</div>
-                )}
-              </div>
-            </div>
+          {isWebPreview && consoleOpen && (
+            <PreviewConsolePanel
+              consoleBodyRef={consoleBodyRef}
+              consoleShouldStickRef={consoleShouldStickRef}
+              consoleState={consoleState}
+              startConsoleResize={startConsoleResize}
+            />
           )}
         </div>
       </div>

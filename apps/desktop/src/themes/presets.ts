@@ -7,7 +7,7 @@
  * Add new themes here — no code changes needed elsewhere.
  */
 
-import type { DesktopTheme, DesktopThemeLayout, DesktopThemeTypography } from './types'
+import type { DesktopTheme, DesktopThemeTypography } from './types'
 
 // ---------------------------------------------------------------------------
 // Shared defaults
@@ -21,15 +21,7 @@ const SYSTEM_MONO =
 
 export const DEFAULT_TYPOGRAPHY: DesktopThemeTypography = {
   fontSans: SYSTEM_SANS,
-  fontMono: SYSTEM_MONO,
-  baseSize: '0.9375rem',
-  lineHeight: '1.55',
-  letterSpacing: '0'
-}
-
-export const DEFAULT_LAYOUT: DesktopThemeLayout = {
-  radius: '0.75rem',
-  density: 'comfortable'
+  fontMono: SYSTEM_MONO
 }
 
 // ---------------------------------------------------------------------------
@@ -122,9 +114,6 @@ export const nousTheme: DesktopTheme = {
     fontSans: SYSTEM_SANS,
     fontMono: `"Courier Prime", ${SYSTEM_MONO}`,
     fontUrl: 'https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap'
-  },
-  layout: {
-    radius: '0.25rem'
   }
 }
 
@@ -192,11 +181,7 @@ export const midnightTheme: DesktopTheme = {
   },
   typography: {
     fontMono: `"JetBrains Mono", ${SYSTEM_MONO}`,
-    fontUrl: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap',
-    letterSpacing: '-0.005em'
-  },
-  layout: {
-    radius: '0.875rem'
+    fontUrl: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap'
   }
 }
 
@@ -233,9 +218,6 @@ export const emberTheme: DesktopTheme = {
   typography: {
     fontMono: `"IBM Plex Mono", ${SYSTEM_MONO}`,
     fontUrl: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap'
-  },
-  layout: {
-    radius: '0.375rem'
   }
 }
 
@@ -268,9 +250,6 @@ export const monoTheme: DesktopTheme = {
     sidebarBorder: '#202020',
     userBubble: '#1a1a1a',
     userBubbleBorder: '#363636'
-  },
-  layout: {
-    radius: '0.375rem'
   }
 }
 
@@ -306,11 +285,7 @@ export const cyberpunkTheme: DesktopTheme = {
   },
   typography: {
     fontMono: `"Courier New", Courier, monospace`,
-    fontSans: `"Courier New", Courier, monospace`,
-    letterSpacing: '0.02em'
-  },
-  layout: {
-    radius: '0'
+    fontSans: `"Courier New", Courier, monospace`
   }
 }
 

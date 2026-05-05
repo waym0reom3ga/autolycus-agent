@@ -2,12 +2,14 @@
 
 import { type ToolCallMessagePartProps, useAuiState } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef } from 'react'
 
 import { useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
 import { ActivityTimerText } from '@/components/assistant-ui/activity-timer-text'
 import { PreviewAttachment } from '@/components/assistant-ui/preview-attachment'
 import { ZoomableImage } from '@/components/assistant-ui/zoomable-image'
+import { CopyButton } from '@/components/ui/copy-button'
+import { FadeText } from '@/components/ui/fade-text'
 import {
   AlertCircle,
   CheckCircle2,
@@ -24,15 +26,16 @@ import {
 import type { LucideIcon } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { $toolInlineDiffs } from '@/store/tool-diffs'
-import { $toolViewMode } from '@/store/tool-view'
+import { $toolDisclosureStates, $toolViewMode, setToolDisclosureOpen } from '@/store/tool-view'
 
-const TOOL_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-
-const TOOL_SPINNER_INTERVAL_MS = 80
-const TOOL_DETAIL_INDENT_CLASS = 'ml-[3.25rem]'
+// Indent tool detail content via box-sizing-honoring padding, not margin.
+// Margin-left + max-w-full causes the box to overflow its parent by the
+// margin amount, which makes wide tool content (preview cards, diffs)
+// extend past the chat column when right-side panes are open.
+const TOOL_DETAIL_INDENT_CLASS = 'w-full pl-[1.5rem] pr-2'
 
 type ToolTone = 'agent' | 'browser' | 'default' | 'file' | 'image' | 'terminal' | 'web'
-type ToolStatus = 'error' | 'running' | 'success'
+type ToolStatus = 'error' | 'running' | 'success' | 'warning'
 
 interface ToolPart {
   args?: unknown
@@ -76,8 +79,18 @@ const TOOL_META: Record<string, ToolMeta> = {
   browser_click: { done: 'Clicked page element', pending: 'Clicking page element', icon: Globe, tone: 'browser' },
   browser_fill: { done: 'Filled form field', pending: 'Filling form field', icon: Globe, tone: 'browser' },
   browser_navigate: { done: 'Opened page', pending: 'Opening page', icon: Globe, tone: 'browser' },
-  browser_snapshot: { done: 'Captured page snapshot', pending: 'Capturing page snapshot', icon: Globe, tone: 'browser' },
-  browser_take_screenshot: { done: 'Captured screenshot', pending: 'Capturing screenshot', icon: Sparkles, tone: 'browser' },
+  browser_snapshot: {
+    done: 'Captured page snapshot',
+    pending: 'Capturing page snapshot',
+    icon: Globe,
+    tone: 'browser'
+  },
+  browser_take_screenshot: {
+    done: 'Captured screenshot',
+    pending: 'Capturing screenshot',
+    icon: Sparkles,
+    tone: 'browser'
+  },
   browser_type: { done: 'Typed on page', pending: 'Typing on page', icon: Globe, tone: 'browser' },
   edit_file: { done: 'Edited file', pending: 'Editing file', icon: FileText, tone: 'file' },
   execute_code: { done: 'Ran code', pending: 'Running code', icon: Command, tone: 'terminal' },
@@ -85,7 +98,12 @@ const TOOL_META: Record<string, ToolMeta> = {
   list_files: { done: 'Listed files', pending: 'Listing files', icon: FileText, tone: 'file' },
   read_file: { done: 'Read file', pending: 'Reading file', icon: FileText, tone: 'file' },
   search_files: { done: 'Searched files', pending: 'Searching files', icon: FileText, tone: 'file' },
-  session_search_recall: { done: 'Searched session history', pending: 'Searching session history', icon: Search, tone: 'agent' },
+  session_search_recall: {
+    done: 'Searched session history',
+    pending: 'Searching session history',
+    icon: Search,
+    tone: 'agent'
+  },
   terminal: { done: 'Ran command', pending: 'Running command', icon: Command, tone: 'terminal' },
   todo: { done: 'Updated todos', pending: 'Updating todos', icon: Wrench, tone: 'agent' },
   web_extract: { done: 'Read webpage', pending: 'Reading webpage', icon: LinkIcon, tone: 'web' },
@@ -101,6 +119,13 @@ const TOOL_TONE_CLASS: Record<ToolTone, string> = {
   image: 'bg-rose-500/12 text-rose-700 dark:text-rose-300',
   terminal: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300',
   web: 'bg-violet-500/12 text-violet-700 dark:text-violet-300'
+}
+
+const STATUS_ICON_CLASS: Record<ToolStatus, string> = {
+  error: 'bg-destructive/12 text-destructive',
+  running: '',
+  success: '',
+  warning: 'bg-amber-500/14 text-amber-700 dark:text-amber-300'
 }
 
 function titleForTool(name: string): string {
@@ -198,10 +223,32 @@ function looksLikePath(value: string): boolean {
 function isPreviewableTarget(target: string): boolean {
   return Boolean(
     target &&
-      (/^file:\/\//i.test(target) ||
-        /^(?:\/|\.{1,2}\/|~\/).+\.html?$/i.test(target) ||
-        /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/i.test(target))
+    (/^file:\/\//i.test(target) ||
+      /^(?:\/|\.{1,2}\/|~\/).+\.html?$/i.test(target) ||
+      /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/i.test(target))
   )
+}
+
+function stableHash(value: string): string {
+  let hash = 0
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.imul(31, hash) + value.charCodeAt(index)
+  }
+
+  return Math.abs(hash).toString(36)
+}
+
+function toolPartDisclosureId(part: ToolPart): string {
+  if (part.toolCallId) {
+    return `tool:${part.toolCallId}`
+  }
+
+  return `tool:${part.toolName}:${stableHash(JSON.stringify(part.args ?? ''))}`
+}
+
+function toolGroupDisclosureId(parts: ToolPart[]): string {
+  return `tool-group:${parts.map(toolPartDisclosureId).join('|')}`
 }
 
 const URL_PATTERN = /https?:\/\/[^\s'"<>)\]]+/i
@@ -279,7 +326,16 @@ function firstStringField(record: Record<string, unknown>, keys: readonly string
 
 function extractSearchResults(result: unknown): SearchResultRow[] {
   const row = parseMaybeObject(result)
-  const list = (Array.isArray(row.results) ? row.results : Array.isArray(row.items) ? row.items : Array.isArray(row.data) ? row.data : []) as unknown[]
+
+  const list = (
+    Array.isArray(row.results)
+      ? row.results
+      : Array.isArray(row.items)
+        ? row.items
+        : Array.isArray(row.data)
+          ? row.data
+          : []
+  ) as unknown[]
 
   return list
     .map(item => {
@@ -347,6 +403,10 @@ function toolPreviewTarget(toolName: string, args: Record<string, unknown>, resu
     return looksLikeUrl(explicit) ? explicit : findFirstUrl(args, result)
   }
 
+  if (toolName === 'write_file' || toolName === 'edit_file') {
+    return htmlPathFromInlineDiff(firstStringField(result, ['inline_diff']))
+  }
+
   return ''
 }
 
@@ -376,6 +436,28 @@ function stripInlineDiffChrome(value: string): string {
     : ''
 }
 
+function htmlPathFromInlineDiff(value: string): string {
+  const cleaned = stripInlineDiffChrome(value)
+
+  for (const match of cleaned.matchAll(/(?:^|\s)(?:[ab]\/)?([^\s]+\.html?)(?=\s|$)/gi)) {
+    const candidate = match[1]?.trim()
+
+    if (candidate) {
+      return candidate
+    }
+  }
+
+  return ''
+}
+
+function stripDividerLines(value: string): string {
+  return value
+    .split('\n')
+    .filter(line => !/^[-=]{3,}\s*$/.test(line.trim()))
+    .join('\n')
+    .trim()
+}
+
 function inlineDiffFromResult(result: unknown): string {
   const value = parseMaybeObject(result).inline_diff
 
@@ -401,7 +483,11 @@ function fallbackDetailText(args: unknown, result: unknown): string {
   return prettyJson(args)
 }
 
-function toolSubtitle(part: ToolPart, argsRecord: Record<string, unknown>, resultRecord: Record<string, unknown>): string {
+function toolSubtitle(
+  part: ToolPart,
+  argsRecord: Record<string, unknown>,
+  resultRecord: Record<string, unknown>
+): string {
   const toolName = part.toolName
 
   if (toolName === 'browser_navigate') {
@@ -433,7 +519,10 @@ function toolSubtitle(part: ToolPart, argsRecord: Record<string, unknown>, resul
     const field = firstStringField(argsRecord, ['label', 'field', 'ref', 'target'])
     const value = firstStringField(argsRecord, ['value', 'text'])
 
-    return [field && `Field: ${field}`, value && `Value: ${compactPreview(value, 42)}`].filter(Boolean).join(' · ') || 'Filled page input'
+    return (
+      [field && `Field: ${field}`, value && `Value: ${compactPreview(value, 42)}`].filter(Boolean).join(' · ') ||
+      'Filled page input'
+    )
   }
 
   if (toolName === 'web_search') {
@@ -443,15 +532,36 @@ function toolSubtitle(part: ToolPart, argsRecord: Record<string, unknown>, resul
   }
 
   if (toolName === 'terminal' || toolName === 'execute_code') {
+    const output = firstStringField(resultRecord, ['output', 'stdout', 'stderr'])
+
+    const lines = Array.isArray(resultRecord.lines)
+      ? resultRecord.lines.filter((line): line is string => typeof line === 'string').join('\n')
+      : ''
+
+    const previewSource = (output || lines).trim()
+
+    if (previewSource) {
+      const firstMeaningfulLine = previewSource
+        .split('\n')
+        .map(line => line.trim())
+        .find(line => line.length > 0)
+
+      if (firstMeaningfulLine) {
+        return compactPreview(firstMeaningfulLine, 160)
+      }
+    }
+
     const command = firstStringField(argsRecord, ['command', 'code']) || contextValue(argsRecord)
 
     return command ? compactPreview(command, 120) : 'Executed command'
   }
 
   if (toolName === 'read_file' || toolName === 'write_file' || toolName === 'edit_file') {
-    const path = firstStringField(argsRecord, ['path', 'file', 'filepath'])
+    const path =
+      firstStringField(argsRecord, ['path', 'file', 'filepath']) ||
+      htmlPathFromInlineDiff(firstStringField(resultRecord, ['inline_diff']))
 
-    return path || fallbackDetailText(argsRecord, resultRecord)
+    return path || (firstStringField(resultRecord, ['inline_diff']) ? 'Changed file' : fallbackDetailText(argsRecord, resultRecord))
   }
 
   if (toolName === 'web_extract') {
@@ -463,7 +573,9 @@ function toolSubtitle(part: ToolPart, argsRecord: Record<string, unknown>, resul
     return url ? hostnameOf(url) : 'Fetched webpage'
   }
 
-  return compactPreview(resultRecord, 120) || compactPreview(argsRecord, 120) || fallbackDetailText(argsRecord, resultRecord)
+  return (
+    compactPreview(resultRecord, 120) || compactPreview(argsRecord, 120) || fallbackDetailText(argsRecord, resultRecord)
+  )
 }
 
 function toolDetailLabel(toolName: string): string {
@@ -482,7 +594,11 @@ function toolDetailLabel(toolName: string): string {
   return ''
 }
 
-function toolDetailText(part: ToolPart, argsRecord: Record<string, unknown>, resultRecord: Record<string, unknown>): string {
+function toolDetailText(
+  part: ToolPart,
+  argsRecord: Record<string, unknown>,
+  resultRecord: Record<string, unknown>
+): string {
   if (part.toolName === 'browser_snapshot') {
     const snapshot = firstStringField(resultRecord, ['snapshot'])
 
@@ -493,9 +609,7 @@ function toolDetailText(part: ToolPart, argsRecord: Record<string, unknown>, res
     const hits = extractSearchResults(part.result)
 
     if (hits.length) {
-      return hits
-        .map(hit => [hit.title, hit.url, hit.snippet].filter(Boolean).join('\n'))
-        .join('\n\n')
+      return hits.map(hit => [hit.title, hit.url, hit.snippet].filter(Boolean).join('\n')).join('\n\n')
     }
   }
 
@@ -512,14 +626,125 @@ function toolDetailText(part: ToolPart, argsRecord: Record<string, unknown>, res
   }
 
   if (part.toolName === 'web_extract') {
-    const summary = firstStringField(resultRecord, ['summary', 'message'])
+    const direct = firstStringField(resultRecord, ['content', 'text', 'markdown', 'body', 'summary', 'message'])
 
-    if (summary) {
-      return summary.replace(/\s*in\s+\d+(?:\.\d+)?s\s*$/i, '').trim()
+    if (direct) {
+      return direct.replace(/\s*in\s+\d+(?:\.\d+)?s\s*$/i, '').trim()
+    }
+
+    const results = Array.isArray(resultRecord.results) ? resultRecord.results : []
+
+    const aggregated = results
+      .map(item => {
+        const row = parseMaybeObject(item)
+
+        return firstStringField(row, ['content', 'text', 'markdown', 'body'])
+      })
+      .filter(Boolean)
+      .join('\n\n---\n\n')
+
+    if (aggregated) {
+      return aggregated
     }
   }
 
+  if (part.toolName === 'read_file') {
+    const content = firstStringField(resultRecord, ['content', 'text', 'data', 'body'])
+
+    if (content) {
+      return content
+    }
+  }
+
+  if (part.toolName === 'write_file' || part.toolName === 'edit_file') {
+    return inlineDiffFromResult(part.result) ? '' : fallbackDetailText(argsRecord, resultRecord)
+  }
+
   return fallbackDetailText(argsRecord, resultRecord)
+}
+
+/**
+ * Pick the most useful single string for the user to copy from this tool
+ * call.
+ *
+ * Heuristic: prefer the substantive *output* (the thing the user actually
+ * sees in the expanded panel) over the meta target (URL, path, query). The
+ * old behavior was the reverse, which meant clicking copy on a `read_file`
+ * row that had just dumped a 400-line file would copy "src/foo.ts" instead
+ * of the file. Tools where the meta is genuinely more useful than the
+ * output (e.g. a search query) keep their meta-first behavior.
+ */
+function toolCopyPayload(part: ToolPart, view: ToolView): { label: string; text: string } {
+  const args = parseMaybeObject(part.args)
+  const result = parseMaybeObject(part.result)
+  const detail = view.detail.trim()
+  const hasSubstantialOutput = detail.length > 16
+
+  if (part.toolName === 'terminal' || part.toolName === 'execute_code') {
+    if (hasSubstantialOutput) {
+      return { label: 'Copy output', text: detail }
+    }
+
+    const command = firstStringField(args, ['command', 'code']) || contextValue(args)
+
+    if (command) {
+      return { label: 'Copy command', text: command }
+    }
+  }
+
+  if (part.toolName === 'web_extract') {
+    if (hasSubstantialOutput) {
+      return { label: 'Copy content', text: detail }
+    }
+
+    const url = firstStringField(args, ['url', 'target']) || findFirstUrl(args, result)
+
+    if (url) {
+      return { label: 'Copy URL', text: url }
+    }
+  }
+
+  if (part.toolName === 'browser_navigate') {
+    const url = firstStringField(args, ['url', 'target']) || findFirstUrl(args, result)
+
+    if (url) {
+      return { label: 'Copy URL', text: url }
+    }
+  }
+
+  if (part.toolName === 'web_search') {
+    const query = firstStringField(args, ['search_term', 'query']) || contextValue(args)
+
+    if (query) {
+      return { label: 'Copy query', text: query }
+    }
+  }
+
+  if (part.toolName === 'read_file') {
+    if (hasSubstantialOutput) {
+      return { label: 'Copy file', text: detail }
+    }
+
+    const path = firstStringField(args, ['path', 'file', 'filepath'])
+
+    if (path) {
+      return { label: 'Copy path', text: path }
+    }
+  }
+
+  if (part.toolName === 'write_file' || part.toolName === 'edit_file') {
+    const path = firstStringField(args, ['path', 'file', 'filepath'])
+
+    if (path) {
+      return { label: 'Copy path', text: path }
+    }
+  }
+
+  if (detail) {
+    return { label: 'Copy output', text: detail }
+  }
+
+  return { label: 'Copy', text: view.title }
 }
 
 function dynamicTitle(
@@ -548,6 +773,16 @@ function dynamicTitle(
     return query ? `${verb('Searching', 'Searched')} “${compactPreview(query, 48)}”` : fallback
   }
 
+  if (part.toolName === 'terminal' || part.toolName === 'execute_code') {
+    const command = firstStringField(args, ['command', 'code']) || contextValue(args)
+
+    if (command) {
+      const verbText = part.toolName === 'execute_code' ? verb('Running code', 'Ran code') : verb('Running', 'Ran')
+
+      return `${verbText} · ${compactPreview(command, 160)}`
+    }
+  }
+
   return fallback
 }
 
@@ -561,11 +796,20 @@ function buildToolView(part: ToolPart, inlineDiff: string): ToolView {
   const title = dynamicTitle(part, argsRecord, resultRecord, baseTitle)
   const titleEnriched = title !== baseTitle
   const baseSubtitle = error || toolSubtitle(part, argsRecord, resultRecord)
-  const subtitle = titleEnriched && !error ? '' : baseSubtitle
+  const keepSubtitleWithTitle = part.toolName === 'terminal' || part.toolName === 'execute_code'
+  const subtitle = titleEnriched && !error && !keepSubtitleWithTitle ? '' : baseSubtitle
+  const detailBody = stripDividerLines(toolDetailText(part, argsRecord, resultRecord))
+
+  const detail = error
+    ? [error, detailBody]
+        .filter(Boolean)
+        .filter((value, index, list) => list.findIndex(entry => entry.trim() === value.trim()) === index)
+        .join('\n\n')
+    : detailBody
 
   return {
-    detail: error || toolDetailText(part, argsRecord, resultRecord),
-    detailLabel: error ? 'Error' : toolDetailLabel(part.toolName),
+    detail,
+    detailLabel: error ? 'Error details' : toolDetailLabel(part.toolName),
     durationLabel: durationLabel(resultRecord),
     icon: meta.icon,
     imageUrl: toolImageUrl(argsRecord, resultRecord),
@@ -623,7 +867,14 @@ function groupStatus(parts: ToolPart[]): ToolStatus {
     return 'running'
   }
 
-  return parts.some(p => toolStatus(p, parseMaybeObject(p.result)) === 'error') ? 'error' : 'success'
+  const statuses = parts.map(part => toolStatus(part, parseMaybeObject(part.result)))
+  const hasError = statuses.includes('error')
+
+  if (!hasError) {
+    return 'success'
+  }
+
+  return statuses.at(-1) === 'success' ? 'warning' : 'error'
 }
 
 function groupTitle(parts: ToolPart[]): string {
@@ -636,43 +887,40 @@ function groupTitle(parts: ToolPart[]): string {
 const STATUS_DOT_CLASS: Record<ToolStatus, string> = {
   error: 'bg-destructive',
   running: 'bg-muted-foreground/55 animate-pulse',
-  success: 'bg-emerald-500'
+  success: 'bg-emerald-500',
+  warning: 'bg-amber-500'
+}
+
+const STATUS_LABEL: Record<ToolStatus, string> = {
+  error: 'Error',
+  running: 'Running',
+  success: 'Done',
+  warning: 'Recovered'
 }
 
 function statusDot(status: ToolStatus): ReactNode {
   return (
     <span
-      aria-label={status === 'error' ? 'Error' : status === 'running' ? 'Running' : 'Done'}
+      aria-label={STATUS_LABEL[status]}
       className={cn('size-1.5 shrink-0 rounded-full', STATUS_DOT_CLASS[status])}
     />
   )
 }
 
-function statusBadge(status: ToolStatus): ReactNode {
+function statusGlyph(status: ToolStatus): ReactNode {
   if (status === 'running') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[0.625rem] font-medium text-muted-foreground">
-        <Loader2 className="size-3 animate-spin" />
-        Running
-      </span>
-    )
+    return <Loader2 aria-label="Running" className="size-3.5 shrink-0 animate-spin text-muted-foreground/80" />
   }
 
   if (status === 'error') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[0.625rem] font-medium text-destructive">
-        <AlertCircle className="size-3" />
-        Error
-      </span>
-    )
+    return <AlertCircle aria-label="Error" className="size-3.5 shrink-0 text-destructive" />
   }
 
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[0.625rem] font-medium text-emerald-700 dark:text-emerald-300">
-      <CheckCircle2 className="size-3" />
-      Done
-    </span>
-  )
+  if (status === 'warning') {
+    return <AlertCircle aria-label="Recovered" className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+  }
+
+  return <CheckCircle2 aria-label="Done" className="size-3.5 shrink-0 text-emerald-600/85 dark:text-emerald-400/85" />
 }
 
 interface ToolEntryProps {
@@ -681,101 +929,206 @@ interface ToolEntryProps {
 }
 
 function ToolEntry({ embedded = false, part }: ToolEntryProps) {
-  const [open, setOpen] = useState(false)
   const isPending = part.result === undefined
-  const [tick, setTick] = useState(0)
   const elapsed = useElapsedSeconds(isPending)
   const toolViewMode = useStore($toolViewMode)
+  const disclosureStates = useStore($toolDisclosureStates)
+  const disclosureId = toolPartDisclosureId(part)
+  const open = disclosureStates[disclosureId] ?? false
   const preview = compactPreview(part.args) || compactPreview(part.result)
   const liveDiffs = useStore($toolInlineDiffs)
   const sideDiff = part.toolCallId ? liveDiffs[part.toolCallId] || '' : ''
   const inlineDiff = stripInlineDiffChrome(sideDiff) || inlineDiffFromResult(part.result)
   const view = useMemo(() => buildToolView(part, inlineDiff), [inlineDiff, part])
-  const spinnerFrame = TOOL_SPINNER_FRAMES[tick % TOOL_SPINNER_FRAMES.length]
 
-  useEffect(() => {
-    if (!isPending) {
-      return
+  const detailSections = useMemo(() => {
+    if (!view.detail) {
+      return { body: '', summary: '' }
     }
 
-    const id = window.setInterval(() => setTick(value => value + 1), TOOL_SPINNER_INTERVAL_MS)
+    if (view.status !== 'error') {
+      return { body: view.detail, summary: '' }
+    }
 
-    return () => window.clearInterval(id)
-  }, [isPending])
+    const chunks = view.detail
+      .split(/\n\s*\n+/)
+      .map(chunk => chunk.trim())
+      .filter(Boolean)
+
+    const [summary = '', ...rest] = chunks
+    const subtitleNorm = view.subtitle.trim().toLowerCase()
+    const summaryDuplicatesSubtitle = summary && summary.toLowerCase() === subtitleNorm
+
+    if (summaryDuplicatesSubtitle) {
+      return { body: rest.join('\n\n').trim(), summary: '' }
+    }
+
+    return { body: rest.join('\n\n').trim(), summary }
+  }, [view.detail, view.status, view.subtitle])
+
+  const detailMatchesSubtitle = looksRedundant(view.subtitle, view.detail)
+
+  const showDetail =
+    (view.status === 'error' && Boolean(detailSections.summary || detailSections.body)) ||
+    (view.status !== 'error' &&
+      Boolean(view.detail) &&
+      !looksRedundant(view.title, view.detail) &&
+      !detailMatchesSubtitle)
+
+  const renderDetailAsCode =
+    view.status !== 'error' &&
+    (part.toolName === 'terminal' ||
+      part.toolName === 'execute_code' ||
+      part.toolName === 'read_file' ||
+      part.toolName === 'web_extract')
+
+  const hasExpandableContent = Boolean(
+    (view.previewTarget && isPreviewableTarget(view.previewTarget)) ||
+    view.imageUrl ||
+    showDetail ||
+    toolViewMode === 'technical'
+  )
+
+  const isTerminalLike = part.toolName === 'terminal' || part.toolName === 'execute_code'
+  const subtitleText = view.subtitle ? (toolViewMode === 'technical' ? preview || view.subtitle : view.subtitle) : ''
+  const subtitleIsSingleLine = !subtitleText.includes('\n')
+  const showStatusGlyph = isPending || view.status === 'error' || view.status === 'warning'
+  const copyAction = useMemo(() => toolCopyPayload(part, view), [part, view])
 
   return (
-    <div
-      className={cn(
-        'text-sm text-muted-foreground',
-        embedded ? 'my-0 border-0 bg-transparent' : 'mb-2 mt-1 rounded-lg border border-border/70 bg-card/50',
-        !embedded && open && 'mb-3'
-      )}
-    >
-      <button
-        className="inline-grid w-full max-w-full grid-cols-[0.75rem_auto_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md px-2 py-1 text-left text-muted-foreground transition-colors hover:bg-accent/45 hover:text-foreground"
-        onClick={() => setOpen(v => !v)}
-        type="button"
+    <div className="min-w-0 max-w-full overflow-hidden text-sm text-muted-foreground" data-slot="tool-block">
+      <div
+        className={cn(
+          'group/tool-row relative flex w-full max-w-full min-w-0 items-start rounded-md text-muted-foreground transition-colors',
+          hasExpandableContent && 'hover:bg-accent/35 hover:text-foreground'
+        )}
       >
-        <ChevronRight
-          className={cn('shrink-0 text-muted-foreground/80 transition-transform', open && 'rotate-90')}
-          size={12}
-        />
-        <span className={cn('grid size-6 place-items-center rounded-md', TOOL_TONE_CLASS[view.tone])}>
-          <view.icon className="size-3.5" />
-        </span>
-        <span className="min-w-0">
-          <span
-            className={cn(
-              'block truncate text-xs font-medium text-foreground/90',
-              isPending && 'shimmer text-foreground/60'
-            )}
-          >
-            {view.title}
-          </span>
-          {view.subtitle && (
-            <span className="mt-0.5 line-clamp-2 block whitespace-pre-wrap text-[0.7rem] leading-relaxed text-muted-foreground/80">
-              {toolViewMode === 'technical' ? preview || view.subtitle : view.subtitle}
-            </span>
+        <button
+          aria-expanded={hasExpandableContent ? open : undefined}
+          className={cn(
+            'flex min-w-0 flex-1 items-start gap-2 px-2 py-0.5 text-left',
+            hasExpandableContent ? 'cursor-pointer' : 'cursor-default'
           )}
-        </span>
-        {isPending ? (
-          embedded ? (
-            statusDot('running')
-          ) : (
-            <span aria-label="Running" className="ml-1 w-3 shrink-0 text-center text-xs text-muted-foreground/80">
-              {spinnerFrame}
+          disabled={!hasExpandableContent}
+          onClick={hasExpandableContent ? () => setToolDisclosureOpen(disclosureId, !open) : undefined}
+          type="button"
+        >
+          <span className="flex h-[1.1rem] shrink-0 items-center">
+            {hasExpandableContent ? (
+              <ChevronRight
+                className={cn(
+                  'size-3 text-muted-foreground/55 transition-transform group-hover/tool-row:text-muted-foreground/85',
+                  open && 'rotate-90'
+                )}
+              />
+            ) : (
+              <span aria-hidden="true" className="size-3" />
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-baseline gap-1.5">
+              {showStatusGlyph && (
+                <span className="flex h-[1.1rem] shrink-0 items-center">
+                  {statusGlyph(isPending ? 'running' : view.status)}
+                </span>
+              )}
+              <FadeText
+                className={cn(
+                  'text-[0.78rem] font-medium leading-[1.1rem] text-foreground/85',
+                  isPending && 'shimmer text-foreground/55',
+                  view.status === 'error' && 'text-destructive',
+                  view.status === 'warning' && 'text-amber-700 dark:text-amber-300'
+                )}
+              >
+                {view.title}
+              </FadeText>
+              {!isPending && view.durationLabel && (
+                <span className="shrink-0 text-[0.625rem] tabular-nums text-muted-foreground/55">
+                  {view.durationLabel}
+                </span>
+              )}
             </span>
-          )
-        ) : embedded ? (
-          statusDot(view.status)
-        ) : (
-          statusBadge(view.status)
+            {subtitleText &&
+              (subtitleIsSingleLine ? (
+                <FadeText
+                  className={cn(
+                    'text-[0.7rem] leading-[1.05rem] text-muted-foreground/70',
+                    isTerminalLike && 'font-mono text-[0.68rem]'
+                  )}
+                >
+                  {subtitleText}
+                </FadeText>
+              ) : (
+                <span
+                  className={cn(
+                    'line-clamp-2 block whitespace-pre-wrap text-[0.7rem] leading-[1.05rem] text-muted-foreground/70',
+                    isTerminalLike && 'font-mono text-[0.68rem]'
+                  )}
+                >
+                  {subtitleText}
+                </span>
+              ))}
+          </span>
+        </button>
+        {isPending && !embedded && (
+          <ActivityTimerText
+            className="flex h-[1.1rem] shrink-0 items-center pr-2 text-[0.625rem] tabular-nums text-muted-foreground/55"
+            seconds={elapsed}
+          />
         )}
-        {isPending && !embedded && <ActivityTimerText seconds={elapsed} />}
-        {!isPending && view.durationLabel && (
-          <span className="text-[0.625rem] font-medium text-muted-foreground/75">{view.durationLabel}</span>
+        {!isPending && copyAction.text && (
+          <CopyButton
+            appearance="tool-row"
+            className="absolute right-1 top-0.5"
+            label={copyAction.label}
+            stopPropagation
+            text={copyAction.text}
+          />
         )}
-      </button>
+      </div>
       {open && (
-        <div className={cn(TOOL_DETAIL_INDENT_CLASS, 'mt-2 mr-2 grid gap-2 pb-3')}>
-          {view.previewTarget && isPreviewableTarget(view.previewTarget) && (
-            <PreviewAttachment target={view.previewTarget} />
+        <div className={cn(TOOL_DETAIL_INDENT_CLASS, 'mt-2 grid min-w-0 max-w-full gap-2 overflow-hidden pb-2')}>
+          {!embedded && view.previewTarget && isPreviewableTarget(view.previewTarget) && (
+            <PreviewAttachment source="tool-result" target={view.previewTarget} />
           )}
           {view.imageUrl && (
-            <div className="max-w-[18rem] overflow-hidden rounded-lg border border-border/70">
+            <div className="max-w-72 overflow-hidden rounded-lg border border-border/70">
               <ZoomableImage alt="Tool output" className="h-auto w-full object-cover" src={view.imageUrl} />
             </div>
           )}
-          {!looksRedundant(view.title, view.detail) && !looksRedundant(view.subtitle, view.detail) && (
-            <div className="max-w-full rounded-md bg-muted/35 px-2.5 py-1.5 whitespace-pre-wrap wrap-anywhere text-xs leading-relaxed text-muted-foreground/85">
-              {view.detailLabel && (
-                <span className="mr-1 text-[0.65rem] font-semibold uppercase tracking-[0.06em] text-muted-foreground/60">
-                  {view.detailLabel}
-                </span>
-              )}
-              <span>{view.detail}</span>
-            </div>
-          )}
+          {showDetail &&
+            (view.status === 'error' ? (
+              detailSections.summary || detailSections.body ? (
+                <div className="max-w-full text-xs leading-relaxed text-destructive">
+                  {detailSections.summary && <p className="font-medium">{detailSections.summary}</p>}
+                  {detailSections.body && (
+                    <pre
+                      className={cn(
+                        'max-h-56 overflow-auto whitespace-pre-wrap wrap-anywhere font-mono text-[0.7rem] leading-[1.55] text-destructive/90',
+                        detailSections.summary && 'mt-1.5'
+                      )}
+                    >
+                      {detailSections.body}
+                    </pre>
+                  )}
+                </div>
+              ) : null
+            ) : (
+              <div className="max-w-full text-xs leading-relaxed text-muted-foreground/90">
+                {view.detailLabel && (
+                  <p className="mb-1 text-[0.66rem] font-medium uppercase tracking-[0.06em] text-muted-foreground/65">
+                    {view.detailLabel}
+                  </p>
+                )}
+                {renderDetailAsCode ? (
+                  <pre className="max-h-56 max-w-full overflow-auto whitespace-pre-wrap wrap-anywhere border-l-2 border-border/50 pl-3 font-mono text-[0.7rem] leading-[1.55] text-foreground/85">
+                    {view.detail}
+                  </pre>
+                ) : (
+                  <p className="whitespace-pre-wrap wrap-anywhere">{view.detail}</p>
+                )}
+              </div>
+            ))}
           {toolViewMode === 'technical' && (
             <div className="grid gap-2">
               <JsonSection label="Input" value={view.rawArgs} />
@@ -792,17 +1145,82 @@ function ToolEntry({ embedded = false, part }: ToolEntryProps) {
 function JsonSection({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="mb-1 text-[0.65rem] font-medium tracking-[0.08em] text-muted-foreground/75 uppercase">{label}</div>
-      <pre className="max-h-56 overflow-auto rounded-md border border-border/70 bg-background/65 p-2 font-mono text-[0.65rem] leading-relaxed text-muted-foreground/90">
+      <div className="mb-1 text-[0.65rem] font-medium tracking-[0.08em] text-muted-foreground/75 uppercase">
+        {label}
+      </div>
+      <pre className="max-h-56 max-w-full overflow-auto rounded-md border border-border/70 bg-background/65 p-2 font-mono text-[0.65rem] leading-relaxed text-muted-foreground/90">
         {value}
       </pre>
     </div>
   )
 }
 
+function groupPreviewTargets(parts: ToolPart[]): string[] {
+  const seen = new Set<string>()
+  const targets: string[] = []
+
+  for (const part of parts) {
+    const view = buildToolView(part, inlineDiffFromResult(part.result))
+    const target = view.previewTarget
+
+    if (target && isPreviewableTarget(target) && !seen.has(target)) {
+      seen.add(target)
+      targets.push(target)
+    }
+  }
+
+  return targets
+}
+
 function ToolGroup({ parts }: { parts: ToolPart[] }) {
-  const [open, setOpen] = useState(parts.some(part => part.result === undefined))
+  const isRunning = parts.some(part => part.result === undefined)
+  const disclosureStates = useStore($toolDisclosureStates)
+  const disclosureId = toolGroupDisclosureId(parts)
+  const open = disclosureStates[disclosureId] ?? isRunning
+  // Auto-collapse once the whole turn settles. While streaming, keep open
+  // so the user can watch progress; on completion we fold it down to a
+  // single Activity row, matching the webui pattern.
+  const wasRunningRef = useRef(isRunning)
+
+  useEffect(() => {
+    if (wasRunningRef.current && !isRunning) {
+      setToolDisclosureOpen(disclosureId, false)
+    }
+
+    wasRunningRef.current = isRunning
+  }, [disclosureId, isRunning])
+
   const status = groupStatus(parts)
+
+  const failedStepCount = useMemo(
+    () => parts.filter(part => toolStatus(part, parseMaybeObject(part.result)) === 'error').length,
+    [parts]
+  )
+
+  const totalDurationLabel = useMemo(() => {
+    const seconds = parts.reduce((sum, part) => {
+      const value = numberValue(parseMaybeObject(part.result).duration_s)
+
+      return sum + (value && value > 0 ? value : 0)
+    }, 0)
+
+    if (!seconds) {
+      return ''
+    }
+
+    return seconds >= 10 ? `${seconds.toFixed(0)}s` : `${seconds.toFixed(1)}s`
+  }, [parts])
+
+  const statusSummary =
+    status === 'running' || failedStepCount === 0
+      ? ''
+      : status === 'warning'
+        ? failedStepCount === 1
+          ? 'Recovered after 1 failed step'
+          : `Recovered after ${failedStepCount} failed steps`
+        : failedStepCount === 1
+          ? '1 step failed'
+          : `${failedStepCount} steps failed`
 
   const tailSummary = useMemo(() => {
     const tail = parts.at(-1)
@@ -810,24 +1228,101 @@ function ToolGroup({ parts }: { parts: ToolPart[] }) {
     return tail ? buildToolView(tail, '').subtitle : ''
   }, [parts])
 
+  const groupCopyText = useMemo(() => {
+    return parts
+      .map(part => {
+        const view = buildToolView(part, '')
+        const lines = [view.title]
+
+        if (view.subtitle && view.subtitle !== view.title) {
+          lines.push(view.subtitle)
+        }
+
+        if (view.detail && view.detail !== view.subtitle) {
+          lines.push(view.detail)
+        }
+
+        return lines.join('\n')
+      })
+      .join('\n\n')
+  }, [parts])
+
+  const showGroupStatusGlyph = status !== 'success'
+  const previewTargets = useMemo(() => groupPreviewTargets(parts), [parts])
+
   return (
-    <div className={cn('mb-2 mt-1 rounded-lg border border-border/70 bg-card/45', open && 'mb-3')}>
-      <button
-        className="inline-grid w-full grid-cols-[0.75rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent/45"
-        onClick={() => setOpen(value => !value)}
-        type="button"
-      >
-        <ChevronRight className={cn('shrink-0 text-muted-foreground/80 transition-transform', open && 'rotate-90')} size={12} />
-        <span className="min-w-0">
-          <span className="block truncate text-xs font-medium text-foreground/90">{groupTitle(parts)}</span>
-          {tailSummary && (
-            <span className="line-clamp-1 block text-[0.68rem] text-muted-foreground/75">{tailSummary.replace(/\n+/g, ' · ')}</span>
-          )}
-        </span>
-        {statusBadge(status)}
-      </button>
+    <div className="min-w-0 max-w-full overflow-hidden" data-slot="tool-block">
+      <div className="group/tool-row relative flex w-full max-w-full min-w-0 items-start rounded-md text-muted-foreground transition-colors hover:bg-accent/35 hover:text-foreground">
+        <button
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-start gap-2 px-2 py-0.5 text-left"
+          onClick={() => setToolDisclosureOpen(disclosureId, !open)}
+          type="button"
+        >
+          <span className="flex h-[1.1rem] shrink-0 items-center">
+            <ChevronRight
+              className={cn(
+                'size-3 text-muted-foreground/55 transition-transform group-hover/tool-row:text-muted-foreground/85',
+                open && 'rotate-90'
+              )}
+            />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-baseline gap-1.5">
+              {showGroupStatusGlyph && (
+                <span className="flex h-[1.1rem] shrink-0 items-center">{statusGlyph(status)}</span>
+              )}
+              <FadeText
+                className={cn(
+                  'text-[0.78rem] font-medium leading-[1.1rem] text-foreground/85',
+                  status === 'error' && 'text-destructive',
+                  status === 'warning' && 'text-amber-700 dark:text-amber-300'
+                )}
+              >
+                {groupTitle(parts)}
+              </FadeText>
+              {totalDurationLabel && (
+                <span className="shrink-0 text-[0.625rem] tabular-nums text-muted-foreground/55">
+                  {totalDurationLabel}
+                </span>
+              )}
+            </span>
+            {tailSummary && (
+              <FadeText className="text-[0.7rem] leading-[1.05rem] text-muted-foreground/70">
+                {tailSummary.replace(/\n+/g, ' · ')}
+              </FadeText>
+            )}
+            {statusSummary && (
+              <FadeText
+                className={cn(
+                  'text-[0.68rem] leading-[1.05rem]',
+                  status === 'warning' ? 'text-amber-700/80 dark:text-amber-300/85' : 'text-destructive/85'
+                )}
+              >
+                {statusSummary}
+              </FadeText>
+            )}
+          </span>
+        </button>
+        {!isRunning && groupCopyText && (
+          <CopyButton
+            appearance="tool-row"
+            className="absolute right-1 top-0.5"
+            label="Copy activity"
+            stopPropagation
+            text={groupCopyText}
+          />
+        )}
+      </div>
+      {previewTargets.length > 0 && (
+        <div className={cn(TOOL_DETAIL_INDENT_CLASS, 'mt-2 grid min-w-0 max-w-full gap-2 overflow-hidden')}>
+          {previewTargets.map(target => (
+            <PreviewAttachment key={target} source="tool-result" target={target} />
+          ))}
+        </div>
+      )}
       {open && (
-        <div className="mt-1 divide-y divide-border/55 overflow-hidden pb-1">
+        <div className={cn(TOOL_DETAIL_INDENT_CLASS, 'mt-0.5 min-w-0 max-w-full overflow-hidden')}>
           {parts.map(part => (
             <ToolEntry embedded key={part.toolCallId || `${part.toolName}-${JSON.stringify(part.args)}`} part={part} />
           ))}
@@ -869,7 +1364,7 @@ export const ToolFallback = ({ toolCallId, toolName, args, isError, result }: To
 
 function InlineDiff({ text }: { text: string }) {
   return (
-    <pre className="ml-4 mt-2 max-h-96 max-w-full overflow-auto rounded-lg border border-border/60 bg-background/70 px-3 py-2 font-mono text-[0.6875rem] leading-relaxed">
+    <pre className="mt-2 max-h-96 max-w-full min-w-0 overflow-auto rounded-lg border border-border/60 bg-background/70 px-3 py-2 font-mono text-[0.6875rem] leading-relaxed">
       {text.split('\n').map((line, index) => {
         const added = line.startsWith('+') && !line.startsWith('+++')
         const removed = line.startsWith('-') && !line.startsWith('---')

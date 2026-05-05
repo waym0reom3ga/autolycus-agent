@@ -8,6 +8,7 @@ declare global {
       notify: (payload: HermesNotification) => Promise<boolean>
       requestMicrophoneAccess: () => Promise<boolean>
       readFileDataUrl: (filePath: string) => Promise<string>
+      readFileText: (filePath: string) => Promise<HermesReadFileTextResult>
       selectPaths: (options?: HermesSelectPathsOptions) => Promise<string[]>
       writeClipboard: (text: string) => Promise<boolean>
       saveImageFromUrl: (url: string) => Promise<boolean>
@@ -17,7 +18,11 @@ declare global {
       normalizePreviewTarget: (target: string, baseDir?: string) => Promise<HermesPreviewTarget | null>
       watchPreviewFile: (url: string) => Promise<HermesPreviewWatch>
       stopPreviewFileWatch: (id: string) => Promise<boolean>
+      setPreviewShortcutActive?: (active: boolean) => void
       openExternal: (url: string) => Promise<void>
+      readDir: (path: string) => Promise<HermesReadDirResult>
+      gitRoot?: (path: string) => Promise<string | null>
+      onClosePreviewRequested?: (callback: () => void) => () => void
       onPreviewFileChanged: (callback: (payload: HermesPreviewFileChanged) => void) => () => void
       onBackendExit: (callback: (payload: BackendExit) => void) => () => void
     }
@@ -45,15 +50,44 @@ export interface HermesNotification {
 }
 
 export interface HermesPreviewTarget {
+  binary?: boolean
+  byteSize?: number
   kind: 'file' | 'url'
   label: string
+  large?: boolean
+  language?: string
+  mimeType?: string
+  path?: string
+  previewKind?: 'binary' | 'html' | 'image' | 'text'
+  renderMode?: 'preview' | 'source'
   source: string
   url: string
+}
+
+export interface HermesReadFileTextResult {
+  binary?: boolean
+  byteSize?: number
+  language?: string
+  mimeType?: string
+  path: string
+  text: string
+  truncated?: boolean
 }
 
 export interface HermesPreviewWatch {
   id: string
   path: string
+}
+
+export interface HermesReadDirEntry {
+  name: string
+  path: string
+  isDirectory: boolean
+}
+
+export interface HermesReadDirResult {
+  entries: HermesReadDirEntry[]
+  error?: string
 }
 
 export interface HermesPreviewFileChanged {

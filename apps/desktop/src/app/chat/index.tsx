@@ -39,14 +39,11 @@ import {
 import type { ModelOptionsResponse } from '@/types/hermes'
 
 import { routeSessionId } from '../routes'
-import type { SetStatusbarItemGroup } from '../shell/statusbar-controls'
 import { titlebarHeaderBaseClass, titlebarHeaderShadowClass } from '../shell/titlebar'
-import type { SetTitlebarToolGroup } from '../shell/titlebar-controls'
 
 import { ChatBar, ChatBarFallback } from './composer'
 import type { ChatBarState } from './composer/types'
 import type { DroppedFile } from './hooks/use-composer-actions'
-import { ChatPreviewRail, ChatRightRail } from './right-rail'
 import { SessionActionsMenu } from './sidebar/session-actions-menu'
 
 interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
@@ -66,21 +63,10 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onPickImages: () => void
   onRemoveAttachment: (id: string) => void
   onSubmit: (text: string) => Promise<void> | void
-  onChangeCwd: (cwd: string) => void
-  onBrowseCwd: () => void
-  onOpenModelPicker: () => void
-  onRestartPreviewServer?: (url: string, context?: string) => Promise<string>
-  onSetFastMode: (enabled: boolean) => void
-  onSetReasoningEffort: (effort: string) => void
-  onSelectPersonality: (name: string) => void
-  onOpenCommandCenterSystem: () => void
-  onOpenSkills: () => void
   onThreadMessagesChange: (messages: readonly ThreadMessage[]) => void
   onEdit: (message: AppendMessage) => Promise<void>
   onReload: (parentId: string | null) => Promise<void>
   onTranscribeAudio?: (audio: Blob) => Promise<string>
-  setStatusbarItemGroup?: SetStatusbarItemGroup
-  setTitlebarToolGroup?: SetTitlebarToolGroup
 }
 
 function threadLoadingState(
@@ -125,21 +111,10 @@ export function ChatView({
   onPickImages,
   onRemoveAttachment,
   onSubmit,
-  onChangeCwd: _onChangeCwd,
-  onBrowseCwd: _onBrowseCwd,
-  onOpenModelPicker: _onOpenModelPicker,
-  onRestartPreviewServer,
-  onSetFastMode: _onSetFastMode,
-  onSetReasoningEffort: _onSetReasoningEffort,
-  onSelectPersonality: _onSelectPersonality,
-  onOpenCommandCenterSystem,
-  onOpenSkills,
   onThreadMessagesChange,
   onEdit,
   onReload,
-  onTranscribeAudio,
-  setStatusbarItemGroup: _setStatusbarItemGroup,
-  setTitlebarToolGroup
+  onTranscribeAudio
 }: ChatViewProps) {
   const location = useLocation()
   const activeSessionId = useStore($activeSessionId)
@@ -270,85 +245,75 @@ export function ChatView({
   })
 
   return (
-    <>
-      <div
-        className={cn(
-          'relative col-start-2 col-end-3 row-start-1 flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent',
-          className
-        )}
-      >
-        <header className={cn(titlebarHeaderBaseClass, isRoutedSessionView && titlebarHeaderShadowClass)}>
-          <div className="min-w-0 flex-1">
-            {title && (
-              <SessionActionsMenu
-                align="start"
-                onDelete={selectedSessionId ? onDeleteSelectedSession : undefined}
-                onPin={selectedSessionId ? onToggleSelectedPin : undefined}
-                pinned={selectedIsPinned}
-                sessionId={selectedSessionId || activeSessionId || ''}
-                sideOffset={8}
-                title={title}
+    <div
+      className={cn(
+        'relative flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent',
+        className
+      )}
+    >
+      <header className={cn(titlebarHeaderBaseClass, isRoutedSessionView && titlebarHeaderShadowClass)}>
+        <div className="min-w-0 flex-1">
+          {title && (
+            <SessionActionsMenu
+              align="start"
+              onDelete={selectedSessionId ? onDeleteSelectedSession : undefined}
+              onPin={selectedSessionId ? onToggleSelectedPin : undefined}
+              pinned={selectedIsPinned}
+              sessionId={selectedSessionId || activeSessionId || ''}
+              sideOffset={8}
+              title={title}
+            >
+              <Button
+                className="pointer-events-auto h-7 min-w-0 gap-1.5 rounded-lg px-1 py-0 text-foreground hover:bg-accent/70 data-[state=open]:bg-accent/70 [-webkit-app-region:no-drag]"
+                type="button"
+                variant="ghost"
               >
-                <Button
-                  className="pointer-events-auto h-7 min-w-0 gap-1.5 rounded-lg px-1 py-0 text-foreground hover:bg-accent/70 data-[state=open]:bg-accent/70 [-webkit-app-region:no-drag]"
-                  type="button"
-                  variant="ghost"
-                >
-                  <h2 className="max-w-[62vw] truncate text-base font-semibold leading-none tracking-tight">{title}</h2>
-                  <ChevronDown className="shrink-0 text-foreground/75" size={16} />
-                </Button>
-              </SessionActionsMenu>
-            )}
-          </div>
-        </header>
-
-        <NotificationStack />
-
-        <div className="relative min-h-0 max-w-full flex-1 overflow-hidden rounded-[1.0625rem] bg-transparent contain-[layout_paint]">
-          <AssistantRuntimeProvider runtime={runtime}>
-            <Thread
-              intro={showIntro ? { personality: introPersonality, seed: introSeed } : undefined}
-              loading={threadLoading}
-              onBranchInNewChat={onBranchInNewChat}
-              sessionKey={threadKey}
-            />
-            {showChatBar && (
-              <Suspense fallback={<ChatBarFallback />}>
-                <ChatBar
-                  busy={busy}
-                  cwd={currentCwd}
-                  disabled={!gatewayOpen}
-                  focusKey={activeSessionId}
-                  gateway={gateway}
-                  maxRecordingSeconds={maxVoiceRecordingSeconds}
-                  onAddContextRef={onAddContextRef}
-                  onAddUrl={onAddUrl}
-                  onAttachDroppedItems={onAttachDroppedItems}
-                  onAttachImageBlob={onAttachImageBlob}
-                  onCancel={onCancel}
-                  onPasteClipboardImage={onPasteClipboardImage}
-                  onPickFiles={onPickFiles}
-                  onPickFolders={onPickFolders}
-                  onPickImages={onPickImages}
-                  onRemoveAttachment={onRemoveAttachment}
-                  onSubmit={onSubmit}
-                  onTranscribeAudio={onTranscribeAudio}
-                  sessionId={activeSessionId}
-                  state={chatBarState}
-                />
-              </Suspense>
-            )}
-          </AssistantRuntimeProvider>
+                <h2 className="max-w-[62vw] truncate text-base font-semibold leading-none tracking-tight">{title}</h2>
+                <ChevronDown className="shrink-0 text-foreground/75" size={16} />
+              </Button>
+            </SessionActionsMenu>
+          )}
         </div>
-      </div>
+      </header>
 
-      <ChatPreviewRail onRestartServer={onRestartPreviewServer} setTitlebarToolGroup={setTitlebarToolGroup} />
-      <ChatRightRail
-        onOpenCommandCenterSystem={onOpenCommandCenterSystem}
-        onOpenSkills={onOpenSkills}
-      />
-    </>
+      <NotificationStack />
+
+      <div className="relative min-h-0 max-w-full flex-1 overflow-hidden rounded-[1.0625rem] bg-transparent contain-[layout_paint]">
+        <AssistantRuntimeProvider runtime={runtime}>
+          <Thread
+            intro={showIntro ? { personality: introPersonality, seed: introSeed } : undefined}
+            loading={threadLoading}
+            onBranchInNewChat={onBranchInNewChat}
+            sessionKey={threadKey}
+          />
+          {showChatBar && (
+            <Suspense fallback={<ChatBarFallback />}>
+              <ChatBar
+                busy={busy}
+                cwd={currentCwd}
+                disabled={!gatewayOpen}
+                focusKey={activeSessionId}
+                gateway={gateway}
+                maxRecordingSeconds={maxVoiceRecordingSeconds}
+                onAddContextRef={onAddContextRef}
+                onAddUrl={onAddUrl}
+                onAttachDroppedItems={onAttachDroppedItems}
+                onAttachImageBlob={onAttachImageBlob}
+                onCancel={onCancel}
+                onPasteClipboardImage={onPasteClipboardImage}
+                onPickFiles={onPickFiles}
+                onPickFolders={onPickFolders}
+                onPickImages={onPickImages}
+                onRemoveAttachment={onRemoveAttachment}
+                onSubmit={onSubmit}
+                onTranscribeAudio={onTranscribeAudio}
+                sessionId={activeSessionId}
+                state={chatBarState}
+              />
+            </Suspense>
+          )}
+        </AssistantRuntimeProvider>
+      </div>
+    </div>
   )
 }
-
-export { PREVIEW_RAIL_WIDTH, SESSION_INSPECTOR_WIDTH } from './right-rail'

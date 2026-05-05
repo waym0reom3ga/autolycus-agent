@@ -2,8 +2,8 @@
  * Desktop theme context.
  *
  * Applies the active theme as CSS custom properties on :root, making every
- * Tailwind utility that references a `--color-*` / `--radius` / `--font-*`
- * variable pick up the change automatically.
+ * Tailwind utility that references a color or font-family token pick up the
+ * change automatically.
  *
  * Persists mode (light/dark/system) and skin separately. Mode controls
  * brightness; skin controls accent family.
@@ -16,25 +16,18 @@ import { matchesQuery, useMediaQuery } from '@/hooks/use-media-query'
 import {
   BUILTIN_THEME_LIST,
   BUILTIN_THEMES,
-  DEFAULT_LAYOUT,
   DEFAULT_TYPOGRAPHY,
   defaultTheme,
   nousLightTheme,
   nousTheme
 } from './presets'
-import type { DesktopTheme, DesktopThemeColors, ThemeDensity } from './types'
+import type { DesktopTheme, DesktopThemeColors } from './types'
 
 const STORAGE_KEY = 'hermes-desktop-theme-v2' // Stores skin name.
 const MODE_KEY = 'hermes-desktop-mode-v1'
 const DEFAULT_SKIN = 'default'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
-
-const DENSITY_MULTIPLIERS: Record<ThemeDensity, string> = {
-  compact: '0.85',
-  comfortable: '1',
-  spacious: '1.2'
-}
 
 const INJECTED_FONT_URLS = new Set<string>()
 const SKIN_THEME_LIST = BUILTIN_THEME_LIST.filter(t => t.name !== 'nous-light')
@@ -180,8 +173,7 @@ function deriveTheme(skinName: string, mode: 'light' | 'dark'): DesktopTheme {
     label: `${isDefault ? 'Hermes' : seed.label} ${mode === 'light' ? 'Light' : 'Dark'}`,
     description: `${seed.label} ${mode} palette`,
     colors: mode === 'light' ? lightColors(seed, skinName) : darkColors(seed, skinName),
-    typography: fontOnly(seed),
-    layout: undefined
+    typography: fontOnly(seed)
   }
 }
 
@@ -220,7 +212,6 @@ function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark') {
 
   const root = document.documentElement
   const typo = { ...DEFAULT_TYPOGRAPHY, ...NOUS_FONT_FAMILY_FALLBACK, ...theme.typography }
-  const layout = { ...DEFAULT_LAYOUT, ...theme.layout }
   const c = theme.colors
 
   const rendered = renderedModeFor(theme.colors, mode)
@@ -253,20 +244,13 @@ function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark') {
     '--dt-sidebar-border': c.sidebarBorder ?? c.border,
     '--dt-user-bubble': c.userBubble ?? c.muted,
     '--dt-user-bubble-border': c.userBubbleBorder ?? c.border,
-    '--radius': layout.radius,
-    '--dt-spacing-mul': DENSITY_MULTIPLIERS[layout.density] ?? '1',
     '--dt-font-sans': typo.fontSans,
-    '--dt-font-mono': typo.fontMono,
-    '--dt-base-size': typo.baseSize,
-    '--dt-line-height': typo.lineHeight,
-    '--dt-letter-spacing': typo.letterSpacing
+    '--dt-font-mono': typo.fontMono
   }
 
   for (const [k, v] of Object.entries(vars)) {
     root.style.setProperty(k, v)
   }
-
-  root.style.setProperty('font-size', 'var(--dt-base-size)')
 
   if (typo.fontUrl && !INJECTED_FONT_URLS.has(typo.fontUrl)) {
     const link = document.createElement('link')

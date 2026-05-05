@@ -2,17 +2,18 @@ import { useStore } from '@nanostores/react'
 import type { CSSProperties, ReactNode, PointerEvent as ReactPointerEvent } from 'react'
 import { useCallback } from 'react'
 
+import { PaneShell } from '@/components/pane-shell'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { triggerHaptic } from '@/lib/haptics'
 import {
-  $inspectorOpen,
+  $fileBrowserOpen,
   $sidebarOpen,
   $sidebarWidth,
+  FILE_BROWSER_DEFAULT_WIDTH,
   setSidebarOpen,
   setSidebarResizing,
   setSidebarWidth
 } from '@/store/layout'
-import { $previewTarget } from '@/store/preview'
 import { $connection } from '@/store/session'
 
 import { StatusbarControls, type StatusbarItem } from './statusbar-controls'
@@ -21,41 +22,27 @@ import { TitlebarControls, type TitlebarTool } from './titlebar-controls'
 
 interface AppShellProps {
   children: ReactNode
-  inspectorWidth: string
-  leftTitlebarTools?: readonly TitlebarTool[]
   leftStatusbarItems?: readonly StatusbarItem[]
-  previewWidth: string
-  rightRailOpen: boolean
-  sidebar: ReactNode
-  statusbarItems?: readonly StatusbarItem[]
-  titlebarTools?: readonly TitlebarTool[]
+  leftTitlebarTools?: readonly TitlebarTool[]
   onOpenSettings: () => void
   overlays?: ReactNode
+  statusbarItems?: readonly StatusbarItem[]
+  titlebarTools?: readonly TitlebarTool[]
 }
 
 export function AppShell({
   children,
-  inspectorWidth,
-  leftTitlebarTools,
   leftStatusbarItems,
-  previewWidth,
-  rightRailOpen,
-  sidebar,
-  statusbarItems,
-  titlebarTools,
+  leftTitlebarTools,
   onOpenSettings,
-  overlays
+  overlays,
+  statusbarItems,
+  titlebarTools
 }: AppShellProps) {
   const sidebarWidth = useStore($sidebarWidth)
-  const connection = useStore($connection)
   const sidebarOpen = useStore($sidebarOpen)
-  const inspectorOpen = useStore($inspectorOpen)
-  const previewTarget = useStore($previewTarget)
-
-  // The shell grid should describe visible app chrome only. Titlebar buttons
-  // and draggable hit-zones are fixed overlays, so keeping an invisible grid
-  // column for a closed sidebar pushes/clips the actual chat surface.
-  const displayedSidebarWidth = sidebarOpen ? sidebarWidth : 0
+  const fileBrowserOpen = useStore($fileBrowserOpen)
+  const connection = useStore($connection)
 
   const titlebarControls = titlebarControlsPosition(connection?.windowButtonPosition)
 
@@ -63,18 +50,28 @@ export function AppShell({
     ? 0
     : titlebarControls.left + TITLEBAR_HEIGHT + Math.round(TITLEBAR_HEIGHT / 2)
 
-  const showPreviewRail = rightRailOpen && Boolean(previewTarget)
-  const showInspectorRail = rightRailOpen && inspectorOpen
+  // The static system cluster (file-browser, haptics, settings) is hardcoded
+  // in TitlebarControls. Pane-supplied tools (preview's group) render in a
+  // separate cluster anchored further left.
+  const SYSTEM_TOOL_COUNT = 3
+  const paneToolCount = titlebarTools?.filter(tool => !tool.hidden).length ?? 0
+  const systemToolsWidth = `calc(${SYSTEM_TOOL_COUNT} * var(--titlebar-control-size))`
 
-  const inspectorColumn = showInspectorRail ? 'var(--inspector-width)' : '0px'
+  // Where the pane-tool cluster's right edge sits, measured from the inner
+  // titlebar padding (--titlebar-tools-right). Two anchors:
+  //   - file-browser closed → flush against static cluster's left edge
+  //   - file-browser open   → flush against the file-browser pane's left edge
+  //                           (= preview pane's right edge)
+  const previewToolbarGap = fileBrowserOpen ? FILE_BROWSER_DEFAULT_WIDTH : systemToolsWidth
 
-  const previewColumn = showPreviewRail
-    ? `min(var(--preview-width), max(0px, calc(100vw - var(--sidebar-width) - ${showInspectorRail ? 'var(--inspector-width)' : '0px'} - var(--chat-min-width))))`
-    : '0px'
-
-  const titlebarToolCount = (titlebarTools?.filter(tool => !tool.hidden).length ?? 0) + (rightRailOpen ? 1 : 0) + 2
-
-  const shellGridColumns = 'var(--sidebar-width) minmax(0,1fr) var(--preview-col) var(--inspector-col)'
+  // Used by the drag region to know where the rightmost interactive element
+  // ends. When pane tools are present, that's `gap + paneCount * controlSize`
+  // (the leftmost button is at `tools-right + gap + paneCount * size`).
+  // Otherwise the static cluster's footprint is enough.
+  const titlebarToolsWidth =
+    paneToolCount > 0
+      ? `calc(${previewToolbarGap} + ${paneToolCount} * var(--titlebar-control-size))`
+      : systemToolsWidth
 
   const startSidebarResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -115,69 +112,51 @@ export function AppShell({
       open={sidebarOpen}
       style={
         {
-          '--inspector-width': inspectorWidth,
-          '--preview-width': previewWidth,
-          '--sidebar-width': `${displayedSidebarWidth}px`,
-          '--chat-center-offset': '0px',
-          '--shell-left-sidebar-width': `${displayedSidebarWidth}px`,
-          '--shell-preview-pane-width': previewColumn,
-          '--shell-right-sidebar-width': inspectorColumn,
-          '--shell-right-region-width': 'calc(var(--shell-preview-pane-width) + var(--shell-right-sidebar-width))',
-          '--shell-preview-toolbar-gap': showPreviewRail
-            ? 'max(0px, calc(var(--shell-right-sidebar-width) - (3 * var(--titlebar-control-size)) + 0.2rem))'
-            : '0px',
+          // Alias for shadcn <Sidebar> descendants. Resolves to the chat-sidebar
+          // pane track via PaneShell's emitted --pane-chat-sidebar-width.
+          '--sidebar-width': 'var(--pane-chat-sidebar-width)',
           '--titlebar-height': `${TITLEBAR_HEIGHT}px`,
           '--titlebar-content-inset': `${titlebarContentInset}px`,
           '--titlebar-controls-left': `${titlebarControls.left}px`,
           '--titlebar-controls-top': `${titlebarControls.top}px`,
           '--titlebar-tools-right': '0.75rem',
-          '--titlebar-tools-width': `calc(${titlebarToolCount} * var(--titlebar-control-size) + var(--shell-preview-toolbar-gap))`
+          '--titlebar-tools-width': titlebarToolsWidth,
+          // Anchor for the pane-tool cluster's right edge in TitlebarControls.
+          // Sourced from the layout store rather than the PaneShell-emitted
+          // --pane-*-width vars because the titlebar is a sibling of PaneShell
+          // and CSS variables resolve at the consumer's scope.
+          '--shell-preview-toolbar-gap': previewToolbarGap
         } as CSSProperties
       }
     >
-      <TitlebarControls
-        leftTools={leftTitlebarTools}
-        onOpenSettings={onOpenSettings}
-        showInspectorToggle={rightRailOpen}
-        tools={titlebarTools}
-      />
+      <TitlebarControls leftTools={leftTitlebarTools} onOpenSettings={onOpenSettings} tools={titlebarTools} />
 
-      <main
-        className="relative grid h-screen w-full overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75 transition-none"
-        style={
-          {
-            '--inspector-col': inspectorColumn,
-            '--preview-col': previewColumn,
-            gridTemplateColumns: shellGridColumns,
-            gridTemplateRows: 'minmax(0,1fr) auto'
-          } as CSSProperties
-        }
-      >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-0 top-0 z-1 h-(--titlebar-height) w-(--titlebar-controls-left) [-webkit-app-region:drag]"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute top-0 z-1 h-(--titlebar-height) left-[calc(var(--titlebar-controls-left)+(var(--titlebar-control-size)*2)+0.75rem)] right-[calc(var(--titlebar-tools-right)+var(--titlebar-tools-width)+0.75rem)] [-webkit-app-region:drag]"
-        />
-
-        <div className="col-start-1 col-end-2 row-start-1 min-h-0 overflow-hidden">{sidebar}</div>
-
-        {sidebarOpen && (
+      <main className="relative flex h-screen w-full flex-col overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75 transition-none">
+        <PaneShell className="min-h-0 flex-1">
           <div
-            aria-label="Resize sidebar"
-            aria-orientation="vertical"
-            className="group absolute bottom-0 top-0 left-[calc(var(--sidebar-width)-0.5rem)] z-5 w-4 cursor-col-resize [-webkit-app-region:no-drag]"
-            onPointerDown={startSidebarResize}
-            role="separator"
-            tabIndex={0}
-          >
-            <span className="absolute left-1/2 top-1/2 h-23 w-0.75 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/80 opacity-0 transition-opacity duration-100 group-hover:opacity-[0.65] group-focus-visible:opacity-[0.65]" />
-          </div>
-        )}
+            aria-hidden="true"
+            className="pointer-events-none absolute left-0 top-0 z-1 h-(--titlebar-height) w-(--titlebar-controls-left) [-webkit-app-region:drag]"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute top-0 z-1 h-(--titlebar-height) left-[calc(var(--titlebar-controls-left)+(var(--titlebar-control-size)*2)+0.75rem)] right-[calc(var(--titlebar-tools-right)+var(--titlebar-tools-width)+0.75rem)] [-webkit-app-region:drag]"
+          />
 
-        {children}
+          {children}
+
+          {sidebarOpen && (
+            <div
+              aria-label="Resize sidebar"
+              aria-orientation="vertical"
+              className="group absolute bottom-0 top-0 left-[calc(var(--pane-chat-sidebar-width)-0.5rem)] z-5 w-4 cursor-col-resize [-webkit-app-region:no-drag]"
+              onPointerDown={startSidebarResize}
+              role="separator"
+              tabIndex={0}
+            >
+              <span className="absolute left-1/2 top-1/2 h-23 w-0.75 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/80 opacity-0 transition-opacity duration-100 group-hover:opacity-[0.65] group-focus-visible:opacity-[0.65]" />
+            </div>
+          )}
+        </PaneShell>
 
         <StatusbarControls items={statusbarItems} leftItems={leftStatusbarItems} />
       </main>

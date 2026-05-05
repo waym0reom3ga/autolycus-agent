@@ -175,10 +175,10 @@ export const Intro: FC<IntroProps> = ({ personality, seed }) => {
   }, [])
 
   return (
-    <div className="pointer-events-none flex min-h-[calc(100vh-var(--titlebar-height)-var(--thread-composer-clearance)-var(--composer-shell-pad-block-end))] flex-col items-center justify-center px-[calc(var(--vsq)*50)] text-center text-muted-foreground">
+    <div className="pointer-events-none flex min-h-[calc(100vh-var(--titlebar-height)-var(--thread-composer-clearance)-var(--composer-shell-pad-block-end))] w-full min-w-0 flex-col items-center justify-center px-3 py-8 text-center text-muted-foreground sm:px-6 lg:px-8">
       <button
         aria-label="Change Hermes pose"
-        className="pointer-events-auto mb-5 h-56 w-64 cursor-default border-0 bg-transparent p-0"
+        className="pointer-events-auto mb-5 aspect-8/7 w-full max-w-64 cursor-default border-0 bg-transparent p-0"
         onClick={advanceFrame}
         type="button"
       >
@@ -191,9 +191,11 @@ export const Intro: FC<IntroProps> = ({ personality, seed }) => {
           style={{ transform: `translateX(${spriteOffsetPx}px) scale(1.1)` }}
         />
       </button>
-      <p className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/75">Hermes Agent</p>
-      <h1 className="mb-2.5 text-xl font-semibold tracking-tight text-foreground">{copy.headline}</h1>
-      <p className="m-0 max-w-120 leading-normal">{copy.body}</p>
+      <div className="w-full min-w-0 max-w-xl">
+        <p className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/75">Hermes Agent</p>
+        <h1 className="mb-2.5 text-xl font-semibold tracking-tight text-foreground">{copy.headline}</h1>
+        <p className="m-0 leading-normal">{copy.body}</p>
+      </div>
     </div>
   )
 }

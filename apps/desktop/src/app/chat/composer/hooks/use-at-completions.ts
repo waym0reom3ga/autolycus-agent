@@ -7,6 +7,28 @@ import type { CompletionEntry, CompletionPayload } from './use-live-completion-a
 import { useLiveCompletionAdapter } from './use-live-completion-adapter'
 
 const KIND_RE = /^@(file|folder|url|image|tool|git):(.*)$/
+const REF_STARTERS = new Set(['file', 'folder', 'url', 'image', 'tool', 'git'])
+
+const STARTER_META: Record<string, string> = {
+  file: 'Attach a file reference',
+  folder: 'Attach a folder reference',
+  url: 'Attach a URL reference',
+  image: 'Attach an image reference',
+  tool: 'Attach a tool reference',
+  git: 'Attach git context'
+}
+
+function starterEntries(query: string): CompletionEntry[] {
+  const q = query.trim().toLowerCase()
+  const kinds = Array.from(REF_STARTERS)
+  const filtered = q ? kinds.filter(kind => kind.startsWith(q)) : kinds
+
+  return filtered.map(kind => ({
+    text: `@${kind}:`,
+    display: `@${kind}:`,
+    meta: STARTER_META[kind] || ''
+  }))
+}
 
 interface AtItemMetadata extends Record<string, string> {
   icon: string
@@ -61,11 +83,13 @@ export function useAtCompletions(options: {
 
   const fetcher = useCallback(
     async (query: string): Promise<CompletionPayload> => {
+      const starters = starterEntries(query)
+
       if (!gateway) {
-        return { items: [], query }
+        return { items: starters, query }
       }
 
-      const word = `@${query}`
+      const word = REF_STARTERS.has(query) ? `@${query}:` : `@${query}`
       const params: Record<string, unknown> = { word }
 
       if (sessionId) {
@@ -78,10 +102,11 @@ export function useAtCompletions(options: {
 
       try {
         const result = await gateway.request<{ items?: CompletionEntry[] }>('complete.path', params)
+        const items = result.items ?? []
 
-        return { items: result.items ?? [], query }
+        return { items: items.length > 0 ? items : starters, query }
       } catch {
-        return { items: [], query }
+        return { items: starters, query }
       }
     },
     [gateway, sessionId, cwd]

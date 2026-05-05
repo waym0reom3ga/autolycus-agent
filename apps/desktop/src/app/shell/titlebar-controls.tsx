@@ -3,10 +3,10 @@ import type { ComponentProps, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { triggerHaptic } from '@/lib/haptics'
-import { NotebookTabs, Settings, SlidersHorizontal, Volume2, VolumeX } from '@/lib/icons'
+import { FolderOpen, NotebookTabs, Settings, Volume2, VolumeX } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { $hapticsMuted, toggleHapticsMuted } from '@/store/haptics'
-import { $inspectorOpen, $sidebarOpen, toggleInspectorOpen, toggleSidebarOpen } from '@/store/layout'
+import { $fileBrowserOpen, $sidebarOpen, toggleFileBrowserOpen, toggleSidebarOpen } from '@/store/layout'
 
 import { titlebarButtonClass } from './titlebar'
 
@@ -29,21 +29,15 @@ export type SetTitlebarToolGroup = (id: string, tools: readonly TitlebarTool[], 
 
 interface TitlebarControlsProps extends ComponentProps<'div'> {
   leftTools?: readonly TitlebarTool[]
-  showInspectorToggle: boolean
   tools?: readonly TitlebarTool[]
   onOpenSettings: () => void
 }
 
-export function TitlebarControls({
-  leftTools = [],
-  showInspectorToggle,
-  tools = [],
-  onOpenSettings
-}: TitlebarControlsProps) {
+export function TitlebarControls({ leftTools = [], tools = [], onOpenSettings }: TitlebarControlsProps) {
   const navigate = useNavigate()
   const hapticsMuted = useStore($hapticsMuted)
+  const fileBrowserOpen = useStore($fileBrowserOpen)
   const sidebarOpen = useStore($sidebarOpen)
-  const inspectorOpen = useStore($inspectorOpen)
 
   const toggleHaptics = () => {
     if (!hapticsMuted) {
@@ -70,17 +64,16 @@ export function TitlebarControls({
     ...leftTools
   ]
 
-  const rightToolbarTools: TitlebarTool[] = [
-    ...tools,
+  // Static system tools — always pinned to the screen's right edge.
+  const systemTools: TitlebarTool[] = [
     {
-      active: inspectorOpen,
-      hidden: !showInspectorToggle,
-      icon: <SlidersHorizontal />,
-      id: 'session-details',
-      label: inspectorOpen ? 'Hide session details' : 'Show session details',
+      active: fileBrowserOpen,
+      icon: <FolderOpen />,
+      id: 'file-browser',
+      label: fileBrowserOpen ? 'Hide file browser' : 'Show file browser',
       onSelect: () => {
         triggerHaptic('tap')
-        toggleInspectorOpen()
+        toggleFileBrowserOpen()
       }
     },
     {
@@ -101,6 +94,9 @@ export function TitlebarControls({
     }
   ]
 
+  const visibleSystemTools = systemTools.filter(tool => !tool.hidden)
+  const visiblePaneTools = tools.filter(tool => !tool.hidden)
+
   return (
     <>
       <div
@@ -114,15 +110,32 @@ export function TitlebarControls({
           ))}
       </div>
 
+      {/*
+        Pane-scoped tools (preview's monitor / devtools / refresh / X) render
+        as their own fixed cluster. AppShell sets --shell-preview-toolbar-gap
+        to either the static cluster's width (file-browser closed → cluster
+        sits flush against system tools) or the file-browser pane's width
+        (file-browser open → cluster sits flush against the file-browser pane,
+        i.e. at the preview pane's right edge). No margin hacks needed.
+      */}
+      {visiblePaneTools.length > 0 && (
+        <div
+          aria-label="Pane controls"
+          className="fixed top-(--titlebar-controls-top) right-[calc(var(--titlebar-tools-right)+var(--shell-preview-toolbar-gap,0px))] z-70 flex flex-row items-center gap-px pointer-events-auto select-none [-webkit-app-region:no-drag]"
+        >
+          {visiblePaneTools.map(tool => (
+            <TitlebarToolButton key={tool.id} navigate={navigate} tool={tool} />
+          ))}
+        </div>
+      )}
+
       <div
         aria-label="App controls"
         className="fixed right-(--titlebar-tools-right) top-(--titlebar-controls-top) z-70 flex flex-row items-center justify-end gap-px pointer-events-auto select-none [-webkit-app-region:no-drag]"
       >
-        {rightToolbarTools
-          .filter(tool => !tool.hidden)
-          .map(tool => (
-            <TitlebarToolButton key={tool.id} navigate={navigate} tool={tool} />
-          ))}
+        {visibleSystemTools.map(tool => (
+          <TitlebarToolButton key={tool.id} navigate={navigate} tool={tool} />
+        ))}
       </div>
     </>
   )

@@ -188,7 +188,7 @@ export function usePromptActions({
         .join('\n')
 
       const hasImageAttachment = attachments.some(attachment => attachment.kind === 'image')
-      const displayRefs = attachments.map(attachmentDisplayText).filter(Boolean).join('\n')
+      const attachmentRefs = attachments.map(attachmentDisplayText).filter((ref): ref is string => Boolean(ref))
 
       const text =
         [contextRefs, visibleText].filter(Boolean).join('\n\n') ||
@@ -201,12 +201,8 @@ export function usePromptActions({
       const userMessage: ChatMessage = {
         id: `user-${Date.now()}`,
         role: 'user',
-        parts: [
-          textPart(
-            [displayRefs, visibleText].filter(Boolean).join('\n\n') ||
-              attachments.map(attachment => attachment.label).join(', ')
-          )
-        ]
+        parts: [textPart(visibleText || (attachmentRefs.length ? '' : attachments.map(a => a.label).join(', ')))],
+        attachmentRefs
       }
 
       const releaseBusy = () => {

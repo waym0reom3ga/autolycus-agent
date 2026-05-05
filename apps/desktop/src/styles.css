@@ -83,7 +83,7 @@
   :root {
     color-scheme: dark;
 
-    /* Fallback values (Claude Light theme) — ThemeProvider overwrites on mount. */
+    /* Default visual tokens. ThemeProvider only overrides colors and font families. */
     --dt-background: #f7f7f7;
     --dt-foreground: #242424;
     --dt-card: #ffffff;
@@ -110,7 +110,7 @@
 
     --dt-font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
     --dt-font-mono: 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
-    --dt-base-size: 0.9375rem;
+    --dt-base-size: 0.875rem;
     --dt-line-height: 1.55;
     --dt-letter-spacing: 0;
     --dt-spacing-mul: 1;
@@ -175,7 +175,7 @@
   }
 
   html {
-    font-size: var(--dt-base-size, 0.9375rem);
+    font-size: var(--dt-base-size, 0.875rem);
   }
 
   body {
@@ -282,7 +282,7 @@ canvas {
  * react-virtuoso) with stable item sizing — not a CSS heuristic.
  */
 
-.aui-md img {
+[data-slot='aui_assistant-message-content'] .aui-md img {
   display: block;
   width: auto;
   height: auto;
@@ -296,11 +296,11 @@ canvas {
     0 0.625rem 1.5rem color-mix(in srgb, #000 5%, transparent);
 }
 
-.aui-md [data-slot='aui_markdown-image'] {
+[data-slot='aui_assistant-message-content'] .aui-md [data-slot='aui_markdown-image'] {
   max-width: min(100%, var(--image-preview-max-width));
 }
 
-.aui-md {
+[data-slot='aui_assistant-message-content'] .aui-md {
   overflow-wrap: anywhere;
 }
 
@@ -324,17 +324,62 @@ canvas {
   scroll-behavior: auto;
 }
 
-.aui-md a,
-.aui-md code {
+[data-slot='aui_assistant-message-content'] .aui-md a {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-.aui-md p:has(> img:only-child) {
+/**
+ * Inline `code`: monospace pill with a subtle background. Scoped to plain
+ * inline code only — fenced blocks are handled by the SyntaxHighlighter
+ * component and live inside `[data-streamdown='code-block']`, so we explicitly
+ * unset there to keep the highlighter rendering its own chrome.
+ */
+[data-slot='aui_assistant-message-content'] .aui-md code {
+  /* Inline (not inside a fenced code-block). Use plain inline rendering so
+   * the surrounding `<p>` (wrap-anywhere) can break long paths/URLs at any
+   * character. inline-block + white-space: nowrap was leaking long paths
+   * past the chat column under any sibling pane width. */
+  display: inline;
+  max-width: 100%;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  font-size: 0.86em;
+  padding: 0.01rem 0.16rem;
+  border-radius: 0.2rem;
+  background: #f4f4f5;
+  color: #be185d;
+  border: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+:root.dark [data-slot='aui_assistant-message-content'] .aui-md code {
+  background: #27272a;
+  color: #f9a8d4;
+  border-color: #831843;
+}
+
+[data-slot='aui_assistant-message-content'] .aui-md [data-streamdown='code-block'] code {
+  max-width: none;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  overflow-x: visible;
+  overflow-wrap: inherit;
+  vertical-align: baseline;
+  word-break: inherit;
+  white-space: inherit;
+}
+
+[data-slot='aui_assistant-message-content'] .aui-md p:has(> img:only-child) {
   margin-block: 0.75rem;
 }
 
-.aui-md p:has(> [data-slot='aui_markdown-image']:only-child) {
+[data-slot='aui_assistant-message-content'] .aui-md p:has(> [data-slot='aui_markdown-image']:only-child) {
   margin-block: 0.75rem;
 }
 
@@ -346,14 +391,14 @@ canvas {
  * section breaks. Margin collapse picks the larger neighbor — producing
  * "more above headings, less below" without per-pair rules.
  */
-.aui-md p,
-.aui-md ul,
-.aui-md ol,
-.aui-md blockquote,
-.aui-md pre,
-.aui-md table,
-.aui-md [data-streamdown='code-block'],
-.aui-md div:has(> table) {
+[data-slot='aui_assistant-message-content'] .aui-md p,
+[data-slot='aui_assistant-message-content'] .aui-md ul,
+[data-slot='aui_assistant-message-content'] .aui-md ol,
+[data-slot='aui_assistant-message-content'] .aui-md blockquote,
+[data-slot='aui_assistant-message-content'] .aui-md pre,
+[data-slot='aui_assistant-message-content'] .aui-md table,
+[data-slot='aui_assistant-message-content'] .aui-md [data-streamdown='code-block'],
+[data-slot='aui_assistant-message-content'] .aui-md div:has(> table) {
   margin: 0 0 1rem;
 }
 
@@ -361,8 +406,7 @@ canvas {
  * with `flex flex-col gap-2 p-2 border bg-sidebar rounded-xl my-4`. Our own
  * CodeHeader + SyntaxHighlighter already supply the chrome, so undo the
  * library's wrapper to keep the header flush with the code body. */
-.aui-md [data-streamdown='code-block'],
-[data-streamdown='code-block'] {
+[data-slot='aui_assistant-message-content'] .aui-md [data-streamdown='code-block'] {
   padding: 0 !important;
   gap: 0 !important;
   border: 0 !important;
@@ -371,67 +415,106 @@ canvas {
   margin: 1rem 0 !important;
 }
 
-.aui-md [data-streamdown='code-block'] > *,
-[data-streamdown='code-block'] > * {
+[data-slot='aui_assistant-message-content'] .aui-md [data-streamdown='code-block'] > * {
   margin: 0 !important;
 }
 
-.aui-md h1 {
+[data-slot='aui_assistant-message-content'] .aui-md h1 {
   margin: 1.6rem 0 0.55rem;
 }
-.aui-md h2 {
+[data-slot='aui_assistant-message-content'] .aui-md h2 {
   margin: 1.4rem 0 0.5rem;
 }
-.aui-md h3 {
+[data-slot='aui_assistant-message-content'] .aui-md h3 {
   margin: 1.15rem 0 0.45rem;
 }
-.aui-md h4 {
+[data-slot='aui_assistant-message-content'] .aui-md h4 {
   margin: 0.95rem 0 0.4rem;
 }
-.aui-md hr {
+
+[data-slot='aui_assistant-message-content'] .aui-md hr {
   margin: 1.5rem 0;
 }
 
 /* `padding-left` keeps outside-position list markers in the gutter. */
-.aui-md ul,
-.aui-md ol {
+[data-slot='aui_assistant-message-content'] .aui-md ul,
+[data-slot='aui_assistant-message-content'] .aui-md ol {
   padding-left: 1.75rem;
 }
 
 /* Tight inter-bullet gap; loose items override below. */
-.aui-md li + li {
+[data-slot='aui_assistant-message-content'] .aui-md li + li {
   margin-top: 0.375rem;
 }
 
 /* Inside a bullet, hug nested blocks to the lead text. */
-.aui-md li > p {
+[data-slot='aui_assistant-message-content'] .aui-md li > p {
   margin-bottom: 0.4rem;
 }
-.aui-md li > ul,
-.aui-md li > ol {
+[data-slot='aui_assistant-message-content'] .aui-md li > ul,
+[data-slot='aui_assistant-message-content'] .aui-md li > ol {
   margin-top: 0.4rem;
 }
 
 /* Loose list items (CommonMark wraps each in <p> when any sibling has a
    block child) need visible separation — the tight rhythm collapses
    against a trailing heavy block like a code fence. */
-.aui-md li:has(> p) {
+[data-slot='aui_assistant-message-content'] .aui-md li:has(> p) {
   margin-bottom: 0.85rem;
 }
-.aui-md li:has(> p):last-child {
+[data-slot='aui_assistant-message-content'] .aui-md li:has(> p):last-child {
   margin-bottom: 0;
 }
 
 /* Trim edge margins at the container, list items, and blockquotes. */
-.aui-md > :first-child,
-.aui-md > * > :first-child,
-.aui-md li > :first-child,
-.aui-md blockquote > :first-child {
+[data-slot='aui_assistant-message-content'] .aui-md > :first-child,
+[data-slot='aui_assistant-message-content'] .aui-md > * > :first-child,
+[data-slot='aui_assistant-message-content'] .aui-md li > :first-child,
+[data-slot='aui_assistant-message-content'] .aui-md blockquote > :first-child {
   margin-top: 0;
 }
-.aui-md > :last-child,
-.aui-md > * > :last-child,
-.aui-md li > :last-child,
-.aui-md blockquote > :last-child {
+[data-slot='aui_assistant-message-content'] .aui-md > :last-child,
+[data-slot='aui_assistant-message-content'] .aui-md > * > :last-child,
+[data-slot='aui_assistant-message-content'] .aui-md li > :last-child,
+[data-slot='aui_assistant-message-content'] .aui-md blockquote > :last-child {
   margin-bottom: 0;
+}
+
+/**
+ * Intelligent spacing around inline tool/thinking blocks inside an
+ * assistant message.
+ *
+ * Two cases to balance:
+ *   1. Two tool/thinking rows next to each other  → keep them tight so a
+ *      multi-step turn reads as one continuous activity column.
+ *   2. A tool/thinking row next to prose (markdown text)  → give it real
+ *      breathing room so the activity feels like a separate panel and
+ *      doesn't crowd the paragraph above or below.
+ *
+ * Markdown text is wrapped in `.aui-md`; tool/thinking rows expose
+ * `data-slot="tool-block"`. Sibling combinators handle the rest.
+ */
+[data-slot='tool-block'] + [data-slot='tool-block'] {
+  margin-top: 0.25rem;
+}
+
+/**
+ * When the previous tool/thinking block is expanded (showing its content),
+ * give the next block visible breathing room so they don't read as one
+ * continuous chunk. The :has() guard keeps the tight rhythm between two
+ * collapsed rows.
+ */
+[data-slot='tool-block']:has(> :nth-child(2)) + [data-slot='tool-block'] {
+  margin-top: 0.625rem;
+}
+
+[data-slot='aui_assistant-message-content'] [data-slot='tool-block'] + .aui-md,
+[data-slot='aui_assistant-message-content'] .aui-md + [data-slot='tool-block'] {
+  margin-top: 0.875rem;
+}
+
+/* When the assistant message starts with a tool block, don't pile padding
+ * above it — the message header already provides spacing. */
+[data-slot='aui_assistant-message-content'] > [data-slot='tool-block']:first-child {
+  margin-top: 0;
 }

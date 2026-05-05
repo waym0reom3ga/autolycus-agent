@@ -30,10 +30,10 @@ export function OverlaySearchInput({
 
   return (
     <div className={cn('relative', containerClassName)}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/80" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 z-1 size-3.5 -translate-y-1/2 text-muted-foreground/80" />
       <Input
         className={cn(
-          'h-8.5 rounded-full border border-[color-mix(in_srgb,var(--dt-border)_60%,transparent)] bg-[color-mix(in_srgb,var(--dt-card)_85%,transparent)] py-2 pl-8 pr-12 text-sm shadow-[inset_0_0.0625rem_0_color-mix(in_srgb,white_38%,transparent)] focus-visible:border-[color-mix(in_srgb,var(--dt-ring)_70%,transparent)] focus-visible:bg-background',
+          'relative z-0 h-8.5 rounded-full border border-[color-mix(in_srgb,var(--dt-border)_60%,transparent)] bg-[color-mix(in_srgb,var(--dt-card)_85%,transparent)] py-2 pl-8 pr-12 text-sm shadow-[inset_0_0.0625rem_0_color-mix(in_srgb,white_38%,transparent)] focus-visible:border-[color-mix(in_srgb,var(--dt-ring)_70%,transparent)] focus-visible:bg-background dark:border-[color-mix(in_srgb,var(--dt-border)_48%,transparent)] dark:bg-[color-mix(in_srgb,var(--dt-card)_96%,var(--dt-background))] dark:shadow-[inset_0_0.0625rem_0_color-mix(in_srgb,white_10%,transparent)]',
           inputClassName
         )}
         onChange={event => onChange(event.target.value)}
@@ -42,11 +42,11 @@ export function OverlaySearchInput({
         value={value}
       />
       {loading ? (
-        <Loader2 className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground/70" />
+        <Loader2 className="pointer-events-none absolute right-3 top-1/2 z-1 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground/70" />
       ) : value ? (
         <Button
           aria-label="Clear search"
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground/85 hover:bg-accent/60 hover:text-foreground"
+          className="absolute right-1.5 top-1/2 z-1 -translate-y-1/2 text-muted-foreground/85 hover:bg-accent/60 hover:text-foreground"
           onClick={clear}
           size="icon-xs"
           variant="ghost"
