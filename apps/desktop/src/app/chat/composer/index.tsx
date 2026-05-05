@@ -38,7 +38,7 @@ import { useComposerGlassTweaks } from './hooks/use-composer-glass-tweaks'
 import { useSlashCompletions } from './hooks/use-slash-completions'
 import { useVoiceConversation } from './hooks/use-voice-conversation'
 import { useVoiceRecorder } from './hooks/use-voice-recorder'
-import { composerHtml, composerPlainText, escapeHtml, placeCaretEnd, refChipHtml, RICH_INPUT_SLOT } from './rich-editor'
+import { composerPlainText, placeCaretEnd, refChipElement, renderComposerContents, RICH_INPUT_SLOT } from './rich-editor'
 import { SkinSlashPopover } from './skin-slash-popover'
 import { ComposerTriggerPopover } from './trigger-popover'
 import type { ChatBarProps } from './types'
@@ -229,7 +229,7 @@ export function ChatBar({
     const editor = editorRef.current
 
     if (editor && document.activeElement !== editor && composerPlainText(editor) !== draft) {
-      editor.innerHTML = composerHtml(draft)
+      renderComposerContents(editor, draft)
     }
   }, [draft])
 
@@ -346,9 +346,7 @@ export function ChatBar({
 
       refs.forEach((ref, index) => {
         const match = ref.match(/^@([^:]+):(.+)$/)
-        const holder = document.createElement('span')
-        holder.innerHTML = match ? refChipHtml(match[1], match[2]) : escapeHtml(ref)
-        fragment.appendChild(holder.firstChild || document.createTextNode(ref))
+        fragment.appendChild(match ? refChipElement(match[1], match[2]) : document.createTextNode(ref))
 
         if (index < refs.length - 1) {
           fragment.appendChild(document.createTextNode(' '))
@@ -376,7 +374,7 @@ export function ChatBar({
       selection?.addRange(nextRange)
     } else {
       const current = composerPlainText(editor)
-      editor.innerHTML = composerHtml(`${current}${current && !/\s$/.test(current) ? ' ' : ''}${inline} `)
+      renderComposerContents(editor, `${current}${current && !/\s$/.test(current) ? ' ' : ''}${inline} `)
       placeCaretEnd(editor)
     }
 
@@ -544,7 +542,7 @@ export function ChatBar({
     // No usable caret range — replace from the end of the draft instead.
     if (!sel || !range || node?.nodeType !== Node.TEXT_NODE || offset < trigger.tokenLength) {
       const current = composerPlainText(editor)
-      editor.innerHTML = composerHtml(`${current.slice(0, Math.max(0, current.length - trigger.tokenLength))}${text}`)
+      renderComposerContents(editor, `${current.slice(0, Math.max(0, current.length - trigger.tokenLength))}${text}`)
       placeCaretEnd(editor)
 
       return finish()
@@ -556,24 +554,19 @@ export function ChatBar({
     replaceRange.deleteContents()
 
     if (directive) {
-      const holder = document.createElement('span')
-      holder.innerHTML = refChipHtml(directive[1], directive[2])
-      const chip = holder.firstChild
+      const chip = refChipElement(directive[1], directive[2])
+      const space = document.createTextNode(' ')
+      const fragment = document.createDocumentFragment()
+      fragment.append(chip, space)
+      replaceRange.insertNode(fragment)
 
-      if (chip) {
-        const space = document.createTextNode(' ')
-        const fragment = document.createDocumentFragment()
-        fragment.append(chip, space)
-        replaceRange.insertNode(fragment)
+      const caret = document.createRange()
+      caret.setStart(space, 1)
+      caret.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(caret)
 
-        const caret = document.createRange()
-        caret.setStart(space, 1)
-        caret.collapse(true)
-        sel.removeAllRanges()
-        sel.addRange(caret)
-
-        return finish()
-      }
+      return finish()
     }
 
     document.execCommand('insertText', false, text)
@@ -749,7 +742,7 @@ export function ChatBar({
     draftRef.current = ''
 
     if (editorRef.current) {
-      editorRef.current.innerHTML = ''
+      editorRef.current.replaceChildren()
     }
   }
 

@@ -23,10 +23,22 @@ export const providerGroup = (key: string) => PROVIDER_GROUPS.find(g => key.star
 
 export const providerPriority = (name: string) => PROVIDER_GROUPS.find(g => g.name === name)?.priority ?? 99
 
+const POLLUTING_PATH_PARTS = new Set(['__proto__', 'constructor', 'prototype'])
+
+function configPathParts(path: string): string[] {
+  const parts = path.split('.')
+
+  if (parts.some(part => !part || POLLUTING_PATH_PARTS.has(part))) {
+    throw new Error(`Unsafe config path: ${path}`)
+  }
+
+  return parts
+}
+
 export function getNested(obj: HermesConfigRecord, path: string): unknown {
   let cur: unknown = obj
 
-  for (const part of path.split('.')) {
+  for (const part of configPathParts(path)) {
     if (cur == null || typeof cur !== 'object') {
       return undefined
     }
@@ -39,7 +51,7 @@ export function getNested(obj: HermesConfigRecord, path: string): unknown {
 
 export function setNested(obj: HermesConfigRecord, path: string, value: unknown): HermesConfigRecord {
   const clone = structuredClone(obj)
-  const parts = path.split('.')
+  const parts = configPathParts(path)
   let cur: Record<string, unknown> = clone
 
   for (let i = 0; i < parts.length - 1; i += 1) {

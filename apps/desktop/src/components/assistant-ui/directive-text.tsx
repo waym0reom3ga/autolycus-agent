@@ -58,6 +58,26 @@ export function directiveIconSvg(type: string) {
   return `<svg ${SVG_ATTRS} class="${ICON_CLASS}">${inner}</svg>`
 }
 
+export function directiveIconElement(type: string) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('class', ICON_CLASS)
+  svg.setAttribute('fill', 'none')
+  svg.setAttribute('stroke', 'currentColor')
+  svg.setAttribute('stroke-linecap', 'round')
+  svg.setAttribute('stroke-linejoin', 'round')
+  svg.setAttribute('stroke-width', '2')
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+
+  for (const d of iconPathsFor(type)) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('d', d)
+    svg.append(path)
+  }
+
+  return svg
+}
+
 const DirectiveIcon: FC<{ type: string }> = ({ type }) => (
   <svg
     className={ICON_CLASS}

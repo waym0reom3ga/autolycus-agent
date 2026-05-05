@@ -6,7 +6,12 @@
  * fence — without that, typing after a chip would get re-absorbed on the next
  * plain-text round-trip.
  */
-import { DIRECTIVE_CHIP_CLASS, directiveIconSvg, formatRefValue } from '@/components/assistant-ui/directive-text'
+import {
+  DIRECTIVE_CHIP_CLASS,
+  directiveIconElement,
+  directiveIconSvg,
+  formatRefValue
+} from '@/components/assistant-ui/directive-text'
 
 export const RICH_INPUT_SLOT = 'composer-rich-input'
 
@@ -51,7 +56,59 @@ export function refChipHtml(kind: string, rawValue: string) {
   const id = unquoteRef(rawValue)
   const text = `@${kind}:${quoteRefValue(id)}`
 
-  return `<span contenteditable="false" data-ref-text="${escapeHtml(text)}" data-ref-id="${escapeHtml(id)}" data-ref-kind="${kind}" class="${DIRECTIVE_CHIP_CLASS}">${directiveIconSvg(kind)}<span class="truncate">${escapeHtml(refLabel(id))}</span></span>`
+  return `<span contenteditable="false" data-ref-text="${escapeHtml(text)}" data-ref-id="${escapeHtml(id)}" data-ref-kind="${escapeHtml(kind)}" class="${DIRECTIVE_CHIP_CLASS}">${directiveIconSvg(kind)}<span class="truncate">${escapeHtml(refLabel(id))}</span></span>`
+}
+
+export function refChipElement(kind: string, rawValue: string) {
+  const id = unquoteRef(rawValue)
+  const text = `@${kind}:${quoteRefValue(id)}`
+  const chip = document.createElement('span')
+  const label = document.createElement('span')
+
+  chip.contentEditable = 'false'
+  chip.dataset.refText = text
+  chip.dataset.refId = id
+  chip.dataset.refKind = kind
+  chip.className = DIRECTIVE_CHIP_CLASS
+  label.className = 'truncate'
+  label.textContent = refLabel(id)
+  chip.append(directiveIconElement(kind), label)
+
+  return chip
+}
+
+function appendTextWithBreaks(target: DocumentFragment | HTMLElement, text: string) {
+  const lines = text.split('\n')
+
+  lines.forEach((line, index) => {
+    if (index > 0) {
+      target.append(document.createElement('br'))
+    }
+
+    if (line) {
+      target.append(document.createTextNode(line))
+    }
+  })
+}
+
+export function appendComposerContents(target: DocumentFragment | HTMLElement, text: string) {
+  let cursor = 0
+
+  REF_RE.lastIndex = 0
+
+  for (const match of text.matchAll(REF_RE)) {
+    const index = match.index ?? 0
+    appendTextWithBreaks(target, text.slice(cursor, index))
+    target.append(refChipElement(match[1] || 'file', match[2] || ''))
+    cursor = index + match[0].length
+  }
+
+  appendTextWithBreaks(target, text.slice(cursor))
+}
+
+export function renderComposerContents(target: HTMLElement, text: string) {
+  target.replaceChildren()
+  appendComposerContents(target, text)
 }
 
 /** Serialize a draft string into chip-HTML for the contenteditable surface. */
