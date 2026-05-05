@@ -29,6 +29,8 @@ export function useSessionStateCache({
   const selectedStoredSessionIdRef = useRef<string | null>(null)
   const sessionStateByRuntimeIdRef = useRef(new Map<string, ClientSessionState>())
   const runtimeIdByStoredSessionIdRef = useRef(new Map<string, string>())
+  const pendingViewStateRef = useRef<{ sessionId: string; state: ClientSessionState } | null>(null)
+  const viewSyncRafRef = useRef<number | null>(null)
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
@@ -78,16 +80,58 @@ export function useSessionStateCache({
 
   const syncSessionStateToView = useCallback(
     (sessionId: string, state: ClientSessionState) => {
-      if (sessionId !== activeSessionIdRef.current) {
+      pendingViewStateRef.current = { sessionId, state }
+
+      if (viewSyncRafRef.current !== null) {
         return
       }
 
-      setMessages(state.messages)
-      setBusy(state.busy)
-      busyRef.current = state.busy
-      setAwaitingResponse(state.awaitingResponse)
+      if (typeof window === 'undefined') {
+        const pending = pendingViewStateRef.current
+
+        if (!pending || pending.sessionId !== activeSessionIdRef.current) {
+          pendingViewStateRef.current = null
+
+          return
+        }
+
+        pendingViewStateRef.current = null
+        setMessages(pending.state.messages)
+        setBusy(pending.state.busy)
+        busyRef.current = pending.state.busy
+        setAwaitingResponse(pending.state.awaitingResponse)
+
+        return
+      }
+
+      viewSyncRafRef.current = window.requestAnimationFrame(() => {
+        viewSyncRafRef.current = null
+        const pending = pendingViewStateRef.current
+
+        if (!pending || pending.sessionId !== activeSessionIdRef.current) {
+          pendingViewStateRef.current = null
+
+          return
+        }
+
+        pendingViewStateRef.current = null
+        setMessages(pending.state.messages)
+        setBusy(pending.state.busy)
+        busyRef.current = pending.state.busy
+        setAwaitingResponse(pending.state.awaitingResponse)
+      })
     },
     [busyRef, setAwaitingResponse, setBusy, setMessages]
+  )
+
+  useEffect(
+    () => () => {
+      if (viewSyncRafRef.current !== null && typeof window !== 'undefined') {
+        window.cancelAnimationFrame(viewSyncRafRef.current)
+        viewSyncRafRef.current = null
+      }
+    },
+    []
   )
 
   const updateSessionState = useCallback(

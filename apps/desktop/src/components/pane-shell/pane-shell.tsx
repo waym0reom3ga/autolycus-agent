@@ -3,9 +3,9 @@ import {
   Children,
   type CSSProperties,
   isValidElement,
-  type PointerEvent as ReactPointerEvent,
   type ReactElement,
   type ReactNode,
+  type PointerEvent as ReactPointerEvent,
   useCallback,
   useContext,
   useEffect,
@@ -71,10 +71,14 @@ const remPx = () =>
 
 // Resolves PaneProps.minWidth/maxWidth (number | "Npx" | "Nrem") to pixels for drag clamping.
 function widthToPx(value: WidthValue | undefined) {
-  if (typeof value === 'number') {return Number.isFinite(value) ? value : undefined}
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined
+  }
   const match = value?.trim().match(/^(-?\d*\.?\d+)(px|rem)?$/)
 
-  if (!match) {return undefined}
+  if (!match) {
+    return undefined
+  }
 
   return Number.parseFloat(match[1]) * (match[2] === 'rem' ? remPx() : 1)
 }
@@ -95,7 +99,9 @@ function collectPanes(children: ReactNode) {
       return
     }
 
-    if (!isRole(child, 'pane')) {return}
+    if (!isRole(child, 'pane')) {
+      return
+    }
 
     const props = child.props as PaneProps
 
@@ -117,7 +123,9 @@ function trackForPane(pane: CollectedPane, states: Record<string, { open: boolea
   const stateOpen = states[pane.id]?.open ?? pane.defaultOpen
   const open = !pane.disabled && stateOpen
 
-  if (!open) {return { open: false, track: '0px' }}
+  if (!open) {
+    return { open: false, track: '0px' }
+  }
 
   const override = states[pane.id]?.widthOverride
 
@@ -192,7 +200,9 @@ export function Pane({
   const paneRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    if (registered.current) {return}
+    if (registered.current) {
+      return
+    }
     registered.current = true
     ensurePaneRegistered(id, { open: defaultOpen })
   }, [defaultOpen, id])
@@ -208,7 +218,9 @@ export function Pane({
     (event: ReactPointerEvent<HTMLDivElement>) => {
       const paneWidth = paneRef.current?.getBoundingClientRect().width ?? 0
 
-      if (!canResize || paneWidth <= 0) {return}
+      if (!canResize || paneWidth <= 0) {
+        return
+      }
       event.preventDefault()
 
       const handle = event.currentTarget
@@ -245,12 +257,16 @@ export function Pane({
   )
 
   if (!ctx) {
-    if (import.meta.env.DEV) {console.warn(`[Pane:${id}] must be rendered inside <PaneShell>`)}
+    if (import.meta.env.DEV) {
+      console.warn(`[Pane:${id}] must be rendered inside <PaneShell>`)
+    }
 
     return null
   }
 
-  if (!slot) {return null}
+  if (!slot) {
+    return null
+  }
 
   return (
     <div
@@ -288,7 +304,9 @@ export function PaneMain({ children, className }: PaneMainProps) {
   const ctx = useContext(PaneShellContext)
 
   if (!ctx) {
-    if (import.meta.env.DEV) {console.warn('[PaneMain] must be rendered inside <PaneShell>')}
+    if (import.meta.env.DEV) {
+      console.warn('[PaneMain] must be rendered inside <PaneShell>')
+    }
 
     return null
   }

@@ -6,6 +6,16 @@ import path from 'path'
 export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          shiki: ['react-shiki', 'shiki'],
+          streamdown: ['@assistant-ui/react-streamdown', '@streamdown/code', 'streamdown']
+        }
+      }
+    }
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

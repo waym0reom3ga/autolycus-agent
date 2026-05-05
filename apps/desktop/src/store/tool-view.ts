@@ -33,6 +33,7 @@ function loadToolDisclosureStates(): ToolDisclosureStates {
     if (!raw) {
       return {}
     }
+
     const parsed = JSON.parse(raw) as unknown
 
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -67,6 +68,7 @@ export function setToolDisclosureOpen(id: string, open: boolean) {
   if (!id) {
     return
   }
+
   const current = $toolDisclosureStates.get()
 
   if (current[id] === open) {

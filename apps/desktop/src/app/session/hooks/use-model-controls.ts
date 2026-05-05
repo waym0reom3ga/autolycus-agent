@@ -65,6 +65,7 @@ export function useModelControls({ activeSessionId, queryClient, requestGateway 
             if (selection.persistGlobal) {
               void refreshCurrentModel()
             }
+
             void queryClient.invalidateQueries({
               queryKey: selection.persistGlobal ? ['model-options'] : ['model-options', activeSessionId]
             })

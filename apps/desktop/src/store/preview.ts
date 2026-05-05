@@ -1,5 +1,6 @@
 import { atom, computed } from 'nanostores'
 
+import { $rightRailActiveTabId, RIGHT_RAIL_PREVIEW_TAB_ID, type RightRailTabId, selectRightRailTab } from './layout'
 import { $activeSessionId, $selectedStoredSessionId } from './session'
 
 export interface PreviewTarget {
@@ -39,12 +40,27 @@ export interface SessionPreviewRecord {
 
 type SessionPreviewRegistry = Record<string, SessionPreviewRecord[]>
 
+export interface FilePreviewTab {
+  id: `file:${string}`
+  target: PreviewTarget
+}
+
 const REGISTRY_STORAGE_KEY = 'hermes.desktop.sessionPreviews.v1'
 const MAX_RECORDS_PER_SESSION = 1
 const MAX_SESSIONS = 120
 
 export const $previewTarget = atom<PreviewTarget | null>(null)
-export const $filePreviewTarget = atom<PreviewTarget | null>(null)
+export const $filePreviewTabs = atom<FilePreviewTab[]>([])
+export const $filePreviewTarget = computed([$filePreviewTabs, $rightRailActiveTabId], (tabs, activeTabId) => {
+  if (!activeTabId.startsWith('file:')) {
+    return null
+  }
+
+  return tabs.find(tab => tab.id === activeTabId)?.target ?? null
+})
+export const $rightRailHasContent = computed([$previewTarget, $filePreviewTabs], (target, tabs) =>
+  Boolean(target || tabs.length)
+)
 export const $previewReloadRequest = atom(0)
 export const $previewServerRestart = atom<PreviewServerRestart | null>(null)
 export const $previewServerRestartStatus = computed($previewServerRestart, restart => restart?.status ?? 'idle')
@@ -72,18 +88,32 @@ function isSamePreviewTarget(a: PreviewTarget | null, b: PreviewTarget | null): 
 
 export function setPreviewTarget(target: PreviewTarget | null) {
   if (isSamePreviewTarget($previewTarget.get(), target)) {
+    if (target) {
+      selectRightRailTab(RIGHT_RAIL_PREVIEW_TAB_ID)
+    }
+
     return
   }
 
   $previewTarget.set(target)
+
+  if (target) {
+    selectRightRailTab(RIGHT_RAIL_PREVIEW_TAB_ID)
+  }
 }
 
-function setFilePreviewTarget(target: PreviewTarget | null) {
-  if (isSamePreviewTarget($filePreviewTarget.get(), target)) {
-    return
-  }
+export function filePreviewTabId(target: PreviewTarget): `file:${string}` {
+  return `file:${target.url}`
+}
 
-  $filePreviewTarget.set(target)
+function openFilePreviewTarget(target: PreviewTarget) {
+  const id = filePreviewTabId(target)
+  const current = $filePreviewTabs.get()
+  const index = current.findIndex(tab => tab.id === id)
+  const tab: FilePreviewTab = { id, target }
+
+  $filePreviewTabs.set(index === -1 ? [...current, tab] : current.map((item, i) => (i === index ? tab : item)))
+  selectRightRailTab(id)
 }
 
 // Manual/file-browser opens are "peeking at a file" → source view in the file
@@ -104,7 +134,8 @@ function tryOpenFilePreview(target: PreviewTarget, source: PreviewRecordSource):
   if (target.kind !== 'file' || !isFilePreviewSource(source)) {
     return false
   }
-  setFilePreviewTarget(previewTargetForSource(target, source))
+
+  openFilePreviewTarget(previewTargetForSource(target, source))
 
   return true
 }
@@ -113,6 +144,7 @@ function isPreviewTarget(value: unknown): value is PreviewTarget {
   if (!value || typeof value !== 'object') {
     return false
   }
+
   const r = value as Record<string, unknown>
 
   return (
@@ -127,6 +159,7 @@ function isPreviewRecord(value: unknown): value is SessionPreviewRecord {
   if (!value || typeof value !== 'object') {
     return false
   }
+
   const r = value as Record<string, unknown>
 
   return (
@@ -151,17 +184,20 @@ function loadSessionPreviewRegistry(): SessionPreviewRegistry {
     if (!raw) {
       return {}
     }
+
     const parsed = JSON.parse(raw) as unknown
 
     if (!parsed || typeof parsed !== 'object') {
       return {}
     }
+
     const out: SessionPreviewRegistry = {}
 
     for (const [sessionId, records] of Object.entries(parsed as Record<string, unknown>)) {
       if (!Array.isArray(records)) {
         continue
       }
+
       const valid = records.filter(isPreviewRecord).slice(0, MAX_RECORDS_PER_SESSION)
 
       if (valid.length > 0) {
@@ -258,7 +294,6 @@ export function setSessionPreviewTarget(
 
   const record = registerSessionPreview(sessionId, target, source, rawTarget)
 
-  setFilePreviewTarget(null)
   setPreviewTarget(record?.normalized ?? previewTargetForSource(target, source))
 
   return record
@@ -288,12 +323,14 @@ export function dismissSessionPreview(sessionId: string | null | undefined, url?
   if (!id) {
     return
   }
+
   const current = $sessionPreviewRegistry.get()
   const records = current[id]
 
   if (!records?.length) {
     return
   }
+
   const now = Date.now()
   const targetUrl = url || records.find(record => !record.dismissedAt)?.normalized.url
 
@@ -325,16 +362,58 @@ export function dismissPreviewTarget() {
   }
 
   $previewTarget.set(null)
+
+  if ($rightRailActiveTabId.get() === RIGHT_RAIL_PREVIEW_TAB_ID) {
+    selectRightRailTab($filePreviewTabs.get()[0]?.id ?? RIGHT_RAIL_PREVIEW_TAB_ID)
+  }
+}
+
+export function closeFilePreviewTab(tabId: RightRailTabId) {
+  if (!tabId.startsWith('file:')) {
+    return
+  }
+
+  const current = $filePreviewTabs.get()
+  const index = current.findIndex(tab => tab.id === tabId)
+
+  if (index === -1) {
+    return
+  }
+
+  const next = current.filter(tab => tab.id !== tabId)
+
+  $filePreviewTabs.set(next)
+
+  if ($rightRailActiveTabId.get() === tabId) {
+    selectRightRailTab(next[Math.min(index, next.length - 1)]?.id ?? RIGHT_RAIL_PREVIEW_TAB_ID)
+  }
 }
 
 export function dismissFilePreviewTarget() {
-  setFilePreviewTarget(null)
+  closeFilePreviewTab($rightRailActiveTabId.get())
+}
+
+export function closeActiveRightRailTab() {
+  const activeTabId = $rightRailActiveTabId.get()
+
+  if (activeTabId === RIGHT_RAIL_PREVIEW_TAB_ID) {
+    if ($previewTarget.get()) {
+      dismissPreviewTarget()
+    }
+
+    return
+  }
+
+  if (activeTabId.startsWith('file:')) {
+    closeFilePreviewTab(activeTabId)
+  }
 }
 
 export function clearSessionPreviewRegistry() {
   $sessionPreviewRegistry.set({})
   setPreviewTarget(null)
-  setFilePreviewTarget(null)
+  $filePreviewTabs.set([])
+  selectRightRailTab(RIGHT_RAIL_PREVIEW_TAB_ID)
 }
 
 export function requestPreviewReload() {

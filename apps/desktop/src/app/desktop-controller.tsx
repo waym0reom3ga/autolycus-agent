@@ -1,6 +1,6 @@
 import { useStore } from '@nanostores/react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useRef } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { Pane, PaneMain } from '@/components/pane-shell'
@@ -35,13 +35,15 @@ import {
   setSessionsLoading
 } from '../store/session'
 
-import { AgentsView } from './agents'
-import { ArtifactsView } from './artifacts'
 import { ChatView } from './chat'
 import { useComposerActions } from './chat/hooks/use-composer-actions'
-import { ChatPreviewRail, PREVIEW_RAIL_MAX_WIDTH, PREVIEW_RAIL_MIN_WIDTH, PREVIEW_RAIL_PANE_WIDTH } from './chat/right-rail'
+import {
+  ChatPreviewRail,
+  PREVIEW_RAIL_MAX_WIDTH,
+  PREVIEW_RAIL_MIN_WIDTH,
+  PREVIEW_RAIL_PANE_WIDTH
+} from './chat/right-rail'
 import { ChatSidebar } from './chat/sidebar'
-import { CommandCenterView } from './command-center'
 import { FileBrowserPane } from './file-browser'
 import { useGatewayBoot } from './gateway/hooks/use-gateway-boot'
 import { useGatewayRequest } from './gateway/hooks/use-gateway-request'
@@ -57,7 +59,6 @@ import { usePromptActions } from './session/hooks/use-prompt-actions'
 import { useRouteResume } from './session/hooks/use-route-resume'
 import { useSessionActions } from './session/hooks/use-session-actions'
 import { useSessionStateCache } from './session/hooks/use-session-state-cache'
-import { SettingsView } from './settings'
 import { AppShell } from './shell/app-shell'
 import { useOverlayRouting } from './shell/hooks/use-overlay-routing'
 import { useStatusSnapshot } from './shell/hooks/use-status-snapshot'
@@ -65,7 +66,12 @@ import { useStatusbarItems } from './shell/hooks/use-statusbar-items'
 import type { StatusbarItem } from './shell/statusbar-controls'
 import type { TitlebarTool } from './shell/titlebar-controls'
 import { useGroupRegistry } from './shell/use-group-registry'
-import { SkillsView } from './skills'
+
+const AgentsView = lazy(async () => ({ default: (await import('./agents')).AgentsView }))
+const ArtifactsView = lazy(async () => ({ default: (await import('./artifacts')).ArtifactsView }))
+const CommandCenterView = lazy(async () => ({ default: (await import('./command-center')).CommandCenterView }))
+const SettingsView = lazy(async () => ({ default: (await import('./settings')).SettingsView }))
+const SkillsView = lazy(async () => ({ default: (await import('./skills')).SkillsView }))
 
 export function DesktopController() {
   const queryClient = useQueryClient()
@@ -404,34 +410,42 @@ export function DesktopController() {
       <ModelPickerOverlay gateway={gatewayRef.current || undefined} onSelect={selectModel} />
 
       {settingsOpen && (
-        <SettingsView
-          onClose={closeOverlayToPreviousRoute}
-          onConfigSaved={() => {
-            void refreshHermesConfig()
-            void refreshCurrentModel()
-            void queryClient.invalidateQueries({ queryKey: ['model-options'] })
-          }}
-        />
+        <Suspense fallback={null}>
+          <SettingsView
+            onClose={closeOverlayToPreviousRoute}
+            onConfigSaved={() => {
+              void refreshHermesConfig()
+              void refreshCurrentModel()
+              void queryClient.invalidateQueries({ queryKey: ['model-options'] })
+            }}
+          />
+        </Suspense>
       )}
 
       {commandCenterOpen && (
-        <CommandCenterView
-          initialSection={commandCenterInitialSection}
-          onClose={closeOverlayToPreviousRoute}
-          onDeleteSession={removeSession}
-          onMainModelChanged={(provider, model) => {
-            setCurrentProvider(provider)
-            setCurrentModel(model)
-            updateModelOptionsCache(provider, model, true)
-            void refreshCurrentModel()
-            void queryClient.invalidateQueries({ queryKey: ['model-options'] })
-          }}
-          onNavigateRoute={path => navigate(path)}
-          onOpenSession={sessionId => navigate(sessionRoute(sessionId))}
-        />
+        <Suspense fallback={null}>
+          <CommandCenterView
+            initialSection={commandCenterInitialSection}
+            onClose={closeOverlayToPreviousRoute}
+            onDeleteSession={removeSession}
+            onMainModelChanged={(provider, model) => {
+              setCurrentProvider(provider)
+              setCurrentModel(model)
+              updateModelOptionsCache(provider, model, true)
+              void refreshCurrentModel()
+              void queryClient.invalidateQueries({ queryKey: ['model-options'] })
+            }}
+            onNavigateRoute={path => navigate(path)}
+            onOpenSession={sessionId => navigate(sessionRoute(sessionId))}
+          />
+        </Suspense>
       )}
 
-      {agentsOpen && <AgentsView onClose={closeOverlayToPreviousRoute} />}
+      {agentsOpen && (
+        <Suspense fallback={null}>
+          <AgentsView onClose={closeOverlayToPreviousRoute} />
+        </Suspense>
+      )}
     </>
   )
 
@@ -489,16 +503,20 @@ export function DesktopController() {
           <Route element={chatView} path=":sessionId" />
           <Route
             element={
-              <SkillsView setStatusbarItemGroup={setStatusbarItemGroup} setTitlebarToolGroup={setTitlebarToolGroup} />
+              <Suspense fallback={null}>
+                <SkillsView setStatusbarItemGroup={setStatusbarItemGroup} setTitlebarToolGroup={setTitlebarToolGroup} />
+              </Suspense>
             }
             path="skills"
           />
           <Route
             element={
-              <ArtifactsView
-                setStatusbarItemGroup={setStatusbarItemGroup}
-                setTitlebarToolGroup={setTitlebarToolGroup}
-              />
+              <Suspense fallback={null}>
+                <ArtifactsView
+                  setStatusbarItemGroup={setStatusbarItemGroup}
+                  setTitlebarToolGroup={setTitlebarToolGroup}
+                />
+              </Suspense>
             }
             path="artifacts"
           />

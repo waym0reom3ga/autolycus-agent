@@ -32,6 +32,8 @@ const BUNDLED_HERMES_ROOT = path.join(process.resourcesPath, 'hermes-agent')
 const BUNDLED_VENV_ROOT = path.join(app.getPath('userData'), 'hermes-runtime')
 const BUNDLED_VENV_MARKER = path.join(BUNDLED_VENV_ROOT, '.hermes-desktop-runtime.json')
 const DESKTOP_LOG_PATH = path.join(app.getPath('userData'), 'desktop.log')
+const DESKTOP_LOG_FLUSH_MS = 120
+const DESKTOP_LOG_BUFFER_MAX_CHARS = 64 * 1024
 const RUNTIME_SCHEMA_VERSION = 3
 const BUNDLED_RUNTIME_REQUIREMENTS = [
   'openai>=2.21.0,<3',
@@ -186,6 +188,47 @@ let connectionPromise = null
 const hermesLog = []
 const previewWatchers = new Map()
 let previewShortcutActive = false
+let desktopLogBuffer = ''
+let desktopLogFlushTimer = null
+let desktopLogFlushPromise = Promise.resolve()
+
+function flushDesktopLogBufferSync() {
+  if (!desktopLogBuffer) return
+  const chunk = desktopLogBuffer
+  desktopLogBuffer = ''
+
+  try {
+    fs.mkdirSync(path.dirname(DESKTOP_LOG_PATH), { recursive: true })
+    fs.appendFileSync(DESKTOP_LOG_PATH, chunk)
+  } catch {
+    // Logging must never block app startup/shutdown.
+  }
+}
+
+function flushDesktopLogBufferAsync() {
+  if (!desktopLogBuffer) return desktopLogFlushPromise
+  const chunk = desktopLogBuffer
+  desktopLogBuffer = ''
+
+  desktopLogFlushPromise = desktopLogFlushPromise
+    .then(async () => {
+      await fs.promises.mkdir(path.dirname(DESKTOP_LOG_PATH), { recursive: true })
+      await fs.promises.appendFile(DESKTOP_LOG_PATH, chunk)
+    })
+    .catch(() => {
+      // Logging must never crash the desktop shell.
+    })
+
+  return desktopLogFlushPromise
+}
+
+function scheduleDesktopLogFlush() {
+  if (desktopLogFlushTimer) return
+  desktopLogFlushTimer = setTimeout(() => {
+    desktopLogFlushTimer = null
+    void flushDesktopLogBufferAsync()
+  }, DESKTOP_LOG_FLUSH_MS)
+}
 
 function rememberLog(chunk) {
   const text = String(chunk || '').trim()
@@ -196,12 +239,19 @@ function rememberLog(chunk) {
     hermesLog.splice(0, hermesLog.length - 300)
   }
 
-  try {
-    fs.mkdirSync(path.dirname(DESKTOP_LOG_PATH), { recursive: true })
-    fs.appendFileSync(DESKTOP_LOG_PATH, `${lines.join('\n')}\n`)
-  } catch {
-    // Logging must never block app startup.
+  desktopLogBuffer += `${lines.join('\n')}\n`
+
+  if (desktopLogBuffer.length >= DESKTOP_LOG_BUFFER_MAX_CHARS) {
+    if (desktopLogFlushTimer) {
+      clearTimeout(desktopLogFlushTimer)
+      desktopLogFlushTimer = null
+    }
+    void flushDesktopLogBufferAsync()
+
+    return
   }
+
+  scheduleDesktopLogFlush()
 }
 
 function fileExists(filePath) {
@@ -1156,6 +1206,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       webviewTag: true,
+      sandbox: true,
       nodeIntegration: false,
       devTools: Boolean(DEV_SERVER)
     }
@@ -1177,6 +1228,10 @@ function createWindow() {
   } else {
     mainWindow.loadURL(pathToFileURL(resolveRendererIndex()).toString())
   }
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    startHermes().catch(error => rememberLog(error.stack || error.message))
+  })
 }
 
 ipcMain.handle('hermes:connection', async () => startHermes())
@@ -1461,7 +1516,6 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(buildApplicationMenu())
   installMediaPermissions()
   createWindow()
-  startHermes().catch(error => rememberLog(error.stack || error.message))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -1469,6 +1523,11 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  if (desktopLogFlushTimer) {
+    clearTimeout(desktopLogFlushTimer)
+    desktopLogFlushTimer = null
+  }
+  flushDesktopLogBufferSync()
   closePreviewWatchers()
 
   if (hermesProcess && !hermesProcess.killed) {

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { $rightRailActiveTabId, RIGHT_RAIL_PREVIEW_TAB_ID } from './layout'
 import {
+  $filePreviewTabs,
   $filePreviewTarget,
   $previewServerRestart,
   $previewServerRestartStatus,
@@ -118,14 +120,16 @@ describe('preview store', () => {
     expect($previewTarget.get()).toEqual(withRenderMode(preview, 'preview'))
   })
 
-  it('clears file inspection when a live preview opens', () => {
+  it('keeps file tabs when a live preview opens', () => {
     const file = previewTarget('/work/file.html')
     const live = previewTarget('/work/live.html')
 
     setCurrentSessionPreviewTarget(file, 'manual')
     setCurrentSessionPreviewTarget(live, 'tool-result')
 
+    expect($filePreviewTabs.get().map(tab => tab.target)).toEqual([withRenderMode(file, 'source')])
     expect($filePreviewTarget.get()).toBeNull()
+    expect($rightRailActiveTabId.get()).toBe(RIGHT_RAIL_PREVIEW_TAB_ID)
     expect($previewTarget.get()).toEqual(withRenderMode(live, 'preview'))
   })
 })

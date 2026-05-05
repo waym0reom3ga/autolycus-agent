@@ -174,7 +174,14 @@ export function appendAssistantTextPart(parts: ChatMessagePart[], delta: string)
   const last = next.at(-1)
 
   if (last?.type === 'text') {
-    next[next.length - 1] = { ...last, text: renderMediaTags(last.text) }
+    const current = last.text
+
+    const deltaMayContainMedia =
+      delta.includes('MEDIA:') || delta.includes('DIA:') || delta.includes('EDIA:') || delta.includes('IA:')
+
+    const needsMediaPass = deltaMayContainMedia || current.includes('MEDIA:')
+    const nextText = needsMediaPass ? renderMediaTags(current) : current
+    next[next.length - 1] = nextText === current ? last : { ...last, text: nextText }
   }
 
   return next

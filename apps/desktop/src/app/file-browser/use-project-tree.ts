@@ -179,6 +179,7 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
       if (!cwd || inflight.has(id)) {
         return
       }
+
       inflight.add(id)
 
       setProjectTree(current => {

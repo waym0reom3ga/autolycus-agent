@@ -38,7 +38,13 @@ import { useComposerGlassTweaks } from './hooks/use-composer-glass-tweaks'
 import { useSlashCompletions } from './hooks/use-slash-completions'
 import { useVoiceConversation } from './hooks/use-voice-conversation'
 import { useVoiceRecorder } from './hooks/use-voice-recorder'
-import { composerPlainText, placeCaretEnd, refChipElement, renderComposerContents, RICH_INPUT_SLOT } from './rich-editor'
+import {
+  composerPlainText,
+  placeCaretEnd,
+  refChipElement,
+  renderComposerContents,
+  RICH_INPUT_SLOT
+} from './rich-editor'
 import { SkinSlashPopover } from './skin-slash-popover'
 import { ComposerTriggerPopover } from './trigger-popover'
 import type { ChatBarProps } from './types'

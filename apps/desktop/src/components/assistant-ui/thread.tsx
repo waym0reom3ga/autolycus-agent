@@ -11,7 +11,7 @@ import {
   useAuiState
 } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
-import { type FC, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type FC, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import spinners from 'unicode-animations'
 // Scroll behavior: delegated to `use-stick-to-bottom` (StackBlitz), the
 // reference implementation that powers bolt.new and several other streaming
@@ -204,6 +204,9 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
   // "Armed" behavior ref. Non-null = "keep chasing bottom across resize
   // ticks until we get there." Null = "user owns the viewport."
   const armedRef = useRef<ScrollBehavior | null>(null)
+  const pinRafRef = useRef<number | null>(null)
+  const previousScrollTopRef = useRef(0)
+  const suppressNextScrollEventRef = useRef(false)
 
   const messageCount = useAuiState(s => s.thread.messages.length)
   const prevMessageCountRef = useRef(messageCount)
@@ -233,7 +236,9 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
       // state object so its resize handler sees a clean follow state.
       state.escapedFromLock = false
       state.isAtBottom = true
+      suppressNextScrollEventRef.current = true
       el.scrollTop = el.scrollHeight
+      previousScrollTopRef.current = el.scrollTop
     },
     [scrollRef, state]
   )
@@ -248,21 +253,29 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
     }
 
     const observer = new ResizeObserver(() => {
-      const behavior = armedRef.current
-
-      if (!behavior) {
+      if (pinRafRef.current !== null) {
         return
       }
 
-      const distance = el.scrollHeight - (el.scrollTop + el.clientHeight)
+      pinRafRef.current = window.requestAnimationFrame(() => {
+        pinRafRef.current = null
 
-      if (distance < 2) {
-        armedRef.current = null
+        if (!armedRef.current) {
+          return
+        }
 
-        return
-      }
+        const distance = el.scrollHeight - (el.scrollTop + el.clientHeight)
 
-      el.scrollTop = el.scrollHeight
+        if (distance < 2) {
+          armedRef.current = null
+
+          return
+        }
+
+        suppressNextScrollEventRef.current = true
+        el.scrollTop = el.scrollHeight
+        previousScrollTopRef.current = el.scrollTop
+      })
     })
 
     observer.observe(el)
@@ -273,7 +286,14 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
       observer.observe(content)
     }
 
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+
+      if (pinRafRef.current !== null) {
+        window.cancelAnimationFrame(pinRafRef.current)
+        pinRafRef.current = null
+      }
+    }
   }, [scrollRef])
 
   // User-intent detection — any upward gesture disarms the chase.
@@ -294,12 +314,31 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
       armedRef.current = null
     }
 
+    const onScroll = () => {
+      const currentTop = el.scrollTop
+
+      if (suppressNextScrollEventRef.current) {
+        suppressNextScrollEventRef.current = false
+        previousScrollTopRef.current = currentTop
+
+        return
+      }
+
+      if (currentTop + 1 < previousScrollTopRef.current) {
+        armedRef.current = null
+      }
+
+      previousScrollTopRef.current = currentTop
+    }
+
     el.addEventListener('wheel', onWheel, { passive: true })
     el.addEventListener('touchmove', onTouch, { passive: true })
+    el.addEventListener('scroll', onScroll, { passive: true })
 
     return () => {
       el.removeEventListener('wheel', onWheel)
       el.removeEventListener('touchmove', onTouch)
+      el.removeEventListener('scroll', onScroll)
     }
   }, [scrollRef])
 
@@ -409,12 +448,30 @@ const ComposerClearance: FC = () => {
     }
 
     bindComposer()
-    const mutationObserver = new MutationObserver(() => void bindComposer())
-    mutationObserver.observe(document.body, { childList: true, subtree: true })
+    let bindRaf: number | null = null
+    let bindAttempts = 0
+
+    const tryBindComposer = () => {
+      if (bindComposer()) {
+        return
+      }
+
+      if (bindAttempts >= 120) {
+        return
+      }
+
+      bindAttempts += 1
+      bindRaf = window.requestAnimationFrame(tryBindComposer)
+    }
+
+    tryBindComposer()
 
     return () => {
       composerObserver?.disconnect()
-      mutationObserver.disconnect()
+
+      if (bindRaf !== null) {
+        window.cancelAnimationFrame(bindRaf)
+      }
     }
   }, [])
 
@@ -452,7 +509,15 @@ const AssistantMessage: FC<{ onBranchInNewChat?: (messageId: string) => void }> 
   const messageId = useAuiState(s => s.message.id)
   const content = useAuiState(s => s.message.content)
   const messageText = messageContentText(content)
-  const previewTargets = pickPrimaryPreviewTarget(extractPreviewTargets(messageText))
+
+  const previewTargets = useMemo(() => {
+    if (!messageText || !/(https?:\/\/|file:\/\/)/i.test(messageText)) {
+      return []
+    }
+
+    return pickPrimaryPreviewTarget(extractPreviewTargets(messageText))
+  }, [messageText])
+
   const isPlaceholder = useAuiState(s => s.message.status?.type === 'running' && s.message.content.length === 0)
 
   if (isPlaceholder) {

@@ -36,6 +36,7 @@ type PreviewWebview = HTMLElement & {
 }
 
 interface PreviewPaneProps {
+  embedded?: boolean
   onClose: () => void
   onRestartServer?: (url: string, context?: string) => Promise<string>
   reloadRequest?: number
@@ -359,15 +360,30 @@ function PreviewConsolePanel({
   const selectedLogIds = useStore(consoleState.$selectedLogIds)
   const visibleSelection = useMemo(() => logs.filter(log => selectedLogIds.has(log.id)), [logs, selectedLogIds])
   const sendableLogs = visibleSelection.length > 0 ? visibleSelection : logs
+  const stickScrollRafRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!consoleShouldStickRef.current) {
       return
     }
 
-    const consoleBody = consoleBodyRef.current
+    if (stickScrollRafRef.current !== null) {
+      window.cancelAnimationFrame(stickScrollRafRef.current)
+      stickScrollRafRef.current = null
+    }
 
-    consoleBody?.scrollTo({ top: consoleBody.scrollHeight })
+    stickScrollRafRef.current = window.requestAnimationFrame(() => {
+      stickScrollRafRef.current = null
+      const consoleBody = consoleBodyRef.current
+      consoleBody?.scrollTo({ top: consoleBody.scrollHeight })
+    })
+
+    return () => {
+      if (stickScrollRafRef.current !== null) {
+        window.cancelAnimationFrame(stickScrollRafRef.current)
+        stickScrollRafRef.current = null
+      }
+    }
   }, [consoleBodyRef, consoleHeight, consoleShouldStickRef, logs])
 
   function sendLogsToComposer(entries: ConsoleEntry[]) {
@@ -917,6 +933,7 @@ function LocalFilePreview({ reloadKey, target }: { reloadKey: number; target: Pr
 const TITLEBAR_GROUP_ID = 'preview'
 
 export function PreviewPane({
+  embedded = false,
   onClose,
   onRestartServer,
   reloadRequest = 0,
@@ -1136,9 +1153,12 @@ export function PreviewPane({
 
     consoleShouldStickRef.current = true
 
-    const consoleBody = consoleBodyRef.current
+    const handle = window.requestAnimationFrame(() => {
+      const consoleBody = consoleBodyRef.current
+      consoleBody?.scrollTo({ top: consoleBody.scrollHeight })
+    })
 
-    consoleBody?.scrollTo({ top: consoleBody.scrollHeight })
+    return () => window.cancelAnimationFrame(handle)
   }, [consoleOpen])
 
   useEffect(() => {
@@ -1423,21 +1443,23 @@ export function PreviewPane({
   }, [appendConsoleEntry, consoleState, isWebPreview, target.url])
 
   return (
-    <aside className="relative flex h-full w-full min-w-0 flex-col overflow-hidden border-l border-border/60 bg-background text-muted-foreground">
+    <aside className="relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-background text-muted-foreground">
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="pointer-events-none flex min-h-(--titlebar-height) items-center gap-1.5 border-b border-border/60 bg-background px-2 py-1">
-          <div className="min-w-0 flex-1">
-            <a
-              className="pointer-events-auto inline max-w-full cursor-pointer truncate text-left text-xs font-medium text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
-              href={currentUrl}
-              rel="noreferrer"
-              target="_blank"
-              title={`Open ${currentUrl}`}
-            >
-              {previewLabel || 'Preview'}
-            </a>
+        {!embedded && (
+          <div className="pointer-events-none flex min-h-(--titlebar-height) items-center gap-1.5 border-b border-border/60 bg-background px-2 py-1">
+            <div className="min-w-0 flex-1">
+              <a
+                className="pointer-events-auto inline max-w-full cursor-pointer truncate text-left text-xs font-medium text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+                href={currentUrl}
+                rel="noreferrer"
+                target="_blank"
+                title={`Open ${currentUrl}`}
+              >
+                {previewLabel || 'Preview'}
+              </a>
+            </div>
           </div>
-        </div>
+        )}
 
         <div
           className="pointer-events-auto relative min-h-0 flex-1 overflow-hidden bg-background"

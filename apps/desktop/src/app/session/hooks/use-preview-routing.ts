@@ -134,11 +134,13 @@ export function usePreviewRouting({
       if (!candidate) {
         return
       }
+
       const desktop = window.hermesDesktop
 
       if (!desktop?.normalizePreviewTarget) {
         return
       }
+
       const sessionId = previewSessionId
       const cwd = currentCwd || ''
       const target = await desktop.normalizePreviewTarget(candidate, cwd || undefined).catch(() => null)

@@ -15,6 +15,7 @@ export function gatewayEventCompletedFileDiff(event: RpcEventLike): boolean {
   if (event.type !== 'tool.complete') {
     return false
   }
+
   const diff = asRecord(event.payload).inline_diff
 
   return typeof diff === 'string' && diff.trim().length > 0

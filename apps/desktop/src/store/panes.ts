@@ -16,6 +16,7 @@ function isSnapshot(value: unknown): value is PaneStateSnapshot {
   if (!value || typeof value !== 'object') {
     return false
   }
+
   const r = value as Record<string, unknown>
 
   if (typeof r.open !== 'boolean') {
@@ -60,6 +61,7 @@ function persist(states: Record<string, PaneStateSnapshot>) {
   if (typeof window === 'undefined') {
     return
   }
+
   const minimal: Record<string, { open: boolean }> = {}
 
   for (const [id, s] of Object.entries(states)) {
@@ -107,6 +109,7 @@ export function ensurePaneRegistered(id: string, defaults: PaneRegisterDefaults)
   if (current[id] !== undefined) {
     return
   }
+
   $paneStates.set({ ...current, [id]: { open: defaults.open, widthOverride: defaults.widthOverride } })
 }
 
@@ -117,6 +120,7 @@ export function setPaneOpen(id: string, open: boolean) {
   if (existing?.open === open) {
     return
   }
+
   $paneStates.set({ ...current, [id]: { open, widthOverride: existing?.widthOverride } })
 }
 
@@ -133,6 +137,7 @@ export function setPaneWidthOverride(id: string, width: number | undefined) {
   if (existing.widthOverride === width) {
     return
   }
+
   $paneStates.set({ ...current, [id]: { open: existing.open, widthOverride: width } })
 }
 

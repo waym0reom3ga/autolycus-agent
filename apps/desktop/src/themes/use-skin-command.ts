@@ -38,6 +38,7 @@ export function useSkinCommand() {
 
       const normalized = arg.toLowerCase()
       const targetName = ALIASES[normalized] || normalized
+
       const target = availableThemes.find(
         t => t.name.toLowerCase() === targetName || t.label.toLowerCase() === normalized
       )

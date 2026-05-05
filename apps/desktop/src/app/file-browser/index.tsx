@@ -24,12 +24,14 @@ interface FileBrowserPaneProps {
 export function FileBrowserPane({ onActivateFile, onChangeCwd }: FileBrowserPaneProps) {
   const currentCwd = useStore($currentCwd).trim()
   const hasCwd = currentCwd.length > 0
+
   const cwdName = hasCwd
     ? (currentCwd
         .split(/[\\/]+/)
         .filter(Boolean)
         .pop() ?? currentCwd)
     : 'No folder selected'
+
   const { data, loadChildren, openState, refreshRoot, rootError, rootLoading, setNodeOpen } = useProjectTree(currentCwd)
 
   const chooseFolder = async () => {

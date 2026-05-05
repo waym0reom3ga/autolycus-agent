@@ -1,6 +1,11 @@
 'use client'
 
-import { type StreamdownTextComponents, StreamdownTextPrimitive } from '@assistant-ui/react-streamdown'
+import { useAuiState } from '@assistant-ui/react'
+import {
+  type StreamdownTextComponents,
+  StreamdownTextPrimitive,
+  type SyntaxHighlighterProps
+} from '@assistant-ui/react-streamdown'
 import { code } from '@streamdown/code'
 import { type ComponentProps, memo, useEffect, useMemo, useState } from 'react'
 
@@ -203,6 +208,8 @@ function MarkdownImage({ className, src, alt, ...props }: ComponentProps<'img'>)
 }
 
 const MarkdownTextImpl = () => {
+  const isStreaming = useAuiState(s => s.message.status?.type === 'running')
+
   const components = useMemo(
     () =>
       ({
@@ -267,10 +274,10 @@ const MarkdownTextImpl = () => {
           <td className={cn('px-3 py-2 align-top text-sm leading-snug', className)} {...props} />
         ),
         img: MarkdownImage,
-        SyntaxHighlighter,
+        SyntaxHighlighter: (props: SyntaxHighlighterProps) => <SyntaxHighlighter {...props} defer={isStreaming} />,
         CodeHeader
       }) as StreamdownTextComponents,
-    []
+    [isStreaming]
   )
 
   return (
@@ -280,8 +287,8 @@ const MarkdownTextImpl = () => {
       containerClassName="aui-md max-w-full overflow-hidden text-foreground"
       lineNumbers={false}
       mode="streaming"
-      parseIncompleteMarkdown
-      plugins={{ code }}
+      parseIncompleteMarkdown={!isStreaming}
+      plugins={isStreaming ? undefined : { code }}
       preprocess={preprocessMarkdown}
       shikiTheme={['github-light-default', 'github-dark-default']}
     />

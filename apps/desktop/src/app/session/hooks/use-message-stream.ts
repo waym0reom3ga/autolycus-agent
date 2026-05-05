@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { type MutableRefObject, useCallback } from 'react'
+import { type MutableRefObject, useCallback, useEffect, useRef } from 'react'
 
 import {
   appendAssistantTextPart,
@@ -50,6 +50,13 @@ interface MessageStreamOptions {
     storedSessionId?: string | null
   ) => ClientSessionState
 }
+
+interface QueuedStreamDeltas {
+  assistant: string
+  reasoning: string
+}
+
+const STREAM_DELTA_FLUSH_MS = 16
 
 export function useMessageStream({
   activeSessionIdRef,
@@ -123,19 +130,108 @@ export function useMessageStream({
     [updateSessionState]
   )
 
+  const queuedDeltasRef = useRef<Map<string, QueuedStreamDeltas>>(new Map())
+  const flushHandleRef = useRef<number | null>(null)
+
+  const flushQueuedDeltas = useCallback(
+    (sessionId?: string) => {
+      const queue = queuedDeltasRef.current
+      const ids = sessionId ? [sessionId] : [...queue.keys()]
+
+      for (const id of ids) {
+        const queued = queue.get(id)
+
+        if (!queued) {
+          continue
+        }
+
+        queue.delete(id)
+
+        if (queued.assistant) {
+          mutateStream(
+            id,
+            parts => appendAssistantTextPart(parts, queued.assistant),
+            () => [assistantTextPart(queued.assistant)]
+          )
+        }
+
+        if (queued.reasoning) {
+          mutateStream(
+            id,
+            parts => appendReasoningPart(parts, queued.reasoning),
+            () => [reasoningPart(queued.reasoning)]
+          )
+        }
+      }
+    },
+    [mutateStream]
+  )
+
+  const scheduleDeltaFlush = useCallback(() => {
+    if (flushHandleRef.current !== null) {
+      return
+    }
+
+    if (typeof window === 'undefined') {
+      flushQueuedDeltas()
+
+      return
+    }
+
+    if (typeof window.requestAnimationFrame === 'function') {
+      flushHandleRef.current = window.requestAnimationFrame(() => {
+        flushHandleRef.current = null
+        flushQueuedDeltas()
+      })
+
+      return
+    }
+
+    flushHandleRef.current = window.setTimeout(() => {
+      flushHandleRef.current = null
+      flushQueuedDeltas()
+    }, STREAM_DELTA_FLUSH_MS)
+  }, [flushQueuedDeltas])
+
+  const queueDelta = useCallback(
+    (sessionId: string, key: keyof QueuedStreamDeltas, delta: string) => {
+      if (!delta) {
+        return
+      }
+
+      const queued = queuedDeltasRef.current.get(sessionId) ?? { assistant: '', reasoning: '' }
+      queued[key] += delta
+      queuedDeltasRef.current.set(sessionId, queued)
+      scheduleDeltaFlush()
+    },
+    [scheduleDeltaFlush]
+  )
+
+  useEffect(
+    () => () => {
+      if (flushHandleRef.current !== null && typeof window !== 'undefined') {
+        if (typeof window.cancelAnimationFrame === 'function') {
+          window.cancelAnimationFrame(flushHandleRef.current)
+        } else {
+          window.clearTimeout(flushHandleRef.current)
+        }
+      }
+
+      flushHandleRef.current = null
+      flushQueuedDeltas()
+    },
+    [flushQueuedDeltas]
+  )
+
   const appendAssistantDelta = useCallback(
     (sessionId: string, delta: string) => {
       if (!delta) {
         return
       }
 
-      mutateStream(
-        sessionId,
-        parts => appendAssistantTextPart(parts, delta),
-        () => [assistantTextPart(delta)]
-      )
+      queueDelta(sessionId, 'assistant', delta)
     },
-    [mutateStream]
+    [queueDelta]
   )
 
   const appendReasoningDelta = useCallback(
@@ -143,6 +239,14 @@ export function useMessageStream({
       if (!delta) {
         return
       }
+
+      if (!replace) {
+        queueDelta(sessionId, 'reasoning', delta)
+
+        return
+      }
+
+      flushQueuedDeltas(sessionId)
 
       mutateStream(
         sessionId,
@@ -160,7 +264,7 @@ export function useMessageStream({
         () => [reasoningPart(delta)]
       )
     },
-    [mutateStream]
+    [flushQueuedDeltas, mutateStream, queueDelta]
   )
 
   const upsertToolCall = useCallback(
@@ -384,6 +488,8 @@ export function useMessageStream({
           return
         }
 
+        flushQueuedDeltas(sessionId)
+
         if (isActiveEvent) {
           triggerHaptic('streamStart')
         }
@@ -421,6 +527,8 @@ export function useMessageStream({
           return
         }
 
+        flushQueuedDeltas(sessionId)
+
         if (isActiveEvent) {
           triggerHaptic('streamDone')
         }
@@ -440,9 +548,12 @@ export function useMessageStream({
           return
         }
 
+        flushQueuedDeltas(sessionId)
+
         upsertToolCall(sessionId, payload, 'running')
       } else if (event.type === 'tool.complete') {
         if (sessionId) {
+          flushQueuedDeltas(sessionId)
           upsertToolCall(sessionId, payload, 'complete')
         }
 
@@ -478,6 +589,7 @@ export function useMessageStream({
         }
 
         if (sessionId) {
+          flushQueuedDeltas(sessionId)
           updateSessionState(sessionId, state => ({
             ...state,
             awaitingResponse: false,
@@ -495,6 +607,7 @@ export function useMessageStream({
       appendReasoningDelta,
       activeSessionIdRef,
       completeAssistantMessage,
+      flushQueuedDeltas,
       queryClient,
       refreshHermesConfig,
       updateSessionState,

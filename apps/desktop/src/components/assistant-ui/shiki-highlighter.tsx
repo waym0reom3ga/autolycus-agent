@@ -19,10 +19,15 @@ import { isLikelyProseCodeBlock } from '@/lib/markdown-code'
  * `showLanguage` is disabled because we render our own `CodeHeader`;
  * leaving it on causes the language to appear twice.
  */
-export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
+interface HermesSyntaxHighlighterProps extends SyntaxHighlighterProps {
+  defer?: boolean
+}
+
+export const SyntaxHighlighter: FC<HermesSyntaxHighlighterProps> = ({
   components: { Pre, Code: _UnusedCode },
   language,
-  code
+  code,
+  defer = false
 }) => {
   // Streamdown may hand us fence contents with edge newlines. Strip blank
   // fence padding without touching indentation on the first real line.
@@ -36,6 +41,14 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
 
   if (isLikelyProseCodeBlock(language, trimmed)) {
     return <div className="whitespace-pre-wrap wrap-anywhere text-foreground">{trimmed}</div>
+  }
+
+  if (defer) {
+    return (
+      <Pre className="aui-shiki m-0 overflow-hidden rounded-b-md border border-t-0 border-border bg-card font-mono text-sm leading-relaxed [&_pre]:m-0 [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:px-4 [&_pre]:py-3 [&_pre]:font-mono [&_pre]:leading-relaxed">
+        <code className="block whitespace-pre">{trimmed}</code>
+      </Pre>
+    )
   }
 
   return (

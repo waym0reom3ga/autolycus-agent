@@ -14,9 +14,10 @@ const SIDEBAR_PINNED_STORAGE_KEY = 'hermes.desktop.pinnedSessions'
 
 export const CHAT_SIDEBAR_PANE_ID = 'chat-sidebar'
 export const FILE_BROWSER_PANE_ID = 'file-browser'
+export const RIGHT_RAIL_PREVIEW_TAB_ID = 'preview'
 
-// Pre-register app chrome panes so legacy callers see the correct initial
-// values whether or not the user has any persisted state.
+export type RightRailTabId = typeof RIGHT_RAIL_PREVIEW_TAB_ID | `file:${string}`
+
 ensurePaneRegistered(CHAT_SIDEBAR_PANE_ID, { open: true })
 ensurePaneRegistered(FILE_BROWSER_PANE_ID, { open: false })
 
@@ -29,6 +30,8 @@ export const $fileBrowserOpen: ReadableAtom<boolean> = computed(
   $paneStates,
   states => states[FILE_BROWSER_PANE_ID]?.open ?? false
 )
+
+export const $rightRailActiveTabId = atom<RightRailTabId>(RIGHT_RAIL_PREVIEW_TAB_ID)
 
 export const $sidebarWidth: ReadableAtom<number> = computed($paneStates, states => {
   const override = states[CHAT_SIDEBAR_PANE_ID]?.widthOverride
@@ -58,6 +61,10 @@ export function toggleSidebarOpen() {
 
 export function toggleFileBrowserOpen() {
   togglePane(FILE_BROWSER_PANE_ID)
+}
+
+export function selectRightRailTab(id: RightRailTabId) {
+  $rightRailActiveTabId.set(id)
 }
 
 export function setSidebarPinsOpen(open: boolean) {

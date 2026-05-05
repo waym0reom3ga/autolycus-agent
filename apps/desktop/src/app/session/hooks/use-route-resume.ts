@@ -25,6 +25,7 @@ function rawHashLooksLikeSession(): boolean {
   if (typeof window === 'undefined') {
     return false
   }
+
   const hash = window.location.hash.replace(/^#/, '')
 
   if (!hash || hash === '/') {
