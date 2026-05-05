@@ -10,7 +10,7 @@ import {
   $sessionPreviewRegistry,
   beginPreviewServerRestart,
   clearSessionPreviewRegistry,
-  dismissFilePreviewTarget,
+  closeActiveRightRailTab,
   dismissPreviewTarget,
   getSessionPreviewRecord,
   type PreviewTarget,
@@ -114,7 +114,7 @@ describe('preview store', () => {
     expect($previewTarget.get()).toEqual(withRenderMode(preview, 'preview'))
     expect(getSessionPreviewRecord('session-1')?.normalized).toEqual(withRenderMode(preview, 'preview'))
 
-    dismissFilePreviewTarget()
+    closeActiveRightRailTab()
 
     expect($filePreviewTarget.get()).toBeNull()
     expect($previewTarget.get()).toEqual(withRenderMode(preview, 'preview'))

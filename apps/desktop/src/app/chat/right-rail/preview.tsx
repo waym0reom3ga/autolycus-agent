@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { type MouseEvent, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import type { SetTitlebarToolGroup } from '@/app/shell/titlebar-controls'
 import { X } from '@/lib/icons'
@@ -14,9 +14,8 @@ import {
   $filePreviewTabs,
   $previewReloadRequest,
   $previewTarget,
-  closeFilePreviewTab,
-  dismissPreviewTarget,
-  type FilePreviewTab,
+  closeActiveRightRailTab,
+  closeRightRailTab,
   type PreviewTarget
 } from '@/store/preview'
 
@@ -39,21 +38,16 @@ interface ChatPreviewRailProps {
 }
 
 interface RailTab {
-  closeLabel: string
   id: RightRailTabId
   label: string
   target: PreviewTarget
 }
 
-function previewTabLabel(target: PreviewTarget): string {
+function tabLabelFor(target: PreviewTarget): string {
   const value = target.label || target.path || target.source || target.url
-  const parts = value.split(/[\\/]/).filter(Boolean)
+  const tail = value.split(/[\\/]/).filter(Boolean).at(-1)
 
-  return parts.at(-1) || value || 'Preview'
-}
-
-function tabLabel(tab: FilePreviewTab): string {
-  return previewTabLabel(tab.target)
+  return tail || value || 'Preview'
 }
 
 export function ChatPreviewRail({ onRestartServer, setTitlebarToolGroup }: ChatPreviewRailProps) {
@@ -64,62 +58,19 @@ export function ChatPreviewRail({ onRestartServer, setTitlebarToolGroup }: ChatP
 
   const tabs = useMemo<readonly RailTab[]>(
     () => [
-      ...(previewTarget
-        ? [
-            {
-              closeLabel: 'Close preview',
-              id: RIGHT_RAIL_PREVIEW_TAB_ID,
-              label: 'Preview',
-              target: previewTarget
-            } satisfies RailTab
-          ]
-        : []),
-      ...filePreviewTabs.map(tab => ({
-        closeLabel: `Close ${tabLabel(tab)}`,
-        id: tab.id,
-        label: tabLabel(tab),
-        target: tab.target
-      }))
+      ...(previewTarget ? [{ id: RIGHT_RAIL_PREVIEW_TAB_ID, label: 'Preview', target: previewTarget } as RailTab] : []),
+      ...filePreviewTabs.map(({ id, target }) => ({ id, label: tabLabelFor(target), target }) as RailTab)
     ],
     [filePreviewTabs, previewTarget]
   )
 
   const activeTab = tabs.find(tab => tab.id === activeTabId) ?? tabs[0]
-  // Read-by-ref so close handlers stay reference-stable across renders.
-  const activeTabRef = useRef<RailTab | undefined>(activeTab)
-  activeTabRef.current = activeTab
 
   useEffect(() => {
     if (activeTab && activeTab.id !== activeTabId) {
       selectRightRailTab(activeTab.id)
     }
   }, [activeTab, activeTabId])
-
-  const closeRailTab = useCallback((tab: RailTab) => {
-    if (tab.id === RIGHT_RAIL_PREVIEW_TAB_ID) {
-      dismissPreviewTarget()
-
-      return
-    }
-
-    closeFilePreviewTab(tab.id)
-  }, [])
-
-  // Stable: PreviewPane lists onClose in a useEffect dep array that pushes
-  // titlebar tools. A fresh closure every render → setTitlebarToolGroup every
-  // render → DesktopController setState → re-render → ∞.
-  const handleCloseDocument = useCallback(() => {
-    const tab = activeTabRef.current
-
-    if (tab) {
-      closeRailTab(tab)
-    }
-  }, [closeRailTab])
-
-  const closeTab = (event: MouseEvent, tab: RailTab) => {
-    event.stopPropagation()
-    closeRailTab(tab)
-  }
 
   if (!activeTab) {
     return null
@@ -158,13 +109,13 @@ export function ChatPreviewRail({ onRestartServer, setTitlebarToolGroup }: ChatP
                 {tab.label}
               </button>
               <button
-                aria-label={tab.closeLabel}
+                aria-label={`Close ${tab.label}`}
                 className={cn(
                   'mr-1.5 hidden size-4 shrink-0 place-items-center rounded-sm text-muted-foreground/55 transition-colors hover:bg-accent hover:text-foreground focus-visible:grid group-hover/tab:grid',
                   active && 'grid'
                 )}
-                onClick={event => closeTab(event, tab)}
-                title={tab.closeLabel}
+                onClick={() => closeRightRailTab(tab.id)}
+                title={`Close ${tab.label}`}
                 type="button"
               >
                 <X className="size-3" />
@@ -177,7 +128,7 @@ export function ChatPreviewRail({ onRestartServer, setTitlebarToolGroup }: ChatP
       <div className="min-h-0 flex-1 overflow-hidden">
         <PreviewPane
           embedded
-          onClose={handleCloseDocument}
+          onClose={closeActiveRightRailTab}
           onRestartServer={isPreview ? onRestartServer : undefined}
           reloadRequest={previewReloadRequest}
           setTitlebarToolGroup={setTitlebarToolGroup}

@@ -19,7 +19,7 @@ import {
   SIDEBAR_MAX_WIDTH,
   unpinSession
 } from '../store/layout'
-import { $filePreviewTarget, $previewTarget, dismissFilePreviewTarget, dismissPreviewTarget } from '../store/preview'
+import { $filePreviewTarget, $previewTarget, closeActiveRightRailTab } from '../store/preview'
 import {
   $activeSessionId,
   $currentCwd,
@@ -138,18 +138,6 @@ export function DesktopController() {
   }, [chatOpen, filePreviewTarget, previewTarget])
 
   useEffect(() => {
-    const closePreview = () => {
-      if ($filePreviewTarget.get()) {
-        dismissFilePreviewTarget()
-
-        return
-      }
-
-      if ($previewTarget.get()) {
-        dismissPreviewTarget()
-      }
-    }
-
     const onKeyDown = (event: KeyboardEvent) => {
       if (!$filePreviewTarget.get() && !$previewTarget.get()) {
         return
@@ -158,11 +146,11 @@ export function DesktopController() {
       if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'w') {
         event.preventDefault()
         event.stopPropagation()
-        closePreview()
+        closeActiveRightRailTab()
       }
     }
 
-    const unsubscribe = window.hermesDesktop?.onClosePreviewRequested?.(closePreview)
+    const unsubscribe = window.hermesDesktop?.onClosePreviewRequested?.(closeActiveRightRailTab)
 
     window.addEventListener('keydown', onKeyDown, { capture: true })
 

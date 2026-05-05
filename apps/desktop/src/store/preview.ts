@@ -58,9 +58,6 @@ export const $filePreviewTarget = computed([$filePreviewTabs, $rightRailActiveTa
 
   return tabs.find(tab => tab.id === activeTabId)?.target ?? null
 })
-export const $rightRailHasContent = computed([$previewTarget, $filePreviewTabs], (target, tabs) =>
-  Boolean(target || tabs.length)
-)
 export const $previewReloadRequest = atom(0)
 export const $previewServerRestart = atom<PreviewServerRestart | null>(null)
 export const $previewServerRestartStatus = computed($previewServerRestart, restart => restart?.status ?? 'idle')
@@ -368,7 +365,7 @@ export function dismissPreviewTarget() {
   }
 }
 
-export function closeFilePreviewTab(tabId: RightRailTabId) {
+function closeFilePreviewTab(tabId: RightRailTabId) {
   if (!tabId.startsWith('file:')) {
     return
   }
@@ -389,14 +386,8 @@ export function closeFilePreviewTab(tabId: RightRailTabId) {
   }
 }
 
-export function dismissFilePreviewTarget() {
-  closeFilePreviewTab($rightRailActiveTabId.get())
-}
-
-export function closeActiveRightRailTab() {
-  const activeTabId = $rightRailActiveTabId.get()
-
-  if (activeTabId === RIGHT_RAIL_PREVIEW_TAB_ID) {
+export function closeRightRailTab(tabId: RightRailTabId) {
+  if (tabId === RIGHT_RAIL_PREVIEW_TAB_ID) {
     if ($previewTarget.get()) {
       dismissPreviewTarget()
     }
@@ -404,10 +395,10 @@ export function closeActiveRightRailTab() {
     return
   }
 
-  if (activeTabId.startsWith('file:')) {
-    closeFilePreviewTab(activeTabId)
-  }
+  closeFilePreviewTab(tabId)
 }
+
+export const closeActiveRightRailTab = () => closeRightRailTab($rightRailActiveTabId.get())
 
 export function clearSessionPreviewRegistry() {
   $sessionPreviewRegistry.set({})
