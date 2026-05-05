@@ -2,18 +2,62 @@
 
 Native Electron shell for Hermes. It packages the desktop renderer, a bundled Hermes source payload, and installer targets for macOS and Windows.
 
-## Development
+## Setup
+
+Install workspace dependencies from the repo root so `apps/desktop`, `apps/dashboard`, and `apps/shared` stay linked:
 
 ```bash
 npm install
+```
+
+Use the normal Hermes Python environment for local runs:
+
+```bash
+source .venv/bin/activate  # or: source venv/bin/activate
+python -m pip install -e .
+```
+
+## Development
+
+```bash
+cd apps/desktop
 npm run dev
 ```
 
-`npm run dev` runs Vite plus Electron against the local repo checkout. This path is for UI iteration and may still show Electron/dev identities in OS prompts.
+`npm run dev` starts Vite on `127.0.0.1:5174`, launches Electron, and lets Electron boot the Hermes dashboard backend on an open port in `9120-9199`. This path is for UI iteration and may still show Electron/dev identities in OS prompts.
+
+Useful overrides:
+
+```bash
+HERMES_DESKTOP_HERMES_ROOT=/path/to/hermes-agent npm run dev
+HERMES_DESKTOP_PYTHON=/path/to/python npm run dev
+HERMES_DESKTOP_CWD=/path/to/project npm run dev
+HERMES_DESKTOP_IGNORE_EXISTING=1 npm run dev
+```
+
+`HERMES_DESKTOP_IGNORE_EXISTING=1` skips any `hermes` CLI already on `PATH`, which is useful when testing the bundled/runtime bootstrap path.
+
+## Dashboard Dev
+
+Run the Python dashboard backend with embedded chat enabled:
+
+```bash
+hermes dashboard --tui --no-open
+```
+
+For dashboard HMR, start Vite in another terminal:
+
+```bash
+cd apps/dashboard
+npm run dev
+```
+
+Open the Vite URL. The dev server proxies `/api`, `/api/pty`, and plugin assets to `http://127.0.0.1:9119` and fetches the live dashboard HTML so the ephemeral session token matches the running backend.
 
 ## Build
 
 ```bash
+npm run build
 npm run pack          # unpacked app at release/mac-<arch>/Hermes.app
 npm run dist:mac      # macOS DMG + zip
 npm run dist:mac:dmg  # DMG only

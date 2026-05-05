@@ -10,17 +10,34 @@ Browser-based dashboard for managing Hermes Agent configuration, API keys, and m
 
 ## Development
 
-```bash
-# Start the backend API server
-cd ../..
-python -m hermes_cli.main web --no-open
+Install workspace dependencies from the repo root first:
 
-# In another terminal, start the Vite dev server (with HMR + API proxy)
-cd apps/dashboard/
+```bash
+npm install
+```
+
+Start the backend API server from the repo root:
+
+```bash
+hermes dashboard --tui --no-open
+```
+
+`--tui` exposes the in-browser Chat tab through `/api/pty`. Omit it if you only need the config/session dashboard.
+
+In another terminal, start the Vite dev server:
+
+```bash
+cd apps/dashboard
 npm run dev
 ```
 
-The Vite dev server proxies `/api` requests to `http://127.0.0.1:9119` (the FastAPI backend).
+The Vite dev server proxies `/api`, `/api/pty`, and `/dashboard-plugins` to `http://127.0.0.1:9119` (the FastAPI backend). It also fetches the backend's `index.html` on each dev page load so the ephemeral session token stays in sync.
+
+If the `hermes` entry point is not installed, use:
+
+```bash
+python -m hermes_cli.main dashboard --tui --no-open
+```
 
 ## Build
 
