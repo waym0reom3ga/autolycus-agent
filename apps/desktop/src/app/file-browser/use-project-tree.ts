@@ -25,10 +25,14 @@ function makeNode(path: string, name: string, isDirectory: boolean): TreeNode {
 }
 
 function patchNode(nodes: TreeNode[] | undefined | null, id: string, patch: (n: TreeNode) => TreeNode): TreeNode[] {
-  if (!nodes) {return []}
+  if (!nodes) {
+    return []
+  }
 
   return nodes.map(n => {
-    if (n.id === id) {return patch(n)}
+    if (n.id === id) {
+      return patch(n)
+    }
 
     if (n.children && n.children.length > 0) {
       return { ...n, children: patchNode(n.children, id, patch) }
@@ -170,37 +174,46 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
     [cwd]
   )
 
-  const loadChildren = useCallback(async (id: string) => {
-    if (!cwd || inflight.has(id)) {return}
-    inflight.add(id)
-
-    setProjectTree(current => {
-      if (current.cwd !== cwd) {return current}
-
-      return {
-        ...current,
-        data: patchNode(current.data, id, n => ({ ...n, loading: true, children: [placeholderChild(n.id)] }))
+  const loadChildren = useCallback(
+    async (id: string) => {
+      if (!cwd || inflight.has(id)) {
+        return
       }
-    })
+      inflight.add(id)
 
-    const { entries, error } = await readProjectDir(id, cwd)
+      setProjectTree(current => {
+        if (current.cwd !== cwd) {
+          return current
+        }
 
-    inflight.delete(id)
+        return {
+          ...current,
+          data: patchNode(current.data, id, n => ({ ...n, loading: true, children: [placeholderChild(n.id)] }))
+        }
+      })
 
-    setProjectTree(current => {
-      if (current.cwd !== cwd) {return current}
+      const { entries, error } = await readProjectDir(id, cwd)
 
-      return {
-        ...current,
-        data: patchNode(current.data, id, n => ({
-          ...n,
-          loading: false,
-          error: error || undefined,
-          children: error ? [] : entries.map(e => makeNode(e.path, e.name, e.isDirectory))
-        }))
-      }
-    })
-  }, [cwd])
+      inflight.delete(id)
+
+      setProjectTree(current => {
+        if (current.cwd !== cwd) {
+          return current
+        }
+
+        return {
+          ...current,
+          data: patchNode(current.data, id, n => ({
+            ...n,
+            loading: false,
+            error: error || undefined,
+            children: error ? [] : entries.map(e => makeNode(e.path, e.name, e.isDirectory))
+          }))
+        }
+      })
+    },
+    [cwd]
+  )
 
   useEffect(() => {
     void loadRoot(cwd)
@@ -216,6 +229,16 @@ export function useProjectTree(cwd: string): UseProjectTreeResult {
       rootLoading: state.cwd === cwd ? state.rootLoading : false,
       setNodeOpen
     }),
-    [cwd, loadChildren, refreshRoot, setNodeOpen, state.cwd, state.data, state.openState, state.rootError, state.rootLoading]
+    [
+      cwd,
+      loadChildren,
+      refreshRoot,
+      setNodeOpen,
+      state.cwd,
+      state.data,
+      state.openState,
+      state.rootError,
+      state.rootLoading
+    ]
   )
 }

@@ -3,8 +3,10 @@ import {
   Children,
   type CSSProperties,
   isValidElement,
+  type PointerEvent as ReactPointerEvent,
   type ReactElement,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -12,7 +14,7 @@ import {
 } from 'react'
 
 import { cn } from '@/lib/utils'
-import { $paneStates, ensurePaneRegistered } from '@/store/panes'
+import { $paneStates, ensurePaneRegistered, setPaneWidthOverride } from '@/store/panes'
 
 import { PaneShellContext, type PaneShellContextValue, type PaneSlot } from './context'
 
@@ -57,9 +59,25 @@ interface CollectedPane {
 }
 
 const DEFAULT_WIDTH = '16rem'
+const DEFAULT_RESIZE_MIN_WIDTH = 160
 
 const widthToCss = (value: WidthValue | undefined, fallback: string) =>
   value === undefined ? fallback : typeof value === 'number' ? `${value}px` : value
+
+const remPx = () =>
+  typeof window === 'undefined'
+    ? 16
+    : Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16
+
+// Resolves PaneProps.minWidth/maxWidth (number | "Npx" | "Nrem") to pixels for drag clamping.
+function widthToPx(value: WidthValue | undefined) {
+  if (typeof value === 'number') {return Number.isFinite(value) ? value : undefined}
+  const match = value?.trim().match(/^(-?\d*\.?\d+)(px|rem)?$/)
+
+  if (!match) {return undefined}
+
+  return Number.parseFloat(match[1]) * (match[2] === 'rem' ? remPx() : 1)
+}
 
 function isRole(child: unknown, role: 'pane' | 'main'): child is ReactElement {
   return isValidElement(child) && (child.type as PaneRoleMarker)?.__paneShellRole === role
@@ -159,9 +177,19 @@ export function PaneShell({ children, className, style }: PaneShellProps) {
   )
 }
 
-export function Pane({ children, className, defaultOpen = true, disabled = false, id }: PaneProps) {
+export function Pane({
+  children,
+  className,
+  defaultOpen = true,
+  disabled = false,
+  id,
+  maxWidth,
+  minWidth,
+  resizable = false
+}: PaneProps) {
   const ctx = useContext(PaneShellContext)
   const registered = useRef(false)
+  const paneRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (registered.current) {return}
@@ -169,27 +197,86 @@ export function Pane({ children, className, defaultOpen = true, disabled = false
     ensurePaneRegistered(id, { open: defaultOpen })
   }, [defaultOpen, id])
 
+  const slot = ctx?.paneById.get(id)
+  const open = Boolean(slot?.open && !disabled)
+  const canResize = open && resizable
+  const lo = widthToPx(minWidth) ?? DEFAULT_RESIZE_MIN_WIDTH
+  const hi = widthToPx(maxWidth) ?? Number.POSITIVE_INFINITY
+  const side = slot?.side ?? 'left'
+
+  const startResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const paneWidth = paneRef.current?.getBoundingClientRect().width ?? 0
+
+      if (!canResize || paneWidth <= 0) {return}
+      event.preventDefault()
+
+      const handle = event.currentTarget
+      const { pointerId, clientX: startX } = event
+      const dir = side === 'left' ? 1 : -1
+      const restoreCursor = document.body.style.cursor
+      const restoreSelect = document.body.style.userSelect
+
+      handle.setPointerCapture?.(pointerId)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+
+      const onMove = (e: PointerEvent) => {
+        const next = paneWidth + (e.clientX - startX) * dir
+        setPaneWidthOverride(id, Math.round(Math.min(hi, Math.max(lo, next))))
+      }
+
+      const cleanup = () => {
+        document.body.style.cursor = restoreCursor
+        document.body.style.userSelect = restoreSelect
+        handle.releasePointerCapture?.(pointerId)
+        window.removeEventListener('pointermove', onMove, true)
+        window.removeEventListener('pointerup', cleanup, true)
+        window.removeEventListener('pointercancel', cleanup, true)
+        window.removeEventListener('blur', cleanup)
+      }
+
+      window.addEventListener('pointermove', onMove, true)
+      window.addEventListener('pointerup', cleanup, true)
+      window.addEventListener('pointercancel', cleanup, true)
+      window.addEventListener('blur', cleanup)
+    },
+    [canResize, hi, id, lo, side]
+  )
+
   if (!ctx) {
     if (import.meta.env.DEV) {console.warn(`[Pane:${id}] must be rendered inside <PaneShell>`)}
 
     return null
   }
 
-  const slot = ctx.paneById.get(id)
-
   if (!slot) {return null}
-
-  const open = slot.open && !disabled
 
   return (
     <div
       aria-hidden={!open}
-      className={cn('row-start-1 min-w-0 overflow-hidden', !open && 'pointer-events-none', className)}
+      className={cn('relative row-start-1 min-w-0 overflow-hidden', !open && 'pointer-events-none', className)}
       data-pane-id={id}
       data-pane-open={open ? 'true' : 'false'}
       data-pane-side={slot.side}
+      ref={paneRef}
       style={{ gridColumn: `${slot.column} / ${slot.column + 1}` }}
     >
+      {canResize && (
+        <div
+          aria-label={`Resize ${id}`}
+          aria-orientation="vertical"
+          className={cn(
+            'group absolute bottom-0 top-0 z-10 w-3 cursor-col-resize [-webkit-app-region:no-drag]',
+            slot.side === 'left' ? 'right-0 translate-x-1/2' : 'left-0 -translate-x-1/2'
+          )}
+          onPointerDown={startResize}
+          role="separator"
+          tabIndex={0}
+        >
+          <span className="absolute left-1/2 top-1/2 h-18 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/80 opacity-0 transition-opacity duration-100 group-hover:opacity-[0.65] group-focus-visible:opacity-[0.65]" />
+        </div>
+      )}
       {children}
     </div>
   )

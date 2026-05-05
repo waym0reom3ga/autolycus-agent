@@ -52,6 +52,7 @@ describe('preprocessMarkdown', () => {
     const input = ['```Heads up - a bunny got added', '- Pure white (`#ffffff`)', '- Ambient dropped to 0.18'].join(
       '\n'
     )
+
     const output = preprocessMarkdown(input)
 
     expect(output).not.toContain('```heads')

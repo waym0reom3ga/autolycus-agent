@@ -1,19 +1,16 @@
 import { useStore } from '@nanostores/react'
-import type { CSSProperties, ReactNode, PointerEvent as ReactPointerEvent } from 'react'
-import { useCallback } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 import { PaneShell } from '@/components/pane-shell'
 import { SidebarProvider } from '@/components/ui/sidebar'
-import { triggerHaptic } from '@/lib/haptics'
 import {
   $fileBrowserOpen,
   $sidebarOpen,
-  $sidebarWidth,
   FILE_BROWSER_DEFAULT_WIDTH,
-  setSidebarOpen,
-  setSidebarResizing,
-  setSidebarWidth
+  FILE_BROWSER_PANE_ID,
+  setSidebarOpen
 } from '@/store/layout'
+import { $paneWidthOverride } from '@/store/panes'
 import { $connection } from '@/store/session'
 
 import { StatusbarControls, type StatusbarItem } from './statusbar-controls'
@@ -39,9 +36,9 @@ export function AppShell({
   statusbarItems,
   titlebarTools
 }: AppShellProps) {
-  const sidebarWidth = useStore($sidebarWidth)
   const sidebarOpen = useStore($sidebarOpen)
   const fileBrowserOpen = useStore($fileBrowserOpen)
+  const fileBrowserWidthOverride = useStore($paneWidthOverride(FILE_BROWSER_PANE_ID))
   const connection = useStore($connection)
 
   const titlebarControls = titlebarControlsPosition(connection?.windowButtonPosition)
@@ -57,12 +54,15 @@ export function AppShell({
   const paneToolCount = titlebarTools?.filter(tool => !tool.hidden).length ?? 0
   const systemToolsWidth = `calc(${SYSTEM_TOOL_COUNT} * var(--titlebar-control-size))`
 
+  const fileBrowserWidth =
+    fileBrowserWidthOverride !== undefined ? `${fileBrowserWidthOverride}px` : FILE_BROWSER_DEFAULT_WIDTH
+
   // Where the pane-tool cluster's right edge sits, measured from the inner
   // titlebar padding (--titlebar-tools-right). Two anchors:
   //   - file-browser closed → flush against static cluster's left edge
   //   - file-browser open   → flush against the file-browser pane's left edge
   //                           (= preview pane's right edge)
-  const previewToolbarGap = fileBrowserOpen ? FILE_BROWSER_DEFAULT_WIDTH : systemToolsWidth
+  const previewToolbarGap = fileBrowserOpen ? fileBrowserWidth : systemToolsWidth
 
   // Used by the drag region to know where the rightmost interactive element
   // ends. When pane tools are present, that's `gap + paneCount * controlSize`
@@ -72,38 +72,6 @@ export function AppShell({
     paneToolCount > 0
       ? `calc(${previewToolbarGap} + ${paneToolCount} * var(--titlebar-control-size))`
       : systemToolsWidth
-
-  const startSidebarResize = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      event.preventDefault()
-      setSidebarResizing(true)
-
-      const startX = event.clientX
-      const startWidth = sidebarWidth
-      const previousCursor = document.body.style.cursor
-      const previousUserSelect = document.body.style.userSelect
-
-      document.body.style.cursor = 'col-resize'
-      document.body.style.userSelect = 'none'
-
-      const handleMove = (moveEvent: PointerEvent) => {
-        setSidebarWidth(startWidth + moveEvent.clientX - startX)
-      }
-
-      const handleUp = () => {
-        setSidebarResizing(false)
-        triggerHaptic('crisp')
-        document.body.style.cursor = previousCursor
-        document.body.style.userSelect = previousUserSelect
-        window.removeEventListener('pointermove', handleMove)
-        window.removeEventListener('pointerup', handleUp)
-      }
-
-      window.addEventListener('pointermove', handleMove)
-      window.addEventListener('pointerup', handleUp, { once: true })
-    },
-    [sidebarWidth]
-  )
 
   return (
     <SidebarProvider
@@ -143,19 +111,6 @@ export function AppShell({
           />
 
           {children}
-
-          {sidebarOpen && (
-            <div
-              aria-label="Resize sidebar"
-              aria-orientation="vertical"
-              className="group absolute bottom-0 top-0 left-[calc(var(--pane-chat-sidebar-width)-0.5rem)] z-5 w-4 cursor-col-resize [-webkit-app-region:no-drag]"
-              onPointerDown={startSidebarResize}
-              role="separator"
-              tabIndex={0}
-            >
-              <span className="absolute left-1/2 top-1/2 h-23 w-0.75 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted-foreground/80 opacity-0 transition-opacity duration-100 group-hover:opacity-[0.65] group-focus-visible:opacity-[0.65]" />
-            </div>
-          )}
         </PaneShell>
 
         <StatusbarControls items={statusbarItems} leftItems={leftStatusbarItems} />

@@ -201,7 +201,18 @@ export function useStatusbarItems({
         variant: 'text'
       }
     ],
-    [browseSessionCwd, busy, contextBar, contextUsage, currentBranch, currentCwd, currentModel, currentProvider, sessionStartedAt, turnStartedAt]
+    [
+      browseSessionCwd,
+      busy,
+      contextBar,
+      contextUsage,
+      currentBranch,
+      currentCwd,
+      currentModel,
+      currentProvider,
+      sessionStartedAt,
+      turnStartedAt
+    ]
   )
 
   const leftStatusbarItems = useMemo(

@@ -50,7 +50,7 @@ export function FadeText({ children, className, fadeWidth = '3rem', style, ...re
         WebkitMaskImage: `linear-gradient(to right, black calc(100% - ${fadeWidth}), transparent)`,
         ...style
       }
-    : style ?? {}
+    : (style ?? {})
 
   return (
     <span

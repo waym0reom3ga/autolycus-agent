@@ -1,5 +1,4 @@
 import './styles.css'
-import 'streamdown/styles.css'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'

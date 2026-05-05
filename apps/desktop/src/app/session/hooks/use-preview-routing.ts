@@ -113,18 +113,32 @@ export function usePreviewRouting({
 
   const registerStructuredPreview = useCallback(
     async (event: RpcEvent) => {
-      if (event.session_id && event.session_id !== activeSessionIdRef.current && event.session_id !== previewSessionId) {return}
+      if (
+        event.session_id &&
+        event.session_id !== activeSessionIdRef.current &&
+        event.session_id !== previewSessionId
+      ) {
+        return
+      }
 
-      if (!event.type.startsWith('tool.')) {return}
+      if (!event.type.startsWith('tool.')) {
+        return
+      }
 
-      if (!previewSessionId) {return}
+      if (!previewSessionId) {
+        return
+      }
 
       const candidate = structuredPreviewCandidate(event.payload)
 
-      if (!candidate) {return}
+      if (!candidate) {
+        return
+      }
       const desktop = window.hermesDesktop
 
-      if (!desktop?.normalizePreviewTarget) {return}
+      if (!desktop?.normalizePreviewTarget) {
+        return
+      }
       const sessionId = previewSessionId
       const cwd = currentCwd || ''
       const target = await desktop.normalizePreviewTarget(candidate, cwd || undefined).catch(() => null)
@@ -146,7 +160,9 @@ export function usePreviewRouting({
     async (url: string, context?: string) => {
       const sessionId = activeSessionIdRef.current
 
-      if (!sessionId) {throw new Error('No active session for background restart')}
+      if (!sessionId) {
+        throw new Error('No active session for background restart')
+      }
 
       const cwd = $currentCwd.get() || currentCwd || ''
 
@@ -159,7 +175,9 @@ export function usePreviewRouting({
 
       const taskId = result.task_id || ''
 
-      if (!taskId) {throw new Error('Background restart did not return a task id')}
+      if (!taskId) {
+        throw new Error('Background restart did not return a task id')
+      }
 
       beginPreviewServerRestart(taskId, url)
 
@@ -175,18 +193,26 @@ export function usePreviewRouting({
       if (event.type === 'preview.restart.complete') {
         const { task_id, text } = asRecord(event.payload)
 
-        if (typeof task_id === 'string' && task_id) {completePreviewServerRestart(task_id, typeof text === 'string' ? text : '')}
+        if (typeof task_id === 'string' && task_id) {
+          completePreviewServerRestart(task_id, typeof text === 'string' ? text : '')
+        }
       } else if (event.type === 'preview.restart.progress') {
         const { task_id, text } = asRecord(event.payload)
 
-        if (typeof task_id === 'string' && task_id) {progressPreviewServerRestart(task_id, typeof text === 'string' ? text : '')}
+        if (typeof task_id === 'string' && task_id) {
+          progressPreviewServerRestart(task_id, typeof text === 'string' ? text : '')
+        }
       }
 
-      if (event.session_id && event.session_id !== activeSessionIdRef.current) {return}
+      if (event.session_id && event.session_id !== activeSessionIdRef.current) {
+        return
+      }
 
       void registerStructuredPreview(event)
 
-      if ($previewTarget.get()?.kind === 'url' && gatewayEventCompletedFileDiff(event)) {requestPreviewReload()}
+      if ($previewTarget.get()?.kind === 'url' && gatewayEventCompletedFileDiff(event)) {
+        requestPreviewReload()
+      }
     },
     [activeSessionIdRef, baseHandleGatewayEvent, registerStructuredPreview]
   )

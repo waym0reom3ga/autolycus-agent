@@ -12,7 +12,9 @@ function asRecord(payload: unknown): Record<string, unknown> {
 }
 
 export function gatewayEventCompletedFileDiff(event: RpcEventLike): boolean {
-  if (event.type !== 'tool.complete') {return false}
+  if (event.type !== 'tool.complete') {
+    return false
+  }
   const diff = asRecord(event.payload).inline_diff
 
   return typeof diff === 'string' && diff.trim().length > 0
@@ -20,7 +22,14 @@ export function gatewayEventCompletedFileDiff(event: RpcEventLike): boolean {
 
 export function buildGatewayLogItems(lines: readonly string[]): readonly StatusbarMenuItem[] {
   if (lines.length === 0) {
-    return [{ className: 'text-muted-foreground', disabled: true, id: 'gateway-log-empty', label: 'No recent gateway log lines' }]
+    return [
+      {
+        className: 'text-muted-foreground',
+        disabled: true,
+        id: 'gateway-log-empty',
+        label: 'No recent gateway log lines'
+      }
+    ]
   }
 
   return lines.slice(-LOG_TAIL).map((line, index) => ({

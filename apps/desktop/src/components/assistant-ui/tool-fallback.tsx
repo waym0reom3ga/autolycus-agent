@@ -561,7 +561,10 @@ function toolSubtitle(
       firstStringField(argsRecord, ['path', 'file', 'filepath']) ||
       htmlPathFromInlineDiff(firstStringField(resultRecord, ['inline_diff']))
 
-    return path || (firstStringField(resultRecord, ['inline_diff']) ? 'Changed file' : fallbackDetailText(argsRecord, resultRecord))
+    return (
+      path ||
+      (firstStringField(resultRecord, ['inline_diff']) ? 'Changed file' : fallbackDetailText(argsRecord, resultRecord))
+    )
   }
 
   if (toolName === 'web_extract') {

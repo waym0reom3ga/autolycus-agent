@@ -972,11 +972,7 @@ function installDevToolsShortcut(window) {
 function installPreviewShortcut(window) {
   window.webContents.on('before-input-event', (event, input) => {
     const key = String(input.key || '').toLowerCase()
-    const isPreviewCloseShortcut =
-      key === 'w' &&
-      (IS_MAC ? input.meta : input.control) &&
-      !input.alt &&
-      !input.shift
+    const isPreviewCloseShortcut = key === 'w' && (IS_MAC ? input.meta : input.control) && !input.alt && !input.shift
 
     if (!isPreviewCloseShortcut || !previewShortcutActive) return
 
@@ -1313,14 +1309,18 @@ function findGitRoot(start) {
 
   for (let i = 0; i < 50; i += 1) {
     try {
-      if (fs.existsSync(path.join(dir, '.git'))) {return dir}
+      if (fs.existsSync(path.join(dir, '.git'))) {
+        return dir
+      }
     } catch {
       return null
     }
 
     const parent = path.dirname(dir)
 
-    if (parent === dir) {return null}
+    if (parent === dir) {
+      return null
+    }
 
     dir = parent
   }
@@ -1337,11 +1337,15 @@ function getGitignoreFile(giPath) {
     return null
   }
 
-  if (!stat.isFile()) {return null}
+  if (!stat.isFile()) {
+    return null
+  }
 
   const cached = gitignoreCache.get(giPath)
 
-  if (cached && cached.mtime === stat.mtimeMs) {return cached}
+  if (cached && cached.mtime === stat.mtimeMs) {
+    return cached
+  }
 
   try {
     const entry = {
@@ -1376,7 +1380,9 @@ function gitignoreRulesFor(root, dir) {
   for (const ruleDir of dirs) {
     const rule = getGitignoreFile(path.join(ruleDir, '.gitignore'))
 
-    if (rule) {rules.push(rule)}
+    if (rule) {
+      rules.push(rule)
+    }
   }
 
   return rules
@@ -1386,11 +1392,15 @@ function ignoredByRules(rules, abs, isDirectory) {
   for (const rule of rules) {
     const rel = path.relative(rule.base, abs)
 
-    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {continue}
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+      continue
+    }
 
     const probe = `${rel.split(path.sep).join('/')}${isDirectory ? '/' : ''}`
 
-    if (rule.ig.ignores(probe)) {return true}
+    if (rule.ig.ignores(probe)) {
+      return true
+    }
   }
 
   return false
@@ -1410,12 +1420,16 @@ ipcMain.handle('hermes:fs:readDir', async (_event, dirPath) => {
 
     const entries = dirents
       .filter(d => {
-        if (FS_READDIR_HIDDEN.has(d.name)) {return false}
+        if (FS_READDIR_HIDDEN.has(d.name)) {
+          return false
+        }
 
         if (gitignoreRules.length > 0) {
           const abs = path.join(resolved, d.name)
 
-          if (ignoredByRules(gitignoreRules, abs, d.isDirectory())) {return false}
+          if (ignoredByRules(gitignoreRules, abs, d.isDirectory())) {
+            return false
+          }
         }
 
         return true

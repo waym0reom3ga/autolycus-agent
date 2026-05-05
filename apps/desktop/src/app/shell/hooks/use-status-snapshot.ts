@@ -20,7 +20,9 @@ export function useStatusSnapshot(gatewayState: string | undefined) {
           getLogs({ file: 'gateway', lines: LOG_TAIL }).catch(() => ({ lines: [] }))
         ])
 
-        if (cancelled) {return}
+        if (cancelled) {
+          return
+        }
 
         setStatusSnapshot(next)
         setGatewayLogLines(logs.lines.map(line => line.trim()).filter(Boolean))

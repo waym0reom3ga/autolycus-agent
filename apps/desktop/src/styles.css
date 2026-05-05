@@ -344,20 +344,14 @@ canvas {
   max-width: 100%;
   font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
   font-size: 0.86em;
-  padding: 0.01rem 0.16rem;
-  border-radius: 0.2rem;
-  background: #f4f4f5;
-  color: #be185d;
+  padding: 0.01rem 0.2rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--dt-muted) 80%, transparent);
+  color: var(--dt-muted-foreground);
   border: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: normal;
-}
-
-:root.dark [data-slot='aui_assistant-message-content'] .aui-md code {
-  background: #27272a;
-  color: #f9a8d4;
-  border-color: #831843;
 }
 
 [data-slot='aui_assistant-message-content'] .aui-md [data-streamdown='code-block'] code {

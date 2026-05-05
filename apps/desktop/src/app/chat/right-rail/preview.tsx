@@ -11,7 +11,10 @@ import {
 
 import { PreviewPane } from './preview-pane'
 
-const INTRINSIC = 'clamp(18rem, 36vw, 38rem)'
+export const PREVIEW_RAIL_MIN_WIDTH = '18rem'
+export const PREVIEW_RAIL_MAX_WIDTH = '38rem'
+
+const INTRINSIC = `clamp(${PREVIEW_RAIL_MIN_WIDTH}, 36vw, 32rem)`
 
 // Track for <Pane id="preview">. Folds the intrinsic clamp with a min-floor
 // against --chat-min-width so the chat surface never gets squeezed below it.
@@ -30,7 +33,9 @@ export function ChatPreviewRail({ onRestartServer, setTitlebarToolGroup }: ChatP
   const previewTarget = useStore($previewTarget)
   const target = filePreviewTarget ?? previewTarget
 
-  if (!target) {return null}
+  if (!target) {
+    return null
+  }
 
   return (
     <PreviewPane

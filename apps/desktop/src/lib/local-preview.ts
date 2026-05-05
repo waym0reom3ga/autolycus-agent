@@ -50,13 +50,18 @@ function extension(value: string) {
 }
 
 function joinPath(base: string, rel: string) {
-  if (!base) {return rel}
+  if (!base) {
+    return rel
+  }
 
   return `${base.replace(/\/+$/, '')}/${rel.replace(/^\.?\//, '')}`
 }
 
 function pathToFileUrl(path: string) {
-  const encoded = path.split('/').map(part => encodeURIComponent(part)).join('/')
+  const encoded = path
+    .split('/')
+    .map(part => encodeURIComponent(part))
+    .join('/')
 
   return `file://${encoded.startsWith('/') ? encoded : `/${encoded}`}`
 }
@@ -64,7 +69,9 @@ function pathToFileUrl(path: string) {
 export function localPreviewTarget(rawTarget: string, cwd?: string | null): PreviewTarget | null {
   const raw = rawTarget.trim().replace(/^`|`$/g, '')
 
-  if (!raw) {return null}
+  if (!raw) {
+    return null
+  }
 
   if (/^https?:\/\//i.test(raw)) {
     return { kind: 'url', label: basename(raw), source: raw, url: raw }
@@ -100,7 +107,10 @@ export function localPreviewTarget(rawTarget: string, cwd?: string | null): Prev
   }
 }
 
-export async function normalizeOrLocalPreviewTarget(rawTarget: string, cwd?: string | null): Promise<PreviewTarget | null> {
+export async function normalizeOrLocalPreviewTarget(
+  rawTarget: string,
+  cwd?: string | null
+): Promise<PreviewTarget | null> {
   try {
     const normalized = await window.hermesDesktop?.normalizePreviewTarget?.(rawTarget, cwd || undefined)
 

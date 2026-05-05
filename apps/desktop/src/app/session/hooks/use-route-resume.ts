@@ -22,10 +22,14 @@ interface RouteResumeOptions {
 // parsed. If the hash references a real session, defer; resume picks it up
 // next tick. Without this, ctrl+R on `#/:sessionId` flashes 5 loading states.
 function rawHashLooksLikeSession(): boolean {
-  if (typeof window === 'undefined') {return false}
+  if (typeof window === 'undefined') {
+    return false
+  }
   const hash = window.location.hash.replace(/^#/, '')
 
-  if (!hash || hash === '/') {return false}
+  if (!hash || hash === '/') {
+    return false
+  }
 
   return !hash.startsWith('/settings') && !hash.startsWith('/skills') && !hash.startsWith('/artifacts')
 }
@@ -46,7 +50,9 @@ export function useRouteResume({
   startFreshSessionDraft
 }: RouteResumeOptions) {
   useEffect(() => {
-    if (currentView !== 'chat' || gatewayState !== 'open') {return}
+    if (currentView !== 'chat' || gatewayState !== 'open') {
+      return
+    }
 
     if (routedSessionId) {
       const cachedRuntime = runtimeIdByStoredSessionIdRef.current.get(routedSessionId)
@@ -56,7 +62,9 @@ export function useRouteResume({
         Boolean(cachedRuntime) &&
         cachedRuntime === activeSessionIdRef.current
 
-      if (!alreadyActive) {void resumeSession(routedSessionId, true)}
+      if (!alreadyActive) {
+        void resumeSession(routedSessionId, true)
+      }
 
       return
     }

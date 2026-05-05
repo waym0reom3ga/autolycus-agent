@@ -5,7 +5,12 @@ import { MonitorPlay } from '@/lib/icons'
 import { normalizeOrLocalPreviewTarget } from '@/lib/local-preview'
 import { previewName } from '@/lib/preview-targets'
 import { notifyError } from '@/store/notifications'
-import { $previewTarget, dismissPreviewTarget, type PreviewRecordSource, setCurrentSessionPreviewTarget } from '@/store/preview'
+import {
+  $previewTarget,
+  dismissPreviewTarget,
+  type PreviewRecordSource,
+  setCurrentSessionPreviewTarget
+} from '@/store/preview'
 import { $currentCwd } from '@/store/session'
 
 export function PreviewAttachment({ source = 'manual', target }: { source?: PreviewRecordSource; target: string }) {

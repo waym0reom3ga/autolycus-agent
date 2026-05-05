@@ -33,7 +33,9 @@ export function ProjectTree({
   useEffect(() => {
     const el = containerRef.current
 
-    if (!el || typeof ResizeObserver === 'undefined') {return}
+    if (!el || typeof ResizeObserver === 'undefined') {
+      return
+    }
 
     const observer = new ResizeObserver(([entry]) => {
       const { height, width } = entry.contentRect
@@ -49,7 +51,9 @@ export function ProjectTree({
     (id: string) => {
       const node = treeRef.current?.get(id)
 
-      if (!node) {return}
+      if (!node) {
+        return
+      }
 
       onNodeOpenChange(id, node.isOpen)
 
@@ -121,7 +125,9 @@ function ProjectTreeRow({
       onClick={event => {
         event.stopPropagation()
 
-        if (isPlaceholder) {return}
+        if (isPlaceholder) {
+          return
+        }
 
         if (isFolder) {
           node.toggle()

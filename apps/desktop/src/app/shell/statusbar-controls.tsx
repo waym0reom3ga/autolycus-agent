@@ -1,12 +1,7 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 export interface StatusbarMenuItem {
@@ -62,26 +57,24 @@ export function StatusbarControls({ className, leftItems = [], items = [], ...pr
       {...props}
     >
       <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto">
-        {leftItems.filter(item => !item.hidden).map(item => (
-          <StatusbarItemView item={item} key={`left:${item.id}`} navigate={navigate} />
-        ))}
+        {leftItems
+          .filter(item => !item.hidden)
+          .map(item => (
+            <StatusbarItemView item={item} key={`left:${item.id}`} navigate={navigate} />
+          ))}
       </div>
       <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto">
-        {items.filter(item => !item.hidden).map(item => (
-          <StatusbarItemView item={item} key={`right:${item.id}`} navigate={navigate} />
-        ))}
+        {items
+          .filter(item => !item.hidden)
+          .map(item => (
+            <StatusbarItemView item={item} key={`right:${item.id}`} navigate={navigate} />
+          ))}
       </div>
     </footer>
   )
 }
 
-function StatusbarItemView({
-  item,
-  navigate
-}: {
-  item: StatusbarItem
-  navigate: ReturnType<typeof useNavigate>
-}) {
+function StatusbarItemView({ item, navigate }: { item: StatusbarItem; navigate: ReturnType<typeof useNavigate> }) {
   const content = (
     <>
       {item.icon}
@@ -147,7 +140,12 @@ function StatusbarItemView({
 
   if (item.variant === 'text' && !item.onSelect && !item.to && !item.href) {
     return (
-      <div className={cn('inline-flex h-5 items-center gap-1 px-0.5 text-[0.68rem] text-muted-foreground/90', item.className)}>
+      <div
+        className={cn(
+          'inline-flex h-5 items-center gap-1 px-0.5 text-[0.68rem] text-muted-foreground/90',
+          item.className
+        )}
+      >
         {content}
       </div>
     )

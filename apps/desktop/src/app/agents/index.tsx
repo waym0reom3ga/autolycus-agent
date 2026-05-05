@@ -103,7 +103,11 @@ function ActivityList({ tasks }: { tasks: readonly RailTask[] }) {
         return (
           <OverlayCard className="flex items-start gap-2.5 px-3 py-2" key={task.id}>
             <Icon
-              className={cn('mt-0.5 size-3.5 shrink-0', STATUS_TONE[task.status], task.status === 'running' && 'animate-spin')}
+              className={cn(
+                'mt-0.5 size-3.5 shrink-0',
+                STATUS_TONE[task.status],
+                task.status === 'running' && 'animate-spin'
+              )}
             />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-foreground">{task.label}</div>
@@ -124,9 +128,11 @@ function SectionStub({ label }: { label: string }) {
         <p className="text-sm font-medium text-foreground">{label} — coming soon</p>
         <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
           Subagent stores aren&apos;t wired into the desktop yet. Once gateway events for{' '}
-          <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-[0.65rem]">subagent.spawn / progress / complete</code>{' '}
-          land here, this view shows the live spawn tree, replay history, and pause/kill controls — modelled on the TUI&apos;s{' '}
-          <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-[0.65rem]">/agents</code> overlay.
+          <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-[0.65rem]">
+            subagent.spawn / progress / complete
+          </code>{' '}
+          land here, this view shows the live spawn tree, replay history, and pause/kill controls — modelled on the
+          TUI&apos;s <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-[0.65rem]">/agents</code> overlay.
         </p>
       </div>
     </OverlayCard>

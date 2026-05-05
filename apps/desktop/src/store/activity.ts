@@ -54,7 +54,8 @@ export function buildRailTasks(
           id: `preview:${previewRestart.taskId}`,
           label: 'Preview restart',
           detail: previewRestart.message || previewRestart.url,
-          status: previewRestart.status === 'error' ? 'error' : previewRestart.status === 'running' ? 'running' : 'success',
+          status:
+            previewRestart.status === 'error' ? 'error' : previewRestart.status === 'running' ? 'running' : 'success',
           updatedAt: Date.now()
         }
       ]

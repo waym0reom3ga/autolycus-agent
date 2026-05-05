@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  extractPreviewTargets,
-  previewTargetFromMarkdownHref,
-  stripPreviewTargets
-} from './preview-targets'
+import { extractPreviewTargets, previewTargetFromMarkdownHref, stripPreviewTargets } from './preview-targets'
 
 describe('preview target detection', () => {
   it('does not infer preview targets from raw paths or URLs', () => {

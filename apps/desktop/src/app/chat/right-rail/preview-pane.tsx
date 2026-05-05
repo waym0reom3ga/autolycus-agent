@@ -3,6 +3,8 @@ import type {
   ComponentProps,
   CSSProperties,
   MutableRefObject,
+  DragEvent as ReactDragEvent,
+  MouseEvent as ReactMouseEvent,
   ReactNode,
   PointerEvent as ReactPointerEvent,
   RefObject
@@ -11,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ShikiHighlighter from 'react-shiki'
 import { Streamdown } from 'streamdown'
 
+import { HERMES_PATHS_MIME } from '@/app/chat/hooks/use-composer-actions'
 import type { SetTitlebarToolGroup, TitlebarTool } from '@/app/shell/titlebar-controls'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Bug, PanelBottom, RefreshCw, Send, Trash2, X } from '@/lib/icons'
@@ -20,6 +23,8 @@ import { notify, notifyError } from '@/store/notifications'
 import { $previewServerRestart, failPreviewServerRestart, type PreviewTarget } from '@/store/preview'
 
 import { type ConsoleEntry, createPreviewConsoleState, type PreviewConsoleState } from './preview-console-state'
+
+const SHIKI_THEME = { dark: 'github-dark-default', light: 'github-light-default' } as const
 
 type PreviewWebview = HTMLElement & {
   closeDevTools?: () => void
@@ -36,7 +41,6 @@ interface PreviewPaneProps {
   reloadRequest?: number
   setTitlebarToolGroup?: SetTitlebarToolGroup
   target: PreviewTarget
-  titlebarToolGroupId?: string
 }
 
 interface PreviewLoadErrorState {
@@ -194,9 +198,23 @@ function PreviewConsoleTitlebarIcon({ consoleState }: { consoleState: PreviewCon
   )
 }
 
-function PreviewCubeIcon() {
+type EmptyStateTone = 'neutral' | 'warning'
+
+const TONE_STYLES: Record<EmptyStateTone, { cube: string; primary: string }> = {
+  neutral: {
+    cube: 'text-muted-foreground/35',
+    primary: 'border-border bg-background text-foreground hover:bg-accent'
+  },
+  warning: {
+    cube: 'text-amber-500/70 dark:text-amber-300/70',
+    primary:
+      'border-amber-400/40 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-300/30 dark:bg-amber-300/15 dark:text-amber-100 dark:hover:bg-amber-300/20'
+  }
+}
+
+function PreviewCubeIcon({ className }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className="size-16 text-muted-foreground/35" viewBox="0 0 64 64">
+    <svg aria-hidden="true" className={cn('size-16', className)} viewBox="0 0 64 64">
       <path
         d="M32 5 56 18.5v27L32 59 8 45.5v-27L32 5Z"
         fill="none"
@@ -222,25 +240,38 @@ interface PreviewEmptyStateProps {
   primaryAction?: { disabled?: boolean; label: string; onClick: () => void }
   secondaryAction?: { disabled?: boolean; label: string; onClick: () => void }
   title: string
+  tone?: EmptyStateTone
 }
 
-function PreviewEmptyState({ body, consoleHeight = 0, primaryAction, secondaryAction, title }: PreviewEmptyStateProps) {
+function PreviewEmptyState({
+  body,
+  consoleHeight = 0,
+  primaryAction,
+  secondaryAction,
+  title,
+  tone = 'neutral'
+}: PreviewEmptyStateProps) {
+  const styles = TONE_STYLES[tone]
+
   return (
     <div
-      className="absolute inset-x-0 top-0 z-10 grid place-items-center bg-background px-6 text-center bottom-(--preview-error-bottom)"
+      className="absolute inset-x-0 top-0 z-10 grid place-items-center bg-background px-8 py-10 text-center bottom-(--preview-error-bottom)"
       style={{ '--preview-error-bottom': `${consoleHeight}px` } as CSSProperties}
     >
-      <div className="grid max-w-72 justify-items-center gap-4">
-        <PreviewCubeIcon />
-        <div className="grid gap-1.5">
+      <div className="grid max-w-sm justify-items-center gap-5">
+        <PreviewCubeIcon className={styles.cube} />
+        <div className="grid gap-2">
           <div className="text-sm font-medium text-foreground">{title}</div>
-          {body}
+          {body && <div className="text-xs leading-relaxed text-muted-foreground">{body}</div>}
         </div>
         {(primaryAction || secondaryAction) && (
           <div className="grid justify-items-center gap-2">
             {primaryAction && (
               <button
-                className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-60"
+                className={cn(
+                  'rounded-full border px-3.5 py-1.5 text-xs font-medium shadow-xs transition-colors disabled:cursor-default disabled:opacity-60',
+                  styles.primary
+                )}
                 disabled={primaryAction.disabled}
                 onClick={primaryAction.onClick}
                 type="button"
@@ -282,20 +313,18 @@ function PreviewLoadError({
     <PreviewEmptyState
       body={
         <>
-          <div className="text-xs leading-5 text-muted-foreground">
-            <a
-              className="pointer-events-auto cursor-pointer font-mono text-muted-foreground/90 underline decoration-muted-foreground/30 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/70"
-              href={error.url}
-              onClick={event => {
-                event.preventDefault()
-                void window.hermesDesktop?.openExternal(error.url)
-              }}
-            >
-              {compactUrl(error.url)}
-            </a>
+          <a
+            className="pointer-events-auto block cursor-pointer font-mono text-muted-foreground/90 underline decoration-muted-foreground/30 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/70"
+            href={error.url}
+            onClick={event => {
+              event.preventDefault()
+              void window.hermesDesktop?.openExternal(error.url)
+            }}
+          >
+            {compactUrl(error.url)}
             {error.code ? ` (${error.code})` : ''}
-          </div>
-          <div className="text-[0.6875rem] leading-5 text-muted-foreground/70">{error.description}</div>
+          </a>
+          <div className="mt-1 text-[0.6875rem] text-muted-foreground/70">{error.description}</div>
         </>
       }
       consoleHeight={consoleHeight}
@@ -541,94 +570,200 @@ async function readTextPreview(filePath: string) {
   }
 }
 
-function MarkdownPreview({ text }: { text: string }) {
-  const components = useMemo(
-    () => ({
-      h1: ({ className, ...props }: ComponentProps<'h1'>) => (
-        <h1 className={cn('mb-3 mt-6 text-3xl font-bold leading-tight tracking-tight first:mt-0', className)} {...props} />
-      ),
-      h2: ({ className, ...props }: ComponentProps<'h2'>) => (
-        <h2 className={cn('mb-2.5 mt-5 text-2xl font-semibold leading-snug tracking-tight first:mt-0', className)} {...props} />
-      ),
-      h3: ({ className, ...props }: ComponentProps<'h3'>) => (
-        <h3 className={cn('mb-2 mt-4 text-xl font-semibold leading-snug first:mt-0', className)} {...props} />
-      ),
-      h4: ({ className, ...props }: ComponentProps<'h4'>) => (
-        <h4 className={cn('mb-2 mt-3 text-base font-semibold leading-snug first:mt-0', className)} {...props} />
-      ),
-      p: ({ className, ...props }: ComponentProps<'p'>) => (
-        <p className={cn('mb-4 leading-relaxed text-foreground last:mb-0', className)} {...props} />
-      ),
-      ul: ({ className, ...props }: ComponentProps<'ul'>) => (
-        <ul className={cn('mb-4 list-disc pl-6 marker:text-muted-foreground/70 last:mb-0', className)} {...props} />
-      ),
-      ol: ({ className, ...props }: ComponentProps<'ol'>) => (
-        <ol className={cn('mb-4 list-decimal pl-6 marker:text-muted-foreground/70 last:mb-0', className)} {...props} />
-      ),
-      li: ({ className, ...props }: ComponentProps<'li'>) => <li className={cn('mt-1 leading-relaxed', className)} {...props} />,
-      blockquote: ({ className, ...props }: ComponentProps<'blockquote'>) => (
-        <blockquote
-          className={cn('mb-4 border-l-2 border-border pl-3 text-muted-foreground italic last:mb-0', className)}
-          {...props}
-        />
-      ),
-      code: ({ className, children, ...props }: ComponentProps<'code'>) => {
-        const language = /language-([^\s]+)/.exec(className || '')?.[1]
+// Lightweight markdown renderer for file previews. Streamdown does the parse;
+// our components keep typography simple and route fenced code through Shiki
+// without the library's copy/download/fullscreen chrome.
+const MD_TAG_CLASSES = {
+  h1: 'mb-3 mt-6 text-3xl font-bold leading-tight tracking-tight first:mt-0',
+  h2: 'mb-2.5 mt-5 text-2xl font-semibold leading-snug tracking-tight first:mt-0',
+  h3: 'mb-2 mt-4 text-xl font-semibold leading-snug first:mt-0',
+  h4: 'mb-2 mt-3 text-base font-semibold leading-snug first:mt-0',
+  p: 'mb-4 leading-relaxed text-foreground last:mb-0',
+  ul: 'mb-4 list-disc pl-6 marker:text-muted-foreground/70 last:mb-0',
+  ol: 'mb-4 list-decimal pl-6 marker:text-muted-foreground/70 last:mb-0',
+  li: 'mt-1 leading-relaxed',
+  blockquote: 'mb-4 border-l-2 border-border pl-3 text-muted-foreground italic last:mb-0',
+  pre: 'mb-4 overflow-hidden rounded-lg border border-border bg-card font-mono text-xs leading-relaxed last:mb-0 [&_pre]:m-0 [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-3 [&_pre]:font-mono'
+} as const
 
-        if (!language) {
-          return (
-            <code
-              className={cn(
-                'rounded bg-muted px-1 py-0.5 font-mono text-[0.86em] text-pink-700 dark:text-pink-300',
-                className
-              )}
-              {...props}
-            >
-              {children}
-            </code>
-          )
-        }
+function tagged<T extends keyof typeof MD_TAG_CLASSES>(Tag: T) {
+  const base = MD_TAG_CLASSES[Tag]
 
-        return (
-          <ShikiHighlighter
-            addDefaultStyles={false}
-            as="div"
-            defaultColor="light-dark()"
-            delay={80}
-            language={language}
-            showLanguage={false}
-            theme={{
-              dark: 'github-dark-default',
-              light: 'github-light-default'
-            }}
-          >
-            {String(children).replace(/\n$/, '')}
-          </ShikiHighlighter>
-        )
-      },
-      pre: ({ className, ...props }: ComponentProps<'pre'>) => (
-        <pre
-          className={cn(
-            'mb-4 overflow-hidden rounded-lg border border-border bg-card font-mono text-xs leading-relaxed last:mb-0 [&_pre]:m-0 [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-3 [&_pre]:font-mono',
-            className
-          )}
-          {...props}
-        />
-      )
-    }),
-    []
-  )
+  const Component = (({ className, ...rest }: ComponentProps<T>) => {
+    const Element = Tag as React.ElementType
+
+    return <Element className={cn(base, className)} {...rest} />
+  }) as React.FC<ComponentProps<T>>
+
+  Component.displayName = `Md.${Tag}`
+
+  return Component
+}
+
+function MarkdownCode({ className, children, ...props }: ComponentProps<'code'>) {
+  const language = /language-([^\s]+)/.exec(className || '')?.[1]
+
+  if (!language) {
+    return (
+      <code
+        className={cn(
+          'rounded bg-muted px-1 py-0.5 font-mono text-[0.86em] text-pink-700 dark:text-pink-300',
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </code>
+    )
+  }
 
   return (
+    <ShikiHighlighter
+      addDefaultStyles={false}
+      as="div"
+      defaultColor="light-dark()"
+      delay={80}
+      language={language}
+      showLanguage={false}
+      theme={SHIKI_THEME}
+    >
+      {String(children).replace(/\n$/, '')}
+    </ShikiHighlighter>
+  )
+}
+
+const MARKDOWN_COMPONENTS = {
+  h1: tagged('h1'),
+  h2: tagged('h2'),
+  h3: tagged('h3'),
+  h4: tagged('h4'),
+  p: tagged('p'),
+  ul: tagged('ul'),
+  ol: tagged('ol'),
+  li: tagged('li'),
+  blockquote: tagged('blockquote'),
+  pre: tagged('pre'),
+  code: MarkdownCode
+}
+
+function MarkdownPreview({ text }: { text: string }) {
+  return (
     <div className="preview-markdown mx-auto max-w-3xl px-4 py-3 text-sm text-foreground">
-      <Streamdown
-        components={components}
-        controls={false}
-        mode="static"
-        parseIncompleteMarkdown={false}
-      >
+      <Streamdown components={MARKDOWN_COMPONENTS} controls={false} mode="static" parseIncompleteMarkdown={false}>
         {text}
       </Streamdown>
+    </div>
+  )
+}
+
+function PreviewToggle({ asSource, onToggle }: { asSource: boolean; onToggle: () => void }) {
+  return (
+    <div className="sticky top-0 z-10 flex justify-end border-b border-border/40 bg-background/90 px-3 py-1 backdrop-blur">
+      <button
+        className="text-[0.625rem] font-bold text-muted-foreground underline decoration-muted-foreground/25 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/55"
+        onClick={onToggle}
+        type="button"
+      >
+        {asSource ? 'PREVIEW' : 'SOURCE'}
+      </button>
+    </div>
+  )
+}
+
+// Gutter and Shiki output share `font-mono text-xs leading-relaxed py-3` so
+// each line aligns vertically. The selection overlay relies on the same
+// `text-xs * leading-relaxed = 1.21875rem` line-height to position itself.
+const SOURCE_LINE_HEIGHT_REM = 1.21875
+const SOURCE_PAD_Y_REM = 0.75
+
+interface LineSelection {
+  end: number
+  start: number
+}
+
+function startLineDrag(event: ReactDragEvent<HTMLElement>, filePath: string, { end, start }: LineSelection) {
+  const lineEnd = end > start ? end : undefined
+  const label = lineEnd ? `${filePath}:${start}-${end}` : `${filePath}:${start}`
+
+  event.dataTransfer.setData(HERMES_PATHS_MIME, JSON.stringify([{ line: start, lineEnd, path: filePath }]))
+  event.dataTransfer.setData('text/plain', label)
+  event.dataTransfer.effectAllowed = 'copy'
+}
+
+function SourceView({ filePath, language, text }: { filePath: string; language: string; text: string }) {
+  const lineCount = useMemo(() => Math.max(1, text.split('\n').length), [text])
+  const [selection, setSelection] = useState<LineSelection | null>(null)
+  const inSelection = (line: number) => selection != null && line >= selection.start && line <= selection.end
+
+  const handleLineClick = (event: ReactMouseEvent, line: number) => {
+    if (event.shiftKey && selection) {
+      setSelection({ end: Math.max(selection.end, line), start: Math.min(selection.start, line) })
+
+      return
+    }
+
+    if (selection?.start === line && selection.end === line) {
+      setSelection(null)
+
+      return
+    }
+
+    setSelection({ end: line, start: line })
+  }
+
+  const handleDragStart = (event: ReactDragEvent<HTMLElement>, line: number) => {
+    startLineDrag(event, filePath, inSelection(line) && selection ? selection : { end: line, start: line })
+  }
+
+  return (
+    <div className="grid min-w-max grid-cols-[auto_minmax(0,1fr)] font-mono text-xs leading-relaxed">
+      <div className="select-none py-3 text-right text-muted-foreground/55">
+        {Array.from({ length: lineCount }, (_, index) => {
+          const line = index + 1
+          const selected = inSelection(line)
+
+          return (
+            <div
+              className={cn(
+                'cursor-pointer px-3 tabular-nums transition-colors',
+                selected
+                  ? 'bg-amber-200/45 text-amber-900 dark:bg-amber-300/20 dark:text-amber-100'
+                  : 'hover:text-foreground'
+              )}
+              draggable
+              key={line}
+              onClick={event => handleLineClick(event, line)}
+              onDragStart={event => handleDragStart(event, line)}
+              title="Click to select · shift-click to extend · drag to composer"
+            >
+              {line}
+            </div>
+          )
+        })}
+      </div>
+      <div className="relative [&_pre]:m-0 [&_pre]:px-3 [&_pre]:py-3">
+        {selection && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bg-amber-200/35 dark:bg-amber-300/10"
+            style={{
+              top: `calc(${SOURCE_PAD_Y_REM}rem + ${selection.start - 1} * ${SOURCE_LINE_HEIGHT_REM}rem)`,
+              height: `calc(${selection.end - selection.start + 1} * ${SOURCE_LINE_HEIGHT_REM}rem)`
+            }}
+          />
+        )}
+        <ShikiHighlighter
+          addDefaultStyles={false}
+          as="div"
+          defaultColor="light-dark()"
+          delay={80}
+          language={language || 'text'}
+          showLanguage={false}
+          theme={SHIKI_THEME}
+        >
+          {text}
+        </ShikiHighlighter>
+      </div>
     </div>
   )
 }
@@ -643,8 +778,7 @@ function LocalFilePreview({ reloadKey, target }: { reloadKey: number; target: Pr
   // HTML files are rendered as source code, not in a webview — so they take
   // the same path as plain text files. `previewKind === 'binary'` arrives
   // when the file is forcibly previewed past the binary refusal screen.
-  const isText =
-    target.previewKind === 'text' || target.previewKind === 'binary' || target.previewKind === 'html'
+  const isText = target.previewKind === 'text' || target.previewKind === 'binary' || target.previewKind === 'html'
 
   const blockedByTarget = !isImage && !forcePreview && (target.binary || target.large)
 
@@ -713,12 +847,7 @@ function LocalFilePreview({ reloadKey, target }: { reloadKey: number; target: Pr
   }
 
   if (state.error) {
-    return (
-      <PreviewEmptyState
-        body={<div className="text-xs leading-5 text-muted-foreground">{state.error}</div>}
-        title="Preview unavailable"
-      />
-    )
+    return <PreviewEmptyState body={state.error} title="Preview unavailable" />
   }
 
   if (
@@ -732,14 +861,13 @@ function LocalFilePreview({ reloadKey, target }: { reloadKey: number; target: Pr
     return (
       <PreviewEmptyState
         body={
-          <div className="text-xs leading-5 text-muted-foreground">
-            {binary
-              ? `Previewing ${target.label} may show unreadable text.`
-              : `${target.label} is ${formatBytes(size)}. Hermes will show the first 512 KB.`}
-          </div>
+          binary
+            ? `Previewing ${target.label} may show unreadable text.`
+            : `${target.label} is ${formatBytes(size)}. Hermes will only show the first 512 KB.`
         }
         primaryAction={{ label: 'Preview anyway', onClick: () => setForcePreview(true) }}
         title={binary ? 'This looks like a binary file' : 'This file is large'}
+        tone="warning"
       />
     )
   }
@@ -759,84 +887,41 @@ function LocalFilePreview({ reloadKey, target }: { reloadKey: number; target: Pr
 
   if (isText && state.text !== undefined) {
     const isMarkdown = (state.language || target.language) === 'markdown'
-
-    const truncatedBanner = state.truncated ? (
-      <div className="border-b border-border/60 bg-muted/35 px-3 py-1.5 text-[0.68rem] text-muted-foreground">
-        Showing first 512 KB.
-      </div>
-    ) : null
-
-    if (isMarkdown && !renderMarkdownAsSource) {
-      return (
-        <div className="h-full overflow-auto bg-background">
-          {truncatedBanner}
-          <div className="sticky top-0 z-10 flex justify-end border-b border-border/40 bg-background/90 px-3 py-1 backdrop-blur">
-            <button
-              className="text-[0.625rem] font-bold text-muted-foreground underline decoration-muted-foreground/25 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/55"
-              onClick={() => setRenderMarkdownAsSource(true)}
-              type="button"
-            >
-              SOURCE
-            </button>
-          </div>
-          <MarkdownPreview text={state.text} />
-        </div>
-      )
-    }
+    const showRendered = isMarkdown && !renderMarkdownAsSource
 
     return (
       <div className="h-full overflow-auto bg-background">
-        {truncatedBanner}
-        {isMarkdown && (
-          <div className="sticky top-0 z-10 flex justify-end border-b border-border/40 bg-background/90 px-3 py-1 backdrop-blur">
-            <button
-              className="text-[0.625rem] font-bold text-muted-foreground underline decoration-muted-foreground/25 underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground/55"
-              onClick={() => setRenderMarkdownAsSource(false)}
-              type="button"
-            >
-              PREVIEW
-            </button>
+        {state.truncated && (
+          <div className="border-b border-border/60 bg-muted/35 px-3 py-1.5 text-[0.68rem] text-muted-foreground">
+            Showing first 512 KB.
           </div>
         )}
-        <div className="min-w-max font-mono text-xs leading-relaxed [&_pre]:m-0 [&_pre]:p-3">
-          <ShikiHighlighter
-            addDefaultStyles={false}
-            as="div"
-            defaultColor="light-dark()"
-            delay={80}
-            language={state.language || 'text'}
-            showLanguage={false}
-            theme={{
-              dark: 'github-dark-default',
-              light: 'github-light-default'
-            }}
-          >
-            {state.text}
-          </ShikiHighlighter>
-        </div>
+        {isMarkdown && <PreviewToggle asSource={!showRendered} onToggle={() => setRenderMarkdownAsSource(s => !s)} />}
+        {showRendered ? (
+          <MarkdownPreview text={state.text} />
+        ) : (
+          <SourceView filePath={filePath} language={state.language || 'text'} text={state.text} />
+        )}
       </div>
     )
   }
 
   return (
     <PreviewEmptyState
-      body={
-        <div className="text-xs leading-5 text-muted-foreground">
-          {target.mimeType || 'This file type'} can still be attached as context.
-        </div>
-      }
+      body={`${target.mimeType || 'This file type'} can still be attached as context.`}
       title="No inline preview"
     />
   )
 }
+
+const TITLEBAR_GROUP_ID = 'preview'
 
 export function PreviewPane({
   onClose,
   onRestartServer,
   reloadRequest = 0,
   setTitlebarToolGroup,
-  target,
-  titlebarToolGroupId = 'preview'
+  target
 }: PreviewPaneProps) {
   const [consoleState] = useState(() => createPreviewConsoleState())
   const consoleBodyRef = useRef<HTMLDivElement | null>(null)
@@ -1002,14 +1087,14 @@ export function PreviewPane({
             {
               active: consoleOpen,
               icon: <PreviewConsoleTitlebarIcon consoleState={consoleState} />,
-              id: `${titlebarToolGroupId}-console`,
+              id: `${TITLEBAR_GROUP_ID}-console`,
               label: consoleOpen ? 'Hide preview console' : 'Show preview console',
               onSelect: () => consoleState.setOpen(open => !open)
             },
             {
               active: devtoolsOpen,
               icon: <Bug />,
-              id: `${titlebarToolGroupId}-devtools`,
+              id: `${TITLEBAR_GROUP_ID}-devtools`,
               label: devtoolsOpen ? 'Hide preview DevTools' : 'Open preview DevTools',
               onSelect: toggleDevTools
             }
@@ -1017,21 +1102,21 @@ export function PreviewPane({
         : []),
       {
         icon: <RefreshCw className={cn(loading && 'animate-spin')} />,
-        id: `${titlebarToolGroupId}-reload`,
+        id: `${TITLEBAR_GROUP_ID}-reload`,
         label: 'Reload preview',
         onSelect: reloadPreview
       },
       {
         icon: <X />,
-        id: `${titlebarToolGroupId}-close`,
+        id: `${TITLEBAR_GROUP_ID}-close`,
         label: 'Close preview',
         onSelect: onClose
       }
     ]
 
-    setTitlebarToolGroup(titlebarToolGroupId, tools)
+    setTitlebarToolGroup(TITLEBAR_GROUP_ID, tools)
 
-    return () => setTitlebarToolGroup(titlebarToolGroupId, [])
+    return () => setTitlebarToolGroup(TITLEBAR_GROUP_ID, [])
   }, [
     consoleOpen,
     consoleState,
@@ -1041,7 +1126,6 @@ export function PreviewPane({
     onClose,
     reloadPreview,
     setTitlebarToolGroup,
-    titlebarToolGroupId,
     toggleDevTools
   ])
 

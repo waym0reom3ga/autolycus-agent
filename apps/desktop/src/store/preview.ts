@@ -61,7 +61,13 @@ function isSamePreviewTarget(a: PreviewTarget | null, b: PreviewTarget | null): 
     return false
   }
 
-  return a.kind === b.kind && a.label === b.label && a.renderMode === b.renderMode && a.source === b.source && a.url === b.url
+  return (
+    a.kind === b.kind &&
+    a.label === b.label &&
+    a.renderMode === b.renderMode &&
+    a.source === b.source &&
+    a.url === b.url
+  )
 }
 
 export function setPreviewTarget(target: PreviewTarget | null) {
@@ -72,7 +78,7 @@ export function setPreviewTarget(target: PreviewTarget | null) {
   $previewTarget.set(target)
 }
 
-export function setFilePreviewTarget(target: PreviewTarget | null) {
+function setFilePreviewTarget(target: PreviewTarget | null) {
   if (isSamePreviewTarget($filePreviewTarget.get(), target)) {
     return
   }
@@ -80,8 +86,33 @@ export function setFilePreviewTarget(target: PreviewTarget | null) {
   $filePreviewTarget.set(target)
 }
 
+// Manual/file-browser opens are "peeking at a file" → source view in the file
+// pane. Tool/explicit-link opens are runnable artifacts → live preview pane.
+function isFilePreviewSource(source: PreviewRecordSource): boolean {
+  return source === 'file-browser' || source === 'manual'
+}
+
+function previewTargetForSource(target: PreviewTarget, source: PreviewRecordSource): PreviewTarget {
+  if (target.kind !== 'file' || target.previewKind !== 'html') {
+    return target
+  }
+
+  return { ...target, renderMode: isFilePreviewSource(source) ? 'source' : 'preview' }
+}
+
+function tryOpenFilePreview(target: PreviewTarget, source: PreviewRecordSource): boolean {
+  if (target.kind !== 'file' || !isFilePreviewSource(source)) {
+    return false
+  }
+  setFilePreviewTarget(previewTargetForSource(target, source))
+
+  return true
+}
+
 function isPreviewTarget(value: unknown): value is PreviewTarget {
-  if (!value || typeof value !== 'object') {return false}
+  if (!value || typeof value !== 'object') {
+    return false
+  }
   const r = value as Record<string, unknown>
 
   return (
@@ -93,7 +124,9 @@ function isPreviewTarget(value: unknown): value is PreviewTarget {
 }
 
 function isPreviewRecord(value: unknown): value is SessionPreviewRecord {
-  if (!value || typeof value !== 'object') {return false}
+  if (!value || typeof value !== 'object') {
+    return false
+  }
   const r = value as Record<string, unknown>
 
   return (
@@ -108,22 +141,32 @@ function isPreviewRecord(value: unknown): value is SessionPreviewRecord {
 }
 
 function loadSessionPreviewRegistry(): SessionPreviewRegistry {
-  if (typeof window === 'undefined') {return {}}
+  if (typeof window === 'undefined') {
+    return {}
+  }
 
   try {
     const raw = window.localStorage.getItem(REGISTRY_STORAGE_KEY)
 
-    if (!raw) {return {}}
+    if (!raw) {
+      return {}
+    }
     const parsed = JSON.parse(raw) as unknown
 
-    if (!parsed || typeof parsed !== 'object') {return {}}
+    if (!parsed || typeof parsed !== 'object') {
+      return {}
+    }
     const out: SessionPreviewRegistry = {}
 
     for (const [sessionId, records] of Object.entries(parsed as Record<string, unknown>)) {
-      if (!Array.isArray(records)) {continue}
+      if (!Array.isArray(records)) {
+        continue
+      }
       const valid = records.filter(isPreviewRecord).slice(0, MAX_RECORDS_PER_SESSION)
 
-      if (valid.length > 0) {out[sessionId] = valid}
+      if (valid.length > 0) {
+        out[sessionId] = valid
+      }
     }
 
     return pruneRegistry(out)
@@ -133,7 +176,9 @@ function loadSessionPreviewRegistry(): SessionPreviewRegistry {
 }
 
 function persistSessionPreviewRegistry(registry: SessionPreviewRegistry) {
-  if (typeof window === 'undefined') {return}
+  if (typeof window === 'undefined') {
+    return
+  }
 
   try {
     window.localStorage.setItem(REGISTRY_STORAGE_KEY, JSON.stringify(pruneRegistry(registry)))
@@ -144,10 +189,10 @@ function persistSessionPreviewRegistry(registry: SessionPreviewRegistry) {
 
 function pruneRegistry(registry: SessionPreviewRegistry): SessionPreviewRegistry {
   const entries = Object.entries(registry)
-    .map(([sessionId, records]) => [
-      sessionId,
-      [...records].sort((a, b) => b.createdAt - a.createdAt).slice(0, MAX_RECORDS_PER_SESSION)
-    ] as const)
+    .map(
+      ([sessionId, records]) =>
+        [sessionId, [...records].sort((a, b) => b.createdAt - a.createdAt).slice(0, MAX_RECORDS_PER_SESSION)] as const
+    )
     .filter(([, records]) => records.length > 0)
     .sort(([, a], [, b]) => (b[0]?.createdAt ?? 0) - (a[0]?.createdAt ?? 0))
     .slice(0, MAX_SESSIONS)
@@ -171,7 +216,9 @@ export function registerSessionPreview(
 ): SessionPreviewRecord | null {
   const id = sessionId?.trim()
 
-  if (!id) {return null}
+  if (!id) {
+    return null
+  }
 
   const current = $sessionPreviewRegistry.get()
   const now = Date.now()
@@ -199,38 +246,13 @@ export function registerSessionPreview(
   return nextRecord
 }
 
-function previewTargetForSource(target: PreviewTarget, source: PreviewRecordSource): PreviewTarget {
-  if (target.kind !== 'file' || target.previewKind !== 'html') {
-    return target
-  }
-
-  return {
-    ...target,
-    renderMode: source === 'file-browser' || source === 'manual' ? 'source' : 'preview'
-  }
-}
-
-function shouldOpenAsFilePreview(target: PreviewTarget, source: PreviewRecordSource): boolean {
-  return target.kind === 'file' && (source === 'file-browser' || source === 'manual')
-}
-
-export function registerCurrentSessionPreview(
-  target: PreviewTarget,
-  source: PreviewRecordSource,
-  rawTarget = target.source
-): SessionPreviewRecord | null {
-  return registerSessionPreview(currentPreviewSessionId(), target, source, rawTarget)
-}
-
 export function setSessionPreviewTarget(
   sessionId: string | null | undefined,
   target: PreviewTarget,
   source: PreviewRecordSource,
   rawTarget = target.source
 ): SessionPreviewRecord | null {
-  if (shouldOpenAsFilePreview(target, source)) {
-    setFilePreviewTarget(previewTargetForSource(target, source))
-
+  if (tryOpenFilePreview(target, source)) {
     return null
   }
 
@@ -247,24 +269,15 @@ export function setCurrentSessionPreviewTarget(
   source: PreviewRecordSource,
   rawTarget = target.source
 ): SessionPreviewRecord | null {
-  if (shouldOpenAsFilePreview(target, source)) {
-    setFilePreviewTarget(previewTargetForSource(target, source))
-
-    return null
-  }
-
-  const record = registerCurrentSessionPreview(target, source, rawTarget)
-
-  setFilePreviewTarget(null)
-  setPreviewTarget(record?.normalized ?? previewTargetForSource(target, source))
-
-  return record
+  return setSessionPreviewTarget(currentPreviewSessionId(), target, source, rawTarget)
 }
 
 export function getSessionPreviewRecord(sessionId: string | null | undefined): SessionPreviewRecord | null {
   const id = sessionId?.trim()
 
-  if (!id) {return null}
+  if (!id) {
+    return null
+  }
 
   return $sessionPreviewRegistry.get()[id]?.find(record => !record.dismissedAt && record.autoOpen !== false) ?? null
 }
@@ -272,15 +285,21 @@ export function getSessionPreviewRecord(sessionId: string | null | undefined): S
 export function dismissSessionPreview(sessionId: string | null | undefined, url?: string) {
   const id = sessionId?.trim()
 
-  if (!id) {return}
+  if (!id) {
+    return
+  }
   const current = $sessionPreviewRegistry.get()
   const records = current[id]
 
-  if (!records?.length) {return}
+  if (!records?.length) {
+    return
+  }
   const now = Date.now()
   const targetUrl = url || records.find(record => !record.dismissedAt)?.normalized.url
 
-  if (!targetUrl) {return}
+  if (!targetUrl) {
+    return
+  }
 
   // The preview rail is a single active file, not a back stack. Dismissing the
   // current preview should leave the rail closed instead of revealing an older

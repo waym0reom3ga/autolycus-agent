@@ -2,24 +2,84 @@
 
 import type { Unstable_DirectiveFormatter, Unstable_DirectiveSegment, Unstable_TriggerItem } from '@assistant-ui/core'
 import type { TextMessagePartComponent, TextMessagePartProps } from '@assistant-ui/react'
-import type { ComponentType, FC } from 'react'
-import { Fragment, useMemo } from 'react'
+import type { FC } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 
 import { ZoomableImage } from '@/components/assistant-ui/zoomable-image'
 import { extractEmbeddedImages } from '@/lib/embedded-images'
-import { AtSign, FileText, FolderOpen, ImageIcon, Link as LinkIcon, Wrench } from '@/lib/icons'
-import { cn } from '@/lib/utils'
 
-const HERMES_REF_TYPES = ['file', 'folder', 'url', 'image', 'tool'] as const
+const HERMES_REF_TYPES = ['file', 'folder', 'url', 'image', 'tool', 'line'] as const
 type HermesRefType = (typeof HERMES_REF_TYPES)[number]
 
-const ICONS: Record<HermesRefType, ComponentType<{ className?: string }>> = {
-  file: FileText,
-  folder: FolderOpen,
-  url: LinkIcon,
-  image: ImageIcon,
-  tool: Wrench
+/** Single source of truth for chip icon glyphs (Tabler outline @ 24×24).
+ * Used both by the rendered <DirectiveIcon> and the raw SVG markup the
+ * contenteditable composer embeds via `directiveIconSvg`. */
+const ICON_PATHS: Record<HermesRefType, string[]> = {
+  file: [
+    'M14 3v4a1 1 0 0 0 1 1h4',
+    'M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2',
+    'M9 9l1 0',
+    'M9 13l6 0',
+    'M9 17l6 0'
+  ],
+  folder: [
+    'M5 19l2.757 -7.351a1 1 0 0 1 .936 -.649h12.307a1 1 0 0 1 .986 1.164l-.996 5.211a2 2 0 0 1 -1.964 1.625h-14.026a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2h4l3 3h7a2 2 0 0 1 2 2v2'
+  ],
+  url: [
+    'M9 15l6 -6',
+    'M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464',
+    'M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463'
+  ],
+  image: [
+    'M15 8h.01',
+    'M3 6a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-12',
+    'M3 16l5 -5c.928 -.893 2.072 -.893 3 0l5 5',
+    'M14 14l1 -1c.928 -.893 2.072 -.893 3 0l3 3'
+  ],
+  tool: ['M7 10h3v-3l-3.5 -3.5a6 6 0 0 1 8 8l6 6a2 2 0 0 1 -3 3l-6 -6a6 6 0 0 1 -8 -8l3.5 3.5'],
+  line: ['M5 9l14 0', 'M5 15l14 0', 'M11 4l-4 16', 'M17 4l-4 16']
 }
+
+const ICON_FALLBACK = ['M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0', 'M16 12v1.5a2.5 2.5 0 0 0 5 0v-1.5a9 9 0 1 0 -5.5 8.28']
+
+const ICON_CLASS = 'size-3 shrink-0 opacity-80'
+
+const SVG_ATTRS =
+  'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'
+
+const iconPathsFor = (type: string) => ICON_PATHS[type as HermesRefType] ?? ICON_FALLBACK
+
+/** SVG markup string for embedding directly in HTML (composer contenteditable). */
+export function directiveIconSvg(type: string) {
+  const inner = iconPathsFor(type)
+    .map(d => `<path d="${d}"/>`)
+    .join('')
+
+  return `<svg ${SVG_ATTRS} class="${ICON_CLASS}">${inner}</svg>`
+}
+
+const DirectiveIcon: FC<{ type: string }> = ({ type }) => (
+  <svg
+    className={ICON_CLASS}
+    fill="none"
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth={2}
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {iconPathsFor(type).map(d => (
+      <path d={d} key={d} />
+    ))}
+  </svg>
+)
+
+/** Shared chip styling — used by both the rendered <DirectiveChip> and the
+ * raw HTML composer chips in `rich-editor.ts`. Neutral subtle wash + plain
+ * muted-foreground text so chips read as quiet tags on any bubble color. */
+export const DIRECTIVE_CHIP_CLASS =
+  'mx-0.5 inline-flex max-w-56 items-center gap-1 rounded px-1.5 py-0.5 align-[0.02em] text-[0.86em] font-normal leading-none bg-[color-mix(in_srgb,currentColor_8%,transparent)] text-muted-foreground'
 
 /**
  * Parses our composer's `@type:value` references into directive segments
@@ -34,7 +94,7 @@ const ICONS: Record<HermesRefType, ComponentType<{ className?: string }>> = {
 const CANONICAL_DIRECTIVE_RE = /:([\w-]{1,64})\[([^\]\n]{1,1024})\](?:\{name=([^}\n]{1,1024})\})?/g
 
 const HERMES_DIRECTIVE_RE = new RegExp(
-  '@(file|folder|url|image|tool):(' + '`[^`\\n]+`' + '|"[^"\\n]+"' + "|'[^'\\n]+'" + '|\\S+' + ')',
+  '@(file|folder|url|image|tool|line):(' + '`[^`\\n]+`' + '|"[^"\\n]+"' + "|'[^'\\n]+'" + '|\\S+' + ')',
   'g'
 )
 
@@ -198,6 +258,8 @@ export function DirectiveContent({ text }: { text: string }) {
       {segments.map((segment, index) =>
         segment.kind === 'text' ? (
           <Fragment key={`t-${index}`}>{segment.text}</Fragment>
+        ) : segment.type === 'image' ? (
+          <DirectiveImage id={segment.id} key={`img-${index}-${segment.id}`} label={segment.label} />
         ) : (
           <DirectiveChip id={segment.id} key={`m-${index}-${segment.id}`} label={segment.label} type={segment.type} />
         )
@@ -225,25 +287,67 @@ export const DirectiveText: TextMessagePartComponent = ({ text }: TextMessagePar
   <DirectiveContent text={text ?? ''} />
 )
 
+/** Image refs render as a thumbnail rather than a chip — matches how persisted
+ * messages render after the backend embeds the data URL, so the UX is stable
+ * across initial send and refresh. */
+const DirectiveImage: FC<{ id: string; label: string }> = ({ id, label }) => {
+  const remote = /^(?:https?|data):/i.test(id)
+  const [src, setSrc] = useState<string | null>(remote ? id : null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    if (remote || !id) {
+      return
+    }
+
+    let alive = true
+    void window.hermesDesktop
+      ?.readFileDataUrl(id)
+      .then(url => alive && setSrc(url))
+      .catch(() => alive && setFailed(true))
+
+    return () => {
+      alive = false
+    }
+  }, [id, remote])
+
+  if (failed) {
+    return <DirectiveChip id={id} label={label} type="image" />
+  }
+
+  if (!src) {
+    return (
+      <span
+        aria-hidden
+        className="inline-block size-12 shrink-0 animate-pulse rounded-md bg-[color-mix(in_srgb,currentColor_8%,transparent)]"
+      />
+    )
+  }
+
+  return (
+    <ZoomableImage
+      alt={label}
+      className="max-h-32 max-w-48 rounded-md border border-border/40 object-contain"
+      draggable={false}
+      slot="aui_directive-image"
+      src={src}
+    />
+  )
+}
+
 const DirectiveChip: FC<{
   type: string
   label: string
   id: string
-}> = ({ type, label, id }) => {
-  const Icon = ICONS[type as HermesRefType] ?? AtSign
-
-  return (
-    <span
-      className={cn(
-        'mx-0.5 inline-flex max-w-56 items-center gap-1 border border-primary/20 bg-primary/8 px-1.5 py-0.5 align-[0.02em] text-[0.86em] font-medium leading-none text-primary'
-      )}
-      data-directive-id={id}
-      data-directive-type={type}
-      data-slot="aui_directive-chip"
-      title={id}
-    >
-      {Icon && <Icon className="size-3 shrink-0 text-primary" />}
-      <span className="truncate">{label}</span>
-    </span>
-  )
-}
+}> = ({ type, label, id }) => (
+  <span
+    className={DIRECTIVE_CHIP_CLASS}
+    data-directive-id={id}
+    data-directive-type={type}
+    data-slot="aui_directive-chip"
+    title={id}
+  >
+    <DirectiveIcon type={type} />
+    <span className="truncate">{label}</span>
+  </span>
+)

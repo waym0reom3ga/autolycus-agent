@@ -655,16 +655,16 @@ export function useSessionActions({
           setFreshDraftReady(false)
           setSelectedStoredSessionId(storedSessionId)
           selectedStoredSessionIdRef.current = storedSessionId
-      const stored = $sessions.get().find(session => session.id === storedSessionId)
+          const stored = $sessions.get().find(session => session.id === storedSessionId)
 
-      if (stored) {
-        setCurrentUsage(current => ({
-          ...current,
-          input: stored.input_tokens || 0,
-          output: stored.output_tokens || 0,
-          total: (stored.input_tokens || 0) + (stored.output_tokens || 0)
-        }))
-      }
+          if (stored) {
+            setCurrentUsage(current => ({
+              ...current,
+              input: stored.input_tokens || 0,
+              output: stored.output_tokens || 0,
+              total: (stored.input_tokens || 0) + (stored.output_tokens || 0)
+            }))
+          }
 
           setMessages(previousMessages)
           navigate(sessionRoute(storedSessionId), { replace: true })

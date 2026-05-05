@@ -13,16 +13,22 @@ export interface PaneRegisterDefaults {
 const STORAGE_KEY = 'hermes.desktop.paneStates.v1'
 
 function isSnapshot(value: unknown): value is PaneStateSnapshot {
-  if (!value || typeof value !== 'object') {return false}
+  if (!value || typeof value !== 'object') {
+    return false
+  }
   const r = value as Record<string, unknown>
 
-  if (typeof r.open !== 'boolean') {return false}
+  if (typeof r.open !== 'boolean') {
+    return false
+  }
 
   return r.widthOverride === undefined || (typeof r.widthOverride === 'number' && Number.isFinite(r.widthOverride))
 }
 
 function load(): Record<string, PaneStateSnapshot> {
-  if (typeof window === 'undefined') {return {}}
+  if (typeof window === 'undefined') {
+    return {}
+  }
 
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
@@ -34,7 +40,9 @@ function load(): Record<string, PaneStateSnapshot> {
         const out: Record<string, PaneStateSnapshot> = {}
 
         for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
-          if (isSnapshot(value)) {out[id] = { open: value.open, widthOverride: value.widthOverride }}
+          if (isSnapshot(value)) {
+            out[id] = { open: value.open, widthOverride: value.widthOverride }
+          }
         }
 
         return out
@@ -49,10 +57,14 @@ function load(): Record<string, PaneStateSnapshot> {
 
 // widthOverride is in-memory only — phase 2 can add per-pane persistWidth opt-in.
 function persist(states: Record<string, PaneStateSnapshot>) {
-  if (typeof window === 'undefined') {return}
+  if (typeof window === 'undefined') {
+    return
+  }
   const minimal: Record<string, { open: boolean }> = {}
 
-  for (const [id, s] of Object.entries(states)) {minimal[id] = { open: s.open }}
+  for (const [id, s] of Object.entries(states)) {
+    minimal[id] = { open: s.open }
+  }
 
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(minimal))
@@ -66,7 +78,11 @@ export const $paneStates = atom<Record<string, PaneStateSnapshot>>(load())
 $paneStates.subscribe(persist)
 
 // Cached per-pane derived atoms keep useStore subscriptions referentially stable.
-function memoized<T>(cache: Map<string, ReadableAtom<T>>, id: string, selector: (s: PaneStateSnapshot | undefined) => T) {
+function memoized<T>(
+  cache: Map<string, ReadableAtom<T>>,
+  id: string,
+  selector: (s: PaneStateSnapshot | undefined) => T
+) {
   let cached = cache.get(id)
 
   if (!cached) {
@@ -88,7 +104,9 @@ export const $paneWidthOverride = (id: string) => memoized(widthCache, id, s => 
 export function ensurePaneRegistered(id: string, defaults: PaneRegisterDefaults) {
   const current = $paneStates.get()
 
-  if (current[id] !== undefined) {return}
+  if (current[id] !== undefined) {
+    return
+  }
   $paneStates.set({ ...current, [id]: { open: defaults.open, widthOverride: defaults.widthOverride } })
 }
 
@@ -96,7 +114,9 @@ export function setPaneOpen(id: string, open: boolean) {
   const current = $paneStates.get()
   const existing = current[id]
 
-  if (existing?.open === open) {return}
+  if (existing?.open === open) {
+    return
+  }
   $paneStates.set({ ...current, [id]: { open, widthOverride: existing?.widthOverride } })
 }
 
@@ -110,7 +130,9 @@ export function setPaneWidthOverride(id: string, width: number | undefined) {
   const current = $paneStates.get()
   const existing = current[id] ?? { open: false }
 
-  if (existing.widthOverride === width) {return}
+  if (existing.widthOverride === width) {
+    return
+  }
   $paneStates.set({ ...current, [id]: { open: existing.open, widthOverride: width } })
 }
 

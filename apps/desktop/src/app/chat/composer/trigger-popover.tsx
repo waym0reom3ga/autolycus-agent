@@ -13,7 +13,14 @@ interface ComposerTriggerPopoverProps {
   onPick: (item: Unstable_TriggerItem) => void
 }
 
-export function ComposerTriggerPopover({ activeIndex, items, kind, loading, onHover, onPick }: ComposerTriggerPopoverProps) {
+export function ComposerTriggerPopover({
+  activeIndex,
+  items,
+  kind,
+  loading,
+  onHover,
+  onPick
+}: ComposerTriggerPopoverProps) {
   return (
     <div
       className={COMPLETION_DRAWER_CLASS}
@@ -54,7 +61,9 @@ export function ComposerTriggerPopover({ activeIndex, items, kind, loading, onHo
               type="button"
             >
               <span className="shrink-0 truncate font-mono font-medium leading-5 text-foreground">{display}</span>
-              {description && <span className="min-w-0 truncate leading-5 text-muted-foreground/80">{description}</span>}
+              {description && (
+                <span className="min-w-0 truncate leading-5 text-muted-foreground/80">{description}</span>
+              )}
             </button>
           )
         })

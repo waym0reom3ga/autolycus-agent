@@ -14,9 +14,14 @@ export function useSkinCommand() {
     (rawArg: string) => {
       const arg = rawArg.trim()
 
-      if (!availableThemes.length) {return 'No desktop themes are available.'}
+      if (!availableThemes.length) {
+        return 'No desktop themes are available.'
+      }
 
-      const activeIndex = Math.max(0, availableThemes.findIndex(t => t.name === themeName))
+      const activeIndex = Math.max(
+        0,
+        availableThemes.findIndex(t => t.name === themeName)
+      )
 
       if (!arg || arg === 'next') {
         const next = availableThemes[(activeIndex + 1) % availableThemes.length]
@@ -33,9 +38,13 @@ export function useSkinCommand() {
 
       const normalized = arg.toLowerCase()
       const targetName = ALIASES[normalized] || normalized
-      const target = availableThemes.find(t => t.name.toLowerCase() === targetName || t.label.toLowerCase() === normalized)
+      const target = availableThemes.find(
+        t => t.name.toLowerCase() === targetName || t.label.toLowerCase() === normalized
+      )
 
-      if (!target) {return `Unknown desktop theme: ${arg}\nAvailable: ${availableThemes.map(t => t.name).join(', ')}`}
+      if (!target) {
+        return `Unknown desktop theme: ${arg}\nAvailable: ${availableThemes.map(t => t.name).join(', ')}`
+      }
 
       setTheme(target.name)
 

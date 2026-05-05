@@ -25,7 +25,9 @@ export function useModelControls({ activeSessionId, queryClient, requestGateway 
 
       queryClient.setQueryData<ModelOptionsResponse>(['model-options', activeSessionId || 'global'], patch)
 
-      if (includeGlobal) {queryClient.setQueryData<ModelOptionsResponse>(['model-options', 'global'], patch)}
+      if (includeGlobal) {
+        queryClient.setQueryData<ModelOptionsResponse>(['model-options', 'global'], patch)
+      }
     },
     [activeSessionId, queryClient]
   )
@@ -34,9 +36,13 @@ export function useModelControls({ activeSessionId, queryClient, requestGateway 
     try {
       const result = await getGlobalModelInfo()
 
-      if (typeof result.model === 'string') {setCurrentModel(result.model)}
+      if (typeof result.model === 'string') {
+        setCurrentModel(result.model)
+      }
 
-      if (typeof result.provider === 'string') {setCurrentProvider(result.provider)}
+      if (typeof result.provider === 'string') {
+        setCurrentProvider(result.provider)
+      }
     } catch {
       // The delayed session.info event still updates this once the agent is ready.
     }
@@ -56,7 +62,9 @@ export function useModelControls({ activeSessionId, queryClient, requestGateway 
               command: `/model ${selection.model} --provider ${selection.provider}${selection.persistGlobal ? ' --global' : ''}`
             })
 
-            if (selection.persistGlobal) {void refreshCurrentModel()}
+            if (selection.persistGlobal) {
+              void refreshCurrentModel()
+            }
             void queryClient.invalidateQueries({
               queryKey: selection.persistGlobal ? ['model-options'] : ['model-options', activeSessionId]
             })

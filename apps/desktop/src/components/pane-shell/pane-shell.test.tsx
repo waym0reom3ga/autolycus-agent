@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { $paneStates, setPaneOpen, setPaneWidthOverride } from '@/store/panes'
@@ -17,6 +17,23 @@ function gridContainer(rendered: ReturnType<typeof render>): HTMLElement {
 
 function getColumnTemplate(container: HTMLElement): string[] {
   return (container.style.gridTemplateColumns ?? '').split(/\s+/).filter(Boolean)
+}
+
+function mockWidth(element: HTMLElement, width: number) {
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => ({
+      bottom: 0,
+      height: 0,
+      left: 0,
+      right: width,
+      top: 0,
+      width,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    })
+  })
 }
 
 describe('PaneShell composition', () => {
@@ -243,5 +260,74 @@ describe('PaneShell composition', () => {
     )
 
     expect(rendered.getByTestId('floating-overlay')).toBeDefined()
+  })
+
+  it('shows a resize handle only when resizable', () => {
+    const rendered = render(
+      <PaneShell>
+        <Pane id="files" side="left" width="240px">
+          files
+        </Pane>
+        <Pane id="preview" resizable side="right" width="320px">
+          preview
+        </Pane>
+        <PaneMain>main</PaneMain>
+      </PaneShell>
+    )
+
+    expect(rendered.queryByLabelText('Resize files')).toBeNull()
+    expect(rendered.getByLabelText('Resize preview')).toBeDefined()
+  })
+
+  it('dragging a left-pane separator stores a wider width override', () => {
+    const rendered = render(
+      <PaneShell>
+        <Pane id="files" maxWidth={360} minWidth={200} resizable side="left" width="240px">
+          <span data-testid="files-content">files</span>
+        </Pane>
+        <PaneMain>main</PaneMain>
+      </PaneShell>
+    )
+
+    const paneCell = rendered.getByTestId('files-content').parentElement
+
+    if (!(paneCell instanceof HTMLElement)) {
+      throw new Error('Expected pane cell element')
+    }
+
+    mockWidth(paneCell, 240)
+    const separator = rendered.getByLabelText('Resize files')
+
+    fireEvent.pointerDown(separator, { clientX: 240, pointerId: 1 })
+    fireEvent.pointerMove(window, { clientX: 300 })
+    fireEvent.pointerUp(window, { clientX: 300 })
+
+    expect($paneStates.get().files?.widthOverride).toBe(300)
+  })
+
+  it('dragging a right-pane separator clamps to max width', () => {
+    const rendered = render(
+      <PaneShell>
+        <PaneMain>main</PaneMain>
+        <Pane id="preview" maxWidth={340} minWidth={220} resizable side="right" width="320px">
+          <span data-testid="preview-content">preview</span>
+        </Pane>
+      </PaneShell>
+    )
+
+    const paneCell = rendered.getByTestId('preview-content').parentElement
+
+    if (!(paneCell instanceof HTMLElement)) {
+      throw new Error('Expected pane cell element')
+    }
+
+    mockWidth(paneCell, 320)
+    const separator = rendered.getByLabelText('Resize preview')
+
+    fireEvent.pointerDown(separator, { clientX: 900, pointerId: 1 })
+    fireEvent.pointerMove(window, { clientX: 760 })
+    fireEvent.pointerUp(window, { clientX: 760 })
+
+    expect($paneStates.get().preview?.widthOverride).toBe(340)
   })
 })

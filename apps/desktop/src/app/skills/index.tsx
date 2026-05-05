@@ -65,7 +65,11 @@ interface SkillsViewProps extends React.ComponentProps<'section'> {
   setTitlebarToolGroup?: SetTitlebarToolGroup
 }
 
-export function SkillsView({ setStatusbarItemGroup: _setStatusbarItemGroup, setTitlebarToolGroup, ...props }: SkillsViewProps) {
+export function SkillsView({
+  setStatusbarItemGroup: _setStatusbarItemGroup,
+  setTitlebarToolGroup,
+  ...props
+}: SkillsViewProps) {
   const [mode, setMode] = useState<SkillsMode>('skills')
   const [query, setQuery] = useState('')
   const [skills, setSkills] = useState<SkillInfo[] | null>(null)
@@ -168,10 +172,7 @@ export function SkillsView({ setStatusbarItemGroup: _setStatusbarItemGroup, setT
   }
 
   return (
-    <section
-      {...props}
-      className="flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background"
-    >
+    <section {...props} className="flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background">
       <header className={titlebarHeaderBaseClass}>
         <h2 className="pointer-events-auto text-base font-semibold leading-none tracking-tight">Skills</h2>
         <span className="pointer-events-auto text-xs text-muted-foreground">

@@ -50,7 +50,9 @@ export function createPreviewConsoleState() {
       $selectedLogIds.set(new Set())
     },
     clearSelection() {
-      if ($selectedLogIds.get().size === 0) {return}
+      if ($selectedLogIds.get().size === 0) {
+        return
+      }
 
       $selectedLogIds.set(new Set())
     },

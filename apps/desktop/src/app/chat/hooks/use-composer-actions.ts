@@ -37,10 +37,14 @@ export interface DroppedFile {
   path: string
   /** True if the entry is a directory. Currently only set by in-app drags. */
   isDirectory?: boolean
+  /** First line number for in-app line-ref drags (source view gutter). */
+  line?: number
+  /** Last line number for line-range drags (`line..lineEnd` inclusive). */
+  lineEnd?: number
 }
 
-/** MIME emitted by in-app drag sources (project tree, etc.). Payload is JSON
- * `{ path: string; isDirectory?: boolean }[]`. */
+/** MIME emitted by in-app drag sources (project tree, gutter line numbers).
+ * Payload is JSON `{ path; isDirectory?; line?; lineEnd? }[]`. */
 export const HERMES_PATHS_MIME = 'application/x-hermes-paths'
 
 /**
@@ -64,15 +68,31 @@ export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
     const internalRaw = transfer.getData(HERMES_PATHS_MIME)
 
     if (internalRaw) {
-      const parsed = JSON.parse(internalRaw) as { path?: unknown; isDirectory?: unknown }[]
+      const parsed = JSON.parse(internalRaw) as {
+        path?: unknown
+        isDirectory?: unknown
+        line?: unknown
+        lineEnd?: unknown
+      }[]
+
+      const positiveInt = (value: unknown) => (typeof value === 'number' && value > 0 ? Math.floor(value) : undefined)
 
       for (const entry of parsed) {
-        if (!entry || typeof entry.path !== 'string' || !entry.path || seenPaths.has(entry.path)) {
+        if (!entry || typeof entry.path !== 'string' || !entry.path) {
           continue
         }
 
-        seenPaths.add(entry.path)
-        result.push({ isDirectory: entry.isDirectory === true, path: entry.path })
+        const line = positiveInt(entry.line)
+        const rawEnd = positiveInt(entry.lineEnd)
+        const lineEnd = line && rawEnd && rawEnd > line ? rawEnd : undefined
+        const dedupKey = line ? `${entry.path}:${line}-${lineEnd ?? line}` : entry.path
+
+        if (seenPaths.has(dedupKey)) {
+          continue
+        }
+
+        seenPaths.add(dedupKey)
+        result.push({ isDirectory: entry.isDirectory === true, line, lineEnd, path: entry.path })
       }
     }
   } catch {
@@ -335,7 +355,9 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
 
   const attachContextFolderPath = useCallback(
     (folderPath: string) => {
-      if (!folderPath) {return false}
+      if (!folderPath) {
+        return false
+      }
 
       const rel = contextPath(folderPath, currentCwd)
 

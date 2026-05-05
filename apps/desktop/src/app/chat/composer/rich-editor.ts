@@ -6,11 +6,11 @@
  * fence — without that, typing after a chip would get re-absorbed on the next
  * plain-text round-trip.
  */
-import { formatRefValue } from '@/components/assistant-ui/directive-text'
+import { DIRECTIVE_CHIP_CLASS, directiveIconSvg, formatRefValue } from '@/components/assistant-ui/directive-text'
 
 export const RICH_INPUT_SLOT = 'composer-rich-input'
 
-export const REF_RE = /@(file|folder|url|image|tool):(`[^`\n]+`|"[^"\n]+"|'[^'\n]+'|\S+)/g
+export const REF_RE = /@(file|folder|url|image|tool|line):(`[^`\n]+`|"[^"\n]+"|'[^'\n]+'|\S+)/g
 
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }
 
@@ -32,11 +32,17 @@ export function refLabel(id: string) {
 
 /** Always-quote variant of formatRefValue — chips need a fence even for safe values. */
 export function quoteRefValue(value: string) {
-  if (!value.includes('`')) {return `\`${value}\``}
+  if (!value.includes('`')) {
+    return `\`${value}\``
+  }
 
-  if (!value.includes('"')) {return `"${value}"`}
+  if (!value.includes('"')) {
+    return `"${value}"`
+  }
 
-  if (!value.includes("'")) {return `'${value}'`}
+  if (!value.includes("'")) {
+    return `'${value}'`
+  }
 
   return formatRefValue(value)
 }
@@ -45,7 +51,7 @@ export function refChipHtml(kind: string, rawValue: string) {
   const id = unquoteRef(rawValue)
   const text = `@${kind}:${quoteRefValue(id)}`
 
-  return `<span contenteditable="false" data-ref-text="${escapeHtml(text)}" data-ref-id="${escapeHtml(id)}" data-ref-kind="${kind}" class="mx-0.5 inline-flex max-w-56 items-center gap-1 border border-primary/20 bg-primary/8 px-1.5 py-0.5 align-[0.02em] text-[0.86em] font-medium leading-none text-primary"><span class="truncate">${escapeHtml(refLabel(id))}</span></span>`
+  return `<span contenteditable="false" data-ref-text="${escapeHtml(text)}" data-ref-id="${escapeHtml(id)}" data-ref-kind="${kind}" class="${DIRECTIVE_CHIP_CLASS}">${directiveIconSvg(kind)}<span class="truncate">${escapeHtml(refLabel(id))}</span></span>`
 }
 
 /** Serialize a draft string into chip-HTML for the contenteditable surface. */
@@ -67,15 +73,23 @@ export function composerHtml(text: string) {
 
 /** Walk a DOM subtree back to the plain `@kind:value` text it represents. */
 export function composerPlainText(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) {return node.textContent || ''}
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent || ''
+  }
 
-  if (node.nodeType !== Node.ELEMENT_NODE) {return ''}
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return ''
+  }
 
   const el = node as HTMLElement
 
-  if (el.dataset.refText) {return el.dataset.refText}
+  if (el.dataset.refText) {
+    return el.dataset.refText
+  }
 
-  if (el.tagName === 'BR') {return '\n'}
+  if (el.tagName === 'BR') {
+    return '\n'
+  }
 
   const text = Array.from(node.childNodes).map(composerPlainText).join('')
   const block = el.tagName === 'DIV' || el.tagName === 'P'

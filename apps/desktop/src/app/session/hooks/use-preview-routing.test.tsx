@@ -87,7 +87,13 @@ describe('usePreviewRouting', () => {
     const target = previewTarget('/work/demo.html')
 
     registerSessionPreview('session-1', target, 'tool-result')
-    render(<PreviewRoutingHarness onEvent={handler => { handleEvent = handler }} />)
+    render(
+      <PreviewRoutingHarness
+        onEvent={handler => {
+          handleEvent = handler
+        }}
+      />
+    )
 
     await waitFor(() => {
       expect($previewTarget.get()).toEqual({ ...target, renderMode: 'preview' })
@@ -95,7 +101,13 @@ describe('usePreviewRouting', () => {
   })
 
   it('does not infer previews from assistant prose', async () => {
-    render(<PreviewRoutingHarness onEvent={handler => { handleEvent = handler }} />)
+    render(
+      <PreviewRoutingHarness
+        onEvent={handler => {
+          handleEvent = handler
+        }}
+      />
+    )
 
     act(() => {
       $messages.set([
@@ -109,7 +121,13 @@ describe('usePreviewRouting', () => {
   })
 
   it('registers structured tool-result preview targets', async () => {
-    render(<PreviewRoutingHarness onEvent={handler => { handleEvent = handler }} />)
+    render(
+      <PreviewRoutingHarness
+        onEvent={handler => {
+          handleEvent = handler
+        }}
+      />
+    )
 
     act(() =>
       handleEvent({
@@ -127,7 +145,13 @@ describe('usePreviewRouting', () => {
   })
 
   it('registers html previews from edit inline diffs', async () => {
-    render(<PreviewRoutingHarness onEvent={handler => { handleEvent = handler }} />)
+    render(
+      <PreviewRoutingHarness
+        onEvent={handler => {
+          handleEvent = handler
+        }}
+      />
+    )
 
     act(() =>
       handleEvent({

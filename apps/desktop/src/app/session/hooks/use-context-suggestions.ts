@@ -40,13 +40,19 @@ export function useContextSuggestions({
         cwd: cwd || undefined
       })
 
-      if (stillCurrent()) {setContextSuggestions((result.items || []).filter(i => i.text))}
+      if (stillCurrent()) {
+        setContextSuggestions((result.items || []).filter(i => i.text))
+      }
     } catch {
-      if (stillCurrent()) {setContextSuggestions([])}
+      if (stillCurrent()) {
+        setContextSuggestions([])
+      }
     }
   }, [activeSessionId, activeSessionIdRef, currentCwd, requestGateway])
 
   useEffect(() => {
-    if (gatewayState === 'open' && activeSessionId) {void refresh()}
+    if (gatewayState === 'open' && activeSessionId) {
+      void refresh()
+    }
   }, [activeSessionId, gatewayState, refresh])
 }

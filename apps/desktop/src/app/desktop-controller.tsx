@@ -9,7 +9,16 @@ import { useSkinCommand } from '@/themes/use-skin-command'
 import { formatRefValue } from '../components/assistant-ui/directive-text'
 import { getSessionMessages, listSessions } from '../hermes'
 import { toChatMessages } from '../lib/chat-messages'
-import { $pinnedSessionIds, FILE_BROWSER_DEFAULT_WIDTH, pinSession, SIDEBAR_DEFAULT_WIDTH, unpinSession } from '../store/layout'
+import {
+  $pinnedSessionIds,
+  FILE_BROWSER_DEFAULT_WIDTH,
+  FILE_BROWSER_MAX_WIDTH,
+  FILE_BROWSER_MIN_WIDTH,
+  pinSession,
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  unpinSession
+} from '../store/layout'
 import { $filePreviewTarget, $previewTarget, dismissFilePreviewTarget, dismissPreviewTarget } from '../store/preview'
 import {
   $activeSessionId,
@@ -30,7 +39,7 @@ import { AgentsView } from './agents'
 import { ArtifactsView } from './artifacts'
 import { ChatView } from './chat'
 import { useComposerActions } from './chat/hooks/use-composer-actions'
-import { ChatPreviewRail, PREVIEW_RAIL_PANE_WIDTH } from './chat/right-rail'
+import { ChatPreviewRail, PREVIEW_RAIL_MAX_WIDTH, PREVIEW_RAIL_MIN_WIDTH, PREVIEW_RAIL_PANE_WIDTH } from './chat/right-rail'
 import { ChatSidebar } from './chat/sidebar'
 import { CommandCenterView } from './command-center'
 import { FileBrowserPane } from './file-browser'
@@ -464,7 +473,14 @@ export function DesktopController() {
       statusbarItems={statusbarItems}
       titlebarTools={titlebarToolGroups.flat.right}
     >
-      <Pane id="chat-sidebar" side="left" width={`${SIDEBAR_DEFAULT_WIDTH}px`}>
+      <Pane
+        id="chat-sidebar"
+        maxWidth={SIDEBAR_MAX_WIDTH}
+        minWidth={SIDEBAR_DEFAULT_WIDTH}
+        resizable
+        side="left"
+        width={`${SIDEBAR_DEFAULT_WIDTH}px`}
+      >
         {sidebar}
       </Pane>
       <PaneMain>
@@ -479,7 +495,10 @@ export function DesktopController() {
           />
           <Route
             element={
-              <ArtifactsView setStatusbarItemGroup={setStatusbarItemGroup} setTitlebarToolGroup={setTitlebarToolGroup} />
+              <ArtifactsView
+                setStatusbarItemGroup={setStatusbarItemGroup}
+                setTitlebarToolGroup={setTitlebarToolGroup}
+              />
             }
             path="artifacts"
           />
@@ -491,12 +510,28 @@ export function DesktopController() {
           <Route element={<Navigate replace to={NEW_CHAT_ROUTE} />} path="*" />
         </Routes>
       </PaneMain>
-      <Pane disabled={!chatOpen || (!previewTarget && !filePreviewTarget)} id="preview" side="right" width={PREVIEW_RAIL_PANE_WIDTH}>
+      <Pane
+        disabled={!chatOpen || (!previewTarget && !filePreviewTarget)}
+        id="preview"
+        maxWidth={PREVIEW_RAIL_MAX_WIDTH}
+        minWidth={PREVIEW_RAIL_MIN_WIDTH}
+        resizable
+        side="right"
+        width={PREVIEW_RAIL_PANE_WIDTH}
+      >
         {chatOpen ? (
           <ChatPreviewRail onRestartServer={restartPreviewServer} setTitlebarToolGroup={setTitlebarToolGroup} />
         ) : null}
       </Pane>
-      <Pane defaultOpen={false} id="file-browser" side="right" width={FILE_BROWSER_DEFAULT_WIDTH}>
+      <Pane
+        defaultOpen={false}
+        id="file-browser"
+        maxWidth={FILE_BROWSER_MAX_WIDTH}
+        minWidth={FILE_BROWSER_MIN_WIDTH}
+        resizable
+        side="right"
+        width={FILE_BROWSER_DEFAULT_WIDTH}
+      >
         <FileBrowserPane onActivateFile={composer.attachContextFilePath} onChangeCwd={changeSessionCwd} />
       </Pane>
     </AppShell>

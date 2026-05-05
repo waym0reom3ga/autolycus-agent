@@ -2,17 +2,13 @@ import { atom, computed, type ReadableAtom } from 'nanostores'
 
 import { arraysEqual, insertUniqueId, persistStringArray, storedStringArray } from '@/lib/storage'
 
-import {
-  $paneStates,
-  ensurePaneRegistered,
-  setPaneOpen,
-  setPaneWidthOverride,
-  togglePane
-} from './panes'
+import { $paneStates, ensurePaneRegistered, setPaneOpen, setPaneWidthOverride, togglePane } from './panes'
 
 export const SIDEBAR_DEFAULT_WIDTH = 224
 export const SIDEBAR_MAX_WIDTH = 320
 export const FILE_BROWSER_DEFAULT_WIDTH = '17rem'
+export const FILE_BROWSER_MIN_WIDTH = '14rem'
+export const FILE_BROWSER_MAX_WIDTH = '20rem'
 
 const SIDEBAR_PINNED_STORAGE_KEY = 'hermes.desktop.pinnedSessions'
 

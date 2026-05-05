@@ -133,6 +133,7 @@ export function CopyButton({
 
   const Icon = status === 'copied' ? Check : status === 'error' ? X : Copy
   const icon = <Icon className={cn('size-3.5', iconClassName)} />
+
   const visibleChildren =
     (showLabel ?? (appearance !== 'icon' && appearance !== 'tool-row'))
       ? status === 'copied'

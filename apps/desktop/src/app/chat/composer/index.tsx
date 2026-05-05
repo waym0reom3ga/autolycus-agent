@@ -38,14 +38,7 @@ import { useComposerGlassTweaks } from './hooks/use-composer-glass-tweaks'
 import { useSlashCompletions } from './hooks/use-slash-completions'
 import { useVoiceConversation } from './hooks/use-voice-conversation'
 import { useVoiceRecorder } from './hooks/use-voice-recorder'
-import {
-  composerHtml,
-  composerPlainText,
-  escapeHtml,
-  placeCaretEnd,
-  refChipHtml,
-  RICH_INPUT_SLOT
-} from './rich-editor'
+import { composerHtml, composerPlainText, escapeHtml, placeCaretEnd, refChipHtml, RICH_INPUT_SLOT } from './rich-editor'
 import { SkinSlashPopover } from './skin-slash-popover'
 import { ComposerTriggerPopover } from './trigger-popover'
 import type { ChatBarProps } from './types'
@@ -112,7 +105,10 @@ function extractClipboardImageBlobs(clipboard: DataTransfer): Blob[] {
 }
 
 // Below this composer width the input gets cramped — drop controls onto a second row.
-const COMPOSER_STACK_BREAKPOINT_PX = 380
+// Floor matches the natural min-content of contextMenu + 8rem input + controls + gaps;
+// going higher caused unwanted stacking on empty state when the parent transiently
+// reported a tiny width before layout settled.
+const COMPOSER_STACK_BREAKPOINT_PX = 320
 
 const COMPOSER_SCROLLED_DIM_CLASS =
   'opacity-30 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
@@ -142,7 +138,9 @@ function textBeforeCaret(editor: HTMLDivElement): string | null {
   const sel = window.getSelection()
   const range = sel?.rangeCount ? sel.getRangeAt(0) : null
 
-  if (!range?.collapsed || !editor.contains(range.commonAncestorContainer)) {return null}
+  if (!range?.collapsed || !editor.contains(range.commonAncestorContainer)) {
+    return null
+  }
 
   const before = range.cloneRange()
   before.selectNodeContents(editor)
@@ -154,7 +152,9 @@ function textBeforeCaret(editor: HTMLDivElement): string | null {
 function detectTrigger(textBefore: string): TriggerState | null {
   const match = TRIGGER_RE.exec(textBefore)
 
-  if (!match) {return null}
+  if (!match) {
+    return null
+  }
 
   return { kind: match[1] as '@' | '/', query: match[2], tokenLength: 1 + match[2].length }
 }
@@ -202,20 +202,6 @@ export function ChatBar({
 
   const narrow = useMediaQuery('(max-width: 480px)')
 
-  const [askPlaceholder] = useState(() => {
-    const lines = [
-      'Hey friend, what can I help with?',
-      "What's on your mind? I'm here with you.",
-      'Need a hand? We can take it one step at a time.',
-      'Want to walk through this bug together?',
-      "Share what you're working on and we'll figure it out.",
-      "Tell me where you're stuck and I'll stay with you.",
-      'Duck mode: gentle debugging, together.'
-    ]
-
-    return lines[Math.floor(Math.random() * lines.length)] ?? 'Ask anything'
-  })
-
   const at = useAtCompletions({ gateway: gateway ?? null, sessionId: sessionId ?? null, cwd: cwd ?? null })
   const slash = useSlashCompletions({ gateway: gateway ?? null })
 
@@ -224,13 +210,7 @@ export function ChatBar({
   const canSubmit = busy || hasComposerPayload
   const showHelpHint = draft === '?'
 
-  const placeholder = disabled
-    ? stacked
-      ? 'Starting...'
-      : 'Starting Hermes...'
-    : stacked
-      ? 'Ask anything'
-      : askPlaceholder
+  const placeholder = disabled ? 'Starting Hermes…' : 'Ask anything'
 
   const glassTweaks = useComposerGlassTweaks()
 
@@ -280,7 +260,9 @@ export function ChatBar({
       return
     }
 
-    const wraps = (editorRef.current?.scrollHeight ?? 0) > 42
+    // Threshold deliberately above a single rendered line + padding so font-metric
+    // jitter on an empty/short editor never triggers spurious expansion.
+    const wraps = (editorRef.current?.scrollHeight ?? 0) > 56
 
     if (draft.includes('\n') || wraps) {
       setExpanded(true)
@@ -294,10 +276,18 @@ export function ChatBar({
       return
     }
 
-    const update = () => setTight(el.getBoundingClientRect().width < COMPOSER_STACK_BREAKPOINT_PX)
+    // No sync read: getBoundingClientRect() right after mount can return a
+    // transient pre-layout width that briefly flips the composer into stacked
+    // mode. ResizeObserver fires once on observe() with the settled width, then
+    // again on every actual size change.
+    const ro = new ResizeObserver(() => {
+      const width = el.getBoundingClientRect().width
 
-    update()
-    const ro = new ResizeObserver(update)
+      if (width > 0) {
+        setTight(width < COMPOSER_STACK_BREAKPOINT_PX)
+      }
+    })
+
     ro.observe(el)
 
     return () => ro.disconnect()
@@ -402,8 +392,16 @@ export function ChatBar({
       return null
     }
 
-    const kind = candidate.isDirectory ? 'folder' : 'file'
     const rel = contextPath(candidate.path, cwd || '')
+
+    if (candidate.line) {
+      const { line, lineEnd } = candidate
+      const range = lineEnd && lineEnd > line ? `${line}-${lineEnd}` : `${line}`
+
+      return `@line:${formatRefValue(`${rel}:${range}`)}`
+    }
+
+    const kind = candidate.isDirectory ? 'folder' : 'file'
 
     return `@${kind}:${formatRefValue(rel)}`
   }
@@ -463,7 +461,9 @@ export function ChatBar({
   const refreshTrigger = useCallback(() => {
     const editor = editorRef.current
 
-    if (!editor) {return}
+    if (!editor) {
+      return
+    }
 
     const before = textBeforeCaret(editor)
     const detected = detectTrigger(before ?? composerPlainText(editor))
@@ -491,7 +491,8 @@ export function ChatBar({
     window.setTimeout(refreshTrigger, 0)
   }
 
-  const triggerAdapter: Unstable_TriggerAdapter | null = trigger?.kind === '@' ? at.adapter : trigger?.kind === '/' ? slash.adapter : null
+  const triggerAdapter: Unstable_TriggerAdapter | null =
+    trigger?.kind === '@' ? at.adapter : trigger?.kind === '/' ? slash.adapter : null
 
   useEffect(() => {
     if (!trigger || !triggerAdapter?.search) {
@@ -512,95 +513,71 @@ export function ChatBar({
   }
 
   useEffect(() => {
-    if (!triggerItems.length) {
-      setTriggerActive(0)
-
-      return
-    }
-
-    if (triggerActive >= triggerItems.length) {
-      setTriggerActive(triggerItems.length - 1)
-    }
-  }, [triggerActive, triggerItems.length])
+    setTriggerActive(idx => Math.min(idx, Math.max(0, triggerItems.length - 1)))
+  }, [triggerItems.length])
 
   const replaceTriggerWithChip = (item: Unstable_TriggerItem) => {
     const editor = editorRef.current
-    const sel = window.getSelection()
 
     if (!editor || !trigger) {
       return
     }
 
     const serialized = hermesDirectiveFormatter.serialize(item)
+    // Starters (`@file:`) drill in: insert verbatim and keep the popover live so
+    // the user can keep typing the path. Chips/simple refs commit and close.
+    const starter = serialized.endsWith(':')
+    const text = starter || serialized.endsWith(' ') ? serialized : `${serialized} `
+    const directive = !starter && serialized.match(/^@([^:]+):(.+)$/)
 
-    const replaceDraftFallback = () => {
+    const finish = () => {
+      draftRef.current = composerPlainText(editor)
+      aui.composer().setText(draftRef.current)
+      starter ? window.setTimeout(refreshTrigger, 0) : closeTrigger()
+    }
+
+    const sel = window.getSelection()
+    const range = sel?.rangeCount ? sel.getRangeAt(0) : null
+    const node = range?.startContainer
+    const offset = range?.startOffset ?? 0
+
+    // No usable caret range — replace from the end of the draft instead.
+    if (!sel || !range || node?.nodeType !== Node.TEXT_NODE || offset < trigger.tokenLength) {
       const current = composerPlainText(editor)
-
-      const nextDraft = `${current.slice(0, Math.max(0, current.length - trigger.tokenLength))}${serialized}${
-        serialized.endsWith(' ') ? '' : ' '
-      }`
-
-      editor.innerHTML = composerHtml(nextDraft)
+      editor.innerHTML = composerHtml(`${current.slice(0, Math.max(0, current.length - trigger.tokenLength))}${text}`)
       placeCaretEnd(editor)
-      draftRef.current = nextDraft
-      aui.composer().setText(nextDraft)
-      closeTrigger()
-    }
 
-    if (!sel?.rangeCount) {
-      replaceDraftFallback()
-
-      return
-    }
-
-    const range = sel.getRangeAt(0)
-    const startNode = range.startContainer
-    const startOffset = range.startOffset
-
-    if (startNode.nodeType !== Node.TEXT_NODE || startOffset < trigger.tokenLength) {
-      replaceDraftFallback()
-
-      return
+      return finish()
     }
 
     const replaceRange = document.createRange()
-    replaceRange.setStart(startNode, startOffset - trigger.tokenLength)
-    replaceRange.setEnd(startNode, startOffset)
+    replaceRange.setStart(node, offset - trigger.tokenLength)
+    replaceRange.setEnd(node, offset)
+    replaceRange.deleteContents()
 
-    const fragment = document.createDocumentFragment()
-    const directiveMatch = serialized.match(/^@([^:]+):(.+)$/)
-
-    if (directiveMatch) {
+    if (directive) {
       const holder = document.createElement('span')
-      holder.innerHTML = refChipHtml(directiveMatch[1], directiveMatch[2])
-      const chipNode = holder.firstChild
+      holder.innerHTML = refChipHtml(directive[1], directive[2])
+      const chip = holder.firstChild
 
-      if (chipNode) {
-        fragment.appendChild(chipNode)
+      if (chip) {
         const space = document.createTextNode(' ')
-        fragment.appendChild(space)
-
-        replaceRange.deleteContents()
+        const fragment = document.createDocumentFragment()
+        fragment.append(chip, space)
         replaceRange.insertNode(fragment)
 
-        const after = document.createRange()
-        after.setStart(space, 1)
-        after.collapse(true)
+        const caret = document.createRange()
+        caret.setStart(space, 1)
+        caret.collapse(true)
         sel.removeAllRanges()
-        sel.addRange(after)
-      } else {
-        replaceRange.deleteContents()
-        document.execCommand('insertText', false, `${serialized} `)
+        sel.addRange(caret)
+
+        return finish()
       }
-    } else {
-      replaceRange.deleteContents()
-      document.execCommand('insertText', false, serialized.endsWith(' ') ? serialized : `${serialized} `)
     }
 
-    const nextDraft = composerPlainText(editor)
-    draftRef.current = nextDraft
-    aui.composer().setText(nextDraft)
-    closeTrigger()
+    document.execCommand('insertText', false, text)
+    finish()
   }
 
   const handleEditorKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -907,21 +884,12 @@ export function ChatBar({
 
   const input = (
     <div className={cn('relative', stacked ? 'w-full' : 'min-w-(--composer-input-inline-min-width) flex-1')}>
-      {!draft && (
-        <div
-          aria-hidden
-          className={cn(
-            'pointer-events-none absolute inset-0 pb-1 pr-1 pt-1 leading-normal text-muted-foreground/80',
-            stacked && 'pl-3'
-          )}
-        >
-          {placeholder}
-        </div>
-      )}
       <div
         aria-label="Message"
         className={cn(
-          'min-h-(--composer-input-min-height) max-h-(--composer-input-max-height) overflow-y-auto bg-transparent pb-1 pr-1 pt-1 leading-normal text-foreground outline-none empty:before:content-[attr(data-placeholder)] disabled:cursor-not-allowed **:data-ref-text:cursor-default',
+          'min-h-(--composer-input-min-height) max-h-(--composer-input-max-height) overflow-y-auto bg-transparent pb-1 pr-1 pt-1 leading-normal text-foreground outline-none disabled:cursor-not-allowed',
+          'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/60',
+          '**:data-ref-text:cursor-default',
           stacked && 'pl-3',
           stacked ? 'w-full' : 'min-w-(--composer-input-inline-min-width) flex-1'
         )}

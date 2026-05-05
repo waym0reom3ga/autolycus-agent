@@ -34,7 +34,13 @@ function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachme
       return
     }
 
-    const rawTarget = attachment.path || attachment.detail || attachment.refText?.replace(/^@(file|image|url):/, '') || attachment.label || ''
+    const rawTarget =
+      attachment.path ||
+      attachment.detail ||
+      attachment.refText?.replace(/^@(file|image|url):/, '') ||
+      attachment.label ||
+      ''
+
     const target = rawTarget.replace(/^`|`$/g, '')
 
     if (!target) {
@@ -55,7 +61,10 @@ function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachme
   }
 
   return (
-    <div className="group/attachment relative min-w-0 shrink-0" title={attachment.path || attachment.detail || attachment.label}>
+    <div
+      className="group/attachment relative min-w-0 shrink-0"
+      title={attachment.path || attachment.detail || attachment.label}
+    >
       <button
         aria-label={canPreview ? `Preview ${attachment.label}` : attachment.label}
         className="flex max-w-56 items-center gap-2 border border-border/60 bg-background/50 px-2 py-1.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] transition-colors hover:border-primary/35 hover:bg-accent/45 disabled:cursor-default"
@@ -77,8 +86,12 @@ function AttachmentPill({ attachment, onRemove }: { attachment: ComposerAttachme
           </span>
         )}
         <span className="min-w-0">
-          <span className="block truncate text-[0.72rem] font-medium leading-4 text-foreground/90">{attachment.label}</span>
-          {detail && <span className="block truncate font-mono text-[0.6rem] leading-3 text-muted-foreground/65">{detail}</span>}
+          <span className="block truncate text-[0.72rem] font-medium leading-4 text-foreground/90">
+            {attachment.label}
+          </span>
+          {detail && (
+            <span className="block truncate font-mono text-[0.6rem] leading-3 text-muted-foreground/65">{detail}</span>
+          )}
         </span>
       </button>
       {onRemove && (

@@ -16,10 +16,15 @@ export function useCwdActions({ activeSessionId, activeSessionIdRef, currentCwd,
     async (cwd: string) => {
       const target = cwd.trim()
 
-      if (!target || activeSessionIdRef.current) {return}
+      if (!target || activeSessionIdRef.current) {
+        return
+      }
 
       try {
-        const info = await requestGateway<{ branch?: string; cwd?: string }>('config.get', { key: 'project', cwd: target })
+        const info = await requestGateway<{ branch?: string; cwd?: string }>('config.get', {
+          key: 'project',
+          cwd: target
+        })
 
         if (!activeSessionIdRef.current && ($currentCwd.get() || target) === (info.cwd || target)) {
           setCurrentBranch(info.branch || '')
@@ -35,7 +40,9 @@ export function useCwdActions({ activeSessionId, activeSessionIdRef, currentCwd,
     async (cwd: string) => {
       const trimmed = cwd.trim()
 
-      if (!trimmed) {return}
+      if (!trimmed) {
+        return
+      }
 
       const persistGlobal = async () => {
         const info = await requestGateway<{ branch?: string; cwd?: string; value?: string }>('config.set', {
@@ -46,7 +53,9 @@ export function useCwdActions({ activeSessionId, activeSessionIdRef, currentCwd,
 
         setCurrentCwd(info.cwd || info.value || trimmed)
 
-        if (!activeSessionId) {setCurrentBranch(info.branch || '')}
+        if (!activeSessionId) {
+          setCurrentBranch(info.branch || '')
+        }
       }
 
       if (!activeSessionId) {
@@ -101,7 +110,9 @@ export function useCwdActions({ activeSessionId, activeSessionIdRef, currentCwd,
       multiple: false
     })
 
-    if (paths?.[0]) {await changeSessionCwd(paths[0])}
+    if (paths?.[0]) {
+      await changeSessionCwd(paths[0])
+    }
   }, [changeSessionCwd, currentCwd])
 
   return { browseSessionCwd, changeSessionCwd, refreshProjectBranch }

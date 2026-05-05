@@ -61,4 +61,3 @@ export function previewDisplayLabel(target: string): string {
 
   return `Preview: ${escaped}`
 }
-
