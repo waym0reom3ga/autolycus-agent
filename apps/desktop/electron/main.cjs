@@ -1118,8 +1118,55 @@ function installMediaPermissions() {
   })
 }
 
+function resolveRemoteBackend() {
+  const rawUrl = process.env.HERMES_DESKTOP_REMOTE_URL
+  const rawToken = process.env.HERMES_DESKTOP_REMOTE_TOKEN
+  if (!rawUrl) return null
+  if (!rawToken) {
+    throw new Error(
+      'HERMES_DESKTOP_REMOTE_URL is set but HERMES_DESKTOP_REMOTE_TOKEN is not. ' +
+      'Both must be provided to connect to a remote Hermes backend.'
+    )
+  }
+
+  let parsed
+  try {
+    parsed = new URL(rawUrl)
+  } catch (error) {
+    throw new Error(`HERMES_DESKTOP_REMOTE_URL is not a valid URL: ${error.message}`)
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(`HERMES_DESKTOP_REMOTE_URL must be http:// or https://, got ${parsed.protocol}`)
+  }
+
+  const baseUrl = `${parsed.protocol}//${parsed.host}`
+  const wsScheme = parsed.protocol === 'https:' ? 'wss' : 'ws'
+  const wsUrl = `${wsScheme}://${parsed.host}/api/ws?token=${encodeURIComponent(rawToken)}`
+
+  return { baseUrl, token: rawToken, wsUrl }
+}
+
 async function startHermes() {
   if (connectionPromise) return connectionPromise
+
+  const remote = resolveRemoteBackend()
+  if (remote) {
+    connectionPromise = (async () => {
+      rememberLog(`Using remote Hermes backend at ${remote.baseUrl}`)
+      await waitForHermes(remote.baseUrl, remote.token)
+      return {
+        baseUrl: remote.baseUrl,
+        token: remote.token,
+        wsUrl: remote.wsUrl,
+        logs: hermesLog.slice(-80),
+        windowButtonPosition: getWindowButtonPosition()
+      }
+    })().catch(error => {
+      connectionPromise = null
+      throw error
+    })
+    return connectionPromise
+  }
 
   connectionPromise = (async () => {
     const port = await pickPort()
