@@ -40,6 +40,11 @@ Run the one-line installer:
 curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
 ```
 
+Prefer native installers for desktop use?
+
+- **Stable desktop downloads:** [GitHub Releases](https://github.com/NousResearch/hermes-agent/releases/latest)
+- **Nightly desktop channel:** [desktop-nightly](https://github.com/NousResearch/hermes-agent/releases/tag/desktop-nightly)
+
 :::tip Android / Termux
 If you're installing on a phone, see the dedicated [Termux guide](./termux.md) for the tested manual path, supported extras, and current Android-specific limitations.
 :::

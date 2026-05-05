@@ -10,6 +10,15 @@ Get Hermes Agent up and running in under two minutes with the one-line installer
 
 ## Quick Install
 
+### Desktop App (macOS + Windows)
+
+Prefer a native installer? Use the desktop release channel that matches your risk tolerance:
+
+- **Stable (recommended):** [GitHub Releases](https://github.com/NousResearch/hermes-agent/releases/latest)
+- **Nightly (rolling prerelease):** [desktop-nightly](https://github.com/NousResearch/hermes-agent/releases/tag/desktop-nightly)
+
+Stable desktop builds ship signed/notarized macOS artifacts and Windows installers with checksum files.
+
 ### Linux / macOS / WSL2
 
 ```bash
@@ -34,7 +43,9 @@ The installer detects Termux automatically and switches to a tested Android flow
 If you want the fully explicit path, follow the dedicated [Termux guide](./termux.md).
 
 :::warning Windows
-Native Windows is **not supported**. Please install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) and run Hermes Agent from there. The install command above works inside WSL2.
+Native Windows for the **CLI installer path** is still not supported. Please install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) and run Hermes Agent from there if you want the CLI flow.
+
+For native Windows, use the desktop installers from [GitHub Releases](https://github.com/NousResearch/hermes-agent/releases/latest).
 :::
 
 ### What the Installer Does

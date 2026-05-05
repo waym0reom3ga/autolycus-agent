@@ -13,6 +13,7 @@ The self-improving AI agent built by [Nous Research](https://nousresearch.com). 
 
 <div style={{display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap'}}>
   <a href="/docs/getting-started/installation" style={{display: 'inline-block', padding: '0.6rem 1.2rem', backgroundColor: '#FFD700', color: '#07070d', borderRadius: '8px', fontWeight: 600, textDecoration: 'none'}}>Get Started →</a>
+  <a href="https://github.com/NousResearch/hermes-agent/releases/latest" style={{display: 'inline-block', padding: '0.6rem 1.2rem', border: '1px solid rgba(255,215,0,0.2)', borderRadius: '8px', textDecoration: 'none'}}>Download Desktop</a>
   <a href="https://github.com/NousResearch/hermes-agent" style={{display: 'inline-block', padding: '0.6rem 1.2rem', border: '1px solid rgba(255,215,0,0.2)', borderRadius: '8px', textDecoration: 'none'}}>View on GitHub</a>
 </div>
 
@@ -25,6 +26,8 @@ It's not a coding copilot tethered to an IDE or a chatbot wrapper around a singl
 | | |
 |---|---|
 | 🚀 **[Installation](/docs/getting-started/installation)** | Install in 60 seconds on Linux, macOS, or WSL2 |
+| 💻 **[Desktop Downloads](https://github.com/NousResearch/hermes-agent/releases/latest)** | Signed macOS and Windows installers from GitHub Releases (stable channel) |
+| 🌙 **[Desktop Nightly](https://github.com/NousResearch/hermes-agent/releases/tag/desktop-nightly)** | Rolling prerelease builds from `main` for early testing |
 | 📖 **[Quickstart Tutorial](/docs/getting-started/quickstart)** | Your first conversation and key features to try |
 | 🗺️ **[Learning Path](/docs/getting-started/learning-path)** | Find the right docs for your experience level |
 | ⚙️ **[Configuration](/docs/user-guide/configuration)** | Config file, providers, models, and options |

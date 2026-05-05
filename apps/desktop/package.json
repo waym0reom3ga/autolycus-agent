@@ -100,7 +100,7 @@
     "appId": "com.nousresearch.hermes",
     "productName": "Hermes",
     "executableName": "Hermes",
-    "artifactName": "Hermes-${version}-${arch}.${ext}",
+    "artifactName": "Hermes-${version}-${os}-${arch}.${ext}",
     "icon": "assets/icon",
     "directories": {
       "output": "release"
@@ -119,11 +119,14 @@
       }
     ],
     "asar": true,
+    "afterSign": "scripts/notarize.cjs",
     "asarUnpack": [
       "dist/**"
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
+      "entitlements": "electron/entitlements.mac.plist",
+      "entitlementsInherit": "electron/entitlements.mac.inherit.plist",
       "extendInfo": {
         "CFBundleDisplayName": "Hermes",
         "CFBundleExecutable": "Hermes",
@@ -131,6 +134,8 @@
         "NSAudioCaptureUsageDescription": "Hermes uses audio capture for voice conversations.",
         "NSMicrophoneUsageDescription": "Hermes uses the microphone for voice input and voice conversations."
       },
+      "gatekeeperAssess": false,
+      "hardenedRuntime": true,
       "target": [
         "dmg",
         "zip"
