@@ -27,6 +27,23 @@ _skill_commands_platform: Optional[str] = None
 _SKILL_INVALID_CHARS = re.compile(r"[^a-z0-9-]")
 _SKILL_MULTI_HYPHEN = re.compile(r"-{2,}")
 
+# Plan path helpers (removed in upstream, kept for TUI /plan command compatibility)
+_PLAN_SLUG_RE = re.compile(r"[^a-z0-9-]")
+
+def build_plan_path(
+    user_instruction: str = "",
+    *,
+    now: datetime | None = None,
+) -> Path:
+    """Return the default workspace-relative markdown path for a /plan invocation."""
+    slug_source = (user_instruction or "").strip().splitlines()[0] if user_instruction else ""
+    slug = _PLAN_SLUG_RE.sub("-", slug_source.lower()).strip("-")
+    if slug:
+        slug = "-".join(part for part in slug.split("-")[:8] if part)[:48].strip("-")
+    slug = slug or "conversation-plan"
+    timestamp = (now or datetime.now()).strftime("%Y-%m-%d_%H%M%S")
+    return Path(".hermes") / "plans" / f"{timestamp}-{slug}.md"
+
 
 def _resolve_skill_commands_platform() -> Optional[str]:
     """Return the current platform scope used for disabled-skill filtering.
