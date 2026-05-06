@@ -53,7 +53,6 @@ while git status --porcelain | grep -q "UU"; do
 done
 
 # Clean up any leftover conflict markers in all Python files
-# This catches cases where sed-based resolution left markers behind
 for f in $(grep -rl "^<<<<<<<\|^=======\|^>>>>>>>" --include="*.py" . 2>/dev/null); do
     sed -i '/^<<<<<<<\|^=======\|^>>>>>>>.*$/d' "$f"
     echo "Cleaned conflict markers from: $f"
@@ -64,6 +63,38 @@ REMAINING=$(grep -r "^<<<<<<<\|^=======\|^>>>>>>>" --include="*.py" . 2>/dev/nul
 if [ "$REMAINING" -gt 0 ]; then
     echo "WARNING: $REMAINING conflict markers still remain!"
     exit 1
+fi
+
+# Preserve our custom build_plan_path function if it was lost during rebase
+# (upstream removed it but our cli.py TUI still needs it)
+if ! grep -q "def build_plan_path" agent/skill_commands.py 2>/dev/null; then
+    echo "Restoring build_plan_path function to agent/skill_commands.py..."
+    # Add datetime import if missing
+    if ! grep -q "from datetime import datetime" agent/skill_commands.py; then
+        sed -i 's/^from pathlib import Path$/from datetime import datetime\nfrom pathlib import Path/' agent/skill_commands.py
+    fi
+    # Add the function after _SKILL_MULTI_HYPHEN if not present
+    if ! grep -q "_PLAN_SLUG_RE" agent/skill_commands.py; then
+        sed -i '/_SKILL_MULTI_HYPHEN = re.compile/a\
+\
+# Plan path helpers (removed in upstream, kept for TUI /plan command compatibility)\
+_PLAN_SLUG_RE = re.compile(r"[^a-z0-9-]")\
+\
+def build_plan_path(\
+    user_instruction: str = "",\
+    *,\
+    now: datetime | None = None,\
+) -> Path:\
+    """Return the default workspace-relative markdown path for a /plan invocation."""\
+    slug_source = (user_instruction or "").strip().splitlines()[0] if user_instruction else ""\
+    slug = _PLAN_SLUG_RE.sub("-", slug_source.lower()).strip("-")\
+    if slug:\
+        slug = "-".join(part for part in slug.split("-")[:8] if part)[:48].strip("-")\
+    slug = slug or "conversation-plan"\
+    timestamp = (now or datetime.now()).strftime("%Y-%m-%d_%H%M%S")\
+    return Path(".hermes") / "plans" / f"{timestamp}-{slug}.md"
+' agent/skill_commands.py
+    fi
 fi
 
 # Push to origin
