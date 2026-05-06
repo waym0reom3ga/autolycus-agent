@@ -65,6 +65,12 @@ if [ "$REMAINING" -gt 0 ]; then
     exit 1
 fi
 
+# Restore Autolycus README branding if lost
+if ! grep -q "Autolycus" README.md 2>/dev/null; then
+    echo "Restoring Autolycus README branding..."
+    git show 4f1a47282:README.md > README.md
+fi
+
 # Preserve our custom build_plan_path function if it was lost during rebase
 # (upstream removed it but our cli.py TUI still needs it)
 if ! grep -q "def build_plan_path" agent/skill_commands.py 2>/dev/null; then
@@ -95,6 +101,24 @@ def build_plan_path(\
     return Path(".hermes") / "plans" / f"{timestamp}-{slug}.md"
 ' agent/skill_commands.py
     fi
+fi
+
+# Preserve custom_provider_slug function if it was lost
+# (upstream removed it but our model_switch.py still needs it)
+if ! grep -q "def custom_provider_slug" hermes_cli/providers.py 2>/dev/null; then
+    echo "Restoring custom_provider_slug to hermes_cli/providers.py..."
+    cat >> hermes_cli/providers.py << 'PYEOF'
+
+
+def custom_provider_slug(display_name: str) -> str:
+    """Build a canonical slug for a custom_providers entry.
+
+    Matches the convention used by runtime_provider and credential_pool
+    (``custom:<normalized-name>``).  Centralised here so all call-sites
+    produce identical slugs.
+    """
+    return "custom:" + display_name.strip().lower().replace(" ", "-")
+PYEOF
 fi
 
 # Push to origin
