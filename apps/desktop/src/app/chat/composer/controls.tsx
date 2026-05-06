@@ -8,6 +8,15 @@ import type { ChatBarState, VoiceStatus } from './types'
 
 export const ICON_BTN = 'size-(--composer-control-size) shrink-0 rounded-full'
 export const GHOST_ICON_BTN = cn(ICON_BTN, 'text-muted-foreground hover:bg-accent hover:text-foreground')
+// Send/voice-conversation primary: solid foreground-on-background circle
+// (reads as black-on-white in light mode, white-on-black in dark mode) to
+// match the reference composer's high-contrast CTA. Keeps the pill itself
+// neutral and lets the action visually dominate the row.
+export const PRIMARY_ICON_BTN = cn(
+  'size-(--composer-control-primary-size,var(--composer-control-size)) shrink-0 rounded-full p-0',
+  'bg-foreground text-background hover:bg-foreground/90',
+  'disabled:bg-foreground/30 disabled:text-background disabled:opacity-100'
+)
 
 interface ConversationProps {
   active: boolean
@@ -51,7 +60,7 @@ export function ComposerControls({
       {showVoicePrimary ? (
         <Button
           aria-label="Start voice conversation"
-          className={cn(ICON_BTN, 'p-0')}
+          className={PRIMARY_ICON_BTN}
           disabled={disabled}
           onClick={() => {
             triggerHaptic('open')
@@ -66,7 +75,7 @@ export function ComposerControls({
       ) : (
         <Button
           aria-label={busy ? 'Stop' : 'Send'}
-          className={cn(ICON_BTN, 'p-0')}
+          className={PRIMARY_ICON_BTN}
           disabled={disabled || !canSubmit}
           type="submit"
         >

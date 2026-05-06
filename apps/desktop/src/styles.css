@@ -125,10 +125,15 @@
     --composer-target-width: 68%;
     --composer-max-width: 56rem;
     --composer-control-size: 2rem;
+    /* Send / voice-conversation circle is one notch larger than the ghost
+     * controls so the primary CTA visually anchors the right edge. */
+    --composer-control-primary-size: 2.125rem;
     --composer-control-gap: 0.375rem;
     --composer-row-gap: 0.375rem;
-    --composer-surface-pad-x: 0.5rem;
-    --composer-surface-pad-y: 0.375rem;
+    /* Reference-clean padding: enough breathing room around the input row
+     * that the pill no longer feels cramped against its controls. */
+    --composer-surface-pad-x: 0.625rem;
+    --composer-surface-pad-y: 0.5rem;
     --composer-input-min-height: 2rem;
     --composer-input-max-height: 9.375rem;
     --composer-input-inline-min-width: 8rem;

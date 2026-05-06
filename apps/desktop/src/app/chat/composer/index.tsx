@@ -951,7 +951,7 @@ export function ChatBar({
           <div className="relative w-full">
             <div
               className={cn(
-                'composer-liquid-shell-wrap absolute inset-0 isolate overflow-hidden rounded-(--composer-glass-radius,20px) transition-opacity duration-200 ease-out',
+                'composer-liquid-shell-wrap absolute inset-0 isolate overflow-hidden rounded-(--composer-glass-radius,24px) transition-opacity duration-200 ease-out',
                 'group-has-data-[state=open]/composer:rounded-t-none',
                 scrolledUp ? COMPOSER_SCROLLED_DIM_CLASS : 'opacity-100'
               )}
@@ -1044,7 +1044,7 @@ export function ChatBarFallback() {
     <div
       className={cn(COMPOSER_SHELL_CLASS, 'bg-linear-to-b from-transparent to-background/55')}
       data-slot="composer-root"
-      style={{ '--composer-active-radius': '1.25rem' } as CSSProperties}
+      style={{ '--composer-active-radius': '1.5rem' } as CSSProperties}
     >
       <div className="relative isolate h-(--composer-fallback-height) w-full overflow-hidden rounded-(--composer-active-radius) border border-input/70 shadow-composer">
         <div aria-hidden className={COMPOSER_FROST_CLASS} />

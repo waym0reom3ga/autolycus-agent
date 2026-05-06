@@ -20,13 +20,13 @@ const COMPOSER_GLASS_TWEAKS: ComposerGlassTweakOutputs = {
   liquid: {
     aberrationIntensity: 0.95,
     blurAmount: 0.072,
-    cornerRadius: 20,
+    cornerRadius: 24,
     displacementScale: 46,
     elasticity: 0,
     mode: 'standard',
     saturation: 128
   },
-  liquidKey: ['standard', '0.950', '0.072', '20', '46', '0.00', '128'].join(':'),
+  liquidKey: ['standard', '0.950', '0.072', '24', '46', '0.00', '128'].join(':'),
   showLibraryRims: false
 }
 

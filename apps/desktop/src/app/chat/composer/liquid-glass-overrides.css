@@ -62,12 +62,12 @@
   width: 100% !important;
   height: 100% !important;
   padding: 0 !important;
-  border-radius: var(--composer-glass-radius, 20px) !important;
+  border-radius: var(--composer-glass-radius, 24px) !important;
   box-shadow: none !important;
 }
 
 .composer-liquid-shell > .glass > .glass__warp {
-  border-radius: var(--composer-glass-radius, 20px) !important;
+  border-radius: var(--composer-glass-radius, 24px) !important;
 }
 
 .composer-liquid-shell > .glass > div {
