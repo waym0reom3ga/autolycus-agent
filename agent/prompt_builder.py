@@ -7,6 +7,7 @@ assemble pieces, then combines them with memory and ephemeral prompts.
 import json
 import logging
 import os
+import random
 import re
 import threading
 from collections import OrderedDict
@@ -115,18 +116,78 @@ def _strip_yaml_frontmatter(content: str) -> str:
 
 
 # =========================================================================
+# Agent identity — random name selection per install
+# =========================================================================
+
+AGENT_NAMES = [
+    "Atlas", "Bastion", "Cipher", "Drift", "Echo",
+    "Flux", "Glint", "Haven", "Ion", "Jinx",
+    "Kairo", "Lumen", "Nexus", "Orbit", "Prism",
+    "Quill", "Rift", "Spark", "Talus", "Vex",
+    "Warden", "Zephyr", "Axiom", "Blaze", "Coda",
+    "Dusk", "Ember", "Frost", "Grail", "Haze",
+    "Inferno", "Jade", "Kite", "Lance", "Mist",
+    "Nova", "Onyx", "Pulse", "Quasar", "Rune",
+    "Sage", "Titan", "Umber", "Volt", "Wrath",
+    "Xenon", "Yucca", "Zenith", "Apex", "Bolt",
+    "Crux", "Dune", "Eclipse", "Forge", "Gale",
+    "Horizon", "Ignis", "Jolt", "Kinetic", "Lynx",
+    "Magma", "Nimbus", "Opal", "Phoenix", "Quantum",
+    "Radar", "Solar", "Terra", "Ultra", "Vector",
+    "Wraith", "Xenon", "Yield", "Zen", "Arc",
+]
+
+_AGENT_NAME_FILE = ".hermes_agent_name"  # stored in ~/.hermes/
+
+
+def _ensure_agent_name() -> str:
+    """Return the agent name for this install.
+
+    On first call, picks a random name from AGENT_NAMES and persists it
+    to ~/.hermes/.hermes_agent_name.  Subsequent calls return the stored
+    name.  This ensures every install gets a unique identity.
+    """
+    try:
+        hermes_home = get_hermes_home()
+        name_file = hermes_home / _AGENT_NAME_FILE
+
+        if name_file.exists():
+            return name_file.read_text(encoding="utf-8").strip()
+
+        # First install — pick a random name
+        chosen = random.choice(AGENT_NAMES)
+        name_file.write_text(chosen, encoding="utf-8")
+        logger.info("agent_identity: assigned name '%s' for this install", chosen)
+        return chosen
+    except Exception as e:
+        logger.debug("agent_identity: failed to persist name: %s", e)
+        return random.choice(AGENT_NAMES)  # best-effort fallback
+
+
+def get_agent_name() -> str:
+    """Return the agent's display name for this install."""
+    return _ensure_agent_name()
+
+
+# =========================================================================
 # Constants
 # =========================================================================
 
-DEFAULT_AGENT_IDENTITY = (
-    "You are Hermes Agent, an intelligent AI assistant created by Nous Research. "
-    "You are helpful, knowledgeable, and direct. You assist users with a wide "
-    "range of tasks including answering questions, writing and editing code, "
-    "analyzing information, creative work, and executing actions via your tools. "
-    "You communicate clearly, admit uncertainty when appropriate, and prioritize "
-    "being genuinely useful over being verbose unless otherwise directed below. "
-    "Be targeted and efficient in your exploration and investigations."
-)
+def _build_default_identity() -> str:
+    """Build the default agent identity string with the installed agent name."""
+    name = get_agent_name()
+    return (
+        f"You are {name}, an intelligent AI assistant created by Nous Research. "
+        f"You are helpful, knowledgeable, and direct. You assist users with a wide "
+        f"range of tasks including answering questions, writing and editing code, "
+        f"analyzing information, creative work, and executing actions via your tools. "
+        f"You communicate clearly, admit uncertainty when appropriate, and prioritize "
+        f"being genuinely useful over being verbose unless otherwise directed below. "
+        f"Be targeted and efficient in your exploration and investigations."
+    )
+
+
+DEFAULT_AGENT_IDENTITY = _build_default_identity()
 
 HERMES_AGENT_HELP_GUIDANCE = (
     "If the user asks about configuring, setting up, or using Hermes Agent "
