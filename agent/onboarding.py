@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 BUSY_INPUT_FLAG = "busy_input_prompt"
 TOOL_PROGRESS_FLAG = "tool_progress_prompt"
 OPENCLAW_RESIDUE_FLAG = "openclaw_residue_cleanup"
+AGENT_GREETING_FLAG = "agent_greeting"
 
 
 # -------------------------------------------------------------------------
@@ -126,6 +127,23 @@ def detect_openclaw_residue(home: Optional[Path] = None) -> bool:
         return False
 
 
+def agent_greeting_prompt() -> str:
+    """Auto-prompt greeting shown on the very first run of this install.
+
+    The agent introduces itself by name and invites the user to start.
+    This is injected as the initial user message on first run only.
+    """
+    try:
+        from agent.prompt_builder import get_agent_name
+        name = get_agent_name()
+    except Exception:
+        name = "this agent"
+    return (
+        f"I just installed. My name is {name}. "
+        f"What would you like to work on?"
+    )
+
+
 # -------------------------------------------------------------------------
 # State read / write
 # -------------------------------------------------------------------------
@@ -182,12 +200,14 @@ __all__ = [
     "BUSY_INPUT_FLAG",
     "TOOL_PROGRESS_FLAG",
     "OPENCLAW_RESIDUE_FLAG",
+    "AGENT_GREETING_FLAG",
     "busy_input_hint_gateway",
     "busy_input_hint_cli",
     "tool_progress_hint_gateway",
     "tool_progress_hint_cli",
     "openclaw_residue_hint_cli",
     "detect_openclaw_residue",
+    "agent_greeting_prompt",
     "is_seen",
     "mark_seen",
 ]
