@@ -2696,7 +2696,12 @@ def _build_compact_banner() -> str:
         line1 = "⚕ NOUS HERMES - AI Agent Framework"
         tiny_line = "⚕ NOUS HERMES"
     else:
-        agent_name = _skin.get_branding("agent_name", "Hermes Agent") if _skin else "Hermes Agent"
+        try:
+            from agent.prompt_builder import get_agent_name
+            _agent_name = get_agent_name()
+        except Exception:
+            _agent_name = "Hermes Agent"
+        agent_name = _skin.get_branding("agent_name", _agent_name) if _skin else _agent_name
         line1 = f"{agent_name} - AI Agent Framework"
         tiny_line = agent_name
 
@@ -12628,7 +12633,25 @@ class HermesCLI:
             )
             self._startup_skills_line_shown = True
         self._console_print()
-        
+
+        # First-run agent greeting — on the very first session, the agent
+        # introduces itself by name via an auto-prompt. This is tracked
+        # in onboarding.seen.agent_greeting so it only fires once.
+        try:
+            from agent.onboarding import (
+                AGENT_GREETING_FLAG,
+                agent_greeting_prompt,
+                is_seen,
+                mark_seen,
+            )
+            from hermes_cli.config import get_config_path as _get_cfg_path_greet
+            if not is_seen(self.config, AGENT_GREETING_FLAG):
+                _greeting = agent_greeting_prompt()
+                self._console_print(f"[bold {_welcome_color}]{_greeting}[/]")
+                mark_seen(_get_cfg_path_greet(), AGENT_GREETING_FLAG)
+        except Exception:
+            pass  # greeting is non-critical — never break startup
+
         # State for async operation
         self._agent_running = False
         self._pending_input = queue.Queue()     # For normal input (commands + new queries)
@@ -13350,7 +13373,12 @@ class HermesCLI:
             import signal as _sig
             from prompt_toolkit.application import run_in_terminal
             from hermes_cli.skin_engine import get_active_skin
-            agent_name = get_active_skin().get_branding("agent_name", "Hermes Agent")
+            try:
+                from agent.prompt_builder import get_agent_name
+                _agent_name = get_agent_name()
+            except Exception:
+                _agent_name = "Hermes Agent"
+            agent_name = get_active_skin().get_branding("agent_name", _agent_name)
             msg = f"\n{agent_name} has been suspended. Run `fg` to bring {agent_name} back."
             def _suspend():
                 os.write(1, msg.encode())
