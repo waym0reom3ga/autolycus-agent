@@ -3284,6 +3284,10 @@ def _resolve_chat_argv(
     Appending ``--resume <id>`` to argv doesn't work because ``ui-tui`` does
     not parse its argv.
 
+    ``HERMES_TUI_GATEWAY_URL`` is injected so the PTY child can attach to
+    this process's in-memory ``tui_gateway`` instance instead of spawning
+    its own Python gateway subprocess.
+
     `sidecar_url` (when set) is forwarded as ``HERMES_TUI_SIDECAR_URL`` so
     the spawned ``tui_gateway.entry`` can mirror dispatcher emits to the
     dashboard's ``/api/pub`` endpoint (see :func:`pub_ws`).
@@ -3310,7 +3314,24 @@ def _resolve_chat_argv(
     if sidecar_url:
         env["HERMES_TUI_SIDECAR_URL"] = sidecar_url
 
+    if gateway_ws_url := _build_gateway_ws_url():
+        env["HERMES_TUI_GATEWAY_URL"] = gateway_ws_url
+
     return list(argv), str(cwd) if cwd else None, env
+
+
+def _build_gateway_ws_url() -> Optional[str]:
+    """ws:// URL the PTY child should attach to for JSON-RPC gateway traffic."""
+    host = getattr(app.state, "bound_host", None)
+    port = getattr(app.state, "bound_port", None)
+
+    if not host or not port:
+        return None
+
+    netloc = f"[{host}]:{port}" if ":" in host and not host.startswith("[") else f"{host}:{port}"
+    qs = urllib.parse.urlencode({"token": _SESSION_TOKEN})
+
+    return f"ws://{netloc}/api/ws?{qs}"
 
 
 def _build_sidecar_url(channel: str) -> Optional[str]:
