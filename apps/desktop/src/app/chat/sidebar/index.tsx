@@ -101,6 +101,7 @@ export function ChatSidebar({
   const recentSessions = sortedSessions.filter(session => !visiblePinnedIdSet.has(session.id))
 
   const showSessionSkeletons = sessionsLoading && sortedSessions.length === 0
+  const showSessionSections = showSessionSkeletons || sortedSessions.length > 0
 
   return (
     <Sidebar
@@ -152,7 +153,7 @@ export function ChatSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {sidebarOpen && (
+        {sidebarOpen && showSessionSections && (
           <SidebarGroup className="shrink-0 pl-4 pr-2 pb-1 pt-0">
             <SidebarSectionHeader label="Pinned" onToggle={() => setSidebarPinsOpen(!pinsOpen)} open={pinsOpen} />
             {pinsOpen && (
@@ -180,7 +181,7 @@ export function ChatSidebar({
           </SidebarGroup>
         )}
 
-        {sidebarOpen && (
+        {sidebarOpen && showSessionSections && (
           <SidebarGroup className="min-h-0 flex-1 pl-4 pr-2 py-0">
             <SidebarSectionHeader
               action={
@@ -207,10 +208,7 @@ export function ChatSidebar({
             {recentsOpen && (
               <SidebarGroupContent className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain pb-1.75">
                 {showSessionSkeletons && <SidebarSessionSkeletons />}
-                {!showSessionSkeletons && sortedSessions.length === 0 && <SidebarEmptySessionState />}
-                {!showSessionSkeletons && sortedSessions.length > 0 && recentSessions.length === 0 && (
-                  <SidebarAllPinnedState />
-                )}
+                {!showSessionSkeletons && recentSessions.length === 0 && <SidebarAllPinnedState />}
                 {recentSessions.map(session => (
                   <SidebarSessionRow
                     isPinned={false}
@@ -275,12 +273,6 @@ function SidebarSessionSkeletons() {
         </div>
       ))}
     </div>
-  )
-}
-
-function SidebarEmptySessionState() {
-  return (
-    <p className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground/80">Start a chat to build your history.</p>
   )
 }
 
