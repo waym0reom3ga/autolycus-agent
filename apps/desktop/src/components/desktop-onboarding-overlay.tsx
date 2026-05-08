@@ -38,6 +38,8 @@ interface ApiKeyOption {
   short?: string
 }
 
+const MIN_KEY_LENGTH = 8
+
 const API_KEY_OPTIONS: ApiKeyOption[] = [
   {
     id: 'openrouter',
@@ -97,17 +99,11 @@ const FLOW_SUBTITLES: Record<OAuthProvider['flow'], string> = {
   external: 'Sign in once in your terminal, then come back to chat.'
 }
 
-function providerTitle(provider: OAuthProvider) {
-  return PROVIDER_DISPLAY[provider.id]?.title ?? provider.name
-}
+const providerTitle = (p: OAuthProvider) => PROVIDER_DISPLAY[p.id]?.title ?? p.name
+const orderOf = (p: OAuthProvider) => PROVIDER_DISPLAY[p.id]?.order ?? 99
 
-function sortProviders(providers: OAuthProvider[]) {
-  return [...providers].sort((a, b) => {
-    const order = (PROVIDER_DISPLAY[a.id]?.order ?? 99) - (PROVIDER_DISPLAY[b.id]?.order ?? 99)
-
-    return order !== 0 ? order : a.name.localeCompare(b.name)
-  })
-}
+const sortProviders = (providers: OAuthProvider[]) =>
+  [...providers].sort((a, b) => orderOf(a) - orderOf(b) || a.name.localeCompare(b.name))
 
 export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway }: DesktopOnboardingOverlayProps) {
   const onboarding = useStore($desktopOnboarding)
@@ -124,28 +120,23 @@ export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway 
   )
 
   useEffect(() => {
-    if (!enabled && !onboarding.requested) {
-      return
+    if (enabled || onboarding.requested) {
+      void refreshOnboarding(ctx)
     }
-
-    void refreshOnboarding(ctx)
   }, [ctx, enabled, onboarding.requested])
 
   if (!visible) {
     return null
   }
 
+  const { flow } = onboarding
+  const showPicker = flow.status === 'idle' || flow.status === 'success'
+
   return (
     <div className="fixed inset-0 z-1300 flex items-center justify-center bg-background/80 p-6 backdrop-blur-xl">
       <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-border bg-card/95 shadow-2xl">
         <Header />
-        <div className="grid gap-5 p-6">
-          {onboarding.flow.status === 'idle' || onboarding.flow.status === 'success' ? (
-            <Picker ctx={ctx} />
-          ) : (
-            <FlowPanel ctx={ctx} flow={onboarding.flow} />
-          )}
-        </div>
+        <div className="grid gap-5 p-6">{showPicker ? <Picker ctx={ctx} /> : <FlowPanel ctx={ctx} flow={flow} />}</div>
       </div>
     </div>
   )
@@ -181,18 +172,18 @@ function Picker({ ctx }: { ctx: OnboardingContext }) {
   return (
     <div className="grid gap-3">
       {providers === null ? (
-        <Status icon={<Loader2 className="size-4 animate-spin" />}>Looking up providers...</Status>
+        <Status>Looking up providers...</Status>
       ) : (
         ordered.map(provider => (
           <ProviderRow key={provider.id} onSelect={p => void startProviderOAuth(p, ctx)} provider={provider} />
         ))
       )}
-      <ModeSwitchLink onClick={() => setOnboardingMode('apikey')}>I have an API key</ModeSwitchLink>
+      <FooterLink onClick={() => setOnboardingMode('apikey')}>I have an API key</FooterLink>
     </div>
   )
 }
 
-function ModeSwitchLink({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+function FooterLink({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
     <div className="pt-2 text-center">
       <button
@@ -206,14 +197,7 @@ function ModeSwitchLink({ children, onClick }: { children: React.ReactNode; onCl
   )
 }
 
-function ProviderRow({
-  provider,
-  onSelect
-}: {
-  onSelect: (provider: OAuthProvider) => void
-  provider: OAuthProvider
-}) {
-  const title = providerTitle(provider)
+function ProviderRow({ onSelect, provider }: { onSelect: (provider: OAuthProvider) => void; provider: OAuthProvider }) {
   const loggedIn = provider.status?.logged_in
   const Trail = provider.flow === 'external' ? ExternalLink : ChevronRight
 
@@ -228,7 +212,7 @@ function ProviderRow({
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">{title}</span>
+          <span className="text-sm font-semibold">{providerTitle(provider)}</span>
           {loggedIn ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
               <Check className="size-3" />
@@ -250,7 +234,7 @@ function ApiKeyForm({ canGoBack, ctx }: { canGoBack: boolean; ctx: OnboardingCon
   const [error, setError] = useState<null | string>(null)
 
   const isLocal = option.envKey === 'OPENAI_BASE_URL'
-  const canSave = value.trim().length >= (isLocal ? 1 : 8)
+  const canSave = value.trim().length >= (isLocal ? 1 : MIN_KEY_LENGTH)
 
   const submit = async () => {
     if (!canSave || saving) {
@@ -261,10 +245,10 @@ function ApiKeyForm({ canGoBack, ctx }: { canGoBack: boolean; ctx: OnboardingCon
     setError(null)
     const result = await saveOnboardingApiKey(option.envKey, value, option.name, ctx)
 
-    if (!result.ok) {
-      setError(result.message ?? 'Could not save credential.')
-    } else {
+    if (result.ok) {
       setValue('')
+    } else {
+      setError(result.message ?? 'Could not save credential.')
     }
 
     setSaving(false)
@@ -282,6 +266,7 @@ function ApiKeyForm({ canGoBack, ctx }: { canGoBack: boolean; ctx: OnboardingCon
           Back to sign in
         </button>
       ) : null}
+
       <div className="grid gap-2 sm:grid-cols-2">
         {API_KEY_OPTIONS.map(o => (
           <button
@@ -309,21 +294,14 @@ function ApiKeyForm({ canGoBack, ctx }: { canGoBack: boolean; ctx: OnboardingCon
       <div className="grid gap-2">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm leading-6 text-muted-foreground">{option.description}</p>
-          {option.docsUrl ? (
-            <Button asChild size="xs" variant="ghost">
-              <a href={option.docsUrl} rel="noreferrer" target="_blank">
-                Get a key
-                <ExternalLink className="size-3" />
-              </a>
-            </Button>
-          ) : null}
+          {option.docsUrl ? <DocsLink href={option.docsUrl}>Get a key</DocsLink> : null}
         </div>
         <Input
           autoComplete="off"
           autoFocus
           className="font-mono"
-          onChange={event => setValue(event.target.value)}
-          onKeyDown={event => event.key === 'Enter' && void submit()}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && void submit()}
           placeholder={option.placeholder || 'Paste API key'}
           type={isLocal ? 'text' : 'password'}
           value={value}
@@ -345,11 +323,11 @@ function FlowPanel({ ctx, flow }: { ctx: OnboardingContext; flow: OnboardingFlow
   const title = 'provider' in flow && flow.provider ? providerTitle(flow.provider) : ''
 
   if (flow.status === 'starting') {
-    return <Status icon={<Loader2 className="size-4 animate-spin" />}>Starting sign-in for {title}...</Status>
+    return <Status>Starting sign-in for {title}...</Status>
   }
 
   if (flow.status === 'submitting') {
-    return <Status icon={<Loader2 className="size-4 animate-spin" />}>Verifying your code with {title}...</Status>
+    return <Status>Verifying your code with {title}...</Status>
   }
 
   if (flow.status === 'success') {
@@ -378,80 +356,45 @@ function FlowPanel({ ctx, flow }: { ctx: OnboardingContext; flow: OnboardingFlow
 
   if (flow.status === 'awaiting_user') {
     return (
-      <div className="grid gap-4">
-        <div>
-          <h3 className="text-sm font-semibold">Sign in with {title}</h3>
-          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-            <li>We opened {title} in your browser.</li>
-            <li>Authorize Hermes there.</li>
-            <li>Copy the authorization code and paste it below.</li>
-          </ol>
-        </div>
+      <Step title={`Sign in with ${title}`}>
+        <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+          <li>We opened {title} in your browser.</li>
+          <li>Authorize Hermes there.</li>
+          <li>Copy the authorization code and paste it below.</li>
+        </ol>
         <Input
           autoFocus
-          onChange={event => setOnboardingCode(event.target.value)}
-          onKeyDown={event => event.key === 'Enter' && void submitOnboardingCode(ctx)}
+          onChange={e => setOnboardingCode(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && void submitOnboardingCode(ctx)}
           placeholder="Paste authorization code"
           value={flow.code}
         />
-        <div className="flex items-center justify-between gap-3">
-          <Button asChild size="xs" variant="ghost">
-            <a href={flow.start.auth_url} rel="noreferrer" target="_blank">
-              <ExternalLink className="size-3" />
-              Re-open authorization page
-            </a>
+        <FlowFooter left={<DocsLink href={flow.start.auth_url}>Re-open authorization page</DocsLink>}>
+          <CancelBtn />
+          <Button disabled={!flow.code.trim()} onClick={() => void submitOnboardingCode(ctx)}>
+            Continue
           </Button>
-          <div className="flex gap-2">
-            <Button onClick={cancelOnboardingFlow} variant="ghost">
-              Cancel
-            </Button>
-            <Button disabled={!flow.code.trim()} onClick={() => void submitOnboardingCode(ctx)}>
-              Continue
-            </Button>
-          </div>
-        </div>
-      </div>
+        </FlowFooter>
+      </Step>
     )
   }
 
   if (flow.status === 'external_pending') {
     return (
-      <div className="grid gap-4">
-        <div>
-          <h3 className="text-sm font-semibold">Sign in with {title}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {title} signs in through its own CLI. Run this command in a terminal, then come back and pick "I've signed
-            in":
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-secondary/30 px-4 py-3">
-          <code className="font-mono text-sm">{flow.provider.cli_command}</code>
-          <Button onClick={() => void copyExternalCommand()} size="sm" variant="outline">
-            {flow.copied ? <Check className="size-4" /> : 'Copy'}
+      <Step title={`Sign in with ${title}`}>
+        <p className="text-sm text-muted-foreground">
+          {title} signs in through its own CLI. Run this command in a terminal, then come back and pick "I've signed
+          in":
+        </p>
+        <CodeBlock copied={flow.copied} onCopy={() => void copyExternalCommand()} text={flow.provider.cli_command} />
+        <FlowFooter left={flow.provider.docs_url ? <DocsLink href={flow.provider.docs_url}>{title} docs</DocsLink> : null}>
+          <CancelBtn />
+          <Button onClick={() => void recheckExternalSignin(ctx)}>
+            <Check className="size-4" />
+            I've signed in
           </Button>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          {flow.provider.docs_url ? (
-            <Button asChild size="xs" variant="ghost">
-              <a href={flow.provider.docs_url} rel="noreferrer" target="_blank">
-                <ExternalLink className="size-3" />
-                {title} docs
-              </a>
-            </Button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            <Button onClick={cancelOnboardingFlow} variant="ghost">
-              Cancel
-            </Button>
-            <Button onClick={() => void recheckExternalSignin(ctx)}>
-              <Check className="size-4" />
-              I've signed in
-            </Button>
-          </div>
-        </div>
-      </div>
+        </FlowFooter>
+      </Step>
     )
   }
 
@@ -460,44 +403,82 @@ function FlowPanel({ ctx, flow }: { ctx: OnboardingContext; flow: OnboardingFlow
   }
 
   return (
+    <Step title={`Sign in with ${title}`}>
+      <p className="text-sm text-muted-foreground">We opened {title} in your browser. Enter this code there:</p>
+      <CodeBlock copied={flow.copied} large onCopy={() => void copyDeviceCode()} text={flow.start.user_code} />
+      <FlowFooter left={<DocsLink href={flow.start.verification_url}>Re-open verification page</DocsLink>}>
+        <span className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="size-3 animate-spin" />
+          Waiting for you to authorize...
+        </span>
+        <CancelBtn size="sm" />
+      </FlowFooter>
+    </Step>
+  )
+}
+
+function Step({ children, title }: { children: React.ReactNode; title: string }) {
+  return (
     <div className="grid gap-4">
-      <div>
-        <h3 className="text-sm font-semibold">Sign in with {title}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          We opened {title} in your browser. Enter this code there:
-        </p>
-      </div>
-      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-secondary/30 px-4 py-3">
-        <code className="font-mono text-2xl tracking-[0.4em]">{flow.start.user_code}</code>
-        <Button onClick={() => void copyDeviceCode()} size="sm" variant="outline">
-          {flow.copied ? <Check className="size-4" /> : 'Copy'}
-        </Button>
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <Button asChild size="xs" variant="ghost">
-          <a href={flow.start.verification_url} rel="noreferrer" target="_blank">
-            <ExternalLink className="size-3" />
-            Re-open verification page
-          </a>
-        </Button>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="size-3 animate-spin" />
-            Waiting for you to authorize...
-          </div>
-          <Button onClick={cancelOnboardingFlow} size="sm" variant="ghost">
-            Cancel
-          </Button>
-        </div>
-      </div>
+      <h3 className="text-sm font-semibold">{title}</h3>
+      {children}
     </div>
   )
 }
 
-function Status({ children, icon }: { children: React.ReactNode; icon: React.ReactNode }) {
+function CodeBlock({
+  copied,
+  large,
+  onCopy,
+  text
+}: {
+  copied: boolean
+  large?: boolean
+  onCopy: () => void
+  text: string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-secondary/30 px-4 py-3">
+      <code className={cn('font-mono', large ? 'text-2xl tracking-[0.4em]' : 'text-sm')}>{text}</code>
+      <Button onClick={onCopy} size="sm" variant="outline">
+        {copied ? <Check className="size-4" /> : 'Copy'}
+      </Button>
+    </div>
+  )
+}
+
+function FlowFooter({ children, left }: { children: React.ReactNode; left?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">{left}</div>
+      <div className="flex items-center gap-3">{children}</div>
+    </div>
+  )
+}
+
+function CancelBtn({ size = 'default' }: { size?: 'default' | 'sm' }) {
+  return (
+    <Button onClick={cancelOnboardingFlow} size={size} variant="ghost">
+      Cancel
+    </Button>
+  )
+}
+
+function DocsLink({ children, href }: { children: React.ReactNode; href: string }) {
+  return (
+    <Button asChild size="xs" variant="ghost">
+      <a href={href} rel="noreferrer" target="_blank">
+        <ExternalLink className="size-3" />
+        {children}
+      </a>
+    </Button>
+  )
+}
+
+function Status({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 rounded-2xl bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
-      {icon}
+      <Loader2 className="size-4 animate-spin" />
       {children}
     </div>
   )

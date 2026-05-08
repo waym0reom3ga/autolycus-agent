@@ -11,13 +11,16 @@ import {
 import { notify, notifyError } from '@/store/notifications'
 import type { OAuthProvider, OAuthStartResponse } from '@/types/hermes'
 
+type PkceStart = Extract<OAuthStartResponse, { flow: 'pkce' }>
+type DeviceStart = Extract<OAuthStartResponse, { flow: 'device_code' }>
+
 export type OnboardingMode = 'apikey' | 'oauth'
 
 export type OnboardingFlow =
   | { status: 'idle' }
   | { provider: OAuthProvider; status: 'starting' }
-  | { code: string; provider: OAuthProvider; start: Extract<OAuthStartResponse, { flow: 'pkce' }>; status: 'awaiting_user' }
-  | { copied: boolean; provider: OAuthProvider; start: Extract<OAuthStartResponse, { flow: 'device_code' }>; status: 'polling' }
+  | { code: string; provider: OAuthProvider; start: PkceStart; status: 'awaiting_user' }
+  | { copied: boolean; provider: OAuthProvider; start: DeviceStart; status: 'polling' }
   | { provider: OAuthProvider; start: OAuthStartResponse; status: 'submitting' }
   | { copied: boolean; provider: OAuthProvider; status: 'external_pending' }
   | { provider: OAuthProvider; status: 'success' }
@@ -32,6 +35,11 @@ export interface DesktopOnboardingState {
   requested: boolean
 }
 
+export interface OnboardingContext {
+  onCompleted?: () => void
+  requestGateway: <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>
+}
+
 const INITIAL: DesktopOnboardingState = {
   configured: true,
   flow: { status: 'idle' },
@@ -41,32 +49,21 @@ const INITIAL: DesktopOnboardingState = {
   requested: false
 }
 
-export const $desktopOnboarding = atom<DesktopOnboardingState>(INITIAL)
-
-export interface OnboardingContext {
-  onCompleted?: () => void
-  requestGateway: <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>
-}
-
 const POLL_MS = 2000
+const COPY_FLASH_MS = 1500
 
-const BUSY: ReadonlySet<OnboardingFlow['status']> = new Set([
-  'starting',
-  'awaiting_user',
-  'polling',
-  'submitting',
-  'external_pending'
-])
+export const $desktopOnboarding = atom<DesktopOnboardingState>(INITIAL)
 
 let pollTimer: number | null = null
 
-function patch(update: Partial<DesktopOnboardingState>) {
-  $desktopOnboarding.set({ ...$desktopOnboarding.get(), ...update })
-}
+const errMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-function setFlow(flow: OnboardingFlow) {
-  patch({ flow })
-}
+const patch = (update: Partial<DesktopOnboardingState>) =>
+  $desktopOnboarding.set({ ...$desktopOnboarding.get(), ...update })
+
+const setFlow = (flow: OnboardingFlow) => patch({ flow })
+
+const sessionIdFor = (flow: OnboardingFlow) => ('start' in flow && flow.start ? flow.start.session_id : undefined)
 
 function clearPoll() {
   if (pollTimer !== null) {
@@ -75,21 +72,38 @@ function clearPoll() {
   }
 }
 
-function errMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
+async function safeReq<T>(ctx: OnboardingContext, method: string, fallback: T): Promise<T> {
+  try {
+    return await ctx.requestGateway<T>(method)
+  } catch {
+    return fallback
+  }
 }
 
 async function checkRuntime(ctx: OnboardingContext) {
   const [status, runtime] = await Promise.all([
-    ctx.requestGateway<{ provider_configured?: boolean }>('setup.status').catch(
-      () => ({}) as { provider_configured?: boolean }
-    ),
-    ctx
-      .requestGateway<{ error?: string; ok?: boolean }>('setup.runtime_check')
-      .catch(() => ({ ok: false }) as { error?: string; ok?: boolean })
+    safeReq<{ provider_configured?: boolean }>(ctx, 'setup.status', {}),
+    safeReq<{ error?: string; ok?: boolean }>(ctx, 'setup.runtime_check', { ok: false })
   ])
 
   return runtime.ok !== undefined ? Boolean(runtime.ok) : Boolean(status.provider_configured)
+}
+
+function notifyReady(provider: string) {
+  notify({ kind: 'success', title: 'Hermes is ready', message: `${provider} connected.` })
+}
+
+async function reloadAndConnect(ctx: OnboardingContext, providerName: string, onFail: () => void) {
+  await ctx.requestGateway('reload.env').catch(() => undefined)
+  const ok = await checkRuntime(ctx)
+
+  if (ok) {
+    notifyReady(providerName)
+    completeDesktopOnboarding()
+    ctx.onCompleted?.()
+  } else {
+    onFail()
+  }
 }
 
 export function requestDesktopOnboarding(reason = 'No inference provider is configured.') {
@@ -106,9 +120,7 @@ export function setOnboardingMode(mode: OnboardingMode) {
 }
 
 export async function refreshOnboarding(ctx: OnboardingContext) {
-  const ok = await checkRuntime(ctx)
-
-  if (ok) {
+  if (await checkRuntime(ctx)) {
     completeDesktopOnboarding()
     ctx.onCompleted?.()
 
@@ -123,10 +135,7 @@ export async function refreshOnboarding(ctx: OnboardingContext) {
 
   try {
     const { providers } = await listOAuthProviders()
-    patch({
-      providers,
-      mode: providers.length > 0 ? 'oauth' : 'apikey'
-    })
+    patch({ providers, mode: providers.length > 0 ? 'oauth' : 'apikey' })
   } catch {
     patch({ providers: [], mode: 'apikey' })
   }
@@ -134,34 +143,15 @@ export async function refreshOnboarding(ctx: OnboardingContext) {
   return false
 }
 
-async function finalize(provider: OAuthProvider, ctx: OnboardingContext) {
-  clearPoll()
-  setFlow({ status: 'success', provider })
-  notify({ kind: 'success', title: 'Hermes is ready', message: `${provider.name} connected.` })
-  await ctx.requestGateway('reload.env').catch(() => undefined)
-  const ok = await checkRuntime(ctx)
-
-  if (ok) {
-    completeDesktopOnboarding()
-    ctx.onCompleted?.()
-  } else {
-    setFlow({
-      status: 'error',
-      provider,
-      message: 'Connected, but Hermes still cannot resolve a usable provider.'
-    })
-  }
-}
-
 export async function startProviderOAuth(provider: OAuthProvider, ctx: OnboardingContext) {
+  clearPoll()
+
   if (provider.flow === 'external') {
-    clearPoll()
     setFlow({ status: 'external_pending', provider, copied: false })
 
     return
   }
 
-  clearPoll()
   setFlow({ status: 'starting', provider })
 
   try {
@@ -181,24 +171,23 @@ export async function startProviderOAuth(provider: OAuthProvider, ctx: Onboardin
   }
 }
 
-async function pollDevice(
-  provider: OAuthProvider,
-  start: Extract<OAuthStartResponse, { flow: 'device_code' }>,
-  ctx: OnboardingContext
-) {
+async function pollDevice(provider: OAuthProvider, start: DeviceStart, ctx: OnboardingContext) {
   try {
-    const resp = await pollOAuthSession(provider.id, start.session_id)
+    const { error_message, status } = await pollOAuthSession(provider.id, start.session_id)
 
-    if (resp.status === 'approved') {
-      await finalize(provider, ctx)
-    } else if (resp.status !== 'pending') {
+    if (status === 'approved') {
       clearPoll()
-      setFlow({
-        status: 'error',
-        provider,
-        start,
-        message: resp.error_message || `Sign-in ${resp.status}.`
-      })
+      setFlow({ status: 'success', provider })
+      await reloadAndConnect(ctx, provider.name, () =>
+        setFlow({
+          status: 'error',
+          provider,
+          message: 'Connected, but Hermes still cannot resolve a usable provider.'
+        })
+      )
+    } else if (status !== 'pending') {
+      clearPoll()
+      setFlow({ status: 'error', provider, start, message: error_message || `Sign-in ${status}.` })
     }
   } catch (error) {
     clearPoll()
@@ -228,7 +217,14 @@ export async function submitOnboardingCode(ctx: OnboardingContext) {
     const resp = await submitOAuthCode(provider.id, start.session_id, code.trim())
 
     if (resp.ok && resp.status === 'approved') {
-      await finalize(provider, ctx)
+      setFlow({ status: 'success', provider })
+      await reloadAndConnect(ctx, provider.name, () =>
+        setFlow({
+          status: 'error',
+          provider,
+          message: 'Connected, but Hermes still cannot resolve a usable provider.'
+        })
+      )
     } else {
       setFlow({ status: 'error', provider, start, message: resp.message || 'Token exchange failed.' })
     }
@@ -238,15 +234,8 @@ export async function submitOnboardingCode(ctx: OnboardingContext) {
 }
 
 export function cancelOnboardingFlow() {
-  const { flow } = $desktopOnboarding.get()
   clearPoll()
-
-  const sessionId =
-    flow.status === 'awaiting_user' || flow.status === 'polling' || flow.status === 'submitting'
-      ? flow.start?.session_id
-      : flow.status === 'error'
-        ? flow.start?.session_id
-        : undefined
+  const sessionId = sessionIdFor($desktopOnboarding.get().flow)
 
   if (sessionId) {
     cancelOAuthSession(sessionId).catch(() => undefined)
@@ -275,7 +264,7 @@ async function copyAndFlash(text: string, predicate: (flow: OnboardingFlow) => b
     if (predicate(current) && 'copied' in current) {
       setFlow({ ...current, copied: false })
     }
-  }, 1500)
+  }, COPY_FLASH_MS)
 }
 
 export async function copyDeviceCode() {
@@ -285,10 +274,8 @@ export async function copyDeviceCode() {
     return
   }
 
-  await copyAndFlash(
-    flow.start.user_code,
-    f => f.status === 'polling' && f.start.session_id === flow.start.session_id
-  )
+  const sid = flow.start.session_id
+  await copyAndFlash(flow.start.user_code, f => f.status === 'polling' && f.start.session_id === sid)
 }
 
 export async function copyExternalCommand() {
@@ -298,7 +285,8 @@ export async function copyExternalCommand() {
     return
   }
 
-  await copyAndFlash(flow.provider.cli_command, f => f.status === 'external_pending' && f.provider.id === flow.provider.id)
+  const id = flow.provider.id
+  await copyAndFlash(flow.provider.cli_command, f => f.status === 'external_pending' && f.provider.id === id)
 }
 
 export async function recheckExternalSignin(ctx: OnboardingContext) {
@@ -308,19 +296,14 @@ export async function recheckExternalSignin(ctx: OnboardingContext) {
     return
   }
 
-  const ok = await checkRuntime(ctx)
-
-  if (ok) {
-    notify({ kind: 'success', title: 'Hermes is ready', message: `${flow.provider.name} connected.` })
-    completeDesktopOnboarding()
-    ctx.onCompleted?.()
-  } else {
+  const { provider } = flow
+  await reloadAndConnect(ctx, provider.name, () =>
     setFlow({
       status: 'error',
-      provider: flow.provider,
-      message: `Hermes still cannot reach ${flow.provider.name}. Run \`${flow.provider.cli_command}\` in a terminal first.`
+      provider,
+      message: `Hermes still cannot reach ${provider.name}. Run \`${provider.cli_command}\` in a terminal first.`
     })
-  }
+  )
 }
 
 export async function saveOnboardingApiKey(envKey: string, value: string, label: string, ctx: OnboardingContext) {
@@ -332,25 +315,19 @@ export async function saveOnboardingApiKey(envKey: string, value: string, label:
 
   try {
     await setEnvVar(envKey, trimmed)
-    await ctx.requestGateway('reload.env').catch(() => undefined)
-    const ok = await checkRuntime(ctx)
+    let stillFailing = false
+    await reloadAndConnect(ctx, label, () => {
+      stillFailing = true
+    })
 
-    if (ok) {
-      notify({ kind: 'success', title: 'Hermes is ready', message: `${label} connected.` })
-      completeDesktopOnboarding()
-      ctx.onCompleted?.()
-
-      return { ok: true }
+    if (stillFailing) {
+      return { ok: false, message: `Saved, but Hermes still cannot reach ${label}. Double-check the value.` }
     }
 
-    return { ok: false, message: `Saved, but Hermes still cannot reach ${label}. Double-check the value.` }
+    return { ok: true }
   } catch (error) {
     notifyError(error, `Could not save ${label}`)
 
     return { ok: false, message: errMessage(error) }
   }
-}
-
-export function isOnboardingBusy(flow: OnboardingFlow) {
-  return BUSY.has(flow.status)
 }
