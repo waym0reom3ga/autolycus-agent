@@ -19,6 +19,7 @@ export type OnboardingFlow =
   | { code: string; provider: OAuthProvider; start: Extract<OAuthStartResponse, { flow: 'pkce' }>; status: 'awaiting_user' }
   | { copied: boolean; provider: OAuthProvider; start: Extract<OAuthStartResponse, { flow: 'device_code' }>; status: 'polling' }
   | { provider: OAuthProvider; start: OAuthStartResponse; status: 'submitting' }
+  | { copied: boolean; provider: OAuthProvider; status: 'external_pending' }
   | { provider: OAuthProvider; status: 'success' }
   | { message: string; provider?: OAuthProvider; start?: OAuthStartResponse; status: 'error' }
 
@@ -48,7 +49,14 @@ export interface OnboardingContext {
 }
 
 const POLL_MS = 2000
-const BUSY: ReadonlySet<OnboardingFlow['status']> = new Set(['starting', 'awaiting_user', 'polling', 'submitting'])
+
+const BUSY: ReadonlySet<OnboardingFlow['status']> = new Set([
+  'starting',
+  'awaiting_user',
+  'polling',
+  'submitting',
+  'external_pending'
+])
 
 let pollTimer: number | null = null
 
@@ -147,11 +155,8 @@ async function finalize(provider: OAuthProvider, ctx: OnboardingContext) {
 
 export async function startProviderOAuth(provider: OAuthProvider, ctx: OnboardingContext) {
   if (provider.flow === 'external') {
-    notify({
-      kind: 'info',
-      title: `${provider.name} uses an external CLI`,
-      message: `Run \`${provider.cli_command}\` in a terminal, then come back to retry.`
-    })
+    clearPoll()
+    setFlow({ status: 'external_pending', provider, copied: false })
 
     return
   }
@@ -250,6 +255,29 @@ export function cancelOnboardingFlow() {
   setFlow({ status: 'idle' })
 }
 
+async function copyAndFlash(text: string, predicate: (flow: OnboardingFlow) => boolean) {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    return
+  }
+
+  const { flow } = $desktopOnboarding.get()
+
+  if (!predicate(flow) || !('copied' in flow)) {
+    return
+  }
+
+  setFlow({ ...flow, copied: true })
+  window.setTimeout(() => {
+    const current = $desktopOnboarding.get().flow
+
+    if (predicate(current) && 'copied' in current) {
+      setFlow({ ...current, copied: false })
+    }
+  }, 1500)
+}
+
 export async function copyDeviceCode() {
   const { flow } = $desktopOnboarding.get()
 
@@ -257,18 +285,41 @@ export async function copyDeviceCode() {
     return
   }
 
-  try {
-    await navigator.clipboard.writeText(flow.start.user_code)
-    setFlow({ ...flow, copied: true })
-    window.setTimeout(() => {
-      const current = $desktopOnboarding.get().flow
+  await copyAndFlash(
+    flow.start.user_code,
+    f => f.status === 'polling' && f.start.session_id === flow.start.session_id
+  )
+}
 
-      if (current.status === 'polling' && current.start.session_id === flow.start.session_id) {
-        setFlow({ ...current, copied: false })
-      }
-    }, 1500)
-  } catch {
-    // Clipboard write blocked — user can still type the code from the dialog.
+export async function copyExternalCommand() {
+  const { flow } = $desktopOnboarding.get()
+
+  if (flow.status !== 'external_pending') {
+    return
+  }
+
+  await copyAndFlash(flow.provider.cli_command, f => f.status === 'external_pending' && f.provider.id === flow.provider.id)
+}
+
+export async function recheckExternalSignin(ctx: OnboardingContext) {
+  const { flow } = $desktopOnboarding.get()
+
+  if (flow.status !== 'external_pending') {
+    return
+  }
+
+  const ok = await checkRuntime(ctx)
+
+  if (ok) {
+    notify({ kind: 'success', title: 'Hermes is ready', message: `${flow.provider.name} connected.` })
+    completeDesktopOnboarding()
+    ctx.onCompleted?.()
+  } else {
+    setFlow({
+      status: 'error',
+      provider: flow.provider,
+      message: `Hermes still cannot reach ${flow.provider.name}. Run \`${flow.provider.cli_command}\` in a terminal first.`
+    })
   }
 }
 

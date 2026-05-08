@@ -9,8 +9,10 @@ import {
   $desktopOnboarding,
   cancelOnboardingFlow,
   copyDeviceCode,
+  copyExternalCommand,
   type OnboardingContext,
   type OnboardingFlow,
+  recheckExternalSignin,
   refreshOnboarding,
   saveOnboardingApiKey,
   setOnboardingCode,
@@ -224,7 +226,7 @@ function ModeTabs<T extends string>({ mode, onChange, tabs }: ModeTabsProps<T>) 
     <div
       aria-label="Connection method"
       className={cn(
-        'grid w-full max-w-xs gap-1 rounded-full border border-border bg-muted/40 p-1 text-xs font-medium',
+        'mx-auto grid w-full max-w-xs gap-1 rounded-full border border-border bg-muted/40 p-1 text-xs font-medium',
         TAB_COLS[tabs.length] ?? 'grid-cols-2'
       )}
       role="tablist"
@@ -439,6 +441,47 @@ function FlowPanel({ ctx, flow }: { ctx: OnboardingContext; flow: OnboardingFlow
             </Button>
             <Button disabled={!flow.code.trim()} onClick={() => void submitOnboardingCode(ctx)}>
               Continue
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (flow.status === 'external_pending') {
+    return (
+      <div className="grid gap-4">
+        <div>
+          <h3 className="text-sm font-semibold">Sign in with {title}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {title} signs in through its own CLI. Run this command in a terminal, then come back and pick "I've signed
+            in":
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-secondary/30 px-4 py-3">
+          <code className="font-mono text-sm">{flow.provider.cli_command}</code>
+          <Button onClick={() => void copyExternalCommand()} size="sm" variant="outline">
+            {flow.copied ? <Check className="size-4" /> : 'Copy'}
+          </Button>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          {flow.provider.docs_url ? (
+            <Button asChild size="xs" variant="ghost">
+              <a href={flow.provider.docs_url} rel="noreferrer" target="_blank">
+                <ExternalLink className="size-3" />
+                {title} docs
+              </a>
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button onClick={cancelOnboardingFlow} variant="ghost">
+              Cancel
+            </Button>
+            <Button onClick={() => void recheckExternalSignin(ctx)}>
+              <Check className="size-4" />
+              I've signed in
             </Button>
           </div>
         </div>
