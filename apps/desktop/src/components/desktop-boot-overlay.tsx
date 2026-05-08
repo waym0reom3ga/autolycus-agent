@@ -3,9 +3,18 @@ import { useStore } from '@nanostores/react'
 import { Loader } from '@/components/ui/loader'
 import { cn } from '@/lib/utils'
 import { $desktopBoot } from '@/store/boot'
+import { $desktopOnboarding } from '@/store/onboarding'
 
 export function DesktopBootOverlay() {
   const boot = useStore($desktopBoot)
+  const onboarding = useStore($desktopOnboarding)
+
+  // Onboarding overlay covers the whole "first run" UX: it mounts from frame 1
+  // and renders boot progress inline. Yield to it whenever it has not yet
+  // confirmed the user is configured.
+  if (onboarding.configured !== true) {
+    return null
+  }
 
   if (!boot.visible) {
     return null

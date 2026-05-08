@@ -27,7 +27,9 @@ export type OnboardingFlow =
   | { message: string; provider?: OAuthProvider; start?: OAuthStartResponse; status: 'error' }
 
 export interface DesktopOnboardingState {
-  configured: boolean
+  /** null until the first runtime check resolves; lets the overlay render
+   *  during boot without flickering for already-configured users. */
+  configured: boolean | null
   flow: OnboardingFlow
   mode: OnboardingMode
   providers: null | OAuthProvider[]
@@ -41,7 +43,7 @@ export interface OnboardingContext {
 }
 
 const INITIAL: DesktopOnboardingState = {
-  configured: true,
+  configured: null,
   flow: { status: 'idle' },
   mode: 'oauth',
   providers: null,

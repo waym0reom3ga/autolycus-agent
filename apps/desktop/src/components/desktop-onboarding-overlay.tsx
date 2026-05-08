@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Check, ChevronLeft, ChevronRight, ExternalLink, KeyRound, Loader2, Sparkles } from '@/lib/icons'
 import { cn } from '@/lib/utils'
+import { $desktopBoot, type DesktopBootState } from '@/store/boot'
 import {
   $desktopOnboarding,
   cancelOnboardingFlow,
@@ -107,7 +108,7 @@ const sortProviders = (providers: OAuthProvider[]) =>
 
 export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway }: DesktopOnboardingOverlayProps) {
   const onboarding = useStore($desktopOnboarding)
-  const visible = (enabled || onboarding.requested) && !onboarding.configured
+  const boot = useStore($desktopBoot)
   const ctxRef = useRef<OnboardingContext>({ requestGateway, onCompleted })
   ctxRef.current = { requestGateway, onCompleted }
 
@@ -125,19 +126,60 @@ export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway 
     }
   }, [ctx, enabled, onboarding.requested])
 
-  if (!visible) {
+  // Mount from frame 1 so we replace the boot overlay seamlessly. The
+  // configured field stays null until the runtime check resolves; only then
+  // do we know whether to dismiss (true) or surface the picker (false).
+  if (onboarding.configured === true) {
     return null
   }
 
   const { flow } = onboarding
+  const ready = enabled && onboarding.configured === false
   const showPicker = flow.status === 'idle' || flow.status === 'success'
 
   return (
     <div className="fixed inset-0 z-1300 flex items-center justify-center bg-background/80 p-6 backdrop-blur-xl">
       <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-border bg-card/95 shadow-2xl">
         <Header />
-        <div className="grid gap-5 p-6">{showPicker ? <Picker ctx={ctx} /> : <FlowPanel ctx={ctx} flow={flow} />}</div>
+        <div className="grid gap-5 p-6">
+          {ready ? (
+            showPicker ? (
+              <Picker ctx={ctx} />
+            ) : (
+              <FlowPanel ctx={ctx} flow={flow} />
+            )
+          ) : (
+            <Preparing boot={boot} />
+          )}
+        </div>
       </div>
+    </div>
+  )
+}
+
+function Preparing({ boot }: { boot: DesktopBootState }) {
+  const progress = Math.max(2, Math.min(100, Math.round(boot.progress)))
+  const hasError = Boolean(boot.error)
+
+  return (
+    <div className="grid gap-3" role="status">
+      <p className="text-sm text-muted-foreground">
+        While we get you set up — Hermes is finishing install. This usually takes under a minute on first run.
+      </p>
+      <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            'h-full rounded-full bg-primary transition-[width] duration-300 ease-out',
+            hasError && 'bg-destructive'
+          )}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span className="truncate">{boot.message}</span>
+        <span>{progress}%</span>
+      </div>
+      {hasError ? <p className="text-xs text-destructive">{boot.error}</p> : null}
     </div>
   )
 }
