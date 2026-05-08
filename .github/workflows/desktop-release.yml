@@ -196,6 +196,8 @@ jobs:
 
       - name: Build desktop installers
         shell: bash
+        env:
+          NODE_OPTIONS: --max-old-space-size=16384
         run: |
           set -euo pipefail
           npm --prefix apps/desktop exec electron-builder -- \

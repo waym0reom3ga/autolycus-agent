@@ -7,12 +7,11 @@ export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss()],
   build: {
-    rollupOptions: {
+    // Keep desktop packaging stable: Shiki ships many dynamic chunks by
+    // default, and electron-builder can OOM scanning thousands of files.
+    rolldownOptions: {
       output: {
-        manualChunks: {
-          shiki: ['react-shiki', 'shiki'],
-          streamdown: ['@assistant-ui/react-streamdown', '@streamdown/code', 'streamdown']
-        }
+        codeSplitting: false
       }
     }
   },

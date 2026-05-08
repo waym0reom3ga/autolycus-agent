@@ -33,9 +33,15 @@ HERMES_DESKTOP_HERMES_ROOT=/path/to/hermes-agent npm run dev
 HERMES_DESKTOP_PYTHON=/path/to/python npm run dev
 HERMES_DESKTOP_CWD=/path/to/project npm run dev
 HERMES_DESKTOP_IGNORE_EXISTING=1 npm run dev
+HERMES_DESKTOP_BOOT_FAKE=1 npm run dev
+HERMES_DESKTOP_BOOT_FAKE=1 HERMES_DESKTOP_BOOT_FAKE_STEP_MS=900 npm run dev
 ```
 
 `HERMES_DESKTOP_IGNORE_EXISTING=1` skips any `hermes` CLI already on `PATH`, which is useful when testing the bundled/runtime bootstrap path.
+
+`HERMES_DESKTOP_BOOT_FAKE=1` adds deterministic per-phase delays to desktop startup so you can validate the startup overlay and progress bar. For convenience, `npm run dev:fake-boot` enables fake mode with defaults.
+
+On a fresh Hermes profile, Desktop shows a first-run setup overlay after boot. The overlay saves the minimum required provider credential (for example `OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY`) to the active Hermes `.env`, reloads the backend env, and then lets the user continue without opening Settings manually.
 
 ## Dashboard Dev
 
@@ -115,13 +121,19 @@ npm run test:desktop:all
 npm run test:desktop:existing
 npm run test:desktop:fresh
 npm run test:desktop:dmg
+npm run test:desktop:platforms
 ```
 
 `test:desktop:existing` builds the packaged app and opens it normally. It should use an existing `hermes` CLI if one is on `PATH`, preserving the user’s real `~/.hermes` config.
 
-`test:desktop:fresh` builds the packaged app, deletes the bundled desktop runtime, sets `HERMES_DESKTOP_IGNORE_EXISTING=1`, and launches the app through the bundled payload path. Use this repeatedly to test first-run bootstrap.
+`test:desktop:fresh` builds the packaged app and launches it in a throwaway fresh-install sandbox. It sets `HERMES_DESKTOP_IGNORE_EXISTING=1`, points Electron `userData` at a temp dir, points `HERMES_HOME` at a temp dir, and launches through the bundled payload path without touching your real desktop runtime or `~/.hermes`.
 
 `test:desktop:dmg` builds and opens the DMG.
+
+`test:desktop:platforms` runs platform bootstrap-path assertions, including:
+- existing vs bundled runtime path selection semantics
+- WSL2 protection against Windows `.exe/.cmd/.bat/.ps1` overrides
+- platform-specific bundled runtime import checks (`winpty` vs `ptyprocess`)
 
 For fast reruns without rebuilding:
 

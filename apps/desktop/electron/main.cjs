@@ -19,6 +19,18 @@ const net = require('node:net')
 const path = require('node:path')
 const { fileURLToPath, pathToFileURL } = require('node:url')
 const { spawn } = require('node:child_process')
+const {
+  bundledRuntimeImportCheck,
+  isWindowsBinaryPathInWsl,
+  isWslEnvironment
+} = require('./bootstrap-platform.cjs')
+
+const USER_DATA_OVERRIDE = process.env.HERMES_DESKTOP_USER_DATA_DIR
+if (USER_DATA_OVERRIDE) {
+  const resolvedUserData = path.resolve(USER_DATA_OVERRIDE)
+  fs.mkdirSync(resolvedUserData, { recursive: true })
+  app.setPath('userData', resolvedUserData)
+}
 
 const PORT_FLOOR = 9120
 const PORT_CEILING = 9199
@@ -26,6 +38,7 @@ const DEV_SERVER = process.env.HERMES_DESKTOP_DEV_SERVER
 const IS_PACKAGED = app.isPackaged
 const IS_MAC = process.platform === 'darwin'
 const IS_WINDOWS = process.platform === 'win32'
+const IS_WSL = isWslEnvironment()
 const APP_ROOT = app.getAppPath()
 const SOURCE_REPO_ROOT = path.resolve(APP_ROOT, '../..')
 const BUNDLED_HERMES_ROOT = path.join(process.resourcesPath, 'hermes-agent')
@@ -34,6 +47,12 @@ const BUNDLED_VENV_MARKER = path.join(BUNDLED_VENV_ROOT, '.hermes-desktop-runtim
 const DESKTOP_LOG_PATH = path.join(app.getPath('userData'), 'desktop.log')
 const DESKTOP_LOG_FLUSH_MS = 120
 const DESKTOP_LOG_BUFFER_MAX_CHARS = 64 * 1024
+const BOOT_FAKE_MODE = process.env.HERMES_DESKTOP_BOOT_FAKE === '1'
+const BOOT_FAKE_STEP_MS = (() => {
+  const raw = Number.parseInt(String(process.env.HERMES_DESKTOP_BOOT_FAKE_STEP_MS || ''), 10)
+  if (!Number.isFinite(raw) || raw <= 0) return 650
+  return Math.max(120, raw)
+})()
 const RUNTIME_SCHEMA_VERSION = 3
 const BUNDLED_RUNTIME_REQUIREMENTS = [
   'openai>=2.21.0,<3',
@@ -59,6 +78,7 @@ const BUNDLED_RUNTIME_REQUIREMENTS = [
   'uvicorn[standard]>=0.24.0,<1',
   IS_WINDOWS ? 'pywinpty>=2.0.0,<3' : 'ptyprocess>=0.7.0,<1'
 ]
+const BUNDLED_RUNTIME_IMPORT_CHECK = bundledRuntimeImportCheck()
 const APP_NAME = 'Hermes'
 const TITLEBAR_HEIGHT = 34
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 14
@@ -191,6 +211,15 @@ let previewShortcutActive = false
 let desktopLogBuffer = ''
 let desktopLogFlushTimer = null
 let desktopLogFlushPromise = Promise.resolve()
+let bootProgressState = {
+  error: null,
+  fakeMode: BOOT_FAKE_MODE,
+  message: 'Waiting to start Hermes backend',
+  phase: 'idle',
+  progress: 0,
+  running: false,
+  timestamp: Date.now()
+}
 
 function flushDesktopLogBufferSync() {
   if (!desktopLogBuffer) return
@@ -254,6 +283,58 @@ function rememberLog(chunk) {
   scheduleDesktopLogFlush()
 }
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function clampBootProgress(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return 0
+  return Math.max(0, Math.min(100, Math.round(numeric)))
+}
+
+function broadcastBootProgress() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const { webContents } = mainWindow
+  if (!webContents || webContents.isDestroyed()) return
+  webContents.send('hermes:boot-progress', bootProgressState)
+}
+
+function updateBootProgress(update, options = {}) {
+  const nextProgressRaw =
+    typeof update.progress === 'number' ? clampBootProgress(update.progress) : bootProgressState.progress
+  const nextProgress = options.allowDecrease ? nextProgressRaw : Math.max(bootProgressState.progress, nextProgressRaw)
+
+  bootProgressState = {
+    ...bootProgressState,
+    ...update,
+    error: update.error === undefined ? bootProgressState.error : update.error,
+    fakeMode: BOOT_FAKE_MODE || Boolean(update.fakeMode),
+    progress: nextProgress,
+    timestamp: Date.now()
+  }
+
+  if (update.message) {
+    rememberLog(`[boot] ${update.message}`)
+  }
+
+  broadcastBootProgress()
+}
+
+async function advanceBootProgress(phase, message, progress) {
+  updateBootProgress({
+    phase,
+    message,
+    progress,
+    running: true,
+    error: null
+  })
+
+  if (BOOT_FAKE_MODE) {
+    await sleep(BOOT_FAKE_STEP_MS)
+  }
+}
+
 function fileExists(filePath) {
   try {
     return fs.statSync(filePath).isFile()
@@ -278,7 +359,9 @@ function findOnPath(command) {
   if (!command) return null
 
   if (path.isAbsolute(command) || command.includes(path.sep) || (IS_WINDOWS && command.includes('/'))) {
-    return fileExists(command) ? command : null
+    if (!fileExists(command)) return null
+    if (isWindowsBinaryPathInWsl(command, { isWsl: IS_WSL })) return null
+    return command
   }
 
   const pathEntries = String(process.env.PATH || '')
@@ -447,9 +530,22 @@ function resolveHermesBackend(dashboardArgs) {
   }
 
   if (process.env.HERMES_DESKTOP_IGNORE_EXISTING !== '1') {
-    const hermesCommand = process.env.HERMES_DESKTOP_HERMES
-      ? findOnPath(process.env.HERMES_DESKTOP_HERMES) || process.env.HERMES_DESKTOP_HERMES
-      : findOnPath('hermes')
+    let hermesCommand = null
+    const hermesOverride = process.env.HERMES_DESKTOP_HERMES
+
+    if (hermesOverride) {
+      const resolvedOverride = findOnPath(hermesOverride)
+      if (resolvedOverride) {
+        hermesCommand = resolvedOverride
+      } else if (!isWindowsBinaryPathInWsl(hermesOverride, { isWsl: IS_WSL })) {
+        hermesCommand = hermesOverride
+      } else {
+        rememberLog(`Ignoring Windows Hermes override under WSL: ${hermesOverride}`)
+      }
+    } else {
+      hermesCommand = findOnPath('hermes')
+    }
+
     if (hermesCommand) {
       return {
         label: `existing Hermes CLI at ${hermesCommand}`,
@@ -490,7 +586,10 @@ function resolveHermesBackend(dashboardArgs) {
 }
 
 async function ensureBundledRuntime(backend) {
-  if (!backend.bootstrap) return backend
+  if (!backend.bootstrap) {
+    await advanceBootProgress('runtime.external', `Using ${backend.label}`, 32)
+    return backend
+  }
 
   const sourceVersion = readJson(path.join(backend.root, 'package.json'))?.version || app.getVersion()
   const marker = readJson(BUNDLED_VENV_MARKER)
@@ -503,6 +602,7 @@ async function ensureBundledRuntime(backend) {
     (await hasBundledRuntimeImports(venvPython))
 
   if (runtimeReady) {
+    await advanceBootProgress('runtime.ready', 'Reusing bundled Hermes runtime', 58)
     backend.command = venvPython
     backend.label = `${backend.label} runtime at ${BUNDLED_VENV_ROOT}`
     return backend
@@ -513,13 +613,16 @@ async function ensureBundledRuntime(backend) {
     throw new Error('Python 3.11+ is required to bootstrap the bundled Hermes runtime.')
   }
 
+  await advanceBootProgress('runtime.prepare', 'Preparing bundled Hermes runtime', 42)
   rememberLog(`Preparing bundled Hermes runtime in ${BUNDLED_VENV_ROOT}`)
   fs.mkdirSync(BUNDLED_VENV_ROOT, { recursive: true })
 
   if (!fileExists(venvPython)) {
+    await advanceBootProgress('runtime.venv', 'Creating desktop runtime virtual environment', 50)
     await runProcess(systemPython, ['-m', 'venv', BUNDLED_VENV_ROOT])
   }
 
+  await advanceBootProgress('runtime.dependencies', 'Installing desktop runtime dependencies', 66)
   await runProcess(venvPython, [
     '-m',
     'pip',
@@ -530,7 +633,8 @@ async function ensureBundledRuntime(backend) {
     ...BUNDLED_RUNTIME_REQUIREMENTS
   ])
 
-  await runProcess(venvPython, ['-c', 'import fastapi, uvicorn, ptyprocess'])
+  await advanceBootProgress('runtime.verify', 'Validating bundled runtime dependencies', 78)
+  await runProcess(venvPython, ['-c', BUNDLED_RUNTIME_IMPORT_CHECK])
 
   fs.writeFileSync(
     BUNDLED_VENV_MARKER,
@@ -547,12 +651,19 @@ async function ensureBundledRuntime(backend) {
 
   backend.command = venvPython
   backend.label = `${backend.label} runtime at ${BUNDLED_VENV_ROOT}`
+  updateBootProgress({
+    phase: 'runtime.ready',
+    message: 'Bundled runtime is ready',
+    progress: 82,
+    running: true,
+    error: null
+  })
   return backend
 }
 
 async function hasBundledRuntimeImports(python) {
   try {
-    await runProcess(python, ['-c', 'import fastapi, uvicorn, ptyprocess'])
+    await runProcess(python, ['-c', BUNDLED_RUNTIME_IMPORT_CHECK])
     return true
   } catch {
     rememberLog('Bundled Hermes runtime is missing required dashboard dependencies; reinstalling.')
@@ -1149,11 +1260,19 @@ function resolveRemoteBackend() {
 async function startHermes() {
   if (connectionPromise) return connectionPromise
 
-  const remote = resolveRemoteBackend()
-  if (remote) {
-    connectionPromise = (async () => {
-      rememberLog(`Using remote Hermes backend at ${remote.baseUrl}`)
+  connectionPromise = (async () => {
+    await advanceBootProgress('backend.resolve', 'Resolving Hermes backend', 8)
+    const remote = resolveRemoteBackend()
+    if (remote) {
+      await advanceBootProgress('backend.remote', `Connecting to remote Hermes backend at ${remote.baseUrl}`, 24)
       await waitForHermes(remote.baseUrl, remote.token)
+      updateBootProgress({
+        phase: 'backend.ready',
+        message: 'Remote Hermes backend is ready',
+        progress: 94,
+        running: true,
+        error: null
+      })
       return {
         baseUrl: remote.baseUrl,
         token: remote.token,
@@ -1161,21 +1280,18 @@ async function startHermes() {
         logs: hermesLog.slice(-80),
         windowButtonPosition: getWindowButtonPosition()
       }
-    })().catch(error => {
-      connectionPromise = null
-      throw error
-    })
-    return connectionPromise
-  }
+    }
 
-  connectionPromise = (async () => {
+    await advanceBootProgress('backend.port', 'Finding an open local port', 16)
     const port = await pickPort()
     const token = crypto.randomBytes(32).toString('base64url')
     const dashboardArgs = ['dashboard', '--no-open', '--tui', '--host', '127.0.0.1', '--port', String(port)]
+    await advanceBootProgress('backend.runtime', 'Resolving Hermes runtime', 28)
     const backend = await ensureBundledRuntime(resolveHermesBackend(dashboardArgs))
     const hermesCwd = resolveHermesCwd()
     const webDist = resolveWebDist()
 
+    await advanceBootProgress('backend.spawn', `Starting Hermes backend via ${backend.label}`, 84)
     rememberLog(`Starting Hermes backend via ${backend.label}`)
 
     hermesProcess = spawn(backend.command, backend.args, {
@@ -1200,6 +1316,15 @@ async function startHermes() {
     })
     hermesProcess.once('error', error => {
       rememberLog(`Hermes backend failed to start: ${error.message}`)
+      updateBootProgress(
+        {
+          error: error.message,
+          message: `Hermes backend failed to start: ${error.message}`,
+          phase: 'backend.error',
+          running: false
+        },
+        { allowDecrease: true }
+      )
       hermesProcess = null
       connectionPromise = null
       sendBackendExit({ code: null, signal: null, error: error.message })
@@ -1211,6 +1336,16 @@ async function startHermes() {
       connectionPromise = null
       sendBackendExit({ code, signal })
       if (!backendReady) {
+        const message = `Hermes dashboard exited before it became ready (${signal || code}).`
+        updateBootProgress(
+          {
+            error: message,
+            message,
+            phase: 'backend.error',
+            running: false
+          },
+          { allowDecrease: true }
+        )
         rejectBackendStart?.(
           new Error(
             `Hermes dashboard exited before it became ready (${signal || code}). Log: ${DESKTOP_LOG_PATH}\n${recentHermesLog()}`
@@ -1220,8 +1355,16 @@ async function startHermes() {
     })
 
     const baseUrl = `http://127.0.0.1:${port}`
+    await advanceBootProgress('backend.wait', 'Waiting for Hermes dashboard to become ready', 90)
     await Promise.race([waitForHermes(baseUrl, token), backendStartFailed])
     backendReady = true
+    updateBootProgress({
+      phase: 'backend.ready',
+      message: 'Hermes backend is ready. Finalizing desktop startup',
+      progress: 94,
+      running: true,
+      error: null
+    })
 
     return {
       baseUrl,
@@ -1230,7 +1373,20 @@ async function startHermes() {
       logs: hermesLog.slice(-80),
       windowButtonPosition: getWindowButtonPosition()
     }
-  })()
+  })().catch(error => {
+    const message = error instanceof Error ? error.message : String(error)
+    updateBootProgress(
+      {
+        error: message,
+        message: `Desktop boot failed: ${message}`,
+        phase: 'backend.error',
+        running: false
+      },
+      { allowDecrease: true }
+    )
+    connectionPromise = null
+    throw error
+  })
 
   return connectionPromise
 }
@@ -1277,11 +1433,13 @@ function createWindow() {
   }
 
   mainWindow.webContents.once('did-finish-load', () => {
+    broadcastBootProgress()
     startHermes().catch(error => rememberLog(error.stack || error.message))
   })
 }
 
 ipcMain.handle('hermes:connection', async () => startHermes())
+ipcMain.handle('hermes:boot-progress:get', async () => bootProgressState)
 
 ipcMain.on('hermes:previewShortcutActive', (_event, active) => {
   previewShortcutActive = Boolean(active)
@@ -1400,12 +1558,6 @@ ipcMain.handle('hermes:openExternal', (_event, url) => shell.openExternal(url))
 // these anyway when present, but we want the same hygiene without one).
 const FS_READDIR_HIDDEN = new Set(['.git', '.hg', '.svn', 'node_modules', '__pycache__', '.next', '.venv', 'venv'])
 
-const ignore = require('ignore')
-
-// Cache one Ignore instance per .gitignore path keyed by mtime so edits
-// invalidate automatically without us having to wire a watcher.
-const gitignoreCache = new Map() // gitignorePath → { mtime: number, ig: Ignore, base: string }
-
 function findGitRoot(start) {
   let dir = start
 
@@ -1430,84 +1582,6 @@ function findGitRoot(start) {
   return null
 }
 
-function getGitignoreFile(giPath) {
-  let stat = null
-
-  try {
-    stat = fs.statSync(giPath)
-  } catch {
-    return null
-  }
-
-  if (!stat.isFile()) {
-    return null
-  }
-
-  const cached = gitignoreCache.get(giPath)
-
-  if (cached && cached.mtime === stat.mtimeMs) {
-    return cached
-  }
-
-  try {
-    const entry = {
-      base: path.dirname(giPath),
-      ig: ignore().add(fs.readFileSync(giPath, 'utf8')),
-      mtime: stat.mtimeMs
-    }
-
-    gitignoreCache.set(giPath, entry)
-
-    return entry
-  } catch {
-    return null
-  }
-}
-
-function gitignoreRulesFor(root, dir) {
-  const rules = []
-  const rel = path.relative(root, dir)
-  const dirs = [root]
-
-  if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
-    const parts = rel.split(path.sep).filter(Boolean)
-    let current = root
-
-    for (const part of parts) {
-      current = path.join(current, part)
-      dirs.push(current)
-    }
-  }
-
-  for (const ruleDir of dirs) {
-    const rule = getGitignoreFile(path.join(ruleDir, '.gitignore'))
-
-    if (rule) {
-      rules.push(rule)
-    }
-  }
-
-  return rules
-}
-
-function ignoredByRules(rules, abs, isDirectory) {
-  for (const rule of rules) {
-    const rel = path.relative(rule.base, abs)
-
-    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
-      continue
-    }
-
-    const probe = `${rel.split(path.sep).join('/')}${isDirectory ? '/' : ''}`
-
-    if (rule.ig.ignores(probe)) {
-      return true
-    }
-  }
-
-  return false
-}
-
 ipcMain.handle('hermes:fs:readDir', async (_event, dirPath) => {
   const resolved = path.resolve(String(dirPath || ''))
 
@@ -1517,21 +1591,11 @@ ipcMain.handle('hermes:fs:readDir', async (_event, dirPath) => {
 
   try {
     const dirents = await fs.promises.readdir(resolved, { withFileTypes: true })
-    const root = findGitRoot(resolved)
-    const gitignoreRules = root ? gitignoreRulesFor(root, resolved) : []
 
     const entries = dirents
       .filter(d => {
         if (FS_READDIR_HIDDEN.has(d.name)) {
           return false
-        }
-
-        if (gitignoreRules.length > 0) {
-          const abs = path.join(resolved, d.name)
-
-          if (ignoredByRules(gitignoreRules, abs, d.isDirectory())) {
-            return false
-          }
         }
 
         return true

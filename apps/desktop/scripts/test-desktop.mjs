@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { listPackage } from '@electron/asar'
 
 const DESKTOP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(DESKTOP_ROOT, 'package.json'), 'utf8'))
@@ -11,9 +12,9 @@ const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64'
 const RELEASE_ROOT = path.join(DESKTOP_ROOT, 'release')
 const APP_PATH = path.join(RELEASE_ROOT, `mac-${ARCH}`, 'Hermes.app')
 const APP_BIN = path.join(APP_PATH, 'Contents', 'MacOS', 'Hermes')
-const DMG_PATH = path.join(RELEASE_ROOT, `Hermes-${PACKAGE_JSON.version}-${ARCH}.dmg`)
 const USER_DATA = path.join(os.homedir(), 'Library', 'Application Support', 'Hermes')
 const RUNTIME_ROOT = path.join(USER_DATA, 'hermes-runtime')
+const FRESH_SANDBOX_ROOT = path.join(os.tmpdir(), 'hermes-desktop-fresh-install')
 
 function die(message) {
   console.error(`\n${message}`)
@@ -46,6 +47,30 @@ function exists(target) {
   return fs.existsSync(target)
 }
 
+function resolveDmgPath() {
+  if (!exists(RELEASE_ROOT)) {
+    return path.join(RELEASE_ROOT, `Hermes-${PACKAGE_JSON.version}-${ARCH}.dmg`)
+  }
+
+  const prefix = `Hermes-${PACKAGE_JSON.version}`
+  const candidates = fs
+    .readdirSync(RELEASE_ROOT)
+    .filter(name => name.endsWith('.dmg'))
+    .filter(name => name.startsWith(prefix))
+    .filter(name => name.includes(ARCH))
+    .sort((a, b) => {
+      const aMtime = fs.statSync(path.join(RELEASE_ROOT, a)).mtimeMs
+      const bMtime = fs.statSync(path.join(RELEASE_ROOT, b)).mtimeMs
+      return bMtime - aMtime
+    })
+
+  if (candidates.length > 0) {
+    return path.join(RELEASE_ROOT, candidates[0])
+  }
+
+  return path.join(RELEASE_ROOT, `Hermes-${PACKAGE_JSON.version}-${ARCH}.dmg`)
+}
+
 function ensureMac() {
   if (process.platform !== 'darwin') {
     die('Desktop launch tests are macOS-only from this script.')
@@ -61,7 +86,7 @@ function ensurePackagedApp() {
 }
 
 function ensureDmg() {
-  if (process.env.HERMES_DESKTOP_SKIP_BUILD === '1' && exists(DMG_PATH)) {
+  if (process.env.HERMES_DESKTOP_SKIP_BUILD === '1' && exists(resolveDmgPath())) {
     return
   }
 
@@ -77,11 +102,12 @@ function openApp() {
 }
 
 function openDmg() {
-  if (!exists(DMG_PATH)) {
-    die(`Missing DMG: ${DMG_PATH}`)
+  const dmgPath = resolveDmgPath()
+  if (!exists(dmgPath)) {
+    die(`Missing DMG: ${dmgPath}`)
   }
 
-  run('open', [DMG_PATH])
+  run('open', [dmgPath])
 }
 
 function launchFresh() {
@@ -89,17 +115,27 @@ function launchFresh() {
     die(`Missing app executable: ${APP_BIN}`)
   }
 
-  fs.rmSync(RUNTIME_ROOT, { force: true, recursive: true })
-
   const python = output('which', ['python3'])
   if (!python) {
     die('python3 is required for fresh bundled-runtime bootstrap.')
   }
 
+  const sandbox = fs.mkdtempSync(`${FRESH_SANDBOX_ROOT}-`)
+  const userDataDir = path.join(sandbox, 'electron-user-data')
+  const hermesHome = path.join(sandbox, 'hermes-home')
+  const cwd = path.join(sandbox, 'workspace')
+
+  fs.mkdirSync(userDataDir, { recursive: true })
+  fs.mkdirSync(hermesHome, { recursive: true })
+  fs.mkdirSync(cwd, { recursive: true })
+
   const env = {
     ...process.env,
+    HERMES_DESKTOP_CWD: cwd,
     HERMES_DESKTOP_IGNORE_EXISTING: '1',
-    HERMES_DESKTOP_TEST_MODE: 'fresh-bundled-runtime'
+    HERMES_DESKTOP_TEST_MODE: 'fresh-install',
+    HERMES_DESKTOP_USER_DATA_DIR: userDataDir,
+    HERMES_HOME: hermesHome
   }
   delete env.HERMES_DESKTOP_HERMES
   delete env.HERMES_DESKTOP_HERMES_ROOT
@@ -111,13 +147,22 @@ function launchFresh() {
     stdio: 'ignore'
   })
   child.unref()
+
+  console.log('\nFresh install sandbox:')
+  console.log(`  root: ${sandbox}`)
+  console.log(`  electron userData: ${userDataDir}`)
+  console.log(`  HERMES_HOME: ${hermesHome}`)
+  console.log(`  cwd: ${cwd}`)
+
+  return { runtimeRoot: path.join(userDataDir, 'hermes-runtime') }
 }
 
 function validateBundle() {
+  const appAsar = path.join(APP_PATH, 'Contents', 'Resources', 'app.asar')
+  const unpackedIndex = path.join(APP_PATH, 'Contents', 'Resources', 'app.asar.unpacked', 'dist', 'index.html')
   const required = [
     APP_BIN,
-    path.join(APP_PATH, 'Contents', 'Resources', 'hermes-agent', 'hermes_cli', 'main.py'),
-    path.join(APP_PATH, 'Contents', 'Resources', 'app.asar.unpacked', 'dist', 'index.html')
+    path.join(APP_PATH, 'Contents', 'Resources', 'hermes-agent', 'hermes_cli', 'main.py')
   ]
 
   for (const target of required) {
@@ -125,19 +170,34 @@ function validateBundle() {
       die(`Missing packaged payload file: ${target}`)
     }
   }
+
+  if (exists(unpackedIndex)) {
+    return
+  }
+
+  if (!exists(appAsar)) {
+    die(`Missing renderer payload: neither ${unpackedIndex} nor ${appAsar} exists`)
+  }
+
+  const files = listPackage(appAsar)
+  if (!files.includes('/dist/index.html') && !files.includes('dist/index.html')) {
+    die(`Missing renderer payload file in app.asar: ${appAsar} (expected dist/index.html)`)
+  }
 }
 
-function printArtifacts() {
+function printArtifacts(options = {}) {
+  const runtimeRoot = options.runtimeRoot || RUNTIME_ROOT
+
   console.log('\nDesktop artifacts:')
   console.log(`  app: ${APP_PATH}`)
-  console.log(`  dmg: ${DMG_PATH}`)
-  console.log(`  runtime: ${RUNTIME_ROOT}`)
+  console.log(`  dmg: ${resolveDmgPath()}`)
+  console.log(`  runtime: ${runtimeRoot}`)
 }
 
 function help() {
   console.log(`Usage:
   npm run test:desktop:existing  # build packaged app, launch with normal PATH/existing Hermes
-  npm run test:desktop:fresh     # build packaged app, delete bundled runtime, hide existing Hermes, launch
+  npm run test:desktop:fresh     # build packaged app, launch with temp userData + HERMES_HOME
   npm run test:desktop:dmg       # build DMG and open it
   npm run test:desktop:all       # build DMG, validate app payload, print paths
 
@@ -156,8 +216,7 @@ if (MODE === 'existing') {
 } else if (MODE === 'fresh') {
   ensurePackagedApp()
   validateBundle()
-  launchFresh()
-  printArtifacts()
+  printArtifacts(launchFresh())
 } else if (MODE === 'dmg') {
   ensureDmg()
   openDmg()

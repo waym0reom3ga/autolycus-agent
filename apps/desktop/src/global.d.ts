@@ -4,6 +4,7 @@ declare global {
   interface Window {
     hermesDesktop: {
       getConnection: () => Promise<HermesConnection>
+      getBootProgress: () => Promise<DesktopBootProgress>
       api: <T>(request: HermesApiRequest) => Promise<T>
       notify: (payload: HermesNotification) => Promise<boolean>
       requestMicrophoneAccess: () => Promise<boolean>
@@ -25,6 +26,7 @@ declare global {
       onClosePreviewRequested?: (callback: () => void) => () => void
       onPreviewFileChanged: (callback: (payload: HermesPreviewFileChanged) => void) => () => void
       onBackendExit: (callback: (payload: BackendExit) => void) => () => void
+      onBootProgress: (callback: (payload: DesktopBootProgress) => void) => () => void
     }
   }
 }
@@ -35,6 +37,16 @@ export interface HermesConnection {
   wsUrl: string
   logs: string[]
   windowButtonPosition: { x: number; y: number } | null
+}
+
+export interface DesktopBootProgress {
+  error: string | null
+  fakeMode: boolean
+  message: string
+  phase: string
+  progress: number
+  running: boolean
+  timestamp: number
 }
 
 export interface HermesApiRequest {

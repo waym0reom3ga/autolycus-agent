@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
 contextBridge.exposeInMainWorld('hermesDesktop', {
   getConnection: () => ipcRenderer.invoke('hermes:connection'),
+  getBootProgress: () => ipcRenderer.invoke('hermes:boot-progress:get'),
   api: request => ipcRenderer.invoke('hermes:api', request),
   notify: payload => ipcRenderer.invoke('hermes:notify', payload),
   requestMicrophoneAccess: () => ipcRenderer.invoke('hermes:requestMicrophoneAccess'),
@@ -40,5 +41,10 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
     const listener = (_event, payload) => callback(payload)
     ipcRenderer.on('hermes:backend-exit', listener)
     return () => ipcRenderer.removeListener('hermes:backend-exit', listener)
+  },
+  onBootProgress: callback => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('hermes:boot-progress', listener)
+    return () => ipcRenderer.removeListener('hermes:boot-progress', listener)
   }
 })

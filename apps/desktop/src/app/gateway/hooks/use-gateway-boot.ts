@@ -1,6 +1,13 @@
 import { useEffect, useRef } from 'react'
 
 import { HermesGateway } from '@/hermes'
+import {
+  $desktopBoot,
+  applyDesktopBootProgress,
+  completeDesktopBoot,
+  failDesktopBoot,
+  setDesktopBootStep
+} from '@/store/boot'
 import { setGateway } from '@/store/gateway'
 import { notify, notifyError } from '@/store/notifications'
 import { setConnection, setGatewayState, setSessionsLoading } from '@/store/session'
@@ -44,10 +51,23 @@ export function useGatewayBoot({
     const desktop = window.hermesDesktop
 
     if (!desktop) {
+      failDesktopBoot('Desktop IPC bridge is unavailable.')
       setSessionsLoading(false)
 
       return () => void (cancelled = true)
     }
+
+    const offBootProgress = desktop.onBootProgress(payload => applyDesktopBootProgress(payload))
+    void desktop
+      .getBootProgress()
+      .then(snapshot => applyDesktopBootProgress(snapshot))
+      .catch(() => undefined)
+
+    setDesktopBootStep({
+      phase: 'renderer.boot',
+      message: 'Starting desktop connection',
+      progress: 6
+    })
 
     const gateway = new HermesGateway()
     callbacksRef.current.onGatewayReady(gateway)
@@ -57,6 +77,10 @@ export function useGatewayBoot({
     const offEvent = gateway.onEvent(event => callbacksRef.current.handleGatewayEvent(event))
 
     const offExit = desktop.onBackendExit(() => {
+      if ($desktopBoot.get().running || $desktopBoot.get().visible) {
+        failDesktopBoot('Hermes background process exited during startup.')
+      }
+
       notify({
         kind: 'error',
         title: 'Backend stopped',
@@ -73,6 +97,11 @@ export function useGatewayBoot({
           return
         }
 
+        setDesktopBootStep({
+          phase: 'renderer.gateway.connect',
+          message: 'Connecting live desktop gateway',
+          progress: 95
+        })
         callbacksRef.current.onConnectionReady(conn)
         setConnection(conn)
         await gateway.connect(conn.wsUrl)
@@ -81,15 +110,28 @@ export function useGatewayBoot({
           return
         }
 
+        setDesktopBootStep({
+          phase: 'renderer.config',
+          message: 'Loading Hermes settings',
+          progress: 97
+        })
         await callbacksRef.current.refreshHermesConfig()
 
         if (cancelled) {
           return
         }
 
+        setDesktopBootStep({
+          phase: 'renderer.sessions',
+          message: 'Loading recent sessions',
+          progress: 99
+        })
         await callbacksRef.current.refreshSessions()
+        completeDesktopBoot()
       } catch (err) {
         if (!cancelled) {
+          const message = err instanceof Error ? err.message : String(err)
+          failDesktopBoot(message)
           notifyError(err, 'Desktop boot failed')
           setSessionsLoading(false)
         }
@@ -103,6 +145,7 @@ export function useGatewayBoot({
       offState()
       offEvent()
       offExit()
+      offBootProgress()
       gateway.close()
       callbacksRef.current.onConnectionReady(null)
       callbacksRef.current.onGatewayReady(null)
