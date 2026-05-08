@@ -34,6 +34,59 @@ export interface ElevenLabsVoicesResponse {
   voices: ElevenLabsVoice[]
 }
 
+export interface OAuthProviderStatus {
+  error?: string
+  expires_at?: null | string
+  has_refresh_token?: boolean
+  last_refresh?: null | string
+  logged_in: boolean
+  source?: null | string
+  source_label?: null | string
+  token_preview?: null | string
+}
+
+export interface OAuthProvider {
+  cli_command: string
+  docs_url: string
+  flow: 'device_code' | 'external' | 'pkce'
+  id: string
+  name: string
+  status: OAuthProviderStatus
+}
+
+export interface OAuthProvidersResponse {
+  providers: OAuthProvider[]
+}
+
+export type OAuthStartResponse =
+  | {
+      auth_url: string
+      expires_in: number
+      flow: 'pkce'
+      session_id: string
+    }
+  | {
+      expires_in: number
+      flow: 'device_code'
+      poll_interval: number
+      session_id: string
+      user_code: string
+      verification_url: string
+    }
+
+export interface OAuthSubmitResponse {
+  message?: string
+  ok: boolean
+  status: 'approved' | 'error'
+}
+
+export interface OAuthPollResponse {
+  error_message?: null | string
+  expires_at?: null | number
+  session_id: string
+  status: 'approved' | 'denied' | 'error' | 'expired' | 'pending'
+}
+
 export interface EnvVarInfo {
   advanced: boolean
   category: string

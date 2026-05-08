@@ -16,6 +16,10 @@ import type {
   ModelAssignmentResponse,
   ModelInfoResponse,
   ModelOptionsResponse,
+  OAuthPollResponse,
+  OAuthProvidersResponse,
+  OAuthStartResponse,
+  OAuthSubmitResponse,
   PaginatedSessions,
   SessionMessagesResponse,
   SessionSearchResponse,
@@ -212,6 +216,45 @@ export function revealEnvVar(key: string): Promise<{ key: string; value: string 
     path: '/api/env/reveal',
     method: 'POST',
     body: { key }
+  })
+}
+
+export function listOAuthProviders(): Promise<OAuthProvidersResponse> {
+  return window.hermesDesktop.api<OAuthProvidersResponse>({
+    path: '/api/providers/oauth'
+  })
+}
+
+export function startOAuthLogin(providerId: string): Promise<OAuthStartResponse> {
+  return window.hermesDesktop.api<OAuthStartResponse>({
+    path: `/api/providers/oauth/${encodeURIComponent(providerId)}/start`,
+    method: 'POST',
+    body: {}
+  })
+}
+
+export function submitOAuthCode(
+  providerId: string,
+  sessionId: string,
+  code: string
+): Promise<OAuthSubmitResponse> {
+  return window.hermesDesktop.api<OAuthSubmitResponse>({
+    path: `/api/providers/oauth/${encodeURIComponent(providerId)}/submit`,
+    method: 'POST',
+    body: { session_id: sessionId, code }
+  })
+}
+
+export function pollOAuthSession(providerId: string, sessionId: string): Promise<OAuthPollResponse> {
+  return window.hermesDesktop.api<OAuthPollResponse>({
+    path: `/api/providers/oauth/${encodeURIComponent(providerId)}/poll/${encodeURIComponent(sessionId)}`
+  })
+}
+
+export function cancelOAuthSession(sessionId: string): Promise<{ ok: boolean }> {
+  return window.hermesDesktop.api<{ ok: boolean }>({
+    path: `/api/providers/oauth/sessions/${encodeURIComponent(sessionId)}`,
+    method: 'DELETE'
   })
 }
 

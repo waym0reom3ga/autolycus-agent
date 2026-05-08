@@ -74,6 +74,7 @@ function widthToPx(value: WidthValue | undefined) {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : undefined
   }
+
   const match = value?.trim().match(/^(-?\d*\.?\d+)(px|rem)?$/)
 
   if (!match) {
@@ -203,6 +204,7 @@ export function Pane({
     if (registered.current) {
       return
     }
+
     registered.current = true
     ensurePaneRegistered(id, { open: defaultOpen })
   }, [defaultOpen, id])
@@ -221,6 +223,7 @@ export function Pane({
       if (!canResize || paneWidth <= 0) {
         return
       }
+
       event.preventDefault()
 
       const handle = event.currentTarget
