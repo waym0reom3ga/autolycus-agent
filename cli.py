@@ -7951,6 +7951,60 @@ class HermesCLI:
             print("  Usage: /personality <name>")
             print()
     
+    def _handle_lycus_greeting_command(self, cmd: str):
+        """Handle the /lycus-greeting command to switch Lycus personality templates."""
+        try:
+            import yaml
+            from pathlib import Path
+            personality_file = Path.home() / '.hermes' / 'lycus_personality.yaml'
+            
+            if not personality_file.exists():
+                print("(._.) Lycus personality file not found at ~/.hermes/lycus_personality.yaml")
+                return
+            
+            with open(personality_file) as f:
+                personality = yaml.safe_load(f)
+            
+            parts = cmd.split(maxsplit=1)
+            if len(parts) > 1:
+                # Set template
+                template_name = parts[1].strip().lower()
+                available = list(personality.get('templates', {}).keys())
+                
+                if template_name in available:
+                    personality['active_template'] = template_name
+                    with open(personality_file, 'w') as f:
+                        yaml.dump(personality, f, default_flow_style=False)
+                    print(f"(^_^)b Lycus greeting template set to '{template_name}'")
+                    preview = personality['templates'][template_name].strip()[:80]
+                    print(f"  Preview: {preview}...")
+                else:
+                    print(f"(._.) Unknown template: {template_name}")
+                    print(f"  Available: {', '.join(available)}")
+            else:
+                # Show available templates
+                print()
+                print("+" + "-" * 52 + "+")
+                print("|" + " " * 12 + "(^o^)/ Lycus Greeting Templates" + " " * 8 + "|")
+                print("+" + "-" * 52 + "+")
+                print("+" + "-" * 52 + "+")
+                print("|" + " " * 12 + "(^o^)/ Lycus Greeting Templates" + " " * 8 + "|")
+                print("+" + "-" * 52 + "+")
+                print("+" + "-" * 52 + "+")
+                print("|" + " " * 12 + "(^o^)/ Lycus Greeting Templates" + " " * 8 + "|")
+                print("+" + "-" * 52 + "+")
+                print()
+                active = personality.get('active_template', 'default')
+                for name, template in personality.get('templates', {}).items():
+                    marker = " <-- active" if name == active else ""
+                    preview = template.strip().replace('\n', ' ')[:60]
+                    print(f"  {name:<12} - {preview}...{marker}")
+                print()
+                print("  Usage: /lycus-greeting <template_name>")
+                print()
+        except Exception as e:
+            print(f"(._.) Error: {e}")
+    
     def _handle_cron_command(self, cmd: str):
         """Handle the /cron command to manage scheduled tasks."""
         import shlex
@@ -8507,6 +8561,8 @@ class HermesCLI:
         elif canonical == "personality":
             # Use original case (handler lowercases the personality name itself)
             self._handle_personality_command(cmd_original)
+        elif canonical == "lycus-greeting":
+            self._handle_lycus_greeting_command(cmd_original)
         elif canonical == "retry":
             retry_msg = self.retry_last()
             if retry_msg and hasattr(self, '_pending_input'):
@@ -12635,11 +12691,11 @@ class HermesCLI:
         self._console_print()
 
         # First-run agent greeting — only shown when invoked as 'lycus'
-        # The agent introduces itself by name via an auto-prompt.
+        # The agent introduces itself by name via an auto-prompt with dynamic context.
         try:
-            from agent.onboarding import agent_greeting_prompt, is_lycus_command
+            from agent.onboarding import get_dynamic_greeting, is_lycus_command
             if is_lycus_command():
-                _greeting = agent_greeting_prompt()
+                _greeting = get_dynamic_greeting()
                 self._console_print(f"[bold {_welcome_color}]{_greeting}[/]")
         except Exception:
             pass  # greeting is non-critical — never break startup
