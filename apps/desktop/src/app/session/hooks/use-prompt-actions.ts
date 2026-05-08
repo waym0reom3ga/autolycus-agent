@@ -50,10 +50,15 @@ interface SetupStatus {
   provider_configured?: boolean
 }
 
+interface RuntimeCheck {
+  error?: string
+  ok?: boolean
+}
+
 function isProviderSetupError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
 
-  return /No inference provider configured|OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY/i.test(message)
+  return /No inference provider configured|OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|set an API key/i.test(message)
 }
 
 interface PromptActionsOptions {
@@ -227,11 +232,18 @@ export function usePromptActions({
       setAwaitingResponse(true)
       clearNotifications()
 
-      const setup = await requestGateway<SetupStatus>('setup.status').catch(() => null)
+      const [setup, runtime] = await Promise.all([
+        requestGateway<SetupStatus>('setup.status').catch(() => null),
+        requestGateway<RuntimeCheck>('setup.runtime_check').catch(() => null)
+      ])
 
-      if (setup?.provider_configured === false) {
+      const runtimeReady = runtime?.ok !== undefined ? Boolean(runtime?.ok) : setup?.provider_configured !== false
+
+      if (!runtimeReady) {
         releaseBusy()
-        requestDesktopOnboarding('Add a provider credential before sending your first message.')
+        requestDesktopOnboarding(
+          runtime?.error || 'Add a provider credential before sending your first message.'
+        )
 
         return
       }

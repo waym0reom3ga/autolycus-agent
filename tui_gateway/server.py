@@ -4657,6 +4657,34 @@ def _(rid, params: dict) -> dict:
         return _err(rid, 5016, str(e))
 
 
+@method("setup.runtime_check")
+def _(rid, params: dict) -> dict:
+    """Strict provider check: does the configured/default model actually resolve to a usable runtime?
+
+    Unlike setup.status (which returns True if ANY provider auth state is
+    discoverable, including indirect fallbacks like ``gh auth token`` for
+    Copilot), this runs the same resolve_runtime_provider() call the agent
+    uses on session creation. It returns ok=False with the auth error message
+    when the user's configured model cannot actually be served, so UIs can
+    surface onboarding before the user submits a doomed prompt.
+    """
+    try:
+        from hermes_cli.runtime_provider import resolve_runtime_provider
+
+        runtime = resolve_runtime_provider(requested=None)
+        return _ok(
+            rid,
+            {
+                "ok": True,
+                "provider": runtime.get("provider"),
+                "model": runtime.get("model"),
+                "source": runtime.get("source"),
+            },
+        )
+    except Exception as e:
+        return _ok(rid, {"ok": False, "error": str(e)})
+
+
 # ── Methods: tools & system ──────────────────────────────────────────
 
 

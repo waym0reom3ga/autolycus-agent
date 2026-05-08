@@ -20,6 +20,13 @@ interface SetupStatus {
   provider_configured?: boolean
 }
 
+interface RuntimeCheck {
+  error?: string
+  model?: string
+  ok?: boolean
+  provider?: string
+}
+
 interface ProviderOption {
   key: string
   label: string
@@ -90,17 +97,30 @@ export function DesktopOnboardingOverlay({
       setError(null)
 
       try {
-        const [status, vars] = await Promise.all([requestGateway<SetupStatus>('setup.status'), getEnvVars()])
+        const [status, runtime, vars] = await Promise.all([
+          requestGateway<SetupStatus>('setup.status').catch(() => ({}) as SetupStatus),
+          requestGateway<RuntimeCheck>('setup.runtime_check').catch(() => ({ ok: false }) as RuntimeCheck),
+          getEnvVars()
+        ])
 
         if (cancelled) {
           return
         }
 
-        setProviderConfigured(Boolean(status.provider_configured))
+        // The strict runtime check is the source of truth: it runs the same
+        // resolver the agent uses, so it can't be fooled by fallbacks like
+        // gh-CLI Copilot tokens when the user's configured model isn't a
+        // Copilot model. setup.status is kept as a coarse sanity check
+        // for backends that don't expose setup.runtime_check yet.
+        const runtimeOk = runtime.ok !== undefined ? Boolean(runtime.ok) : Boolean(status.provider_configured)
+
+        setProviderConfigured(runtimeOk)
         setEnvVars(vars)
 
-        if (status.provider_configured) {
+        if (runtimeOk) {
           completeDesktopOnboarding()
+        } else if (runtime.error) {
+          setError(runtime.error)
         }
 
         const firstAvailable = PREFERRED_PROVIDER_KEYS.find(option => vars[option.key])
