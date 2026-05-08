@@ -3,33 +3,27 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  cancelOAuthSession,
-  listOAuthProviders,
-  pollOAuthSession,
-  setEnvVar,
-  startOAuthLogin,
-  submitOAuthCode
-} from '@/hermes'
 import { Check, ChevronRight, ExternalLink, KeyRound, Loader2, Sparkles } from '@/lib/icons'
 import { cn } from '@/lib/utils'
-import { notify, notifyError } from '@/store/notifications'
-import { $desktopOnboarding, completeDesktopOnboarding } from '@/store/onboarding'
-import type { OAuthProvider, OAuthStartResponse } from '@/types/hermes'
+import {
+  $desktopOnboarding,
+  cancelOnboardingFlow,
+  copyDeviceCode,
+  type OnboardingContext,
+  type OnboardingFlow,
+  refreshOnboarding,
+  saveOnboardingApiKey,
+  setOnboardingCode,
+  setOnboardingMode,
+  startProviderOAuth,
+  submitOnboardingCode
+} from '@/store/onboarding'
+import type { OAuthProvider } from '@/types/hermes'
 
 interface DesktopOnboardingOverlayProps {
   enabled: boolean
   onCompleted?: () => void
-  requestGateway: <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>
-}
-
-interface SetupStatus {
-  provider_configured?: boolean
-}
-
-interface RuntimeCheck {
-  error?: string
-  ok?: boolean
+  requestGateway: OnboardingContext['requestGateway']
 }
 
 interface ApiKeyOption {
@@ -86,23 +80,7 @@ const API_KEY_OPTIONS: ApiKeyOption[] = [
   }
 ]
 
-interface FlowState {
-  copyState?: 'copied' | 'idle'
-  errorMessage?: string
-  expiresAt?: number
-  provider?: OAuthProvider
-  start?: OAuthStartResponse
-  status: 'awaiting_user' | 'error' | 'idle' | 'polling' | 'starting' | 'submitting' | 'success'
-  submitCode?: string
-}
-
-const POLL_INTERVAL_MS = 2000
-
-// Order/display overrides for the OAuth provider catalog. The backend ships
-// engineer-flavored names like "Anthropic (Claude API)" and "MiniMax (OAuth)";
-// the desktop renames them in-place so the overlay reads like a consumer
-// product. Anything not in this map keeps the backend's default name.
-const PROVIDER_DISPLAY: Record<string, { description?: string; order: number; title?: string }> = {
+const PROVIDER_DISPLAY: Record<string, { order: number; title: string }> = {
   nous: { order: 0, title: 'Nous Portal' },
   anthropic: { order: 1, title: 'Anthropic Claude' },
   'openai-codex': { order: 2, title: 'OpenAI Codex / ChatGPT' },
@@ -111,343 +89,59 @@ const PROVIDER_DISPLAY: Record<string, { description?: string; order: number; ti
   'qwen-oauth': { order: 5, title: 'Qwen Code' }
 }
 
-function displayProviderTitle(provider: OAuthProvider) {
+const FLOW_SUBTITLES: Record<OAuthProvider['flow'], string> = {
+  pkce: 'Opens your browser to sign in, then continues here.',
+  device_code: 'Opens a verification page in your browser. Hermes connects automatically.',
+  external: 'Sign in once in your terminal, then come back to chat.'
+}
+
+function providerTitle(provider: OAuthProvider) {
   return PROVIDER_DISPLAY[provider.id]?.title ?? provider.name
 }
 
 function sortProviders(providers: OAuthProvider[]) {
   return [...providers].sort((a, b) => {
-    const aOrder = PROVIDER_DISPLAY[a.id]?.order ?? 99
-    const bOrder = PROVIDER_DISPLAY[b.id]?.order ?? 99
+    const order = (PROVIDER_DISPLAY[a.id]?.order ?? 99) - (PROVIDER_DISPLAY[b.id]?.order ?? 99)
 
-    if (aOrder !== bOrder) {
-      return aOrder - bOrder
-    }
-
-    return a.name.localeCompare(b.name)
+    return order !== 0 ? order : a.name.localeCompare(b.name)
   })
 }
 
-export function DesktopOnboardingOverlay({
-  enabled,
-  onCompleted,
-  requestGateway
-}: DesktopOnboardingOverlayProps) {
+export function DesktopOnboardingOverlay({ enabled, onCompleted, requestGateway }: DesktopOnboardingOverlayProps) {
   const onboarding = useStore($desktopOnboarding)
-  const [providerConfigured, setProviderConfigured] = useState(true)
-  const [oauthProviders, setOauthProviders] = useState<OAuthProvider[] | null>(null)
-  const [mode, setMode] = useState<'apikey' | 'oauth'>('oauth')
-  const [flow, setFlow] = useState<FlowState>({ status: 'idle' })
-  const [apiKeyOption, setApiKeyOption] = useState<ApiKeyOption>(API_KEY_OPTIONS[0])
-  const [apiKeyValue, setApiKeyValue] = useState('')
-  const [apiKeySaving, setApiKeySaving] = useState(false)
-  const [apiKeyError, setApiKeyError] = useState<string | null>(null)
-  const cancelledRef = useRef(false)
-  const pollTimerRef = useRef<number | null>(null)
-  const shouldShow = enabled || onboarding.requested
+  const visible = (enabled || onboarding.requested) && !onboarding.configured
+  const ctxRef = useRef<OnboardingContext>({ requestGateway, onCompleted })
+  ctxRef.current = { requestGateway, onCompleted }
 
-  const refreshSetupCheck = useMemo(
-    () => async () => {
-      try {
-        const [status, runtime] = await Promise.all([
-          requestGateway<SetupStatus>('setup.status').catch(() => ({}) as SetupStatus),
-          requestGateway<RuntimeCheck>('setup.runtime_check').catch(() => ({ ok: false }) as RuntimeCheck)
-        ])
-
-        return runtime.ok !== undefined ? Boolean(runtime.ok) : Boolean(status.provider_configured)
-      } catch {
-        return false
-      }
-    },
-    [requestGateway]
+  const ctx = useMemo<OnboardingContext>(
+    () => ({
+      requestGateway: (...args) => ctxRef.current.requestGateway(...args),
+      onCompleted: () => ctxRef.current.onCompleted?.()
+    }),
+    []
   )
 
   useEffect(() => {
-    if (!shouldShow) {
+    if (!enabled && !onboarding.requested) {
       return
     }
 
-    cancelledRef.current = false
+    void refreshOnboarding(ctx)
+  }, [ctx, enabled, onboarding.requested])
 
-    void (async () => {
-      const ok = await refreshSetupCheck()
-
-      if (cancelledRef.current) {
-        return
-      }
-
-      setProviderConfigured(ok)
-
-      if (ok) {
-        completeDesktopOnboarding()
-
-        return
-      }
-
-      try {
-        const providers = await listOAuthProviders()
-
-        if (cancelledRef.current) {
-          return
-        }
-
-        const ordered = sortProviders(providers.providers)
-        setOauthProviders(ordered)
-        setMode(ordered.length > 0 ? 'oauth' : 'apikey')
-      } catch {
-        if (!cancelledRef.current) {
-          setOauthProviders([])
-          setMode('apikey')
-        }
-      }
-    })()
-
-    return () => {
-      cancelledRef.current = true
-    }
-  }, [refreshSetupCheck, shouldShow])
-
-  useEffect(
-    () => () => {
-      if (pollTimerRef.current !== null) {
-        window.clearInterval(pollTimerRef.current)
-        pollTimerRef.current = null
-      }
-
-      if (flow.start?.session_id && flow.status !== 'success' && flow.status !== 'idle') {
-        cancelOAuthSession(flow.start.session_id).catch(() => undefined)
-      }
-    },
-    [flow.start?.session_id, flow.status]
-  )
-
-  function clearPollTimer() {
-    if (pollTimerRef.current !== null) {
-      window.clearInterval(pollTimerRef.current)
-      pollTimerRef.current = null
-    }
-  }
-
-  async function finalizeSuccess(providerName: string) {
-    clearPollTimer()
-    notify({ kind: 'success', title: 'Hermes is ready', message: `${providerName} connected.` })
-    setFlow({ status: 'success' })
-
-    try {
-      await requestGateway('reload.env').catch(() => undefined)
-    } catch {
-      // best effort env reload
-    }
-
-    const ok = await refreshSetupCheck()
-
-    if (ok) {
-      setProviderConfigured(true)
-      completeDesktopOnboarding()
-      onCompleted?.()
-    } else {
-      setFlow({
-        status: 'error',
-        errorMessage: 'Connected, but Hermes still cannot resolve a usable provider. Try another provider.'
-      })
-    }
-  }
-
-  async function startProviderFlow(provider: OAuthProvider) {
-    if (provider.flow === 'external') {
-      notify({
-        kind: 'info',
-        title: `${provider.name} uses an external CLI`,
-        message: `Run \`${provider.cli_command}\` in a terminal, then come back to retry.`
-      })
-
-      return
-    }
-
-    clearPollTimer()
-    setFlow({ status: 'starting', provider })
-
-    try {
-      const start = await startOAuthLogin(provider.id)
-      const expiresAt = Date.now() + start.expires_in * 1000
-
-      if (start.flow === 'pkce') {
-        await window.hermesDesktop?.openExternal(start.auth_url).catch(() => undefined)
-        setFlow({ status: 'awaiting_user', provider, start, expiresAt })
-
-        return
-      }
-
-      await window.hermesDesktop?.openExternal(start.verification_url).catch(() => undefined)
-      setFlow({ status: 'polling', provider, start, expiresAt })
-      pollTimerRef.current = window.setInterval(() => void pollOAuth(provider, start), POLL_INTERVAL_MS)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setFlow({ status: 'error', provider, errorMessage: `Could not start sign-in: ${message}` })
-    }
-  }
-
-  async function pollOAuth(provider: OAuthProvider, start: OAuthStartResponse) {
-    if (start.flow !== 'device_code') {
-      return
-    }
-
-    try {
-      const resp = await pollOAuthSession(provider.id, start.session_id)
-
-      if (resp.status === 'approved') {
-        clearPollTimer()
-        await finalizeSuccess(provider.name)
-      } else if (resp.status !== 'pending') {
-        clearPollTimer()
-        setFlow({
-          status: 'error',
-          provider,
-          start,
-          errorMessage: resp.error_message || `Sign-in ${resp.status}.`
-        })
-      }
-    } catch (err) {
-      clearPollTimer()
-      const message = err instanceof Error ? err.message : String(err)
-      setFlow({ status: 'error', provider, start, errorMessage: `Polling failed: ${message}` })
-    }
-  }
-
-  async function submitPkce() {
-    if (flow.status !== 'awaiting_user' || !flow.provider || flow.start?.flow !== 'pkce') {
-      return
-    }
-
-    const code = (flow.submitCode || '').trim()
-
-    if (!code) {
-      return
-    }
-
-    const provider = flow.provider
-    const start = flow.start
-    setFlow(prev => ({ ...prev, status: 'submitting' }))
-
-    try {
-      const resp = await submitOAuthCode(provider.id, start.session_id, code)
-
-      if (resp.ok && resp.status === 'approved') {
-        await finalizeSuccess(provider.name)
-      } else {
-        setFlow({ status: 'error', provider, start, errorMessage: resp.message || 'Token exchange failed.' })
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setFlow({ status: 'error', provider, start, errorMessage: message })
-    }
-  }
-
-  function cancelFlow() {
-    clearPollTimer()
-
-    if (flow.start?.session_id) {
-      cancelOAuthSession(flow.start.session_id).catch(() => undefined)
-    }
-
-    setFlow({ status: 'idle' })
-  }
-
-  async function copyDeviceCode() {
-    if (flow.start?.flow !== 'device_code') {
-      return
-    }
-
-    try {
-      await navigator.clipboard.writeText(flow.start.user_code)
-      setFlow(prev => ({ ...prev, copyState: 'copied' }))
-      window.setTimeout(() => setFlow(prev => ({ ...prev, copyState: 'idle' })), 1500)
-    } catch {
-      // clipboard write blocked; user can still type the code manually
-    }
-  }
-
-  async function saveApiKey() {
-    const value = apiKeyValue.trim()
-    const minLen = apiKeyOption.envKey === 'OPENAI_BASE_URL' ? 1 : 8
-
-    if (!value || value.length < minLen || apiKeySaving) {
-      return
-    }
-
-    setApiKeySaving(true)
-    setApiKeyError(null)
-
-    try {
-      await setEnvVar(apiKeyOption.envKey, value)
-      await requestGateway('reload.env').catch(() => undefined)
-      const ok = await refreshSetupCheck()
-
-      if (ok) {
-        notify({ kind: 'success', title: 'Hermes is ready', message: `${apiKeyOption.name} connected.` })
-        setProviderConfigured(true)
-        completeDesktopOnboarding()
-        setApiKeyValue('')
-        onCompleted?.()
-      } else {
-        setApiKeyError(`Saved, but Hermes still cannot reach ${apiKeyOption.name}. Double-check the value.`)
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      notifyError(err, `Could not save ${apiKeyOption.name}`)
-      setApiKeyError(message)
-    } finally {
-      setApiKeySaving(false)
-    }
-  }
-
-  if (!shouldShow || providerConfigured) {
+  if (!visible) {
     return null
   }
-
-  const oauthList = oauthProviders ?? []
 
   return (
     <div className="fixed inset-0 z-1300 flex items-center justify-center bg-background/80 p-6 backdrop-blur-xl">
       <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-border bg-card/95 shadow-2xl">
-        <div className="border-b border-border bg-muted/30 px-6 py-5">
-          <div className="flex items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Sparkles className="size-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">Welcome to Hermes</h2>
-              <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
-                Connect a model provider to start chatting. Most options take one click.
-              </p>
-            </div>
-          </div>
-        </div>
-
+        <Header />
         <div className="grid gap-5 p-6">
-          {flow.status === 'idle' || flow.status === 'success' ? (
-            <ProviderPicker
-              apiKeyError={apiKeyError}
-              apiKeyOption={apiKeyOption}
-              apiKeySaving={apiKeySaving}
-              apiKeyValue={apiKeyValue}
-              loading={oauthProviders === null}
-              mode={mode}
-              oauthProviders={oauthList}
-              onApiKeySave={() => void saveApiKey()}
-              onApiKeySelect={setApiKeyOption}
-              onApiKeyValueChange={setApiKeyValue}
-              onModeChange={setMode}
-              onProviderSelect={provider => void startProviderFlow(provider)}
-            />
+          {onboarding.flow.status === 'idle' || onboarding.flow.status === 'success' ? (
+            <Picker ctx={ctx} />
           ) : (
-            <FlowPanel
-              flow={flow}
-              onCancel={cancelFlow}
-              onCopyCode={() => void copyDeviceCode()}
-              onSubmitCode={() => void submitPkce()}
-              onSubmitCodeChange={code => setFlow(prev => ({ ...prev, submitCode: code }))}
-            />
+            <FlowPanel ctx={ctx} flow={onboarding.flow} />
           )}
         </div>
       </div>
@@ -455,147 +149,102 @@ export function DesktopOnboardingOverlay({
   )
 }
 
-interface ProviderPickerProps {
-  apiKeyError: null | string
-  apiKeyOption: ApiKeyOption
-  apiKeySaving: boolean
-  apiKeyValue: string
-  loading: boolean
-  mode: 'apikey' | 'oauth'
-  oauthProviders: OAuthProvider[]
-  onApiKeySave: () => void
-  onApiKeySelect: (option: ApiKeyOption) => void
-  onApiKeyValueChange: (value: string) => void
-  onModeChange: (mode: 'apikey' | 'oauth') => void
-  onProviderSelect: (provider: OAuthProvider) => void
+function Header() {
+  return (
+    <div className="border-b border-border bg-muted/30 px-6 py-5">
+      <div className="flex items-start gap-3">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Sparkles className="size-5" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Welcome to Hermes</h2>
+          <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
+            Connect a model provider to start chatting. Most options take one click.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-function ProviderPicker({
-  apiKeyError,
-  apiKeyOption,
-  apiKeySaving,
-  apiKeyValue,
-  loading,
-  mode,
-  oauthProviders,
-  onApiKeySave,
-  onApiKeySelect,
-  onApiKeyValueChange,
-  onModeChange,
-  onProviderSelect
-}: ProviderPickerProps) {
-  const hasOauth = oauthProviders.length > 0
-  const minLen = apiKeyOption.envKey === 'OPENAI_BASE_URL' ? 1 : 8
-  const canSave = apiKeyValue.trim().length >= minLen
+function Picker({ ctx }: { ctx: OnboardingContext }) {
+  const { mode, providers } = useStore($desktopOnboarding)
+  const ordered = useMemo(() => (providers ? sortProviders(providers) : []), [providers])
+  const hasOauth = ordered.length > 0
 
   return (
     <>
       {hasOauth && (
-        <div
-          aria-label="Connection method"
-          className="grid w-full max-w-xs grid-cols-2 gap-1 rounded-full border border-border bg-muted/40 p-1 text-xs font-medium"
-          role="tablist"
-        >
-          <button
-            aria-selected={mode === 'oauth'}
-            className={cn(
-              'rounded-full px-3 py-1.5 text-center transition',
-              mode === 'oauth' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            )}
-            onClick={() => onModeChange('oauth')}
-            role="tab"
-            type="button"
-          >
-            Sign in
-          </button>
-          <button
-            aria-selected={mode === 'apikey'}
-            className={cn(
-              'rounded-full px-3 py-1.5 text-center transition',
-              mode === 'apikey' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            )}
-            onClick={() => onModeChange('apikey')}
-            role="tab"
-            type="button"
-          >
-            API key
-          </button>
-        </div>
+        <ModeTabs
+          mode={mode}
+          onChange={setOnboardingMode}
+          tabs={[
+            { id: 'oauth', label: 'Sign in' },
+            { id: 'apikey', label: 'API key' }
+          ]}
+        />
       )}
 
       {mode === 'oauth' && hasOauth ? (
         <div className="grid gap-2">
-          {loading ? (
-            <div className="flex items-center gap-2 rounded-2xl bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Looking up providers...
-            </div>
+          {providers === null ? (
+            <Status icon={<Loader2 className="size-4 animate-spin" />}>Looking up providers...</Status>
           ) : (
-            oauthProviders.map(provider => (
-              <ProviderRow key={provider.id} onSelect={onProviderSelect} provider={provider} />
+            ordered.map(provider => (
+              <ProviderRow key={provider.id} onSelect={p => void startProviderOAuth(p, ctx)} provider={provider} />
             ))
           )}
         </div>
       ) : (
-        <div className="grid gap-4">
-          <div className="grid gap-2 sm:grid-cols-2">
-            {API_KEY_OPTIONS.map(option => (
-              <button
-                className={cn(
-                  'rounded-2xl border bg-background/60 p-3 text-left transition hover:bg-accent/50',
-                  apiKeyOption.id === option.id ? 'border-primary ring-2 ring-primary/20' : 'border-border'
-                )}
-                key={option.id}
-                onClick={() => onApiKeySelect(option)}
-                type="button"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">{option.name}</span>
-                  {apiKeyOption.id === option.id ? <Check className="size-4 text-primary" /> : null}
-                </div>
-                {option.short ? <p className="mt-1 text-xs text-muted-foreground">{option.short}</p> : null}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm leading-6 text-muted-foreground">{apiKeyOption.description}</p>
-              {apiKeyOption.docsUrl ? (
-                <Button asChild size="xs" variant="ghost">
-                  <a href={apiKeyOption.docsUrl} rel="noreferrer" target="_blank">
-                    Get a key
-                    <ExternalLink className="size-3" />
-                  </a>
-                </Button>
-              ) : null}
-            </div>
-            <Input
-              autoComplete="off"
-              autoFocus
-              className="font-mono"
-              onChange={event => onApiKeyValueChange(event.target.value)}
-              onKeyDown={event => {
-                if (event.key === 'Enter') {
-                  onApiKeySave()
-                }
-              }}
-              placeholder={apiKeyOption.placeholder || 'Paste API key'}
-              type={apiKeyOption.envKey === 'OPENAI_BASE_URL' ? 'text' : 'password'}
-              value={apiKeyValue}
-            />
-            {apiKeyError ? <p className="text-xs text-destructive">{apiKeyError}</p> : null}
-          </div>
-
-          <div className="flex justify-end">
-            <Button disabled={!canSave || apiKeySaving} onClick={onApiKeySave}>
-              {apiKeySaving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
-              {apiKeySaving ? 'Connecting' : 'Connect'}
-            </Button>
-          </div>
-        </div>
+        <ApiKeyForm ctx={ctx} />
       )}
     </>
+  )
+}
+
+interface ModeTab<T extends string> {
+  id: T
+  label: string
+}
+
+interface ModeTabsProps<T extends string> {
+  mode: T
+  onChange: (mode: T) => void
+  tabs: ModeTab<T>[]
+}
+
+const TAB_COLS: Record<number, string> = {
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4'
+}
+
+function ModeTabs<T extends string>({ mode, onChange, tabs }: ModeTabsProps<T>) {
+  return (
+    <div
+      aria-label="Connection method"
+      className={cn(
+        'grid w-full max-w-xs gap-1 rounded-full border border-border bg-muted/40 p-1 text-xs font-medium',
+        TAB_COLS[tabs.length] ?? 'grid-cols-2'
+      )}
+      role="tablist"
+    >
+      {tabs.map(tab => (
+        <button
+          aria-selected={tab.id === mode}
+          className={cn(
+            'rounded-full px-3 py-1.5 text-center transition',
+            tab.id === mode ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+          )}
+          key={tab.id}
+          onClick={() => onChange(tab.id)}
+          role="tab"
+          type="button"
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -603,12 +252,12 @@ function ProviderRow({
   provider,
   onSelect
 }: {
-  provider: OAuthProvider
   onSelect: (provider: OAuthProvider) => void
+  provider: OAuthProvider
 }) {
-  const isExternal = provider.flow === 'external'
+  const title = providerTitle(provider)
   const loggedIn = provider.status?.logged_in
-  const title = displayProviderTitle(provider)
+  const Trail = provider.flow === 'external' ? ExternalLink : ChevronRight
 
   return (
     <button
@@ -629,63 +278,117 @@ function ProviderRow({
             </span>
           ) : null}
         </div>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">{flowSubtitle(provider.flow, title)}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{FLOW_SUBTITLES[provider.flow]}</p>
       </div>
-      {isExternal ? (
-        <ExternalLink className="size-4 text-muted-foreground transition group-hover:text-foreground" />
-      ) : (
-        <ChevronRight className="size-4 text-muted-foreground transition group-hover:text-foreground" />
-      )}
+      <Trail className="size-4 text-muted-foreground transition group-hover:text-foreground" />
     </button>
   )
 }
 
-function flowSubtitle(flow: OAuthProvider['flow'], _title: string) {
-  if (flow === 'pkce') {
-    return 'Opens your browser to sign in, then continues here.'
+function ApiKeyForm({ ctx }: { ctx: OnboardingContext }) {
+  const [option, setOption] = useState<ApiKeyOption>(API_KEY_OPTIONS[0])
+  const [value, setValue] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<null | string>(null)
+
+  const isLocal = option.envKey === 'OPENAI_BASE_URL'
+  const canSave = value.trim().length >= (isLocal ? 1 : 8)
+
+  const submit = async () => {
+    if (!canSave || saving) {
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    const result = await saveOnboardingApiKey(option.envKey, value, option.name, ctx)
+
+    if (!result.ok) {
+      setError(result.message ?? 'Could not save credential.')
+    } else {
+      setValue('')
+    }
+
+    setSaving(false)
   }
 
-  if (flow === 'device_code') {
-    return 'Opens a verification page in your browser. Hermes connects automatically.'
-  }
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-2 sm:grid-cols-2">
+        {API_KEY_OPTIONS.map(o => (
+          <button
+            className={cn(
+              'rounded-2xl border bg-background/60 p-3 text-left transition hover:bg-accent/50',
+              option.id === o.id ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+            )}
+            key={o.id}
+            onClick={() => {
+              setOption(o)
+              setValue('')
+              setError(null)
+            }}
+            type="button"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium">{o.name}</span>
+              {option.id === o.id ? <Check className="size-4 text-primary" /> : null}
+            </div>
+            {o.short ? <p className="mt-1 text-xs text-muted-foreground">{o.short}</p> : null}
+          </button>
+        ))}
+      </div>
 
-  return 'Sign in once in your terminal, then come back to chat.'
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm leading-6 text-muted-foreground">{option.description}</p>
+          {option.docsUrl ? (
+            <Button asChild size="xs" variant="ghost">
+              <a href={option.docsUrl} rel="noreferrer" target="_blank">
+                Get a key
+                <ExternalLink className="size-3" />
+              </a>
+            </Button>
+          ) : null}
+        </div>
+        <Input
+          autoComplete="off"
+          autoFocus
+          className="font-mono"
+          onChange={event => setValue(event.target.value)}
+          onKeyDown={event => event.key === 'Enter' && void submit()}
+          placeholder={option.placeholder || 'Paste API key'}
+          type={isLocal ? 'text' : 'password'}
+          value={value}
+        />
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      </div>
+
+      <div className="flex justify-end">
+        <Button disabled={!canSave || saving} onClick={() => void submit()}>
+          {saving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+          {saving ? 'Connecting' : 'Connect'}
+        </Button>
+      </div>
+    </div>
+  )
 }
 
-interface FlowPanelProps {
-  flow: FlowState
-  onCancel: () => void
-  onCopyCode: () => void
-  onSubmitCode: () => void
-  onSubmitCodeChange: (code: string) => void
-}
-
-function FlowPanel({ flow, onCancel, onCopyCode, onSubmitCode, onSubmitCodeChange }: FlowPanelProps) {
-  const providerTitle = flow.provider ? displayProviderTitle(flow.provider) : ''
+function FlowPanel({ ctx, flow }: { ctx: OnboardingContext; flow: OnboardingFlow }) {
+  const title = 'provider' in flow && flow.provider ? providerTitle(flow.provider) : ''
 
   if (flow.status === 'starting') {
-    return (
-      <div className="flex items-center gap-3 rounded-2xl bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" />
-        Starting sign-in for {providerTitle}...
-      </div>
-    )
+    return <Status icon={<Loader2 className="size-4 animate-spin" />}>Starting sign-in for {title}...</Status>
   }
 
   if (flow.status === 'submitting') {
-    return (
-      <div className="flex items-center gap-3 rounded-2xl bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" />
-        Verifying your code with {providerTitle}...
-      </div>
-    )
+    return <Status icon={<Loader2 className="size-4 animate-spin" />}>Verifying your code with {title}...</Status>
   }
 
   if (flow.status === 'success') {
     return (
       <div className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
         <Check className="size-4" />
-        {providerTitle} connected. You're ready to chat.
+        {title} connected. You're ready to chat.
       </div>
     )
   }
@@ -694,10 +397,10 @@ function FlowPanel({ flow, onCancel, onCopyCode, onSubmitCode, onSubmitCodeChang
     return (
       <div className="grid gap-3">
         <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {flow.errorMessage || 'Sign-in failed. Try again.'}
+          {flow.message || 'Sign-in failed. Try again.'}
         </div>
         <div className="flex justify-end">
-          <Button onClick={onCancel} variant="outline">
+          <Button onClick={cancelOnboardingFlow} variant="outline">
             Pick a different provider
           </Button>
         </div>
@@ -705,27 +408,23 @@ function FlowPanel({ flow, onCancel, onCopyCode, onSubmitCode, onSubmitCodeChang
     )
   }
 
-  if (flow.status === 'awaiting_user' && flow.start?.flow === 'pkce' && flow.provider) {
+  if (flow.status === 'awaiting_user') {
     return (
       <div className="grid gap-4">
         <div>
-          <h3 className="text-sm font-semibold">Sign in with {providerTitle}</h3>
+          <h3 className="text-sm font-semibold">Sign in with {title}</h3>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-            <li>We opened {providerTitle} in your browser.</li>
+            <li>We opened {title} in your browser.</li>
             <li>Authorize Hermes there.</li>
             <li>Copy the authorization code and paste it below.</li>
           </ol>
         </div>
         <Input
           autoFocus
-          onChange={event => onSubmitCodeChange(event.target.value)}
-          onKeyDown={event => {
-            if (event.key === 'Enter') {
-              onSubmitCode()
-            }
-          }}
+          onChange={event => setOnboardingCode(event.target.value)}
+          onKeyDown={event => event.key === 'Enter' && void submitOnboardingCode(ctx)}
           placeholder="Paste authorization code"
-          value={flow.submitCode || ''}
+          value={flow.code}
         />
         <div className="flex items-center justify-between gap-3">
           <Button asChild size="xs" variant="ghost">
@@ -735,10 +434,10 @@ function FlowPanel({ flow, onCancel, onCopyCode, onSubmitCode, onSubmitCodeChang
             </a>
           </Button>
           <div className="flex gap-2">
-            <Button onClick={onCancel} variant="ghost">
+            <Button onClick={cancelOnboardingFlow} variant="ghost">
               Cancel
             </Button>
-            <Button disabled={!(flow.submitCode || '').trim()} onClick={onSubmitCode}>
+            <Button disabled={!flow.code.trim()} onClick={() => void submitOnboardingCode(ctx)}>
               Continue
             </Button>
           </div>
@@ -747,44 +446,48 @@ function FlowPanel({ flow, onCancel, onCopyCode, onSubmitCode, onSubmitCodeChang
     )
   }
 
-  if (flow.status === 'polling' && flow.start?.flow === 'device_code' && flow.provider) {
-    return (
-      <div className="grid gap-4">
-        <div>
-          <h3 className="text-sm font-semibold">Sign in with {providerTitle}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            We opened {providerTitle} in your browser. Enter this code there:
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-secondary/30 px-4 py-3">
-          <code className="font-mono text-2xl tracking-[0.4em]">{flow.start.user_code}</code>
-          <Button onClick={onCopyCode} size="sm" variant="outline">
-            {flow.copyState === 'copied' ? <Check className="size-4" /> : 'Copy'}
-          </Button>
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <Button asChild size="xs" variant="ghost">
-            <a href={flow.start.verification_url} rel="noreferrer" target="_blank">
-              <ExternalLink className="size-3" />
-              Re-open verification page
-            </a>
-          </Button>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="size-3 animate-spin" />
-            Waiting for you to authorize...
-          </div>
-          <Button onClick={onCancel} size="sm" variant="ghost">
-            Cancel
-          </Button>
-        </div>
-      </div>
-    )
+  if (flow.status !== 'polling') {
+    return null
   }
 
   return (
+    <div className="grid gap-4">
+      <div>
+        <h3 className="text-sm font-semibold">Sign in with {title}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          We opened {title} in your browser. Enter this code there:
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-secondary/30 px-4 py-3">
+        <code className="font-mono text-2xl tracking-[0.4em]">{flow.start.user_code}</code>
+        <Button onClick={() => void copyDeviceCode()} size="sm" variant="outline">
+          {flow.copied ? <Check className="size-4" /> : 'Copy'}
+        </Button>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <Button asChild size="xs" variant="ghost">
+          <a href={flow.start.verification_url} rel="noreferrer" target="_blank">
+            <ExternalLink className="size-3" />
+            Re-open verification page
+          </a>
+        </Button>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="size-3 animate-spin" />
+          Waiting for you to authorize...
+        </div>
+        <Button onClick={cancelOnboardingFlow} size="sm" variant="ghost">
+          Cancel
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function Status({ children, icon }: { children: React.ReactNode; icon: React.ReactNode }) {
+  return (
     <div className="flex items-center gap-3 rounded-2xl bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
-      <Loader2 className="size-4 animate-spin" />
-      Working...
+      {icon}
+      {children}
     </div>
   )
 }
