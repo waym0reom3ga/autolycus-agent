@@ -1795,7 +1795,8 @@ def select_provider_and_model(args=None):
     print()
 
     # Step 1: Provider selection — flat list from CANONICAL_PROVIDERS
-    all_providers = [(p.slug, p.tui_desc) for p in CANONICAL_PROVIDERS]
+    # Custom endpoint first for Autolycus (most common use case)
+    all_providers = [("custom", "Custom endpoint (your own OpenAI-compatible API)")] + [(p.slug, p.tui_desc) for p in CANONICAL_PROVIDERS]
 
     def _named_custom_provider_map(cfg) -> dict[str, dict[str, str]]:
         from hermes_cli.config import read_raw_config
