@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Check, ChevronRight, ExternalLink, KeyRound, Loader2, Sparkles } from '@/lib/icons'
+import { Check, ChevronLeft, ChevronRight, ExternalLink, KeyRound, Loader2, Sparkles } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
   $desktopOnboarding,
@@ -174,78 +174,34 @@ function Picker({ ctx }: { ctx: OnboardingContext }) {
   const ordered = useMemo(() => (providers ? sortProviders(providers) : []), [providers])
   const hasOauth = ordered.length > 0
 
-  return (
-    <>
-      {hasOauth && (
-        <ModeTabs
-          mode={mode}
-          onChange={setOnboardingMode}
-          tabs={[
-            { id: 'oauth', label: 'Sign in' },
-            { id: 'apikey', label: 'API key' }
-          ]}
-        />
-      )}
+  if (mode === 'apikey' || !hasOauth) {
+    return <ApiKeyForm canGoBack={hasOauth} ctx={ctx} />
+  }
 
-      {mode === 'oauth' && hasOauth ? (
-        <div className="grid gap-2">
-          {providers === null ? (
-            <Status icon={<Loader2 className="size-4 animate-spin" />}>Looking up providers...</Status>
-          ) : (
-            ordered.map(provider => (
-              <ProviderRow key={provider.id} onSelect={p => void startProviderOAuth(p, ctx)} provider={provider} />
-            ))
-          )}
-        </div>
+  return (
+    <div className="grid gap-3">
+      {providers === null ? (
+        <Status icon={<Loader2 className="size-4 animate-spin" />}>Looking up providers...</Status>
       ) : (
-        <ApiKeyForm ctx={ctx} />
+        ordered.map(provider => (
+          <ProviderRow key={provider.id} onSelect={p => void startProviderOAuth(p, ctx)} provider={provider} />
+        ))
       )}
-    </>
+      <ModeSwitchLink onClick={() => setOnboardingMode('apikey')}>I have an API key</ModeSwitchLink>
+    </div>
   )
 }
 
-interface ModeTab<T extends string> {
-  id: T
-  label: string
-}
-
-interface ModeTabsProps<T extends string> {
-  mode: T
-  onChange: (mode: T) => void
-  tabs: ModeTab<T>[]
-}
-
-const TAB_COLS: Record<number, string> = {
-  2: 'grid-cols-2',
-  3: 'grid-cols-3',
-  4: 'grid-cols-4'
-}
-
-function ModeTabs<T extends string>({ mode, onChange, tabs }: ModeTabsProps<T>) {
+function ModeSwitchLink({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   return (
-    <div
-      aria-label="Connection method"
-      className={cn(
-        'mx-auto grid w-full max-w-xs gap-1 rounded-full border border-border bg-muted/40 p-1 text-xs font-medium',
-        TAB_COLS[tabs.length] ?? 'grid-cols-2'
-      )}
-      role="tablist"
-    >
-      {tabs.map(tab => (
-        <button
-          aria-selected={tab.id === mode}
-          className={cn(
-            'rounded-full px-3 py-1.5 text-center transition',
-            tab.id === mode ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-          )}
-          key={tab.id}
-          onClick={() => onChange(tab.id)}
-          role="tab"
-          type="button"
-        >
-          {tab.label}
-        </button>
-      ))}
+    <div className="pt-2 text-center">
+      <button
+        className="text-sm font-semibold text-foreground underline-offset-4 hover:underline"
+        onClick={onClick}
+        type="button"
+      >
+        {children}
+      </button>
     </div>
   )
 }
@@ -287,7 +243,7 @@ function ProviderRow({
   )
 }
 
-function ApiKeyForm({ ctx }: { ctx: OnboardingContext }) {
+function ApiKeyForm({ canGoBack, ctx }: { canGoBack: boolean; ctx: OnboardingContext }) {
   const [option, setOption] = useState<ApiKeyOption>(API_KEY_OPTIONS[0])
   const [value, setValue] = useState('')
   const [saving, setSaving] = useState(false)
@@ -316,6 +272,16 @@ function ApiKeyForm({ ctx }: { ctx: OnboardingContext }) {
 
   return (
     <div className="grid gap-4">
+      {canGoBack ? (
+        <button
+          className="-mt-1 flex items-center gap-1 self-start text-xs font-medium text-muted-foreground hover:text-foreground"
+          onClick={() => setOnboardingMode('oauth')}
+          type="button"
+        >
+          <ChevronLeft className="size-3" />
+          Back to sign in
+        </button>
+      ) : null}
       <div className="grid gap-2 sm:grid-cols-2">
         {API_KEY_OPTIONS.map(o => (
           <button
@@ -514,13 +480,15 @@ function FlowPanel({ ctx, flow }: { ctx: OnboardingContext; flow: OnboardingFlow
             Re-open verification page
           </a>
         </Button>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="size-3 animate-spin" />
-          Waiting for you to authorize...
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-3 animate-spin" />
+            Waiting for you to authorize...
+          </div>
+          <Button onClick={cancelOnboardingFlow} size="sm" variant="ghost">
+            Cancel
+          </Button>
         </div>
-        <Button onClick={cancelOnboardingFlow} size="sm" variant="ghost">
-          Cancel
-        </Button>
       </div>
     </div>
   )
