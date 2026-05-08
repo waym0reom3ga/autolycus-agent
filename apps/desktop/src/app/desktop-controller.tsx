@@ -405,7 +405,6 @@ export function DesktopController() {
           void refreshCurrentModel()
           void queryClient.invalidateQueries({ queryKey: ['model-options'] })
         }}
-        onOpenSettings={openSettings}
         requestGateway={requestGateway}
       />
       <ModelPickerOverlay gateway={gatewayRef.current || undefined} onSelect={selectModel} />

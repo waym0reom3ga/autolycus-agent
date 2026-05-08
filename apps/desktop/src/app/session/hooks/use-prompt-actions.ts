@@ -25,6 +25,7 @@ import {
   type ComposerAttachment
 } from '@/store/composer'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
+import { requestDesktopOnboarding } from '@/store/onboarding'
 import { $busy, $messages, setAwaitingResponse, setBusy, setMessages } from '@/store/session'
 
 import type { ClientSessionState, ImageAttachResponse, SlashExecResponse } from '../../types'
@@ -43,6 +44,16 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.addEventListener('error', () => reject(reader.error || new Error('Could not read recorded audio')))
     reader.readAsDataURL(blob)
   })
+}
+
+interface SetupStatus {
+  provider_configured?: boolean
+}
+
+function isProviderSetupError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+
+  return /No inference provider configured|OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY/i.test(message)
 }
 
 interface PromptActionsOptions {
@@ -216,6 +227,15 @@ export function usePromptActions({
       setAwaitingResponse(true)
       clearNotifications()
 
+      const setup = await requestGateway<SetupStatus>('setup.status').catch(() => null)
+
+      if (setup?.provider_configured === false) {
+        releaseBusy()
+        requestDesktopOnboarding('Add a provider credential before sending your first message.')
+
+        return
+      }
+
       let sessionId = activeSessionId
 
       if (!sessionId) {
@@ -257,6 +277,13 @@ export function usePromptActions({
       } catch (err) {
         releaseBusy()
         updateSessionState(sessionId, state => ({ ...state, busy: false, awaitingResponse: false }))
+
+        if (isProviderSetupError(err)) {
+          requestDesktopOnboarding('Add a provider credential before sending your first message.')
+
+          return
+        }
+
         notifyError(err, 'Prompt failed')
       }
     },

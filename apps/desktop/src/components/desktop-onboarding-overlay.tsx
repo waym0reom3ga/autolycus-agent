@@ -1,17 +1,18 @@
+import { useStore } from '@nanostores/react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getEnvVars, setEnvVar } from '@/hermes'
-import { AlertCircle, Check, ExternalLink, KeyRound, Loader2, Settings2, X } from '@/lib/icons'
+import { AlertCircle, Check, ExternalLink, KeyRound, Loader2 } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import { notify, notifyError } from '@/store/notifications'
+import { $desktopOnboarding, completeDesktopOnboarding } from '@/store/onboarding'
 import type { EnvVarInfo } from '@/types/hermes'
 
 interface DesktopOnboardingOverlayProps {
   enabled: boolean
   onCompleted?: () => void
-  onOpenSettings?: () => void
   requestGateway: <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>
 }
 
@@ -24,8 +25,6 @@ interface ProviderOption {
   label: string
   helper: string
 }
-
-const DISMISS_KEY = 'desktop.onboarding.dismissed_until_reload'
 
 const PREFERRED_PROVIDER_KEYS: ProviderOption[] = [
   {
@@ -60,22 +59,6 @@ const PREFERRED_PROVIDER_KEYS: ProviderOption[] = [
   }
 ]
 
-function isDismissedForSession() {
-  try {
-    return window.sessionStorage.getItem(DISMISS_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function dismissForSession() {
-  try {
-    window.sessionStorage.setItem(DISMISS_KEY, '1')
-  } catch {
-    // Ignore storage failures; in-memory state still dismisses the overlay.
-  }
-}
-
 function optionLabel(option: ProviderOption, info?: EnvVarInfo) {
   return info?.description ? `${option.label} (${option.key})` : option.label
 }
@@ -83,20 +66,20 @@ function optionLabel(option: ProviderOption, info?: EnvVarInfo) {
 export function DesktopOnboardingOverlay({
   enabled,
   onCompleted,
-  onOpenSettings,
   requestGateway
 }: DesktopOnboardingOverlayProps) {
+  const onboarding = useStore($desktopOnboarding)
   const [checking, setChecking] = useState(false)
-  const [dismissed, setDismissed] = useState(isDismissedForSession)
   const [envVars, setEnvVars] = useState<Record<string, EnvVarInfo> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [providerConfigured, setProviderConfigured] = useState(true)
   const [saving, setSaving] = useState(false)
   const [selectedKey, setSelectedKey] = useState(PREFERRED_PROVIDER_KEYS[0].key)
   const [value, setValue] = useState('')
+  const shouldCheck = enabled || onboarding.requested
 
   useEffect(() => {
-    if (!enabled || dismissed) {
+    if (!shouldCheck) {
       return
     }
 
@@ -115,6 +98,10 @@ export function DesktopOnboardingOverlay({
 
         setProviderConfigured(Boolean(status.provider_configured))
         setEnvVars(vars)
+
+        if (status.provider_configured) {
+          completeDesktopOnboarding()
+        }
 
         const firstAvailable = PREFERRED_PROVIDER_KEYS.find(option => vars[option.key])
 
@@ -136,7 +123,7 @@ export function DesktopOnboardingOverlay({
     void checkSetup()
 
     return () => void (cancelled = true)
-  }, [dismissed, enabled, requestGateway])
+  }, [requestGateway, shouldCheck])
 
   const providerOptions = useMemo(
     () => PREFERRED_PROVIDER_KEYS.filter(option => !envVars || envVars[option.key]),
@@ -169,6 +156,7 @@ export function DesktopOnboardingOverlay({
       notify({ kind: 'success', title: 'Hermes is ready', message: `${selectedKey} saved.` })
       setProviderConfigured(true)
       setValue('')
+      completeDesktopOnboarding()
       onCompleted?.()
     } catch (err) {
       notifyError(err, `Failed to save ${selectedKey}`)
@@ -178,17 +166,7 @@ export function DesktopOnboardingOverlay({
     }
   }
 
-  function handleDismiss() {
-    dismissForSession()
-    setDismissed(true)
-  }
-
-  function handleOpenSettings() {
-    handleDismiss()
-    onOpenSettings?.()
-  }
-
-  if (!enabled || dismissed || providerConfigured) {
+  if (!shouldCheck || providerConfigured) {
     return null
   }
 
@@ -209,9 +187,6 @@ export function DesktopOnboardingOverlay({
                 </p>
               </div>
             </div>
-            <Button onClick={handleDismiss} size="icon-sm" title="Configure later" variant="ghost">
-              <X className="size-4" />
-            </Button>
           </div>
         </div>
 
@@ -220,6 +195,13 @@ export function DesktopOnboardingOverlay({
             <div className="flex items-center gap-2 rounded-2xl bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
               Checking provider setup...
+            </div>
+          ) : null}
+
+          {onboarding.reason ? (
+            <div className="flex gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              <span>{onboarding.reason}</span>
             </div>
           ) : null}
 
@@ -287,20 +269,11 @@ export function DesktopOnboardingOverlay({
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
-            <Button onClick={handleOpenSettings} variant="outline">
-              <Settings2 className="size-4" />
-              Open full settings
+          <div className="flex justify-end border-t border-border pt-5">
+            <Button disabled={!canSave || saving} onClick={() => void handleSave()}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+              {saving ? 'Saving' : 'Save and continue'}
             </Button>
-            <div className="flex gap-2">
-              <Button onClick={handleDismiss} variant="ghost">
-                Configure later
-              </Button>
-              <Button disabled={!canSave || saving} onClick={() => void handleSave()}>
-                {saving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
-                {saving ? 'Saving' : 'Save and continue'}
-              </Button>
-            </div>
           </div>
         </div>
       </div>
