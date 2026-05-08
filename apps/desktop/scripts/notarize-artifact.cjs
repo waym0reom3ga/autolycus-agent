@@ -68,7 +68,7 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error(error.message)
+main().catch(() => {
+  console.error('Notarization failed. Check configuration and command output in secure CI logs.')
   process.exit(1)
 })
