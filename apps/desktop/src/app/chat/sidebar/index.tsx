@@ -280,9 +280,7 @@ function SidebarSessionSkeletons() {
 
 function SidebarEmptySessionState() {
   return (
-    <div className="grid min-h-35 place-items-center rounded-lg px-3 text-center text-xs text-muted-foreground">
-      Start a chat to build your history.
-    </div>
+    <p className="rounded-lg px-3 py-1.5 text-xs text-muted-foreground/80">Start a chat to build your history.</p>
   )
 }
 
