@@ -35,6 +35,9 @@ import type { RpcEvent } from '@/types/hermes'
 
 import type { ClientSessionState } from '../../types'
 
+const PROVIDER_SETUP_ERROR_RE =
+  /No inference provider configured|no_provider_configured|OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|set an API key/i
+
 interface MessageStreamOptions {
   activeSessionIdRef: MutableRefObject<string | null>
   hydrateFromStoredSession: (
@@ -585,11 +588,16 @@ export function useMessageStream({
           })
         }
       } else if (event.type === 'error') {
-        if (isActiveEvent) {
+        const errorMessage = payload?.message || 'Hermes reported an error'
+        const looksLikeProviderSetup = PROVIDER_SETUP_ERROR_RE.test(errorMessage)
+
+        if (looksLikeProviderSetup) {
+          requestDesktopOnboarding(errorMessage)
+        } else if (isActiveEvent) {
           notify({
             kind: 'error',
             title: 'Hermes error',
-            message: payload?.message || 'Hermes reported an error'
+            message: errorMessage
           })
         }
 
