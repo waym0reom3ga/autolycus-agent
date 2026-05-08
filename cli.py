@@ -12656,6 +12656,14 @@ class HermesCLI:
                     pass  # best-effort — banner will fire again next session
         except Exception:
             pass  # banner is non-critical — never break startup
+        # First-run voice setup wizard — fires once if not yet configured
+        try:
+            from agent.voice_setup import run_voice_setup
+            if not getattr(self, '_voice_setup_skipped', False):
+                run_voice_setup()
+        except Exception:
+            pass  # voice setup is non-critical — never break startup
+        
         # Show a random tip to help users discover features
         try:
             from hermes_cli.tips import get_random_tip
@@ -12705,8 +12713,10 @@ class HermesCLI:
         try:
             from agent.onboarding import get_dynamic_greeting, is_lycus_command
             if is_lycus_command():
-                _greeting = get_dynamic_greeting()
-                self._pending_input.put(_greeting)
+                _greeting_prompt, _is_greeting = get_dynamic_greeting()
+                self._pending_input.put(_greeting_prompt)
+                # Mark that the next message preview should be suppressed (greeting is internal)
+                self._suppress_next_message_preview = True
         except Exception:
             pass  # greeting is non-critical — never break startup
 
@@ -14590,8 +14600,15 @@ class HermesCLI:
                     paste_refs = list(_paste_ref_re.finditer(user_input)) if isinstance(user_input, str) else []
                     if paste_refs:
                         user_input = self._expand_paste_references(user_input)
-                    print()
-                    self._print_user_message_preview(user_input)
+
+                    # Suppress display for internal greeting prompts
+                    _is_greeting = getattr(self, '_suppress_next_message_preview', False)
+                    if _is_greeting:
+                        self._suppress_next_message_preview = False
+
+                    if not _is_greeting:
+                        print()
+                        self._print_user_message_preview(user_input)
                     
                     # Show image attachment count
                     if submit_images:
@@ -14612,6 +14629,28 @@ class HermesCLI:
                         self._last_scrollback_tool = ""
 
                         app.invalidate()  # Refresh status line
+
+                        # End-of-task voice summary (if enabled)
+                        try:
+                            from agent.voice_setup import voice_summary_enabled
+                            if voice_summary_enabled():
+                                # Generate a brief summary of what was accomplished
+                                try:
+                                    from agent.voice_setup import play_task_summary
+                                    _summary = (
+                                        "Task complete. "
+                                        "Is there anything else you'd like to work on?"
+                                    )
+                                    # Run in background thread to avoid blocking
+                                    threading.Thread(
+                                        target=play_task_summary,
+                                        args=(_summary,),
+                                        daemon=True
+                                    ).start()
+                                except Exception:
+                                    pass  # Non-critical
+                        except Exception:
+                            pass
 
                         # Goal continuation: if a standing goal is active, ask
                         # the judge whether the turn satisfied it. If not, and
