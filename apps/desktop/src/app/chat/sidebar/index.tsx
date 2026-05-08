@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { SessionInfo } from '@/hermes'
-import { Brain, ChevronDown, Command, Layers3, Pin, Plus, RefreshCw, Settings } from '@/lib/icons'
+import { Brain, ChevronDown, Layers3, MessageCircle, Pin, Plus, RefreshCw } from '@/lib/icons'
 import { cn } from '@/lib/utils'
 import {
   $pinnedSessionIds,
@@ -29,7 +29,7 @@ import {
 } from '@/store/layout'
 import { $selectedStoredSessionId, $sessions, $sessionsLoading, $workingSessionIds } from '@/store/session'
 
-import { type AppView, ARTIFACTS_ROUTE, COMMAND_CENTER_ROUTE, SETTINGS_ROUTE, SKILLS_ROUTE } from '../../routes'
+import { type AppView, ARTIFACTS_ROUTE, MESSAGING_ROUTE, SKILLS_ROUTE } from '../../routes'
 import type { SidebarNavItem } from '../../types'
 
 import { SidebarSessionRow } from './session-row'
@@ -41,10 +41,9 @@ const SIDEBAR_NAV: SidebarNavItem[] = [
     icon: Plus,
     action: 'new-session'
   },
-  { id: 'command-center', label: 'Command Center', icon: Command, route: COMMAND_CENTER_ROUTE },
   { id: 'skills', label: 'Skills', icon: Brain, route: SKILLS_ROUTE },
-  { id: 'artifacts', label: 'Artifacts', icon: Layers3, route: ARTIFACTS_ROUTE },
-  { id: 'settings', label: 'Settings', icon: Settings, route: SETTINGS_ROUTE }
+  { id: 'messaging', label: 'Messaging', icon: MessageCircle, route: MESSAGING_ROUTE },
+  { id: 'artifacts', label: 'Artifacts', icon: Layers3, route: ARTIFACTS_ROUTE }
 ]
 
 const sidebarNavItemClass =
@@ -124,9 +123,8 @@ export function ChatSidebar({
                 const isInteractive = Boolean(item.action) || Boolean(item.route)
 
                 const active =
-                  (item.id === 'command-center' && currentView === 'command-center') ||
-                  (item.id === 'settings' && currentView === 'settings') ||
                   (item.id === 'skills' && currentView === 'skills') ||
+                  (item.id === 'messaging' && currentView === 'messaging') ||
                   (item.id === 'artifacts' && currentView === 'artifacts')
 
                 return (

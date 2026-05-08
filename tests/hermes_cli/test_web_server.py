@@ -345,6 +345,82 @@ class TestWebServerEndpoints:
 
         assert resp.status_code == 200
 
+    def test_get_messaging_platforms(self):
+        resp = self.client.get("/api/messaging/platforms")
+
+        assert resp.status_code == 200
+        platforms = resp.json()["platforms"]
+        telegram = next(platform for platform in platforms if platform["id"] == "telegram")
+        assert telegram["name"] == "Telegram"
+        assert telegram["enabled"] is False
+        assert any(field["key"] == "TELEGRAM_BOT_TOKEN" and field["required"] for field in telegram["env_vars"])
+
+    def test_messaging_catalog_covers_gateway_platforms(self):
+        """Catalog is derived from the Platform enum, so every built-in shows up."""
+        from gateway.config import Platform
+
+        resp = self.client.get("/api/messaging/platforms")
+        platforms = {entry["id"] for entry in resp.json()["platforms"]}
+
+        for member in Platform.__members__.values():
+            if member.value == "local":
+                continue
+            assert member.value in platforms, f"Missing gateway platform {member.value} from /api/messaging/platforms"
+
+    def test_messaging_catalog_includes_plugin_platforms(self, monkeypatch):
+        """Plugin-registered adapters appear in the catalog without per-platform code."""
+        from gateway.platform_registry import PlatformEntry, platform_registry
+
+        entry = PlatformEntry(
+            name="ircfake",
+            label="IRC (test)",
+            adapter_factory=lambda cfg: None,
+            check_fn=lambda: True,
+            required_env=["IRC_SERVER"],
+            install_hint="Connect to IRC.",
+            source="plugin",
+        )
+        platform_registry.register(entry)
+        try:
+            resp = self.client.get("/api/messaging/platforms")
+            ids = {row["id"]: row for row in resp.json()["platforms"]}
+            assert "ircfake" in ids
+            assert ids["ircfake"]["name"] == "IRC (test)"
+            assert any(field["key"] == "IRC_SERVER" and field["required"] for field in ids["ircfake"]["env_vars"])
+        finally:
+            platform_registry.unregister("ircfake")
+
+    def test_update_messaging_platform_saves_env_and_enablement(self):
+        from hermes_cli.config import load_config, load_env
+
+        resp = self.client.put(
+            "/api/messaging/platforms/telegram",
+            json={
+                "enabled": False,
+                "env": {"TELEGRAM_BOT_TOKEN": "1234567890abcdef"},
+            },
+        )
+
+        assert resp.status_code == 200
+        assert load_env()["TELEGRAM_BOT_TOKEN"] == "1234567890abcdef"
+        assert load_config()["platforms"]["telegram"]["enabled"] is False
+
+        status = self.client.get("/api/messaging/platforms").json()["platforms"]
+        telegram = next(platform for platform in status if platform["id"] == "telegram")
+        assert telegram["enabled"] is False
+
+    def test_messaging_platform_test_reports_missing_required_setup(self):
+        resp = self.client.put("/api/messaging/platforms/discord", json={"enabled": True})
+        assert resp.status_code == 200
+
+        resp = self.client.post("/api/messaging/platforms/discord/test")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is False
+        assert data["state"] == "not_configured"
+        assert "DISCORD_BOT_TOKEN" in data["message"]
+
     def test_session_token_endpoint_removed(self):
         """GET /api/auth/session-token should no longer exist (token injected via HTML)."""
         resp = self.client.get("/api/auth/session-token")

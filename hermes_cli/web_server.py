@@ -458,6 +458,12 @@ class EnvVarReveal(BaseModel):
     key: str
 
 
+class MessagingPlatformUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    env: Dict[str, str] = {}
+    clear_env: List[str] = []
+
+
 class AudioTranscriptionRequest(BaseModel):
     data_url: str
     mime_type: Optional[str] = None
@@ -1516,6 +1522,523 @@ async def reveal_env_var(body: EnvVarReveal, request: Request):
 
     _log.info("env/reveal: %s", body.key)
     return {"key": body.key, "value": value}
+
+
+# Curated UI metadata for messaging platforms. Keyed by the gateway's
+# platform id (Platform.value for built-ins, PlatformEntry.name for plugins).
+# Entries omit fields they don't need to override; the catalog builder fills
+# in env_vars from OPTIONAL_ENV_VARS via prefix matching when not specified,
+# and pulls required_env from a plugin's PlatformEntry when available.
+_PLATFORM_OVERRIDES: dict[str, dict[str, Any]] = {
+    "telegram": {
+        "name": "Telegram",
+        "description": "Run Hermes from Telegram DMs, groups, and topics.",
+        "docs_url": "https://core.telegram.org/bots/features#botfather",
+        "env_vars": ("TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USERS", "TELEGRAM_PROXY"),
+        "required_env": ("TELEGRAM_BOT_TOKEN",),
+    },
+    "discord": {
+        "name": "Discord",
+        "description": "Connect Hermes to Discord DMs, channels, and threads.",
+        "docs_url": "https://discord.com/developers/applications",
+        "env_vars": ("DISCORD_BOT_TOKEN", "DISCORD_ALLOWED_USERS", "DISCORD_REPLY_TO_MODE"),
+        "required_env": ("DISCORD_BOT_TOKEN",),
+    },
+    "slack": {
+        "name": "Slack",
+        "description": "Use Hermes from Slack via Socket Mode.",
+        "docs_url": "https://api.slack.com/apps",
+        "env_vars": ("SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"),
+        "required_env": ("SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"),
+    },
+    "mattermost": {
+        "name": "Mattermost",
+        "description": "Connect Hermes to Mattermost channels and direct messages.",
+        "docs_url": "https://mattermost.com/deploy/",
+        "env_vars": ("MATTERMOST_URL", "MATTERMOST_TOKEN", "MATTERMOST_ALLOWED_USERS"),
+        "required_env": ("MATTERMOST_URL", "MATTERMOST_TOKEN"),
+    },
+    "matrix": {
+        "name": "Matrix",
+        "description": "Use Hermes in Matrix rooms and direct messages.",
+        "docs_url": "https://matrix.org/ecosystem/servers/",
+        "env_vars": ("MATRIX_HOMESERVER", "MATRIX_ACCESS_TOKEN", "MATRIX_USER_ID", "MATRIX_ALLOWED_USERS"),
+        "required_env": ("MATRIX_HOMESERVER", "MATRIX_ACCESS_TOKEN", "MATRIX_USER_ID"),
+    },
+    "signal": {
+        "name": "Signal",
+        "description": "Connect through a signal-cli REST bridge.",
+        "docs_url": "https://github.com/bbernhard/signal-cli-rest-api",
+        "env_vars": ("SIGNAL_HTTP_URL", "SIGNAL_ACCOUNT", "SIGNAL_ALLOWED_USERS"),
+        "required_env": ("SIGNAL_HTTP_URL", "SIGNAL_ACCOUNT"),
+    },
+    "whatsapp": {
+        "name": "WhatsApp",
+        "description": "Use Hermes through the bundled WhatsApp bridge with QR-based auth.",
+        "docs_url": "https://github.com/tulir/whatsmeow",
+        "env_vars": ("WHATSAPP_ENABLED", "WHATSAPP_MODE", "WHATSAPP_ALLOWED_USERS"),
+        "required_env": (),
+    },
+    "homeassistant": {
+        "name": "Home Assistant",
+        "description": "Control your smart home from Hermes via Home Assistant.",
+        "docs_url": "https://www.home-assistant.io/docs/authentication/",
+        "env_vars": ("HASS_URL", "HASS_TOKEN"),
+        "required_env": ("HASS_URL", "HASS_TOKEN"),
+    },
+    "email": {
+        "name": "Email",
+        "description": "Talk to Hermes through an IMAP/SMTP mailbox.",
+        "docs_url": "https://hermes-agent.nousresearch.com/docs/user-guide/messaging/",
+        "env_vars": ("EMAIL_ADDRESS", "EMAIL_PASSWORD", "EMAIL_IMAP_HOST", "EMAIL_SMTP_HOST"),
+        "required_env": ("EMAIL_ADDRESS", "EMAIL_PASSWORD", "EMAIL_IMAP_HOST", "EMAIL_SMTP_HOST"),
+    },
+    "sms": {
+        "name": "SMS (Twilio)",
+        "description": "Send and receive text messages via Twilio.",
+        "docs_url": "https://www.twilio.com/console",
+        "env_vars": ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"),
+        "required_env": ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"),
+    },
+    "dingtalk": {
+        "name": "DingTalk",
+        "description": "Connect Hermes to DingTalk groups (钉钉).",
+        "docs_url": "https://open.dingtalk.com/document/orgapp/the-robot-development-process",
+        "env_vars": ("DINGTALK_CLIENT_ID", "DINGTALK_CLIENT_SECRET"),
+        "required_env": ("DINGTALK_CLIENT_ID", "DINGTALK_CLIENT_SECRET"),
+    },
+    "feishu": {
+        "name": "Feishu / Lark",
+        "description": "Use Hermes inside Feishu / Lark.",
+        "docs_url": "https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/intro",
+        "env_vars": ("FEISHU_APP_ID", "FEISHU_APP_SECRET", "FEISHU_ENCRYPT_KEY", "FEISHU_VERIFICATION_TOKEN"),
+        "required_env": ("FEISHU_APP_ID", "FEISHU_APP_SECRET"),
+    },
+    "wecom": {
+        "name": "WeCom (group bot)",
+        "description": "Send-only WeCom group bot via webhook.",
+        "docs_url": "https://developer.work.weixin.qq.com/document/path/91770",
+        "env_vars": ("WECOM_BOT_ID", "WECOM_SECRET"),
+        "required_env": ("WECOM_BOT_ID",),
+    },
+    "wecom_callback": {
+        "name": "WeCom (app)",
+        "description": "Two-way WeCom integration via callback app.",
+        "docs_url": "https://developer.work.weixin.qq.com/document/path/90930",
+        "env_vars": (
+            "WECOM_CALLBACK_CORP_ID",
+            "WECOM_CALLBACK_CORP_SECRET",
+            "WECOM_CALLBACK_AGENT_ID",
+            "WECOM_CALLBACK_TOKEN",
+            "WECOM_CALLBACK_ENCODING_AES_KEY",
+        ),
+        "required_env": ("WECOM_CALLBACK_CORP_ID", "WECOM_CALLBACK_CORP_SECRET", "WECOM_CALLBACK_AGENT_ID"),
+    },
+    "weixin": {
+        "name": "WeChat (Official Account)",
+        "description": "Connect a WeChat Official Account.",
+        "docs_url": "https://developers.weixin.qq.com/doc/offiaccount/Getting_Started/Overview.html",
+        "env_vars": ("WEIXIN_ACCOUNT_ID", "WEIXIN_TOKEN", "WEIXIN_BASE_URL"),
+        "required_env": ("WEIXIN_ACCOUNT_ID", "WEIXIN_TOKEN"),
+    },
+    "bluebubbles": {
+        "name": "BlueBubbles (iMessage)",
+        "description": "Use Hermes through iMessage via a BlueBubbles server.",
+        "docs_url": "https://bluebubbles.app/",
+        "env_vars": ("BLUEBUBBLES_SERVER_URL", "BLUEBUBBLES_PASSWORD", "BLUEBUBBLES_ALLOWED_USERS"),
+        "required_env": ("BLUEBUBBLES_SERVER_URL", "BLUEBUBBLES_PASSWORD"),
+    },
+    "qqbot": {
+        "name": "QQ Bot",
+        "description": "Connect Hermes to a QQ Bot from the QQ Open Platform.",
+        "docs_url": "https://q.qq.com",
+        "env_vars": ("QQ_APP_ID", "QQ_CLIENT_SECRET", "QQ_ALLOWED_USERS"),
+        "required_env": ("QQ_APP_ID", "QQ_CLIENT_SECRET"),
+    },
+    "yuanbao": {
+        "name": "Yuanbao (元宝)",
+        "description": "Connect Hermes to Tencent Yuanbao.",
+        "docs_url": "",
+        "required_env": (),
+    },
+    "api_server": {
+        "name": "API server",
+        "description": "Expose Hermes as an OpenAI-compatible HTTP API for tools like Open WebUI.",
+        "docs_url": "https://hermes-agent.nousresearch.com/docs/user-guide/messaging/",
+        "env_vars": (
+            "API_SERVER_ENABLED",
+            "API_SERVER_KEY",
+            "API_SERVER_PORT",
+            "API_SERVER_HOST",
+            "API_SERVER_MODEL_NAME",
+        ),
+        "required_env": (),
+    },
+    "webhook": {
+        "name": "Webhooks",
+        "description": "Receive events from GitHub, GitLab, and other webhook sources.",
+        "docs_url": "https://hermes-agent.nousresearch.com/docs/user-guide/messaging/webhooks/",
+        "env_vars": ("WEBHOOK_ENABLED", "WEBHOOK_PORT", "WEBHOOK_SECRET"),
+        "required_env": (),
+    },
+}
+
+# Display order: well-known platforms surface first; unknown plugins fall to
+# the end alphabetically.
+_PLATFORM_ORDER: tuple[str, ...] = (
+    "telegram",
+    "discord",
+    "slack",
+    "mattermost",
+    "matrix",
+    "whatsapp",
+    "signal",
+    "bluebubbles",
+    "homeassistant",
+    "email",
+    "sms",
+    "dingtalk",
+    "feishu",
+    "wecom",
+    "wecom_callback",
+    "weixin",
+    "qqbot",
+    "yuanbao",
+    "api_server",
+    "webhook",
+)
+
+# Display labels for env vars not in OPTIONAL_ENV_VARS (HOME_CHANNEL_*, bridge
+# toggles, Twilio, HASS, Email, etc.). Anything missing from OPTIONAL_ENV_VARS
+# falls back here so the UI can still render a friendly label.
+_MESSAGING_ENV_FALLBACKS: dict[str, dict[str, Any]] = {
+    "SIGNAL_HTTP_URL": {
+        "description": "signal-cli REST API base URL, e.g. http://127.0.0.1:8080",
+        "prompt": "Signal bridge URL",
+        "url": "https://github.com/bbernhard/signal-cli-rest-api",
+    },
+    "SIGNAL_ACCOUNT": {
+        "description": "Signal account phone number registered with the bridge",
+        "prompt": "Signal account",
+    },
+    "SIGNAL_ALLOWED_USERS": {
+        "description": "Comma-separated Signal users allowed to use the bot",
+        "prompt": "Allowed Signal users",
+    },
+    "WHATSAPP_ENABLED": {
+        "description": "Enable the WhatsApp gateway adapter",
+        "prompt": "Enable WhatsApp",
+        "advanced": True,
+    },
+    "WHATSAPP_MODE": {"description": "WhatsApp bridge mode", "prompt": "WhatsApp mode", "advanced": True},
+    "WHATSAPP_ALLOWED_USERS": {
+        "description": "Comma-separated WhatsApp users allowed to use the bot",
+        "prompt": "Allowed WhatsApp users",
+    },
+    "HASS_URL": {
+        "description": "Home Assistant base URL, e.g. https://homeassistant.local:8123",
+        "prompt": "Home Assistant URL",
+    },
+    "HASS_TOKEN": {
+        "description": "Long-lived access token from Home Assistant (Profile → Security)",
+        "prompt": "Home Assistant access token",
+        "password": True,
+    },
+    "EMAIL_ADDRESS": {"description": "Email address to send and receive from", "prompt": "Email address"},
+    "EMAIL_PASSWORD": {
+        "description": "Email account password or app password",
+        "prompt": "Email password",
+        "password": True,
+    },
+    "EMAIL_IMAP_HOST": {"description": "IMAP server host (e.g. imap.gmail.com)", "prompt": "IMAP host"},
+    "EMAIL_SMTP_HOST": {"description": "SMTP server host (e.g. smtp.gmail.com)", "prompt": "SMTP host"},
+    "TWILIO_ACCOUNT_SID": {
+        "description": "Twilio Account SID",
+        "prompt": "Twilio Account SID",
+        "url": "https://www.twilio.com/console",
+    },
+    "TWILIO_AUTH_TOKEN": {"description": "Twilio Auth Token", "prompt": "Twilio Auth Token", "password": True},
+    "WECOM_BOT_ID": {"description": "WeCom group bot ID", "prompt": "WeCom Bot ID"},
+    "WECOM_SECRET": {"description": "WeCom group bot secret", "prompt": "WeCom Secret", "password": True},
+    "WECOM_CALLBACK_CORP_ID": {"description": "WeCom corp ID", "prompt": "WeCom Corp ID"},
+    "WECOM_CALLBACK_CORP_SECRET": {
+        "description": "WeCom app corp secret",
+        "prompt": "WeCom Corp Secret",
+        "password": True,
+    },
+    "WECOM_CALLBACK_AGENT_ID": {"description": "WeCom app agent ID", "prompt": "WeCom Agent ID"},
+    "WECOM_CALLBACK_TOKEN": {"description": "WeCom callback verification token", "prompt": "WeCom Token"},
+    "WECOM_CALLBACK_ENCODING_AES_KEY": {
+        "description": "WeCom callback AES encoding key",
+        "prompt": "WeCom AES Key",
+        "password": True,
+    },
+    "WEIXIN_ACCOUNT_ID": {"description": "WeChat Official Account ID", "prompt": "Account ID"},
+    "WEIXIN_TOKEN": {"description": "WeChat callback token", "prompt": "Token", "password": True},
+    "WEIXIN_BASE_URL": {"description": "WeChat platform base URL", "prompt": "Base URL"},
+    "FEISHU_APP_ID": {"description": "Feishu / Lark app ID", "prompt": "App ID"},
+    "FEISHU_APP_SECRET": {"description": "Feishu / Lark app secret", "prompt": "App secret", "password": True},
+    "FEISHU_ENCRYPT_KEY": {"description": "Feishu / Lark encrypt key", "prompt": "Encrypt key", "password": True},
+    "FEISHU_VERIFICATION_TOKEN": {
+        "description": "Feishu / Lark verification token",
+        "prompt": "Verification token",
+        "password": True,
+    },
+    "DINGTALK_CLIENT_ID": {"description": "DingTalk client ID (App key)", "prompt": "Client ID"},
+    "DINGTALK_CLIENT_SECRET": {
+        "description": "DingTalk client secret (App secret)",
+        "prompt": "Client secret",
+        "password": True,
+    },
+}
+
+
+def _messaging_platform_catalog() -> tuple[dict[str, Any], ...]:
+    """Build the messaging catalog from the gateway's Platform enum + plugin registry.
+
+    Built-in platforms come from ``gateway.config.Platform`` (LOCAL is excluded).
+    Plugin platforms come from ``gateway.platform_registry.plugin_entries()``,
+    which lets newly installed adapters (e.g. IRC) appear without a code change
+    here. Per-platform UI metadata (description, docs URL, env-var picks) lives
+    in :data:`_PLATFORM_OVERRIDES`; anything not overridden gets reasonable
+    defaults derived from the platform id and required_env.
+    """
+    from gateway.config import Platform
+
+    seen: set[str] = set()
+    entries: list[dict[str, Any]] = []
+
+    for member in Platform.__members__.values():
+        if member.value == "local":
+            continue
+        if member.value in seen:
+            continue
+        seen.add(member.value)
+        entries.append(_build_catalog_entry(member.value))
+
+    try:
+        from gateway.platform_registry import platform_registry
+
+        for plugin_entry in platform_registry.plugin_entries():
+            if plugin_entry.name in seen:
+                continue
+            seen.add(plugin_entry.name)
+            entries.append(_build_catalog_entry(plugin_entry.name, plugin_entry))
+    except Exception:
+        _log.debug("plugin platform registry unavailable", exc_info=True)
+
+    order = {pid: idx for idx, pid in enumerate(_PLATFORM_ORDER)}
+    entries.sort(key=lambda e: (order.get(e["id"], len(_PLATFORM_ORDER)), e["name"].lower()))
+    return tuple(entries)
+
+
+def _build_catalog_entry(platform_id: str, plugin_entry: Any | None = None) -> dict[str, Any]:
+    override = _PLATFORM_OVERRIDES.get(platform_id, {})
+
+    if "env_vars" in override:
+        env_vars: tuple[str, ...] = tuple(override["env_vars"])
+    elif plugin_entry is not None and plugin_entry.required_env:
+        env_vars = tuple(plugin_entry.required_env)
+    else:
+        prefix = platform_id.upper() + "_"
+        env_vars = tuple(k for k in OPTIONAL_ENV_VARS if k.startswith(prefix))
+
+    if "required_env" in override:
+        required_env = tuple(override["required_env"])
+    elif plugin_entry is not None:
+        required_env = tuple(plugin_entry.required_env or ())
+    else:
+        required_env = ()
+
+    if override.get("name"):
+        name = override["name"]
+    elif plugin_entry is not None and plugin_entry.label:
+        name = plugin_entry.label
+    else:
+        name = platform_id.replace("_", " ").title()
+
+    description = override.get("description")
+    if not description and plugin_entry is not None:
+        description = plugin_entry.install_hint or ""
+
+    return {
+        "id": platform_id,
+        "name": name,
+        "description": description or "",
+        "docs_url": override.get("docs_url", ""),
+        "env_vars": env_vars,
+        "required_env": required_env,
+    }
+
+
+def _catalog_lookup(platform_id: str) -> dict[str, Any] | None:
+    for entry in _messaging_platform_catalog():
+        if entry["id"] == platform_id:
+            return entry
+    return None
+
+
+def _messaging_env_info(key: str) -> dict[str, Any]:
+    info = OPTIONAL_ENV_VARS.get(key) or _MESSAGING_ENV_FALLBACKS.get(key) or {}
+    return {
+        "description": info.get("description", ""),
+        "prompt": info.get("prompt", key),
+        "url": info.get("url"),
+        "is_password": info.get("password", False),
+        "advanced": info.get("advanced", False),
+    }
+
+
+def _gateway_platform_config(platform_id: str):
+    from gateway.config import Platform, load_gateway_config
+
+    config = load_gateway_config()
+    platform = Platform(platform_id)
+    platform_config = config.platforms.get(platform)
+    return config, platform, platform_config
+
+
+def _messaging_platform_payload(entry: dict[str, Any], env_on_disk: dict[str, str], runtime: dict | None) -> dict[str, Any]:
+    platform_id = entry["id"]
+    gateway_running = get_running_pid() is not None
+    runtime_platforms = runtime.get("platforms") if runtime else {}
+    runtime_platform = runtime_platforms.get(platform_id, {}) if isinstance(runtime_platforms, dict) else {}
+    env_vars = []
+
+    for key in entry["env_vars"]:
+        value = env_on_disk.get(key) or os.getenv(key, "")
+        env_vars.append({
+            "key": key,
+            "required": key in entry["required_env"],
+            "is_set": bool(value),
+            "redacted_value": redact_key(value) if value else None,
+            **_messaging_env_info(key),
+        })
+
+    try:
+        gateway_config, platform, platform_config = _gateway_platform_config(platform_id)
+        enabled = bool(platform_config and platform_config.enabled)
+        configured = bool(platform_config and gateway_config._is_platform_connected(platform, platform_config))
+        home_channel = platform_config.home_channel.to_dict() if platform_config and platform_config.home_channel else None
+    except Exception:
+        enabled = False
+        configured = all(env_on_disk.get(key) or os.getenv(key, "") for key in entry["required_env"])
+        home_channel = None
+
+    state = runtime_platform.get("state") if isinstance(runtime_platform, dict) else None
+    if not enabled:
+        state = "disabled"
+    elif not configured:
+        state = "not_configured"
+    elif gateway_running and not state:
+        state = "pending_restart"
+    elif not gateway_running and not state:
+        state = "gateway_stopped"
+
+    return {
+        "id": platform_id,
+        "name": entry["name"],
+        "description": entry["description"],
+        "docs_url": entry["docs_url"],
+        "enabled": enabled,
+        "configured": configured,
+        "gateway_running": gateway_running,
+        "state": state,
+        "error_code": runtime_platform.get("error_code") if isinstance(runtime_platform, dict) else None,
+        "error_message": runtime_platform.get("error_message") if isinstance(runtime_platform, dict) else None,
+        "updated_at": runtime_platform.get("updated_at") if isinstance(runtime_platform, dict) else None,
+        "home_channel": home_channel,
+        "env_vars": env_vars,
+    }
+
+
+def _write_platform_enabled(platform_id: str, enabled: bool) -> None:
+    config = load_config()
+    platforms = config.setdefault("platforms", {})
+    if not isinstance(platforms, dict):
+        platforms = {}
+        config["platforms"] = platforms
+    platform_config = platforms.setdefault(platform_id, {})
+    if not isinstance(platform_config, dict):
+        platform_config = {}
+        platforms[platform_id] = platform_config
+    platform_config["enabled"] = enabled
+    save_config(config)
+
+
+@app.get("/api/messaging/platforms")
+async def get_messaging_platforms():
+    env_on_disk = load_env()
+    runtime = read_runtime_status()
+    return {
+        "platforms": [
+            _messaging_platform_payload(entry, env_on_disk, runtime)
+            for entry in _messaging_platform_catalog()
+        ]
+    }
+
+
+@app.put("/api/messaging/platforms/{platform_id}")
+async def update_messaging_platform(platform_id: str, body: MessagingPlatformUpdate):
+    entry = _catalog_lookup(platform_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Unknown messaging platform: {platform_id}")
+
+    allowed_env = set(entry["env_vars"])
+    try:
+        for key in body.clear_env:
+            if key not in allowed_env:
+                raise HTTPException(status_code=400, detail=f"{key} is not configurable for {entry['name']}")
+            remove_env_value(key)
+
+        for key, value in body.env.items():
+            if key not in allowed_env:
+                raise HTTPException(status_code=400, detail=f"{key} is not configurable for {entry['name']}")
+            trimmed = value.strip()
+            if trimmed:
+                save_env_value(key, trimmed)
+
+        if body.enabled is not None:
+            _write_platform_enabled(platform_id, body.enabled)
+
+        return {"ok": True, "platform": platform_id}
+    except HTTPException:
+        raise
+    except Exception:
+        _log.exception("PUT /api/messaging/platforms/%s failed", platform_id)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/api/messaging/platforms/{platform_id}/test")
+async def test_messaging_platform(platform_id: str):
+    entry = _catalog_lookup(platform_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Unknown messaging platform: {platform_id}")
+
+    env_on_disk = load_env()
+    payload = _messaging_platform_payload(entry, env_on_disk, read_runtime_status())
+    if not payload["enabled"]:
+        message = f"{entry['name']} is disabled. Enable it, then restart the gateway."
+        return {"ok": False, "state": payload["state"], "message": message}
+    if not payload["configured"]:
+        missing = [field["key"] for field in payload["env_vars"] if field["required"] and not field["is_set"]]
+        message = f"Missing required setup: {', '.join(missing)}" if missing else "Platform setup is incomplete."
+        return {"ok": False, "state": payload["state"], "message": message}
+    if not payload["gateway_running"]:
+        return {
+            "ok": False,
+            "state": payload["state"],
+            "message": "Gateway is not running. Restart the gateway to connect this platform.",
+        }
+    if payload["state"] == "connected":
+        return {"ok": True, "state": payload["state"], "message": f"{entry['name']} is connected."}
+    if payload.get("error_message"):
+        return {"ok": False, "state": payload["state"], "message": payload["error_message"]}
+    return {
+        "ok": False,
+        "state": payload["state"],
+        "message": "Setup looks complete, but the gateway has not reported a connection yet. Restart the gateway.",
+    }
 
 
 # ---------------------------------------------------------------------------

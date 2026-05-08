@@ -497,13 +497,13 @@ export function ArtifactsView({
   }, [])
 
   return (
-    <section {...props} className="flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-background">
+    <section {...props} className="flex h-full min-w-0 flex-col overflow-hidden rounded-b-[0.9375rem] bg-background">
       <header className={titlebarHeaderBaseClass}>
         <h2 className="pointer-events-auto text-base font-semibold leading-none tracking-tight">Artifacts</h2>
         <span className="pointer-events-auto text-xs text-muted-foreground">{counts.all} found</span>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-hidden rounded-[1.0625rem] border border-border/50 bg-background/85">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-b-[1.0625rem] border border-border/50 bg-background/85">
         <div className="border-b border-border/50 px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <FilterButton

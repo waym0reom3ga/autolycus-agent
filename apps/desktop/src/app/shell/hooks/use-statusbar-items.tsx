@@ -1,12 +1,14 @@
 import { useStore } from '@nanostores/react'
-import { useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import type { CommandCenterSection } from '@/app/command-center'
-import { buildGatewayLogItems } from '@/lib/gateway-events'
+import { GatewayMenuPanel } from '@/app/shell/gateway-menu-panel'
+import { restartGateway } from '@/hermes'
 import { Activity, AlertCircle, Command, Cpu, FolderOpen, GitBranch, Loader2, Sparkles } from '@/lib/icons'
 import { compactPath, contextBarLabel, LiveDuration, usageContextLabel } from '@/lib/statusbar'
 import { cn } from '@/lib/utils'
 import { $desktopActionTasks } from '@/store/activity'
+import { notify, notifyError } from '@/store/notifications'
 import { $previewServerRestartStatus } from '@/store/preview'
 import {
   $busy,
@@ -22,7 +24,7 @@ import {
 } from '@/store/session'
 import type { StatusResponse } from '@/types/hermes'
 
-import type { StatusbarItem, StatusbarMenuItem } from '../statusbar-controls'
+import type { StatusbarItem } from '../statusbar-controls'
 
 interface StatusbarItemsOptions {
   agentsOpen: boolean
@@ -64,21 +66,40 @@ export function useStatusbarItems({
   const contextUsage = useMemo(() => usageContextLabel(currentUsage), [currentUsage])
   const contextBar = useMemo(() => contextBarLabel(currentUsage), [currentUsage])
 
-  const platformMenuItems = useMemo<readonly StatusbarMenuItem[]>(
-    () =>
-      Object.entries(statusSnapshot?.gateway_platforms || {})
-        .sort(([l], [r]) => l.localeCompare(r))
-        .map(([name, platform]) => ({ disabled: true, id: `platform:${name}`, label: `${name} · ${platform.state}` })),
-    [statusSnapshot?.gateway_platforms]
-  )
+  const [restartingGateway, setRestartingGateway] = useState(false)
 
-  const gatewayMenuItems = useMemo<readonly StatusbarMenuItem[]>(
-    () => [
-      { id: 'gateway:open-system', label: 'Open system panel', onSelect: () => openCommandCenterSection('system') },
-      ...buildGatewayLogItems(gatewayLogLines),
-      ...platformMenuItems
-    ],
-    [gatewayLogLines, openCommandCenterSection, platformMenuItems]
+  const handleRestartGateway = useCallback(async () => {
+    if (restartingGateway) {
+      return
+    }
+
+    setRestartingGateway(true)
+
+    try {
+      await restartGateway()
+      notify({
+        kind: 'success',
+        title: 'Gateway restart requested',
+        message: 'Status will update once the gateway reconnects.'
+      })
+    } catch (err) {
+      notifyError(err, 'Failed to restart gateway')
+    } finally {
+      setRestartingGateway(false)
+    }
+  }, [restartingGateway])
+
+  const gatewayMenuContent = useMemo(
+    () => (
+      <GatewayMenuPanel
+        logLines={gatewayLogLines}
+        onOpenSystem={() => openCommandCenterSection('system')}
+        onRestart={() => void handleRestartGateway()}
+        restarting={restartingGateway}
+        statusSnapshot={statusSnapshot}
+      />
+    ),
+    [gatewayLogLines, handleRestartGateway, openCommandCenterSection, restartingGateway, statusSnapshot]
   )
 
   const { bgFailed, bgRunning } = useMemo(() => {
@@ -109,8 +130,8 @@ export function useStatusbarItems({
         icon: gatewayUp ? <Activity className="size-3" /> : <AlertCircle className="size-3" />,
         id: 'gateway-health',
         label: 'Gateway',
-        menuClassName: 'w-96',
-        menuItems: gatewayMenuItems,
+        menuClassName: 'w-72',
+        menuContent: gatewayMenuContent,
         title: 'Gateway and platform health',
         variant: 'menu'
       },
@@ -140,7 +161,7 @@ export function useStatusbarItems({
       bgFailed,
       bgRunning,
       commandCenterOpen,
-      gatewayMenuItems,
+      gatewayMenuContent,
       gatewayUp,
       openAgents,
       statusSnapshot?.gateway_state,

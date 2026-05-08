@@ -27,6 +27,7 @@ export interface StatusbarItem {
   hidden?: boolean
   href?: string
   menuClassName?: string
+  menuContent?: ReactNode
   menuItems?: readonly StatusbarMenuItem[]
   onSelect?: () => void
   title?: string
@@ -85,7 +86,7 @@ function StatusbarItemView({ item, navigate }: { item: StatusbarItem; navigate: 
 
   const title = item.title ?? (typeof item.label === 'string' ? item.label : undefined)
 
-  if (item.variant === 'menu' && item.menuItems && item.menuItems.length > 0) {
+  if (item.variant === 'menu' && (item.menuContent || (item.menuItems && item.menuItems.length > 0))) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -98,10 +99,17 @@ function StatusbarItemView({ item, navigate }: { item: StatusbarItem; navigate: 
             {content}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className={cn('w-56', item.menuClassName)} side="top" sideOffset={8}>
-          {item.menuItems
-            .filter(menuItem => !menuItem.hidden)
-            .map(menuItem => (
+        <DropdownMenuContent
+          align="start"
+          className={cn('w-56', item.menuContent && 'p-0', item.menuClassName)}
+          side="top"
+          sideOffset={8}
+        >
+          {item.menuContent
+            ? item.menuContent
+            : (item.menuItems ?? [])
+                .filter(menuItem => !menuItem.hidden)
+                .map(menuItem => (
               <DropdownMenuItem
                 className={cn('gap-2 text-foreground focus:bg-accent [&_svg]:size-4', menuItem.className)}
                 disabled={menuItem.disabled}

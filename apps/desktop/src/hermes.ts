@@ -12,6 +12,9 @@ import type {
   HermesConfig,
   HermesConfigRecord,
   LogsResponse,
+  MessagingPlatformsResponse,
+  MessagingPlatformTestResponse,
+  MessagingPlatformUpdate,
   ModelAssignmentRequest,
   ModelAssignmentResponse,
   ModelInfoResponse,
@@ -43,6 +46,12 @@ export type {
   HermesConfig,
   HermesConfigRecord,
   LogsResponse,
+  MessagingEnvVarInfo,
+  MessagingHomeChannel,
+  MessagingPlatformInfo,
+  MessagingPlatformsResponse,
+  MessagingPlatformTestResponse,
+  MessagingPlatformUpdate,
   ModelAssignmentRequest,
   ModelAssignmentResponse,
   ModelInfoResponse,
@@ -275,6 +284,30 @@ export function toggleSkill(name: string, enabled: boolean): Promise<{ ok: boole
 export function getToolsets(): Promise<ToolsetInfo[]> {
   return window.hermesDesktop.api<ToolsetInfo[]>({
     path: '/api/tools/toolsets'
+  })
+}
+
+export function getMessagingPlatforms(): Promise<MessagingPlatformsResponse> {
+  return window.hermesDesktop.api<MessagingPlatformsResponse>({
+    path: '/api/messaging/platforms'
+  })
+}
+
+export function updateMessagingPlatform(
+  platformId: string,
+  body: MessagingPlatformUpdate
+): Promise<{ ok: boolean; platform: string }> {
+  return window.hermesDesktop.api<{ ok: boolean; platform: string }>({
+    path: `/api/messaging/platforms/${encodeURIComponent(platformId)}`,
+    method: 'PUT',
+    body
+  })
+}
+
+export function testMessagingPlatform(platformId: string): Promise<MessagingPlatformTestResponse> {
+  return window.hermesDesktop.api<MessagingPlatformTestResponse>({
+    path: `/api/messaging/platforms/${encodeURIComponent(platformId)}/test`,
+    method: 'POST'
   })
 }
 

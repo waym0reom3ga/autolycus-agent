@@ -71,6 +71,7 @@ import { useGroupRegistry } from './shell/use-group-registry'
 const AgentsView = lazy(async () => ({ default: (await import('./agents')).AgentsView }))
 const ArtifactsView = lazy(async () => ({ default: (await import('./artifacts')).ArtifactsView }))
 const CommandCenterView = lazy(async () => ({ default: (await import('./command-center')).CommandCenterView }))
+const MessagingView = lazy(async () => ({ default: (await import('./messaging')).MessagingView }))
 const SettingsView = lazy(async () => ({ default: (await import('./settings')).SettingsView }))
 const SkillsView = lazy(async () => ({ default: (await import('./skills')).SkillsView }))
 
@@ -506,6 +507,17 @@ export function DesktopController() {
               </Suspense>
             }
             path="skills"
+          />
+          <Route
+            element={
+              <Suspense fallback={null}>
+                <MessagingView
+                  setStatusbarItemGroup={setStatusbarItemGroup}
+                  setTitlebarToolGroup={setTitlebarToolGroup}
+                />
+              </Suspense>
+            }
+            path="messaging"
           />
           <Route
             element={

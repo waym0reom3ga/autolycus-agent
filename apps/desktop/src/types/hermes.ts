@@ -98,6 +98,57 @@ export interface EnvVarInfo {
   url: null | string
 }
 
+export interface MessagingEnvVarInfo {
+  advanced: boolean
+  description: string
+  is_password: boolean
+  is_set: boolean
+  key: string
+  prompt: string
+  redacted_value: null | string
+  required: boolean
+  url: null | string
+}
+
+export interface MessagingHomeChannel {
+  chat_id: string
+  name: string
+  platform: string
+  thread_id?: string
+}
+
+export interface MessagingPlatformInfo {
+  configured: boolean
+  description: string
+  docs_url: string
+  enabled: boolean
+  env_vars: MessagingEnvVarInfo[]
+  error_code?: null | string
+  error_message?: null | string
+  gateway_running: boolean
+  home_channel?: MessagingHomeChannel | null
+  id: string
+  name: string
+  state?: null | string
+  updated_at?: null | string
+}
+
+export interface MessagingPlatformsResponse {
+  platforms: MessagingPlatformInfo[]
+}
+
+export interface MessagingPlatformUpdate {
+  clear_env?: string[]
+  enabled?: boolean
+  env?: Record<string, string>
+}
+
+export interface MessagingPlatformTestResponse {
+  message: string
+  ok: boolean
+  state?: null | string
+}
+
 export interface GatewayReadyPayload {
   skin?: unknown
 }

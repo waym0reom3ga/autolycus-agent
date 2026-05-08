@@ -247,7 +247,7 @@ export function ChatView({
   return (
     <div
       className={cn(
-        'relative flex h-full min-w-0 flex-col overflow-hidden rounded-[0.9375rem] bg-transparent',
+        'relative flex h-full min-w-0 flex-col overflow-hidden rounded-b-[0.9375rem] bg-transparent',
         className
       )}
     >
@@ -278,7 +278,7 @@ export function ChatView({
 
       <NotificationStack />
 
-      <div className="relative min-h-0 max-w-full flex-1 overflow-hidden rounded-[1.0625rem] bg-transparent contain-[layout_paint]">
+      <div className="relative min-h-0 max-w-full flex-1 overflow-hidden rounded-b-[1.0625rem] bg-transparent contain-[layout_paint]">
         <AssistantRuntimeProvider runtime={runtime}>
           <Thread
             intro={showIntro ? { personality: introPersonality, seed: introSeed } : undefined}
