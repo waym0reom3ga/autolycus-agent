@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { getHermesConfigDefaults, getHermesConfigRecord, saveHermesConfig } from '@/hermes'
 import { triggerHaptic } from '@/lib/haptics'
-import { KeyRound, Package } from '@/lib/icons'
+import { Globe, KeyRound, Package } from '@/lib/icons'
 import { notifyError } from '@/store/notifications'
 
 import { OverlayIconButton } from '../overlays/overlay-chrome'
@@ -14,6 +14,7 @@ import { OverlayView } from '../overlays/overlay-view'
 import { AppearanceSettings } from './appearance-settings'
 import { ConfigSettings } from './config-settings'
 import { SEARCH_PLACEHOLDER, SECTIONS } from './constants'
+import { GatewaySettings } from './gateway-settings'
 import { KeysSettings } from './keys-settings'
 import { ToolsSettings } from './tools-settings'
 import type { SettingsPageProps, SettingsQueryKey, SettingsView as SettingsViewId } from './types'
@@ -23,6 +24,7 @@ export function SettingsView({ onClose, onConfigSaved }: SettingsPageProps) {
 
   const [queries, setQueries] = useState<Record<SettingsQueryKey, string>>({
     config: '',
+    gateway: '',
     keys: '',
     tools: ''
   })
@@ -117,6 +119,12 @@ export function SettingsView({ onClose, onConfigSaved }: SettingsPageProps) {
           })}
           <div className="my-2 h-px bg-border/30" />
           <OverlayNavItem
+            active={activeView === 'gateway'}
+            icon={Globe}
+            label="Gateway"
+            onClick={() => setActiveView('gateway')}
+          />
+          <OverlayNavItem
             active={activeView === 'keys'}
             icon={KeyRound}
             label="API Keys"
@@ -157,6 +165,8 @@ export function SettingsView({ onClose, onConfigSaved }: SettingsPageProps) {
         <OverlayMain className="p-0">
           {activeView === 'config:appearance' ? (
             <AppearanceSettings />
+          ) : activeView === 'gateway' ? (
+            <GatewaySettings />
           ) : activeView.startsWith('config:') ? (
             <ConfigSettings
               activeSectionId={activeView.slice('config:'.length)}

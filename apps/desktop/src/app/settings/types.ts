@@ -3,8 +3,8 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { LucideIcon } from '@/lib/icons'
 import type { EnvVarInfo } from '@/types/hermes'
 
-export type SettingsView = 'keys' | 'tools' | `config:${string}`
-export type SettingsQueryKey = 'config' | 'keys' | 'tools'
+export type SettingsView = 'gateway' | 'keys' | 'tools' | `config:${string}`
+export type SettingsQueryKey = 'config' | 'gateway' | 'keys' | 'tools'
 export type EnvPatch = Partial<Pick<EnvVarInfo, 'is_set' | 'redacted_value'>>
 
 export interface SettingsPageProps {
