@@ -583,9 +583,6 @@ def _start_agent_build(sid: str, session: dict) -> None:
             _notify_session_boundary("on_session_reset", key)
 
             info = _session_info(agent, current)
-            warn = _probe_credentials(agent)
-            if warn:
-                info["credential_warning"] = warn
             cfg_warn = _probe_config_health(_load_cfg())
             if cfg_warn:
                 info["config_warning"] = cfg_warn
@@ -1513,6 +1510,9 @@ def _session_info(agent, session: dict | None = None) -> dict:
         info["update_command"] = recommended_update_command()
     except Exception:
         pass
+    warn = _probe_credentials(agent)
+    if warn:
+        info["credential_warning"] = warn
     return info
 
 

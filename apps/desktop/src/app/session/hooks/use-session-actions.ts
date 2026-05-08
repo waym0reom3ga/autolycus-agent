@@ -9,6 +9,7 @@ import { embeddedImageUrls, textWithoutEmbeddedImages } from '@/lib/embedded-ima
 import { clearComposerAttachments, clearComposerDraft } from '@/store/composer'
 import { $pinnedSessionIds } from '@/store/layout'
 import { clearNotifications, notify, notifyError } from '@/store/notifications'
+import { requestDesktopOnboarding } from '@/store/onboarding'
 import {
   $messages,
   $sessions,
@@ -185,6 +186,10 @@ function upsertOptimisticSession(
 function applyRuntimeInfo(info: SessionCreateResponse['info'] | undefined) {
   if (!info) {
     return
+  }
+
+  if (info.credential_warning) {
+    requestDesktopOnboarding(info.credential_warning)
   }
 
   if (info.model) {

@@ -164,6 +164,8 @@ export interface SessionResumeResponse {
 
 export interface SessionRuntimeInfo {
   branch?: string
+  config_warning?: string
+  credential_warning?: string
   cwd?: string
   fast?: boolean
   model?: string

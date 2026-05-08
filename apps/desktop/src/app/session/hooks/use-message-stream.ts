@@ -17,6 +17,7 @@ import { coerceGatewayText, coerceThinkingText, normalizePersonalityValue } from
 import { triggerHaptic } from '@/lib/haptics'
 import { setClarifyRequest } from '@/store/clarify'
 import { notify } from '@/store/notifications'
+import { requestDesktopOnboarding } from '@/store/onboarding'
 import {
   setCurrentBranch,
   setCurrentCwd,
@@ -474,6 +475,10 @@ export function useMessageStream({
 
         if (payload?.usage && (!explicitSid || isActiveEvent)) {
           setCurrentUsage(current => ({ ...current, ...payload.usage }))
+        }
+
+        if (typeof payload?.credential_warning === 'string' && payload.credential_warning) {
+          requestDesktopOnboarding(payload.credential_warning)
         }
 
         void refreshHermesConfig()
