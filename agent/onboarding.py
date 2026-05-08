@@ -154,18 +154,28 @@ def is_lycus_command() -> bool:
         return False
 
 
-def get_dynamic_greeting() -> str:
+def get_dynamic_greeting() -> tuple:
     """Generate a greeting prompt for Lycus with time and weather context.
 
     This returns a prompt that is sent to the LLM to generate a unique greeting
     for each session. The LLM receives the current time, weather, and personality
     template and crafts a personalized greeting.
+
+    Returns a tuple of (prompt, is_greeting) so the caller can suppress display.
     """
     try:
         from agent.prompt_builder import get_lycus_agent_name
-        name = get_lycus_agent_name()
+        agent_name = get_lycus_agent_name()
     except Exception:
-        name = "Lycus"
+        agent_name = "Lycus"
+
+    # Get user's temperature unit preference (default: Celsius)
+    try:
+        from hermes_cli.config import load_config
+        cfg = load_config()
+        temp_unit = (cfg.get("onboarding") or {}).get("temperature_unit", "celsius")
+    except Exception:
+        temp_unit = "celsius"
 
     # Get current time
     try:
@@ -218,7 +228,11 @@ def get_dynamic_greeting() -> str:
             weather_desc = current.get('weatherDesc', [{}])[0].get('value', 'clear skies')
             feels_like = current.get('FeelsLikeC', '--')
 
-            weather_str = f"{weather_desc.lower()} with a temperature of {temp_f}°F ({temp_c}°C)"
+            # Default to Celsius, user can choose in config
+            if temp_unit == "fahrenheit":
+                weather_str = f"{weather_desc.lower()} with a temperature of {temp_f}°F ({temp_c}°C)"
+            else:
+                weather_str = f"{weather_desc.lower()} with a temperature of {temp_c}°C ({temp_f}°F)"
     except Exception:
         weather_str = "pleasant weather"
 
@@ -240,8 +254,9 @@ def get_dynamic_greeting() -> str:
     # Build the prompt that will be sent to the LLM
     prompt = f"""I just started a new session. Please greet me warmly and uniquely.
 
+IMPORTANT: You ARE {agent_name}. Introduce yourself by name — do not refer to yourself as "an AI" or "an assistant". You are {agent_name}, the user's personal agent.
+
 Context:
-- My name is {name}
 - It's currently {time_str} ({time_of_day}) on {date_str}
 - The weather outside {location} is: {weather_str}
 """
@@ -251,7 +266,8 @@ Context:
 """
     prompt += """Based on this context, give me a warm, unique greeting. Be creative and natural — don't sound robotic. Keep it to 1-3 sentences. After greeting me, briefly ask what I'd like to work on."""
 
-    return prompt.strip()
+    # Return tuple: (prompt, is_greeting_flag) so caller can suppress display
+    return (prompt.strip(), True)
 
 
 # -------------------------------------------------------------------------
