@@ -28,17 +28,22 @@ Use any model you want — A local lmstudio or ollama server, or some hosted ser
 
 ---
 
-## Quick Install (FreeBSD Only)
+## Quick Install
 
-⚠️ **Autolycus runs on FreeBSD only.** Linux/macOS users should use the original [Hermes Agent](https://github.com/NousResearch/hermes-agent).
+```bash
+# Clone the repository
+git clone https://github.com/waym0reom3ga/autolycus-agent.git
+cd autolycus-agent
 
-### Prerequisites
+# Run the install script (requires bash)
+bash scripts/install-autolycus.sh
+```
 
-- Tested on FreeBSD 15.0 (your mileage may vary on other versions)
-- Rust/Cargo installed (`pkg install rust`)
-- Python 3.11+ available (check with `which python3.11`; if missing: `pkg install python311`)
+This handles everything: uv installation, Python virtual environment, dependencies, PATH setup, and config files.
 
-### Installation
+### Manual Installation
+
+If you prefer step-by-step control:
 
 ```bash
 # Clone the repository
