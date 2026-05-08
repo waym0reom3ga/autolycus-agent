@@ -311,8 +311,9 @@ export const MODE_OPTIONS: ModeOption[] = [
   { id: 'system', label: 'System', description: 'Follow macOS appearance', icon: Monitor }
 ]
 
-export const SEARCH_PLACEHOLDER: Record<'config' | 'keys' | 'tools', string> = {
+export const SEARCH_PLACEHOLDER: Record<'config' | 'gateway' | 'keys' | 'tools', string> = {
   config: 'Search settings...',
+  gateway: 'Gateway connection...',
   keys: 'Search API keys...',
   tools: 'Search skills and tools...'
 }

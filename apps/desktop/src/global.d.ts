@@ -5,6 +5,10 @@ declare global {
     hermesDesktop: {
       getConnection: () => Promise<HermesConnection>
       getBootProgress: () => Promise<DesktopBootProgress>
+      getConnectionConfig: () => Promise<DesktopConnectionConfig>
+      saveConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionConfig>
+      applyConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionConfig>
+      testConnectionConfig: (payload: DesktopConnectionConfigInput) => Promise<DesktopConnectionTestResult>
       api: <T>(request: HermesApiRequest) => Promise<T>
       notify: (payload: HermesNotification) => Promise<boolean>
       requestMicrophoneAccess: () => Promise<boolean>
@@ -33,10 +37,32 @@ declare global {
 
 export interface HermesConnection {
   baseUrl: string
+  mode?: 'local' | 'remote'
+  source?: 'env' | 'local' | 'settings'
   token: string
   wsUrl: string
   logs: string[]
   windowButtonPosition: { x: number; y: number } | null
+}
+
+export interface DesktopConnectionConfig {
+  envOverride: boolean
+  mode: 'local' | 'remote'
+  remoteTokenPreview: string | null
+  remoteTokenSet: boolean
+  remoteUrl: string
+}
+
+export interface DesktopConnectionConfigInput {
+  mode: 'local' | 'remote'
+  remoteToken?: string
+  remoteUrl?: string
+}
+
+export interface DesktopConnectionTestResult {
+  baseUrl: string
+  ok: boolean
+  version: string | null
 }
 
 export interface DesktopBootProgress {

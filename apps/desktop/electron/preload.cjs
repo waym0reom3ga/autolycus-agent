@@ -3,6 +3,10 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron')
 contextBridge.exposeInMainWorld('hermesDesktop', {
   getConnection: () => ipcRenderer.invoke('hermes:connection'),
   getBootProgress: () => ipcRenderer.invoke('hermes:boot-progress:get'),
+  getConnectionConfig: () => ipcRenderer.invoke('hermes:connection-config:get'),
+  saveConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:save', payload),
+  applyConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:apply', payload),
+  testConnectionConfig: payload => ipcRenderer.invoke('hermes:connection-config:test', payload),
   api: request => ipcRenderer.invoke('hermes:api', request),
   notify: payload => ipcRenderer.invoke('hermes:notify', payload),
   requestMicrophoneAccess: () => ipcRenderer.invoke('hermes:requestMicrophoneAccess'),

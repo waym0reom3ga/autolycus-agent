@@ -7,6 +7,7 @@ const {
   dialog,
   ipcMain,
   nativeImage,
+  safeStorage,
   session,
   shell,
   systemPreferences
@@ -44,6 +45,7 @@ const SOURCE_REPO_ROOT = path.resolve(APP_ROOT, '../..')
 const BUNDLED_HERMES_ROOT = path.join(process.resourcesPath, 'hermes-agent')
 const BUNDLED_VENV_ROOT = path.join(app.getPath('userData'), 'hermes-runtime')
 const BUNDLED_VENV_MARKER = path.join(BUNDLED_VENV_ROOT, '.hermes-desktop-runtime.json')
+const DESKTOP_CONNECTION_CONFIG_PATH = path.join(app.getPath('userData'), 'connection.json')
 const DESKTOP_LOG_PATH = path.join(app.getPath('userData'), 'desktop.log')
 const DESKTOP_LOG_FLUSH_MS = 120
 const DESKTOP_LOG_BUFFER_MAX_CHARS = 64 * 1024
@@ -205,6 +207,7 @@ app.setAboutPanelOptions({
 let mainWindow = null
 let hermesProcess = null
 let connectionPromise = null
+let connectionConfigCache = null
 const hermesLog = []
 const previewWatchers = new Map()
 let previewShortcutActive = false
@@ -692,9 +695,16 @@ async function pickPort() {
 function fetchJson(url, token, options = {}) {
   return new Promise((resolve, reject) => {
     const body = options.body === undefined ? undefined : Buffer.from(JSON.stringify(options.body))
+    const parsed = new URL(url)
+    const client = parsed.protocol === 'https:' ? https : http
 
-    const req = http.request(
-      url,
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      reject(new Error(`Unsupported Hermes backend URL protocol: ${parsed.protocol}`))
+      return
+    }
+
+    const req = client.request(
+      parsed,
       {
         method: options.method || 'GET',
         headers: {
@@ -722,6 +732,11 @@ function fetchJson(url, token, options = {}) {
     )
 
     req.on('error', reject)
+    if (options.timeoutMs) {
+      req.setTimeout(options.timeoutMs, () => {
+        req.destroy(new Error(`Timed out connecting to Hermes backend after ${options.timeoutMs}ms`))
+      })
+    }
     if (body) req.write(body)
     req.end()
   })
@@ -1229,32 +1244,247 @@ function installMediaPermissions() {
   })
 }
 
-function resolveRemoteBackend() {
-  const rawUrl = process.env.HERMES_DESKTOP_REMOTE_URL
-  const rawToken = process.env.HERMES_DESKTOP_REMOTE_TOKEN
-  if (!rawUrl) return null
-  if (!rawToken) {
-    throw new Error(
-      'HERMES_DESKTOP_REMOTE_URL is set but HERMES_DESKTOP_REMOTE_TOKEN is not. ' +
-      'Both must be provided to connect to a remote Hermes backend.'
-    )
+function normalizeRemoteBaseUrl(rawUrl) {
+  const value = String(rawUrl || '').trim()
+
+  if (!value) {
+    throw new Error('Remote gateway URL is required.')
   }
 
   let parsed
   try {
-    parsed = new URL(rawUrl)
+    parsed = new URL(value)
   } catch (error) {
-    throw new Error(`HERMES_DESKTOP_REMOTE_URL is not a valid URL: ${error.message}`)
+    throw new Error(`Remote gateway URL is not valid: ${error.message}`)
   }
+
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error(`HERMES_DESKTOP_REMOTE_URL must be http:// or https://, got ${parsed.protocol}`)
+    throw new Error(`Remote gateway URL must be http:// or https://, got ${parsed.protocol}`)
   }
 
-  const baseUrl = `${parsed.protocol}//${parsed.host}`
-  const wsScheme = parsed.protocol === 'https:' ? 'wss' : 'ws'
-  const wsUrl = `${wsScheme}://${parsed.host}/api/ws?token=${encodeURIComponent(rawToken)}`
+  parsed.hash = ''
+  parsed.search = ''
+  parsed.pathname = parsed.pathname.replace(/\/+$/, '')
 
-  return { baseUrl, token: rawToken, wsUrl }
+  return parsed.toString().replace(/\/+$/, '')
+}
+
+function buildGatewayWsUrl(baseUrl, token) {
+  const parsed = new URL(baseUrl)
+  const wsScheme = parsed.protocol === 'https:' ? 'wss' : 'ws'
+  const prefix = parsed.pathname.replace(/\/+$/, '')
+
+  return `${wsScheme}://${parsed.host}${prefix}/api/ws?token=${encodeURIComponent(token)}`
+}
+
+function tokenPreview(value) {
+  const raw = String(value || '')
+
+  if (!raw) {
+    return null
+  }
+
+  return raw.length <= 8 ? 'set' : `...${raw.slice(-6)}`
+}
+
+function encryptDesktopSecret(value) {
+  const raw = String(value || '')
+
+  if (!raw) {
+    return null
+  }
+
+  try {
+    if (safeStorage.isEncryptionAvailable()) {
+      return {
+        encoding: 'safeStorage',
+        value: safeStorage.encryptString(raw).toString('base64')
+      }
+    }
+  } catch {
+    // Fall through to plaintext for platforms where Electron cannot encrypt.
+  }
+
+  return { encoding: 'plain', value: raw }
+}
+
+function decryptDesktopSecret(secret) {
+  if (!secret || typeof secret !== 'object') {
+    return ''
+  }
+
+  const value = String(secret.value || '')
+
+  if (!value) {
+    return ''
+  }
+
+  if (secret.encoding === 'safeStorage') {
+    try {
+      return safeStorage.decryptString(Buffer.from(value, 'base64'))
+    } catch {
+      return ''
+    }
+  }
+
+  return value
+}
+
+function readDesktopConnectionConfig() {
+  if (connectionConfigCache) {
+    return connectionConfigCache
+  }
+
+  let config = { mode: 'local', remote: {} }
+
+  try {
+    const raw = fs.readFileSync(DESKTOP_CONNECTION_CONFIG_PATH, 'utf8')
+    const parsed = JSON.parse(raw)
+
+    if (parsed && typeof parsed === 'object') {
+      config = {
+        mode: parsed.mode === 'remote' ? 'remote' : 'local',
+        remote: parsed.remote && typeof parsed.remote === 'object' ? parsed.remote : {}
+      }
+    }
+  } catch {
+    // Missing or malformed connection settings should fall back to local.
+  }
+
+  connectionConfigCache = config
+
+  return config
+}
+
+function writeDesktopConnectionConfig(config) {
+  fs.mkdirSync(path.dirname(DESKTOP_CONNECTION_CONFIG_PATH), { recursive: true })
+  fs.writeFileSync(DESKTOP_CONNECTION_CONFIG_PATH, JSON.stringify(config, null, 2))
+  connectionConfigCache = config
+}
+
+function sanitizeDesktopConnectionConfig(config = readDesktopConnectionConfig()) {
+  const remoteToken = decryptDesktopSecret(config.remote?.token)
+
+  return {
+    mode: config.mode === 'remote' ? 'remote' : 'local',
+    remoteUrl: String(config.remote?.url || ''),
+    remoteTokenPreview: tokenPreview(remoteToken),
+    remoteTokenSet: Boolean(remoteToken),
+    envOverride: Boolean(process.env.HERMES_DESKTOP_REMOTE_URL)
+  }
+}
+
+function coerceDesktopConnectionConfig(input = {}, existing = readDesktopConnectionConfig()) {
+  const mode = input.mode === 'remote' ? 'remote' : 'local'
+  const remoteUrl = String(input.remoteUrl ?? existing.remote?.url ?? '').trim()
+  const incomingToken = typeof input.remoteToken === 'string' ? input.remoteToken.trim() : ''
+  const existingToken = existing.remote?.token
+  const nextRemote = {
+    url: remoteUrl,
+    token: incomingToken ? encryptDesktopSecret(incomingToken) : existingToken
+  }
+
+  if (mode === 'remote') {
+    nextRemote.url = normalizeRemoteBaseUrl(remoteUrl)
+
+    if (!decryptDesktopSecret(nextRemote.token)) {
+      throw new Error('Remote gateway session token is required.')
+    }
+  } else if (remoteUrl) {
+    nextRemote.url = normalizeRemoteBaseUrl(remoteUrl)
+  }
+
+  return { mode, remote: nextRemote }
+}
+
+function resolveRemoteBackend() {
+  const rawEnvUrl = process.env.HERMES_DESKTOP_REMOTE_URL
+  const rawEnvToken = process.env.HERMES_DESKTOP_REMOTE_TOKEN
+
+  if (rawEnvUrl) {
+    if (!rawEnvToken) {
+      throw new Error(
+        'HERMES_DESKTOP_REMOTE_URL is set but HERMES_DESKTOP_REMOTE_TOKEN is not. ' +
+        'Both must be provided to connect to a remote Hermes backend.'
+      )
+    }
+
+    const baseUrl = normalizeRemoteBaseUrl(rawEnvUrl)
+
+    return {
+      baseUrl,
+      mode: 'remote',
+      source: 'env',
+      token: rawEnvToken,
+      wsUrl: buildGatewayWsUrl(baseUrl, rawEnvToken)
+    }
+  }
+
+  const config = readDesktopConnectionConfig()
+
+  if (config.mode !== 'remote') {
+    return null
+  }
+
+  const token = decryptDesktopSecret(config.remote?.token)
+
+  if (!token) {
+    throw new Error(
+      'Remote Hermes gateway is selected, but no session token is saved. ' +
+      'Open Settings → Gateway and save a token, or switch back to Local.'
+    )
+  }
+
+  const baseUrl = normalizeRemoteBaseUrl(config.remote?.url)
+
+  return {
+    baseUrl,
+    mode: 'remote',
+    source: 'settings',
+    token,
+    wsUrl: buildGatewayWsUrl(baseUrl, token)
+  }
+}
+
+async function testDesktopConnectionConfig(input = {}) {
+  const config = coerceDesktopConnectionConfig(input)
+  const remote = config.mode === 'remote'
+    ? {
+        baseUrl: normalizeRemoteBaseUrl(config.remote.url),
+        token: decryptDesktopSecret(config.remote.token)
+      }
+    : resolveRemoteBackend() || (await startHermes())
+  const status = await fetchJson(`${remote.baseUrl}/api/status`, remote.token, { timeoutMs: 8_000 })
+
+  return {
+    ok: true,
+    baseUrl: remote.baseUrl,
+    version: status?.version || null
+  }
+}
+
+function resetBootProgressForReconnect() {
+  updateBootProgress(
+    {
+      error: null,
+      message: 'Restarting desktop connection',
+      phase: 'backend.resolve',
+      progress: 4,
+      running: true
+    },
+    { allowDecrease: true }
+  )
+}
+
+function resetHermesConnection() {
+  connectionPromise = null
+
+  if (hermesProcess && !hermesProcess.killed) {
+    hermesProcess.kill('SIGTERM')
+  }
+
+  hermesProcess = null
+  resetBootProgressForReconnect()
 }
 
 async function startHermes() {
@@ -1275,6 +1505,8 @@ async function startHermes() {
       })
       return {
         baseUrl: remote.baseUrl,
+        mode: 'remote',
+        source: remote.source,
         token: remote.token,
         wsUrl: remote.wsUrl,
         logs: hermesLog.slice(-80),
@@ -1368,6 +1600,8 @@ async function startHermes() {
 
     return {
       baseUrl,
+      mode: 'local',
+      source: 'local',
       token,
       wsUrl: `ws://127.0.0.1:${port}/api/ws?token=${encodeURIComponent(token)}`,
       logs: hermesLog.slice(-80),
@@ -1440,6 +1674,22 @@ function createWindow() {
 
 ipcMain.handle('hermes:connection', async () => startHermes())
 ipcMain.handle('hermes:boot-progress:get', async () => bootProgressState)
+ipcMain.handle('hermes:connection-config:get', async () => sanitizeDesktopConnectionConfig())
+ipcMain.handle('hermes:connection-config:test', async (_event, payload) => testDesktopConnectionConfig(payload))
+ipcMain.handle('hermes:connection-config:save', async (_event, payload) => {
+  const config = coerceDesktopConnectionConfig(payload)
+  writeDesktopConnectionConfig(config)
+
+  return sanitizeDesktopConnectionConfig(config)
+})
+ipcMain.handle('hermes:connection-config:apply', async (_event, payload) => {
+  const config = coerceDesktopConnectionConfig(payload)
+  writeDesktopConnectionConfig(config)
+  resetHermesConnection()
+  setTimeout(() => mainWindow?.reload(), 150)
+
+  return sanitizeDesktopConnectionConfig(config)
+})
 
 ipcMain.on('hermes:previewShortcutActive', (_event, active) => {
   previewShortcutActive = Boolean(active)
