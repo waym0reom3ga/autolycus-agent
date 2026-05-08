@@ -98,6 +98,36 @@ interface FlowState {
 
 const POLL_INTERVAL_MS = 2000
 
+// Order/display overrides for the OAuth provider catalog. The backend ships
+// engineer-flavored names like "Anthropic (Claude API)" and "MiniMax (OAuth)";
+// the desktop renames them in-place so the overlay reads like a consumer
+// product. Anything not in this map keeps the backend's default name.
+const PROVIDER_DISPLAY: Record<string, { description?: string; order: number; title?: string }> = {
+  nous: { order: 0, title: 'Nous Portal' },
+  anthropic: { order: 1, title: 'Anthropic Claude' },
+  'openai-codex': { order: 2, title: 'OpenAI Codex / ChatGPT' },
+  'minimax-oauth': { order: 3, title: 'MiniMax' },
+  'claude-code': { order: 4, title: 'Claude Code' },
+  'qwen-oauth': { order: 5, title: 'Qwen Code' }
+}
+
+function displayProviderTitle(provider: OAuthProvider) {
+  return PROVIDER_DISPLAY[provider.id]?.title ?? provider.name
+}
+
+function sortProviders(providers: OAuthProvider[]) {
+  return [...providers].sort((a, b) => {
+    const aOrder = PROVIDER_DISPLAY[a.id]?.order ?? 99
+    const bOrder = PROVIDER_DISPLAY[b.id]?.order ?? 99
+
+    if (aOrder !== bOrder) {
+      return aOrder - bOrder
+    }
+
+    return a.name.localeCompare(b.name)
+  })
+}
+
 export function DesktopOnboardingOverlay({
   enabled,
   onCompleted,
@@ -161,8 +191,9 @@ export function DesktopOnboardingOverlay({
           return
         }
 
-        setOauthProviders(providers.providers)
-        setMode(providers.providers.length > 0 ? 'oauth' : 'apikey')
+        const ordered = sortProviders(providers.providers)
+        setOauthProviders(ordered)
+        setMode(ordered.length > 0 ? 'oauth' : 'apikey')
       } catch {
         if (!cancelledRef.current) {
           setOauthProviders([])
@@ -460,26 +491,34 @@ function ProviderPicker({
   return (
     <>
       {hasOauth && (
-        <div className="flex gap-1 rounded-full border border-border bg-muted/40 p-1 self-start text-xs font-medium">
+        <div
+          aria-label="Connection method"
+          className="grid w-full max-w-xs grid-cols-2 gap-1 rounded-full border border-border bg-muted/40 p-1 text-xs font-medium"
+          role="tablist"
+        >
           <button
+            aria-selected={mode === 'oauth'}
             className={cn(
-              'rounded-full px-3 py-1 transition',
+              'rounded-full px-3 py-1.5 text-center transition',
               mode === 'oauth' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             )}
             onClick={() => onModeChange('oauth')}
+            role="tab"
             type="button"
           >
             Sign in
           </button>
           <button
+            aria-selected={mode === 'apikey'}
             className={cn(
-              'rounded-full px-3 py-1 transition',
+              'rounded-full px-3 py-1.5 text-center transition',
               mode === 'apikey' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
             )}
             onClick={() => onModeChange('apikey')}
+            role="tab"
             type="button"
           >
-            Use an API key
+            API key
           </button>
         </div>
       )}
@@ -569,6 +608,7 @@ function ProviderRow({
 }) {
   const isExternal = provider.flow === 'external'
   const loggedIn = provider.status?.logged_in
+  const title = displayProviderTitle(provider)
 
   return (
     <button
@@ -581,7 +621,7 @@ function ProviderRow({
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">Sign in with {provider.name}</span>
+          <span className="text-sm font-semibold">{title}</span>
           {loggedIn ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
               <Check className="size-3" />
@@ -589,25 +629,27 @@ function ProviderRow({
             </span>
           ) : null}
         </div>
-        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-          {isExternal ? `Use the ${provider.name} CLI: ${provider.cli_command}` : flowSubtitle(provider.flow)}
-        </p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{flowSubtitle(provider.flow, title)}</p>
       </div>
-      <ChevronRight className="size-4 text-muted-foreground transition group-hover:text-foreground" />
+      {isExternal ? (
+        <ExternalLink className="size-4 text-muted-foreground transition group-hover:text-foreground" />
+      ) : (
+        <ChevronRight className="size-4 text-muted-foreground transition group-hover:text-foreground" />
+      )}
     </button>
   )
 }
 
-function flowSubtitle(flow: OAuthProvider['flow']) {
+function flowSubtitle(flow: OAuthProvider['flow'], _title: string) {
   if (flow === 'pkce') {
-    return 'Opens your browser, asks you to paste a one-time code back here.'
+    return 'Opens your browser to sign in, then continues here.'
   }
 
   if (flow === 'device_code') {
     return 'Opens a verification page in your browser. Hermes connects automatically.'
   }
 
-  return ''
+  return 'Sign in once in your terminal, then come back to chat.'
 }
 
 interface FlowPanelProps {
@@ -619,11 +661,13 @@ interface FlowPanelProps {
 }
 
 function FlowPanel({ flow, onCancel, onCopyCode, onSubmitCode, onSubmitCodeChange }: FlowPanelProps) {
+  const providerTitle = flow.provider ? displayProviderTitle(flow.provider) : ''
+
   if (flow.status === 'starting') {
     return (
       <div className="flex items-center gap-3 rounded-2xl bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
-        Starting sign-in for {flow.provider?.name}...
+        Starting sign-in for {providerTitle}...
       </div>
     )
   }
@@ -632,7 +676,7 @@ function FlowPanel({ flow, onCancel, onCopyCode, onSubmitCode, onSubmitCodeChang
     return (
       <div className="flex items-center gap-3 rounded-2xl bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
-        Verifying your code with {flow.provider?.name}...
+        Verifying your code with {providerTitle}...
       </div>
     )
   }
@@ -641,7 +685,7 @@ function FlowPanel({ flow, onCancel, onCopyCode, onSubmitCode, onSubmitCodeChang
     return (
       <div className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
         <Check className="size-4" />
-        {flow.provider?.name} connected. You're ready to chat.
+        {providerTitle} connected. You're ready to chat.
       </div>
     )
   }
@@ -665,9 +709,9 @@ function FlowPanel({ flow, onCancel, onCopyCode, onSubmitCode, onSubmitCodeChang
     return (
       <div className="grid gap-4">
         <div>
-          <h3 className="text-sm font-semibold">Sign in with {flow.provider.name}</h3>
+          <h3 className="text-sm font-semibold">Sign in with {providerTitle}</h3>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
-            <li>We opened {flow.provider.name} in your browser.</li>
+            <li>We opened {providerTitle} in your browser.</li>
             <li>Authorize Hermes there.</li>
             <li>Copy the authorization code and paste it below.</li>
           </ol>
@@ -707,9 +751,9 @@ function FlowPanel({ flow, onCancel, onCopyCode, onSubmitCode, onSubmitCodeChang
     return (
       <div className="grid gap-4">
         <div>
-          <h3 className="text-sm font-semibold">Sign in with {flow.provider.name}</h3>
+          <h3 className="text-sm font-semibold">Sign in with {providerTitle}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            We opened {flow.provider.name} in your browser. Enter this code there:
+            We opened {providerTitle} in your browser. Enter this code there:
           </p>
         </div>
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-secondary/30 px-4 py-3">
