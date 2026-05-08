@@ -1356,6 +1356,7 @@ def _get_usage(agent) -> dict:
         "output": g("session_output_tokens", "session_completion_tokens"),
         "cache_read": g("session_cache_read_tokens"),
         "cache_write": g("session_cache_write_tokens"),
+        "reasoning": g("session_reasoning_tokens"),
         "prompt": g("session_prompt_tokens"),
         "completion": g("session_completion_tokens"),
         "total": g("session_total_tokens"),
@@ -1823,22 +1824,47 @@ def _prompt_text(value) -> str:
 def _apply_personality_to_session(
     sid: str, session: dict, new_prompt: str, personality: str = ""
 ) -> tuple[bool, dict | None]:
+    """Apply a personality change to an existing session without resetting history.
+
+    Updates the agent's ephemeral system prompt in-place so the new personality
+    takes effect on the next turn.  The cached base system prompt is left intact
+    (ephemeral_system_prompt is appended at API-call time, not baked into the
+    cache), which preserves prompt-cache hits.
+
+    Also injects a system-role marker into the conversation history so the model
+    knows to pivot its style from this point forward (without this, LLMs tend to
+    continue the tone established by earlier messages in the transcript).
+
+    Returns (history_reset, info) — history_reset is always False since we
+    preserve the conversation.
+    """
     if not session:
         return False, None
     session["personality"] = personality
 
-    try:
-        info = _reset_session_agent(sid, session)
-        return True, info
-    except Exception:
-        if session.get("agent"):
-            agent = session["agent"]
-            agent.ephemeral_system_prompt = new_prompt or None
-            agent._cached_system_prompt = None
-            info = _session_info(agent, session)
-            _emit("session.info", sid, info)
-            return False, info
-        return False, None
+    agent = session.get("agent")
+    if agent:
+        agent.ephemeral_system_prompt = new_prompt or None
+        # Inject a pivot marker into history so the model sees the change point.
+        # This prevents it from pattern-matching its prior style.
+        if new_prompt:
+            marker = (
+                "[System: The user has changed the assistant's personality. "
+                "From this point forward, adopt the following persona and respond "
+                f"accordingly: {new_prompt}]"
+            )
+        else:
+            marker = (
+                "[System: The user has cleared the personality overlay. "
+                "From this point forward, respond in your normal default style.]"
+            )
+        with session["history_lock"]:
+            session["history"].append({"role": "user", "content": marker})
+            session["history_version"] = int(session.get("history_version", 0)) + 1
+        info = _session_info(agent)
+        _emit("session.info", sid, info)
+        return False, info
+    return False, None
 
 
 def _cfg_max_turns(cfg: dict, default: int) -> int:
@@ -2219,11 +2245,11 @@ def _enrich_with_attached_images(user_text: str, image_paths: list[str]) -> str:
 def _coerce_message_text(content: Any) -> str:
     """Render ``message['content']`` as a plain string for transport.
 
-    Provider-side, ``content`` may be a string (most common) or a list of
+    Provider-side, ``content`` may be a string (most common), a list of
     multimodal parts (e.g. ``[{"type": "text", "text": "..."},
-    {"type": "image_url", "image_url": {...}}]``). Calling ``.strip()`` on
-    the list raises ``'list' object has no attribute 'strip'`` and breaks
-    session resume entirely.
+    {"type": "image_url", "image_url": {...}}]``), or a single structured
+    dict. Calling ``.strip()`` on a list raises ``'list' object has no
+    attribute 'strip'`` and breaks session resume entirely.
 
     Image parts (``image_url``) are preserved by appending the underlying
     URL (data: or http:) into the text. The desktop renderer pulls these
@@ -2231,11 +2257,16 @@ def _coerce_message_text(content: Any) -> str:
     instead of the URL — and it stops the resume payload from disagreeing
     with the cached message (which would otherwise cause the inline image
     to flash, then disappear when the resume payload overwrites the cache).
+
+    Other structured dict shapes (audio, unknown types) fall back to a
+    bracketed placeholder so resume doesn't drop the message entirely.
     """
     if content is None:
         return ""
     if isinstance(content, str):
         return content
+    if isinstance(content, (int, float)):
+        return str(content)
     if isinstance(content, list):
         chunks: list[str] = []
         for part in content:
@@ -2248,7 +2279,13 @@ def _coerce_message_text(content: Any) -> str:
             if isinstance(text, str):
                 chunks.append(text)
                 continue
-            if part.get("type") == "image_url":
+            kind = part.get("type")
+            if kind in {"text", "input_text", "output_text"}:
+                t = part.get("text") or part.get("content") or ""
+                if t:
+                    chunks.append(str(t))
+                continue
+            if kind in {"image_url", "input_image", "image"}:
                 image_url = part.get("image_url")
                 url = ""
                 if isinstance(image_url, dict):
@@ -2259,7 +2296,36 @@ def _coerce_message_text(content: Any) -> str:
                     url = image_url
                 if url:
                     chunks.append(f"\n{url}")
+                else:
+                    chunks.append("\n[image]")
+                continue
+            if kind in {"input_audio", "audio"}:
+                chunks.append("\n[audio]")
+                continue
+            if kind:
+                chunks.append(f"\n[{kind}]")
         return "".join(chunks)
+    if isinstance(content, dict):
+        kind = content.get("type")
+        if kind in {"text", "input_text", "output_text"}:
+            return str(content.get("text") or content.get("content") or "")
+        if kind in {"image_url", "input_image", "image"}:
+            image_url = content.get("image_url")
+            url = ""
+            if isinstance(image_url, dict):
+                candidate = image_url.get("url")
+                if isinstance(candidate, str):
+                    url = candidate
+            elif isinstance(image_url, str):
+                url = image_url
+            return url or "[image]"
+        if kind in {"input_audio", "audio"}:
+            return "[audio]"
+        if kind:
+            return f"[{kind}]"
+        if "text" in content:
+            return str(content.get("text") or "")
+        return "[structured content]"
     return str(content)
 
 
@@ -3509,6 +3575,18 @@ def _run_prompt_submit(rid, sid: str, session: dict, text: Any) -> None:
                     if result.get("interrupted")
                     else "error" if result.get("error") else "complete"
                 )
+                # When the backend produced no visible response AND reported a
+                # real error (e.g. invalid model slug → provider 4xx), surface
+                # that error as the visible text instead of shipping an empty
+                # turn to Ink. Mirrors classic CLI behavior at cli.py where
+                # (failed|partial) + no final_response → "Error: <detail>".
+                # Leaves the None-with-no-error path untouched: an empty
+                # successful turn still renders as empty, and the existing
+                # "(empty)" sentinel handling stays in its own lane.
+                if (not raw) and result.get("error") and (
+                    result.get("failed") or result.get("partial")
+                ):
+                    raw = f"Error: {result.get('error')}"
                 lr = result.get("last_reasoning")
                 if isinstance(lr, str) and lr.strip():
                     last_reasoning = lr.strip()
@@ -6140,14 +6218,13 @@ def _(rid, params: dict) -> dict:
 
 @method("voice.record")
 def _(rid, params: dict) -> dict:
-    """VAD-driven continuous record loop, CLI-parity.
+    """VAD-bounded push-to-talk capture, CLI-parity.
 
-    ``start`` turns on a VAD loop that emits ``voice.transcript`` events
-    for each detected utterance and auto-restarts for the next turn.
-    ``stop`` halts the loop (manual stop; matches cli.py's Ctrl+B-while-
-    recording branch clearing ``_voice_continuous``). Three consecutive
-    silent cycles stop the loop automatically and emit a
-    ``voice.transcript`` with ``no_speech_limit=True``.
+    ``start`` begins one VAD-bounded capture and emits ``voice.transcript``
+    after silence stops the recorder. ``stop`` forces transcription of the
+    active buffer, matching classic CLI push-to-talk. The voice wrapper retains
+    no-speech counts across single-shot starts, so three consecutive silent
+    captures emit ``voice.transcript`` with ``no_speech_limit=True``.
     """
     action = params.get("action", "start")
 
@@ -6186,7 +6263,7 @@ def _(rid, params: dict) -> dict:
                 if isinstance(duration, (int, float)) and not isinstance(duration, bool)
                 else 3.0
             )
-            start_continuous(
+            started = start_continuous(
                 on_transcript=lambda t: _voice_emit("voice.transcript", {"text": t}),
                 on_status=lambda s: _voice_emit("voice.status", {"state": s}),
                 on_silent_limit=lambda: _voice_emit(
@@ -6194,13 +6271,19 @@ def _(rid, params: dict) -> dict:
                 ),
                 silence_threshold=safe_threshold,
                 silence_duration=safe_duration,
+                auto_restart=False,
             )
+            if started is False:
+                return _ok(rid, {"status": "busy"})
             return _ok(rid, {"status": "recording"})
 
         # action == "stop"
+        with _voice_sid_lock:
+            _voice_event_sid = params.get("session_id") or _voice_event_sid
+
         from hermes_cli.voice import stop_continuous
 
-        stop_continuous()
+        stop_continuous(force_transcribe=True)
         return _ok(rid, {"status": "stopped"})
     except ImportError:
         return _err(
