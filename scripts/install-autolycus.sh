@@ -163,6 +163,9 @@ install_uv() {
     fi
 
     # Fallback: install via cargo (requires Rust toolchain)
+    # Redirect build dir away from /tmp to avoid tmpfs quota issues
+    export CARGO_BUILD_BUILD_DIR="$HOME/.cargo/build-tmp"
+    mkdir -p "$CARGO_BUILD_BUILD_DIR"
     echo -e "${YELLOW}⚠${NC} Pre-built installer failed, falling back to cargo install (slower)..."
     if cargo install uv; then
         if [ -x "$HOME/.cargo/bin/uv" ]; then
