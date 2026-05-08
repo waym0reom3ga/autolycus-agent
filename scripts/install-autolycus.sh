@@ -359,6 +359,17 @@ setup_config() {
         echo -e "${GREEN}✓${NC} ~/.hermes/config.yaml already exists"
     fi
 
+    # Agent identity — assign a random name on first install
+    if [ ! -f "$HERMES_HOME/.hermes_agent_name" ]; then
+        AGENT_NAMES=("Atlas" "Bastion" "Cipher" "Drift" "Echo" "Flux" "Glint" "Haven" "Ion" "Jinx" "Kairo" "Lumen" "Nexus" "Orbit" "Prism" "Quill" "Rift" "Spark" "Talus" "Vex" "Warden" "Zephyr" "Axiom" "Blaze" "Coda" "Dusk" "Ember" "Frost" "Grail" "Haze" "Inferno" "Jade" "Kite" "Lance" "Mist" "Nova" "Onyx" "Pulse" "Quasar" "Rune" "Sage" "Titan" "Umber" "Volt" "Wrath" "Xenon" "Yucca" "Zenith" "Apex" "Bolt" "Crux" "Dune" "Eclipse" "Forge" "Gale" "Horizon" "Ignis" "Jolt" "Kinetic" "Lynx" "Magma" "Nimbus" "Opal" "Phoenix" "Quantum" "Radar" "Solar" "Terra" "Ultra" "Vector" "Wraith" "Yield" "Zen" "Arc")
+        AGENT_NAME="${AGENT_NAMES[$((RANDOM % ${#AGENT_NAMES[@]}))]}"
+        echo "$AGENT_NAME" > "$HERMES_HOME/.hermes_agent_name"
+        echo -e "${GREEN}✓${NC} Agent identity assigned: $AGENT_NAME"
+    else
+        EXISTING_NAME=$(cat "$HERMES_HOME/.hermes_agent_name")
+        echo -e "${GREEN}✓${NC} Agent identity: $EXISTING_NAME"
+    fi
+
     # SOUL.md
     if [ ! -f "$HERMES_HOME/SOUL.md" ]; then
         cat > "$HERMES_HOME/SOUL.md" << 'SOUL_EOF'
