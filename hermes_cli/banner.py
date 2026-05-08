@@ -234,7 +234,7 @@ def get_git_banner_state(repo_dir: Optional[Path] = None) -> Optional[dict]:
 
 def format_banner_version_label() -> str:
     """Return the version label shown in the startup banner title."""
-    base = "Autolycus Agent v.0.0.5"
+    base = "Autolycus Agent v.0.1.0"
     state = get_git_banner_state()
     if not state:
         return base
