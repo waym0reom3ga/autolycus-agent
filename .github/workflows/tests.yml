@@ -23,21 +23,10 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        slice: [1, 2, 3, 4, 5, 6]
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-
-      - name: Restore duration cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
-        with:
-          path: test_durations.json
-          # Single stable key. main always overwrites, PRs always find it.
-          key: test-durations
 
       - name: Install ripgrep (prebuilt binary)
         run: |
@@ -65,7 +54,7 @@ jobs:
           source .venv/bin/activate
           uv pip install -e ".[all,dev]"
 
-      - name: Run tests (slice ${{ matrix.slice }}/6)
+      - name: Run tests
         # Per-file isolation via scripts/run_tests_parallel.py: discovers
         # every test_*.py file under tests/ (excluding integration/ + e2e/),
         # then runs `python -m pytest <file>` in a freshly-spawned subprocess
@@ -83,60 +72,14 @@ jobs:
         # state across files, which is exactly the leakage we wanted to
         # fix. ThreadPoolExecutor + subprocess.run is ~60 lines and does
         # the job with cleaner semantics.
-        #
-        # Matrix slicing (--slice I/N): files are distributed across 6
-        # jobs by cached duration (LPT algorithm) so each job gets
-        # roughly equal wall time. Without a cache, files default to 2s
-        # estimate and get split roughly evenly by count — still correct,
-        # just not perfectly balanced.
         run: |
           source .venv/bin/activate
-          python scripts/run_tests_parallel.py --slice ${{ matrix.slice }}/6
+          python scripts/run_tests_parallel.py
         env:
           # Ensure tests don't accidentally call real APIs
           OPENROUTER_API_KEY: ""
           OPENAI_API_KEY: ""
           NOUS_API_KEY: ""
-
-      - name: Upload per-slice durations
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-        with:
-          name: test-durations-slice-${{ matrix.slice }}
-          path: test_durations.json
-          retention-days: 1
-
-  # Merge per-slice duration data into a single cache, so future runs
-  # (including PRs) get balanced slicing.
-  save-durations:
-    needs: test
-    if: always() && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all slice durations
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
-        with:
-          pattern: test-durations-slice-*
-          path: durations
-          merge-multiple: true
-
-      - name: Merge into single durations file
-        run: |
-          python3 -c "
-          import json, glob, os
-          merged = {}
-          for f in glob.glob('durations/*test_durations.json'):
-            with open(f) as fh:
-              merged.update(json.load(fh))
-          with open('test_durations.json', 'w') as fh:
-            json.dump(merged, fh, indent=2, sort_keys=True)
-          print(f'Merged {len(merged)} file durations')
-          "
-
-      - name: Save merged duration cache
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
-        with:
-          path: test_durations.json
-          key: test-durations
 
   e2e:
     runs-on: ubuntu-latest
@@ -179,3 +122,109 @@ jobs:
           OPENROUTER_API_KEY: ""
           OPENAI_API_KEY: ""
           NOUS_API_KEY: ""
+
+  freebsd-install-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup FreeBSD
+        uses: native-toolkit/freebsd@9c186a3a7e835af34ef9864e73386e7f44a6683b  # v3
+        with:
+          release: 15.0
+          ci_command: |
+            # Test install script syntax and FreeBSD-specific logic
+            echo "=== Testing install script FreeBSD compatibility ==="
+
+            # Check for forbidden patterns in install script
+            if grep -n "source ~/.bashrc" scripts/install.sh | grep -v "^#"; then
+              echo "ERROR: Install script contains 'source ~/.bashrc' which fails on FreeBSD sh"
+              exit 1
+            fi
+
+            # Verify shell detection uses pw command on FreeBSD
+            if ! grep -q 'pw usershow' scripts/install.sh; then
+              echo "ERROR: Install script missing FreeBSD shell detection (pw usershow)"
+              exit 1
+            fi
+
+            # Check that FreeBSD branch doesn't use 'source' for sh
+            if grep -A 20 'if \[ "$OS" = "freebsd" \]' scripts/install.sh | grep -q 'source ~/.profile'; then
+              echo "ERROR: FreeBSD sh instructions use 'source' instead of '.'"
+              exit 1
+            fi
+
+            # Verify PATH config uses correct syntax for csh/tcsh
+            if ! grep -q 'setenv PATH' scripts/install.sh; then
+              echo "ERROR: Missing csh/tcsh PATH syntax (setenv)"
+              exit 1
+            fi
+
+            echo "PASS: Install script FreeBSD checks passed"
+
+            # Test basic script syntax
+            bash -n scripts/install.sh
+            echo "PASS: Script syntax check passed"
+
+            # Verify README doesn't have FreeBSD-breaking instructions
+            if grep -n "source ~/.bashrc" README.md; then
+              echo "ERROR: README contains 'source ~/.bashrc' without FreeBSD alternatives"
+              exit 1
+            fi
+
+            echo "PASS: All FreeBSD compatibility checks passed"
+
+  freebsd-install-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Setup FreeBSD
+        uses: native-toolkit/freebsd@9c186a3a7e835af34ef9864e73386e7f44a6683b  # v3
+        with:
+          release: 15.0
+          ci_command: |
+            # Test install script syntax and FreeBSD-specific logic
+            echo "=== Testing install script FreeBSD compatibility ==="
+
+            # Check for forbidden patterns in install script
+            if grep -n "source ~/.bashrc" scripts/install.sh | grep -v "^#"; then
+              echo "ERROR: Install script contains 'source ~/.bashrc' which fails on FreeBSD sh"
+              exit 1
+            fi
+
+            # Verify shell detection uses pw command on FreeBSD
+            if ! grep -q 'pw usershow' scripts/install.sh; then
+              echo "ERROR: Install script missing FreeBSD shell detection (pw usershow)"
+              exit 1
+            fi
+
+            # Check that FreeBSD branch doesn't use 'source' for sh
+            if grep -A 20 'if \[ "$OS" = "freebsd" \]' scripts/install.sh | grep -q 'source ~/.profile'; then
+              echo "ERROR: FreeBSD sh instructions use 'source' instead of '.'"
+              exit 1
+            fi
+
+            # Verify PATH config uses correct syntax for csh/tcsh
+            if ! grep -q 'setenv PATH' scripts/install.sh; then
+              echo "ERROR: Missing csh/tcsh PATH syntax (setenv)"
+              exit 1
+            fi
+
+            echo "PASS: Install script FreeBSD checks passed"
+
+            # Test basic script syntax
+            bash -n scripts/install.sh
+            echo "PASS: Script syntax check passed"
+
+            # Verify README doesn't have FreeBSD-breaking instructions
+            if grep -n "source ~/.bashrc" README.md; then
+              echo "ERROR: README contains 'source ~/.bashrc' without FreeBSD alternatives"
+              exit 1
+            fi
+
+            echo "PASS: All FreeBSD compatibility checks passed"
