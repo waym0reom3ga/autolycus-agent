@@ -1360,7 +1360,14 @@ EOF
     if ! echo "$PATH" | tr ':' '\n' | grep -q "^$command_link_dir$"; then
         SHELL_CONFIGS=()
         IS_FISH=false
-        LOGIN_SHELL="$(basename "${SHELL:-/bin/bash}")"
+        # On FreeBSD, query the actual login shell from passwd database
+        # On other systems, use $SHELL (may be unreliable when piped)
+        if [ "$OS" = "freebsd" ]; then
+            LOGIN_SHELL="$(pw usershow "$(whoami)" -q 2>/dev/null | cut -d: -f7 | xargs basename)"
+            [ -z "$LOGIN_SHELL" ] && LOGIN_SHELL="sh"
+        else
+            LOGIN_SHELL="$(basename "${SHELL:-/bin/bash}")"
+        fi
         case "$LOGIN_SHELL" in
             zsh)
                 [ -f "$HOME/.zshrc" ] && SHELL_CONFIGS+=("$HOME/.zshrc")
@@ -1890,21 +1897,27 @@ print_success() {
     else
         echo -e "${YELLOW}⚡ Reload your shell to use 'hermes' command:${NC}"
         echo ""
-        LOGIN_SHELL="$(basename "${SHELL:-/bin/bash}")"
+        # Detect actual login shell - on FreeBSD use pw/passwd, elsewhere use $SHELL
         if [ "$OS" = "freebsd" ]; then
-            # FreeBSD shell-specific instructions
+            LOGIN_SHELL="$(pw usershow "$(whoami)" -q 2>/dev/null | cut -d: -f7 | xargs basename)"
+            [ -z "$LOGIN_SHELL" ] && LOGIN_SHELL="sh"
+        else
+            LOGIN_SHELL="$(basename "${SHELL:-/bin/bash}")"
+        fi
+        if [ "$OS" = "freebsd" ]; then
+            # FreeBSD shell-specific instructions - NO "source" command on sh/csh
             if [ "$LOGIN_SHELL" = "csh" ] || [ "$LOGIN_SHELL" = "tcsh" ]; then
                 echo "   source ~/.cshrc"
             elif [ "$LOGIN_SHELL" = "sh" ]; then
                 echo "   . ~/.profile"
             elif [ "$LOGIN_SHELL" = "bash" ]; then
-                echo "   source ~/.bashrc"
+                echo "   . ~/.bashrc"
             elif [ "$LOGIN_SHELL" = "zsh" ]; then
-                echo "   source ~/.zshrc"
+                echo "   . ~/.zshrc"
             else
                 echo "   . ~/.profile   # sh"
                 echo "   source ~/.cshrc  # csh/tcsh"
-                echo "   source ~/.bashrc # bash"
+                echo "   . ~/.bashrc      # bash"
             fi
         elif [ "$LOGIN_SHELL" = "zsh" ]; then
             echo "   source ~/.zshrc"
