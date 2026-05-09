@@ -300,7 +300,20 @@ setup_path() {
     # Add ~/.local/bin to shell config if needed
     if ! echo "$PATH" | tr ':' '\n' | grep -q "^$HOME/.local/bin$"; then
         SHELL_CONFIG=""
-        if [[ "$SHELL" == *"zsh"* ]]; then
+        # Detect actual login shell - on FreeBSD use pw command
+        if [ "$OS" = "freebsd" ]; then
+            LOGIN_SHELL="$(pw usershow "$(whoami)" -q 2>/dev/null | cut -d: -f7 | xargs basename)"
+            [ -z "$LOGIN_SHELL" ] && LOGIN_SHELL="sh"
+            if [ "$LOGIN_SHELL" = "csh" ] || [ "$LOGIN_SHELL" = "tcsh" ]; then
+                SHELL_CONFIG="$HOME/.cshrc"
+            elif [ "$LOGIN_SHELL" = "bash" ]; then
+                SHELL_CONFIG="$HOME/.bashrc"
+            elif [ "$LOGIN_SHELL" = "zsh" ]; then
+                SHELL_CONFIG="$HOME/.zshrc"
+            else
+                SHELL_CONFIG="$HOME/.profile"
+            fi
+        elif [[ "$SHELL" == *"zsh"* ]]; then
             SHELL_CONFIG="$HOME/.zshrc"
         elif [[ "$SHELL" == *"bash"* ]]; then
             SHELL_CONFIG="$HOME/.bashrc"
@@ -321,7 +334,12 @@ setup_path() {
             if ! grep -q '\.local/bin' "$SHELL_CONFIG" 2>/dev/null; then
                 echo "" >> "$SHELL_CONFIG"
                 echo "# Autolycus Agent — ensure ~/.local/bin is on PATH" >> "$SHELL_CONFIG"
-                echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_CONFIG"
+                # Use setenv for csh/tcsh, export for others
+                if [ "$OS" = "freebsd" ] && { [ "$LOGIN_SHELL" = "csh" ] || [ "$LOGIN_SHELL" = "tcsh" ]; }; then
+                    echo 'setenv PATH "$HOME/.local/bin:$PATH"' >> "$SHELL_CONFIG"
+                else
+                    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_CONFIG"
+                fi
                 echo -e "${GREEN}✓${NC} Added ~/.local/bin to PATH in $SHELL_CONFIG"
             else
                 echo -e "${GREEN}✓${NC} ~/.local/bin already in $SHELL_CONFIG"
@@ -425,10 +443,37 @@ sync_skills
 echo ""
 echo -e "${GREEN}${BOLD}✓ Installation complete!${NC}"
 echo ""
+
+# Detect actual shell for reload instructions
+if [ "$OS" = "freebsd" ]; then
+    LOGIN_SHELL="$(pw usershow "$(whoami)" -q 2>/dev/null | cut -d: -f7 | xargs basename)"
+    [ -z "$LOGIN_SHELL" ] && LOGIN_SHELL="sh"
+else
+    LOGIN_SHELL="$(basename "${SHELL:-/bin/bash}")"
+fi
+
 echo "Next steps:"
 echo ""
 echo "  1. Reload your shell:"
-echo "     source ~/.bashrc   # or source ~/.zshrc"
+if [ "$OS" = "freebsd" ]; then
+    if [ "$LOGIN_SHELL" = "csh" ] || [ "$LOGIN_SHELL" = "tcsh" ]; then
+        echo "     source ~/.cshrc"
+    elif [ "$LOGIN_SHELL" = "bash" ]; then
+        echo "     . ~/.bashrc"
+    elif [ "$LOGIN_SHELL" = "zsh" ]; then
+        echo "     . ~/.zshrc"
+    else
+        echo "     . ~/.profile   # sh"
+    fi
+else
+    if [ "$LOGIN_SHELL" = "zsh" ]; then
+        echo "     source ~/.zshrc"
+    elif [ "$LOGIN_SHELL" = "bash" ]; then
+        echo "     source ~/.bashrc"
+    else
+        echo "     source ~/.bashrc   # or ~/.zshrc"
+    fi
+fi
 echo ""
 echo "  2. Configure API keys:"
 echo "     hermes setup"
