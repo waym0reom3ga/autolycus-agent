@@ -375,7 +375,7 @@ def _read_distribution_meta(profile_dir: Path) -> tuple:
         return None, None, None
     try:
         import yaml
-        with open(mf_path, "r") as f:
+        with open(mf_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         if not isinstance(data, dict):
             return None, None, None
@@ -395,7 +395,7 @@ def _read_config_model(profile_dir: Path) -> tuple:
         return None, None
     try:
         import yaml
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             cfg = yaml.safe_load(f) or {}
         model_cfg = cfg.get("model", {})
         if isinstance(model_cfg, str):
@@ -812,7 +812,6 @@ def _cleanup_gateway_service(name: str, profile_dir: Path) -> None:
 
 def _stop_gateway_process(profile_dir: Path) -> None:
     """Stop a running gateway process via its PID file."""
-    import signal as _signal
     import time as _time
 
     pid_file = profile_dir / "gateway.pid"
@@ -823,19 +822,25 @@ def _stop_gateway_process(profile_dir: Path) -> None:
         raw = pid_file.read_text().strip()
         data = json.loads(raw) if raw.startswith("{") else {"pid": int(raw)}
         pid = int(data["pid"])
-        os.kill(pid, _signal.SIGTERM)
-        # Wait up to 10s for graceful shutdown
+        # Route through terminate_pid so Windows uses the appropriate
+        # primitive (taskkill / TerminateProcess) — raw os.kill with
+        # _signal.SIGKILL raises AttributeError at import time on Windows,
+        # and raw os.kill with SIGTERM doesn't cascade to child processes
+        # the same way taskkill /T does.
+        from gateway.status import terminate_pid as _terminate_pid
+        from gateway.status import _pid_exists
+        _terminate_pid(pid)  # graceful first
+        # Wait up to 10s for graceful shutdown. On Windows, os.kill(pid, 0)
+        # is NOT a no-op — use the handle-based existence check.
         for _ in range(20):
             _time.sleep(0.5)
-            try:
-                os.kill(pid, 0)
-            except ProcessLookupError:
+            if not _pid_exists(pid):
                 print(f"✓ Gateway stopped (PID {pid})")
                 return
         # Force kill
         try:
-            os.kill(pid, _signal.SIGKILL)
-        except ProcessLookupError:
+            _terminate_pid(pid, force=True)
+        except (ProcessLookupError, OSError):
             pass
         print(f"✓ Gateway force-stopped (PID {pid})")
     except (ProcessLookupError, PermissionError):

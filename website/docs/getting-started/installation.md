@@ -1,7 +1,7 @@
 ---
 sidebar_position: 2
 title: "Installation"
-description: "Install Hermes Agent on Linux, macOS, WSL2, or Android via Termux"
+description: "Install Hermes Agent on Linux, macOS, WSL2, native Windows (early beta), or Android via Termux"
 ---
 
 # Installation
@@ -25,6 +25,30 @@ Stable desktop builds ship signed/notarized macOS artifacts and Windows installe
 curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
 ```
 
+### Windows (native, PowerShell) — Early Beta
+
+:::warning Early BETA
+Native Windows support is **early beta**. It installs and works for the common paths, but hasn't been road-tested as broadly as our POSIX installers. Please [file issues](https://github.com/NousResearch/hermes-agent/issues) when you hit rough edges. For the most battle-tested setup on Windows today, use the Linux/macOS one-liner above inside **WSL2** instead.
+:::
+
+Open PowerShell and run:
+
+```powershell
+irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1 | iex
+```
+
+The installer handles **everything**: `uv`, Python 3.11, Node.js 22, `ripgrep`, `ffmpeg`, **and a portable Git Bash** (MinGit — a slim, self-contained Git for Windows distribution that Hermes uses for shell commands).  It clones the repo under `%LOCALAPPDATA%\hermes\hermes-agent`, creates a virtualenv, and adds `hermes` to your **User PATH**.  Restart your terminal (or open a new PowerShell window) after the install so PATH picks up.
+
+**How Git is handled:**
+1. If `git` is already on your PATH, the installer uses your existing install.
+2. Otherwise it downloads portable **MinGit** (~45MB, from the official `git-for-windows` GitHub release) and unpacks it to `%LOCALAPPDATA%\hermes\git`.  No admin rights required.  Completely isolated — it won't interfere with any system Git install, broken or otherwise.
+
+**Why not use winget?**  Earlier designs auto-installed Git via `winget install Git.Git`, but winget fails badly when a system Git install is in a partial or broken state (exactly when users need the installer to just work).  The portable MinGit approach sidesteps winget, the Windows installer registry, and any existing system Git entirely.  If the Hermes Git install itself ever breaks, `Remove-Item %LOCALAPPDATA%\hermes\git` and re-run the installer — no system impact, no uninstall drama.
+
+The installer also sets `HERMES_GIT_BASH_PATH` to the located `bash.exe` so Hermes resolves it deterministically in fresh shells.
+
+If you prefer WSL2, the Linux installer above works inside it; both native and WSL installs can coexist without conflict (native data lives under `%LOCALAPPDATA%\hermes`, WSL data lives under `~/.hermes`).
+
 ### Android / Termux
 
 Hermes now ships a Termux-aware installer path too:
@@ -41,12 +65,6 @@ The installer detects Termux automatically and switches to a tested Android flow
 - skips the untested browser / WhatsApp bootstrap by default
 
 If you want the fully explicit path, follow the dedicated [Termux guide](./termux.md).
-
-:::warning Windows
-Native Windows for the **CLI installer path** is still not supported. Please install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) and run Hermes Agent from there if you want the CLI flow.
-
-For native Windows, use the desktop installers from [GitHub Releases](https://github.com/NousResearch/hermes-agent/releases/latest).
-:::
 
 ### What the Installer Does
 
