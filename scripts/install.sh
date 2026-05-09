@@ -6,7 +6,7 @@
 # Uses uv for desktop/server installs and Python's stdlib venv + pip on Termux.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/waym0reom3ga/autolycus-agent/main/scripts/install.sh | bash
 #
 # Or with options:
 #   curl -fsSL ... | bash -s -- --no-venv --skip-setup
@@ -43,8 +43,8 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 # Configuration
-REPO_URL_SSH="git@github.com:NousResearch/hermes-agent.git"
-REPO_URL_HTTPS="https://github.com/NousResearch/hermes-agent.git"
+REPO_URL_SSH="git@github.com:waym0reom3ga/autolycus-agent.git"
+REPO_URL_HTTPS="https://github.com/waym0reom3ga/autolycus-agent.git"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 # INSTALL_DIR is resolved AFTER arg parsing and OS detection so we can pick an
 # FHS-style layout for root installs.  Track whether the user gave us an
@@ -1383,8 +1383,22 @@ EOF
                 touch "$FISH_CONFIG"
                 ;;
             *)
-                [ -f "$HOME/.bashrc" ] && SHELL_CONFIGS+=("$HOME/.bashrc")
-                [ -f "$HOME/.zshrc" ] && SHELL_CONFIGS+=("$HOME/.zshrc")
+                # FreeBSD sh/tcsh and other shells
+                if [ "$OS" = "freebsd" ]; then
+                    # FreeBSD: use ~/.profile for sh, ~/.cshrc for csh/tcsh
+                    if [ "$LOGIN_SHELL" = "csh" ] || [ "$LOGIN_SHELL" = "tcsh" ]; then
+                        # csh/tcsh syntax: setenv instead of export
+                        [ -f "$HOME/.cshrc" ] && SHELL_CONFIGS+=("$HOME/.cshrc")
+                        [ -f "$HOME/.login" ] && SHELL_CONFIGS+=("$HOME/.login")
+                    else
+                        # sh on FreeBSD reads ~/.profile
+                        [ -f "$HOME/.profile" ] && SHELL_CONFIGS+=("$HOME/.profile")
+                        [ -f "$HOME/.shrc" ] && SHELL_CONFIGS+=("$HOME/.shrc")
+                    fi
+                else
+                    [ -f "$HOME/.bashrc" ] && SHELL_CONFIGS+=("$HOME/.bashrc")
+                    [ -f "$HOME/.zshrc" ] && SHELL_CONFIGS+=("$HOME/.zshrc")
+                fi
                 ;;
         esac
         # Also ensure ~/.profile has it (sourced by login shells on
@@ -1392,9 +1406,13 @@ EOF
         [ "$IS_FISH" = "false" ] && [ -f "$HOME/.profile" ] && SHELL_CONFIGS+=("$HOME/.profile")
 
         PATH_LINE='export PATH="$HOME/.local/bin:$PATH"'
+        # csh/tcsh uses setenv syntax instead of export
+        if [ "$LOGIN_SHELL" = "csh" ] || [ "$LOGIN_SHELL" = "tcsh" ]; then
+            PATH_LINE='setenv PATH "$HOME/.local/bin:$PATH"'
+        fi
 
         for SHELL_CONFIG in "${SHELL_CONFIGS[@]}"; do
-            if ! grep -v '^[[:space:]]*#' "$SHELL_CONFIG" 2>/dev/null | grep -qE 'PATH=.*\.local/bin'; then
+            if ! grep -v '^[[:space:]]*#' "$SHELL_CONFIG" 2>/dev/null | grep -qE '(PATH=|setenv PATH).*\.local/bin'; then
                 echo "" >> "$SHELL_CONFIG"
                 echo "# Hermes Agent — ensure ~/.local/bin is on PATH" >> "$SHELL_CONFIG"
                 echo "$PATH_LINE" >> "$SHELL_CONFIG"
@@ -1873,7 +1891,22 @@ print_success() {
         echo -e "${YELLOW}⚡ Reload your shell to use 'hermes' command:${NC}"
         echo ""
         LOGIN_SHELL="$(basename "${SHELL:-/bin/bash}")"
-        if [ "$LOGIN_SHELL" = "zsh" ]; then
+        if [ "$OS" = "freebsd" ]; then
+            # FreeBSD shell-specific instructions
+            if [ "$LOGIN_SHELL" = "csh" ] || [ "$LOGIN_SHELL" = "tcsh" ]; then
+                echo "   source ~/.cshrc"
+            elif [ "$LOGIN_SHELL" = "sh" ]; then
+                echo "   . ~/.profile"
+            elif [ "$LOGIN_SHELL" = "bash" ]; then
+                echo "   source ~/.bashrc"
+            elif [ "$LOGIN_SHELL" = "zsh" ]; then
+                echo "   source ~/.zshrc"
+            else
+                echo "   . ~/.profile   # sh"
+                echo "   source ~/.cshrc  # csh/tcsh"
+                echo "   source ~/.bashrc # bash"
+            fi
+        elif [ "$LOGIN_SHELL" = "zsh" ]; then
             echo "   source ~/.zshrc"
         elif [ "$LOGIN_SHELL" = "bash" ]; then
             echo "   source ~/.bashrc"
