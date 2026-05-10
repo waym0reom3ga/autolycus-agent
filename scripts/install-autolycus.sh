@@ -1,10 +1,11 @@
-#!/bin/bash
+#!/bin/sh
 # ============================================================================
 # Autolycus Agent Installer
 # ============================================================================
-# Automated setup for Autolycus Agent on FreeBSD, Linux, and macOS.
+# POSIX-compliant installer for FreeBSD, Linux, macOS, and BSD.
+# Works with /bin/sh (dash, ash, ksh, bash, zsh).
 # Assumes the repository is already cloned and the script is run from
-# inside the autolycus-agent directory.
+# inside the autolycus-agent directory, or uses HERMES_HOME fallback.
 #
 # Prerequisites:
 #   - Rust/Cargo installed
@@ -12,6 +13,7 @@
 #
 # Usage:
 #   ./scripts/install-autolycus.sh
+#   curl -fsSL https://raw.githubusercontent.com/waym0reom3ga/autolycus-agent/main/scripts/install-autolycus.sh | sh
 #
 # This script:
 #   1. Detects the operating system
@@ -25,6 +27,13 @@
 
 set -e
 
+# Ensure HOME is set (may be unset on some BSD systems in non-login shells)
+if [ -z "${HOME:-}" ]; then
+    HOME="$(getent passwd "$(whoami)" 2>/dev/null | cut -d: -f6)" || \
+    HOME="$(eval echo ~$(whoami))" || \
+    HOME="/root"
+fi
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -33,8 +42,17 @@ RED='\033[0;31m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Portable script directory detection (works when piped via curl | sh)
+# When piped, $0 is "sh" and dirname gives ".", so we check if we're in the repo
+SCRIPT_DIR="$(cd "$(dirname "$0" 2>/dev/null || echo .)" 2>/dev/null && pwd)" || SCRIPT_DIR="."
+# If we can't find pyproject.toml relative to script location, use HERMES_HOME default
+if [ ! -f "$SCRIPT_DIR/../pyproject.toml" ] && [ ! -f "$SCRIPT_DIR/pyproject.toml" ]; then
+    SCRIPT_DIR="${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+fi
+REPO_DIR="$(cd "$SCRIPT_DIR/.." 2>/dev/null && pwd)" || REPO_DIR="$SCRIPT_DIR"
+if [ ! -f "$REPO_DIR/pyproject.toml" ]; then
+    REPO_DIR="${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+fi
 cd "$REPO_DIR"
 
 PYTHON_VERSION="3.11"
@@ -313,9 +331,9 @@ setup_path() {
             else
                 SHELL_CONFIG="$HOME/.profile"
             fi
-        elif [[ "$SHELL" == *"zsh"* ]]; then
+        elif echo "$SHELL" | grep -q "zsh"; then
             SHELL_CONFIG="$HOME/.zshrc"
-        elif [[ "$SHELL" == *"bash"* ]]; then
+        elif echo "$SHELL" | grep -q "bash"; then
             SHELL_CONFIG="$HOME/.bashrc"
             [ ! -f "$SHELL_CONFIG" ] && SHELL_CONFIG="$HOME/.bash_profile"
         else
