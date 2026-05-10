@@ -1006,21 +1006,30 @@ export function ChatBar({
                 <VoiceActivity state={voiceActivityState} />
                 <VoicePlaybackActivity />
                 {attachments.length > 0 && <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} />}
-                {stacked ? (
-                  <>
-                    {input}
-                    <div className="flex w-full items-center gap-(--composer-control-gap)">
-                      {contextMenu}
-                      {controls}
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex w-full items-end gap-(--composer-control-gap)">
-                    {contextMenu}
-                    {input}
-                    {controls}
-                  </div>
-                )}
+                {/*
+                  Single CSS Grid keeps {input} (and the contenteditable inside
+                  it) in a stable parent across the stacked/inline toggle.
+                  Earlier this was a JSX conditional that rendered {input}
+                  inside two different fragments — when `stacked` flipped (e.g.
+                  the moment text wrapped past two lines and the auto-expand
+                  effect triggered), React reconciled them as different
+                  positions and unmounted/remounted the contenteditable. The
+                  fresh mount started empty and any in-flight characters were
+                  lost. Switching the layout via grid-template-areas keeps the
+                  exact same DOM nodes and lets the browser handle the reflow.
+                */}
+                <div
+                  className={cn(
+                    'grid w-full',
+                    stacked
+                      ? 'grid-cols-[auto_1fr] gap-(--composer-row-gap) [grid-template-areas:"input_input"_"menu_controls"]'
+                      : 'grid-cols-[auto_1fr_auto] items-end gap-(--composer-control-gap) [grid-template-areas:"menu_input_controls"]'
+                  )}
+                >
+                  <div className="flex items-center [grid-area:menu]">{contextMenu}</div>
+                  <div className="min-w-0 [grid-area:input]">{input}</div>
+                  <div className="flex items-center justify-end [grid-area:controls]">{controls}</div>
+                </div>
               </div>
             </div>
           </div>
