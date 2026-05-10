@@ -164,8 +164,24 @@ function toolMeta(name: string): ToolMeta {
 }
 
 function compactPreview(value: unknown, max = 72): string {
-  const raw = typeof value === 'string' ? value : (parseMaybeObject(value).context as string | undefined) || ''
-  const line = raw.replace(/\s+/g, ' ').trim()
+  let raw: unknown
+  if (typeof value === 'string') {
+    raw = value
+  } else {
+    raw = parseMaybeObject(value).context
+  }
+  if (typeof raw !== 'string') {
+    if (raw == null) {
+      raw = ''
+    } else {
+      try {
+        raw = JSON.stringify(raw)
+      } catch {
+        raw = String(raw)
+      }
+    }
+  }
+  const line = (raw as string).replace(/\s+/g, ' ').trim()
 
   return line.length > max ? `${line.slice(0, max - 1)}…` : line
 }
