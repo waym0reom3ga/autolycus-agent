@@ -1273,12 +1273,14 @@ PY
 }
 
 setup_path() {
-    log_info "Setting up hermes command..."
+    log_info "Setting up hermes and lycus commands..."
 
     if [ "$USE_VENV" = true ]; then
         HERMES_BIN="$INSTALL_DIR/venv/bin/hermes"
+        LYCUS_BIN="$INSTALL_DIR/venv/bin/lycus"
     else
         HERMES_BIN="$(which hermes 2>/dev/null || echo "")"
+        LYCUS_BIN="$(which lycus 2>/dev/null || echo "")"
         if [ -z "$HERMES_BIN" ]; then
             log_warn "hermes not found on PATH after install"
             return 0
@@ -1318,6 +1320,16 @@ exec "$HERMES_BIN" "\$@"
 EOF
     chmod +x "$command_link_dir/hermes"
     log_success "Installed hermes launcher → $command_link_display_dir/hermes"
+
+    # Create a user-facing shim for the lycus command (alias for hermes).
+    cat > "$command_link_dir/lycus" <<EOF
+#!/usr/bin/env bash
+unset PYTHONPATH
+unset PYTHONHOME
+exec "$LYCUS_BIN" "\$@"
+EOF
+    chmod +x "$command_link_dir/lycus"
+    log_success "Installed lycus launcher → $command_link_display_dir/lycus"
 
     if [ "$DISTRO" = "termux" ]; then
         export PATH="$command_link_dir:$PATH"
