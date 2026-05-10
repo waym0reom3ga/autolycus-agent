@@ -1874,7 +1874,11 @@ ipcMain.handle('hermes:fs:gitRoot', async (_event, startPath) => {
 })
 
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(buildApplicationMenu())
+  if (IS_MAC) {
+    Menu.setApplicationMenu(buildApplicationMenu())
+  } else {
+    Menu.setApplicationMenu(null)
+  }
   installMediaPermissions()
   createWindow()
 
