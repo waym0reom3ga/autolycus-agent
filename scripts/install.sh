@@ -1,15 +1,16 @@
-#!/bin/bash
+#!/bin/sh
 # ============================================================================
 # Hermes Agent Installer
 # ============================================================================
-# Installation script for Linux, macOS, and Android/Termux.
+# POSIX-compliant installer for FreeBSD, Linux, macOS, and BSD.
+# Works with /bin/sh (dash, ash, ksh, bash, zsh).
 # Uses uv for desktop/server installs and Python's stdlib venv + pip on Termux.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/waym0reom3ga/autolycus-agent/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/waym0reom3ga/autolycus-agent/main/scripts/install.sh | sh
 #
 # Or with options:
-#   curl -fsSL ... | bash -s -- --no-venv --skip-setup
+#   curl -fsSL ... | sh -s -- --no-venv --skip-setup
 #
 # ============================================================================
 
@@ -31,6 +32,13 @@ fi
 # Prevent uv from discovering config files (uv.toml, pyproject.toml) from the
 # wrong user's home directory when running under sudo -u <user>.  See #21269.
 export UV_NO_CONFIG=1
+
+# Ensure HOME is set (may be unset on some BSD systems in non-login shells)
+if [ -z "${HOME:-}" ]; then
+    HOME="$(getent passwd "$(whoami)" 2>/dev/null | cut -d: -f6)" || \
+    HOME="$(eval echo ~$(whoami))" || \
+    HOME="/root"
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -84,7 +92,7 @@ else
 fi
 
 # Parse arguments
-while [[ $# -gt 0 ]]; do
+while [ $# -gt 0 ]; do
     case $1 in
         --no-venv)
             USE_VENV=false
@@ -227,7 +235,7 @@ prompt_yes_no() {
 }
 
 is_termux() {
-    [ -n "${TERMUX_VERSION:-}" ] || [[ "${PREFIX:-}" == *"com.termux/files/usr"* ]]
+    [ -n "${TERMUX_VERSION:-}" ] || [ -n "${PREFIX:-}" ] && echo "$PREFIX" | grep -q "com.termux/files/usr"
 }
 
 # Decide where the repo checkout + venv live, and where the `hermes` command
@@ -642,11 +650,10 @@ install_node() {
     fi
 
     log_info "Extracting to ~/.hermes/node/..."
-    if [[ "$tarball_name" == *.tar.xz ]]; then
-        tar xf "$tmp_dir/$tarball_name" -C "$tmp_dir"
-    else
-        tar xzf "$tmp_dir/$tarball_name" -C "$tmp_dir"
-    fi
+    case "$tarball_name" in
+        *.tar.xz) tar xf "$tmp_dir/$tarball_name" -C "$tmp_dir" ;;
+        *)        tar xzf "$tmp_dir/$tarball_name" -C "$tmp_dir" ;;
+    esac
 
     local extracted_dir
     extracted_dir=$(ls -d "$tmp_dir"/node-v* 2>/dev/null | head -1)
