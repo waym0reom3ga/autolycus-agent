@@ -12,8 +12,11 @@ const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64'
 const RELEASE_ROOT = path.join(DESKTOP_ROOT, 'release')
 const APP_PATH = path.join(RELEASE_ROOT, `mac-${ARCH}`, 'Hermes.app')
 const APP_BIN = path.join(APP_PATH, 'Contents', 'MacOS', 'Hermes')
-const USER_DATA = path.join(os.homedir(), 'Library', 'Application Support', 'Hermes')
-const RUNTIME_ROOT = path.join(USER_DATA, 'hermes-runtime')
+// Default HERMES_HOME for non-sandboxed mac runs — matches main.cjs's
+// resolveHermesHome(). The fresh-install sandbox launchFresh() sets its own
+// HERMES_HOME and never touches this.
+const DEFAULT_HERMES_HOME = path.join(os.homedir(), '.hermes')
+const VENV_ROOT = path.join(DEFAULT_HERMES_HOME, 'hermes-agent', 'venv')
 const FRESH_SANDBOX_ROOT = path.join(os.tmpdir(), 'hermes-desktop-fresh-install')
 
 function die(message) {
@@ -192,7 +195,7 @@ function launchFresh() {
   console.log(`  HERMES_HOME: ${hermesHome}`)
   console.log(`  cwd: ${cwd}`)
 
-  return { runtimeRoot: path.join(userDataDir, 'hermes-runtime') }
+  return { runtimeRoot: path.join(hermesHome, 'hermes-agent', 'venv') }
 }
 
 function validateBundle() {
@@ -224,7 +227,7 @@ function validateBundle() {
 }
 
 function printArtifacts(options = {}) {
-  const runtimeRoot = options.runtimeRoot || RUNTIME_ROOT
+  const runtimeRoot = options.runtimeRoot || VENV_ROOT
 
   console.log('\nDesktop artifacts:')
   console.log(`  app: ${APP_PATH}`)

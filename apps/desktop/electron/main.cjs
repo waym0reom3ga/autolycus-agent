@@ -42,11 +42,55 @@ const IS_WINDOWS = process.platform === 'win32'
 const IS_WSL = isWslEnvironment()
 const APP_ROOT = app.getAppPath()
 const SOURCE_REPO_ROOT = path.resolve(APP_ROOT, '../..')
-const BUNDLED_HERMES_ROOT = path.join(process.resourcesPath, 'hermes-agent')
-const BUNDLED_VENV_ROOT = path.join(app.getPath('userData'), 'hermes-runtime')
-const BUNDLED_VENV_MARKER = path.join(BUNDLED_VENV_ROOT, '.hermes-desktop-runtime.json')
+
+// HERMES_HOME — the user-facing root for everything Hermes-related. Mirrors
+// scripts/install.ps1's $HermesHome and scripts/install.sh's $HERMES_HOME.
+//
+// Defaults:
+//   Windows: %LOCALAPPDATA%\hermes (matches install.ps1)
+//   macOS / Linux: ~/.hermes (matches install.sh)
+//
+// Special case for Windows: if the user has a legacy ~/.hermes directory
+// (e.g., from a prior pip install or a manual setup) AND no
+// %LOCALAPPDATA%\hermes yet, prefer the legacy path so we don't orphan their
+// existing config / sessions / .env. New installs go to %LOCALAPPDATA%.
+//
+// HERMES_DESKTOP_USER_DATA_DIR (used by test:desktop:fresh) puts the sandbox
+// HERMES_HOME beneath the throwaway userData dir so a fresh-install run never
+// touches the user's real ~/.hermes / %LOCALAPPDATA%\hermes.
+function resolveHermesHome() {
+  if (process.env.HERMES_HOME) return path.resolve(process.env.HERMES_HOME)
+  if (USER_DATA_OVERRIDE) return path.join(path.resolve(USER_DATA_OVERRIDE), 'hermes-home')
+  if (IS_WINDOWS && process.env.LOCALAPPDATA) {
+    const localappdata = path.join(process.env.LOCALAPPDATA, 'hermes')
+    const legacy = path.join(app.getPath('home'), '.hermes')
+    // Migrate transparently to LOCALAPPDATA, but honour an existing legacy
+    // ~/.hermes setup (no LOCALAPPDATA install yet) so users don't lose state.
+    if (!directoryExists(localappdata) && directoryExists(legacy)) return legacy
+    return localappdata
+  }
+  return path.join(app.getPath('home'), '.hermes')
+}
+
+const HERMES_HOME = resolveHermesHome()
+// ACTIVE_HERMES_ROOT — the canonical mutable Hermes install. Same path
+// install.ps1 / install.sh use, so a desktop-only user and a CLI-only user end
+// up with identical layouts and can share one install.
+const ACTIVE_HERMES_ROOT = path.join(HERMES_HOME, 'hermes-agent')
+// VENV_ROOT — venv lives inside the repo, exactly like install.ps1 does it.
+const VENV_ROOT = path.join(ACTIVE_HERMES_ROOT, 'venv')
+const RUNTIME_MARKER = path.join(ACTIVE_HERMES_ROOT, '.hermes-desktop-runtime.json')
+// FACTORY_HERMES_ROOT — read-only payload that ships inside the .app/.exe.
+// On first run (or after an installer-driven upgrade) we sync it into
+// ACTIVE_HERMES_ROOT, unless ACTIVE is a git checkout (developer install via
+// install.ps1) in which case we leave it alone.
+const FACTORY_HERMES_ROOT = path.join(process.resourcesPath, 'hermes-agent')
+
 const DESKTOP_CONNECTION_CONFIG_PATH = path.join(app.getPath('userData'), 'connection.json')
-const DESKTOP_LOG_PATH = path.join(app.getPath('userData'), 'desktop.log')
+// desktop.log lives under HERMES_HOME/logs/ so it sits next to agent.log,
+// errors.log, gateway.log produced by hermes_logging.setup_logging — one log
+// directory per user, regardless of which UI surface produced the line.
+const DESKTOP_LOG_PATH = path.join(HERMES_HOME, 'logs', 'desktop.log')
 const DESKTOP_LOG_FLUSH_MS = 120
 const DESKTOP_LOG_BUFFER_MAX_CHARS = 64 * 1024
 const BOOT_FAKE_MODE = process.env.HERMES_DESKTOP_BOOT_FAKE === '1'
@@ -55,32 +99,8 @@ const BOOT_FAKE_STEP_MS = (() => {
   if (!Number.isFinite(raw) || raw <= 0) return 650
   return Math.max(120, raw)
 })()
-const RUNTIME_SCHEMA_VERSION = 3
-const BUNDLED_RUNTIME_REQUIREMENTS = [
-  'openai>=2.21.0,<3',
-  'anthropic>=0.39.0,<1',
-  'python-dotenv>=1.2.1,<2',
-  'fire>=0.7.1,<1',
-  'httpx[socks]>=0.28.1,<1',
-  'rich>=14.3.3,<15',
-  'tenacity>=9.1.4,<10',
-  'pyyaml>=6.0.2,<7',
-  'requests>=2.32.0,<3',
-  'jinja2>=3.1.5,<4',
-  'pydantic>=2.12.5,<3',
-  'prompt_toolkit>=3.0.52,<4',
-  'exa-py>=2.9.0,<3',
-  'firecrawl-py>=4.16.0,<5',
-  'parallel-web>=0.4.2,<1',
-  'fal-client>=0.13.1,<1',
-  'croniter>=6.0.0,<7',
-  'edge-tts>=7.2.7,<8',
-  'PyJWT[crypto]>=2.12.0,<3',
-  'fastapi>=0.104.0,<1',
-  'uvicorn[standard]>=0.24.0,<1',
-  IS_WINDOWS ? 'pywinpty>=2.0.0,<3' : 'ptyprocess>=0.7.0,<1'
-]
-const BUNDLED_RUNTIME_IMPORT_CHECK = bundledRuntimeImportCheck()
+const RUNTIME_SCHEMA_VERSION = 4
+const RUNTIME_IMPORT_CHECK = bundledRuntimeImportCheck()
 const APP_NAME = 'Hermes'
 const TITLEBAR_HEIGHT = 34
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 14
@@ -508,30 +528,39 @@ function createPythonBackend(root, label, dashboardArgs, options = {}) {
   }
 }
 
-function createBundledBackend(root, dashboardArgs) {
-  const python = getVenvPython(BUNDLED_VENV_ROOT)
+// createActiveBackend — build a backend pointing at ACTIVE_HERMES_ROOT, the
+// canonical install location shared with the CLI installer. The venv at
+// VENV_ROOT may not exist yet on first run; bootstrap=true tells
+// ensureRuntime() to create / refresh it before launch.
+function createActiveBackend(dashboardArgs) {
+  const venvPython = getVenvPython(VENV_ROOT)
 
   return {
     kind: 'python',
-    label: 'bundled Hermes',
-    command: fileExists(python) ? python : findSystemPython(),
+    label: `Hermes at ${ACTIVE_HERMES_ROOT}`,
+    command: fileExists(venvPython) ? venvPython : findSystemPython(),
     args: ['-m', 'hermes_cli.main', ...dashboardArgs],
     env: {
-      PYTHONPATH: [root, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter)
+      PYTHONPATH: [ACTIVE_HERMES_ROOT, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter)
     },
-    root,
+    root: ACTIVE_HERMES_ROOT,
     bootstrap: true,
     shell: false
   }
 }
 
 function resolveHermesBackend(dashboardArgs) {
+  // 1. Explicit override — HERMES_DESKTOP_HERMES_ROOT points at a developer
+  //    checkout. Honour it as-is (no bootstrap; the user is driving).
   const overrideRoot = process.env.HERMES_DESKTOP_HERMES_ROOT && path.resolve(process.env.HERMES_DESKTOP_HERMES_ROOT)
   if (overrideRoot && isHermesSourceRoot(overrideRoot)) {
     const backend = createPythonBackend(overrideRoot, `Hermes source at ${overrideRoot}`, dashboardArgs)
     if (backend) return backend
   }
 
+  // 2. Existing `hermes` on PATH — installed via install.ps1 / install.sh, or
+  //    pip-installed system-wide. Skip when HERMES_DESKTOP_IGNORE_EXISTING=1
+  //    (used by test:desktop:fresh to force the factory-image bootstrap path).
   if (process.env.HERMES_DESKTOP_IGNORE_EXISTING !== '1') {
     let hermesCommand = null
     const hermesOverride = process.env.HERMES_DESKTOP_HERMES
@@ -562,16 +591,31 @@ function resolveHermesBackend(dashboardArgs) {
     }
   }
 
-  if (IS_PACKAGED && isHermesSourceRoot(BUNDLED_HERMES_ROOT)) {
-    const backend = createBundledBackend(BUNDLED_HERMES_ROOT, dashboardArgs)
-    if (backend.command) return backend
-  }
-
+  // 3. Development source — when running `npm run dev` from a checkout, the
+  //    cloned repo at SOURCE_REPO_ROOT takes precedence over ACTIVE so the
+  //    desktop uses the dev's local edits, not whatever's under HERMES_HOME.
+  //    (In dev with no checkout, SOURCE_REPO_ROOT won't pass isHermesSourceRoot.)
   if (!IS_PACKAGED && isHermesSourceRoot(SOURCE_REPO_ROOT)) {
     const backend = createPythonBackend(SOURCE_REPO_ROOT, `Hermes source at ${SOURCE_REPO_ROOT}`, dashboardArgs)
     if (backend) return backend
   }
 
+  // 4. ACTIVE_HERMES_ROOT — the canonical mutable install at
+  //    %LOCALAPPDATA%\hermes\hermes-agent (Windows) or ~/.hermes/hermes-agent.
+  //    On packaged installs this is populated from FACTORY_HERMES_ROOT during
+  //    ensureRuntime(). On install.ps1 / install.sh setups it's already there.
+  if (isHermesSourceRoot(ACTIVE_HERMES_ROOT)) {
+    return createActiveBackend(dashboardArgs)
+  }
+
+  // 5. Packaged: FACTORY_HERMES_ROOT exists but ACTIVE doesn't yet. Return a
+  //    bootstrap-flagged backend; ensureRuntime() will sync factory → active
+  //    and provision the venv before launch.
+  if (IS_PACKAGED && isHermesSourceRoot(FACTORY_HERMES_ROOT)) {
+    return createActiveBackend(dashboardArgs)
+  }
+
+  // 6. Last-ditch: pip-installed hermes_cli module via system Python.
   const python = findSystemPython()
   if (python) {
     return {
@@ -585,78 +629,134 @@ function resolveHermesBackend(dashboardArgs) {
     }
   }
 
-  throw new Error('Could not find Hermes. Install the Hermes CLI or set HERMES_DESKTOP_HERMES_ROOT.')
+  // Nothing worked. Distinguish the "no payload" and "no Python" cases so the
+  // user gets actionable guidance instead of "install the Hermes CLI".
+  const factoryPresent = isHermesSourceRoot(FACTORY_HERMES_ROOT)
+  const activePresent = isHermesSourceRoot(ACTIVE_HERMES_ROOT)
+  if (factoryPresent || activePresent) {
+    throw new Error(
+      'Hermes payload is present but no Python 3.11+ interpreter could be found. ' +
+        'Install Python 3.11+ from https://www.python.org/downloads/ or the Microsoft Store, ' +
+        'then relaunch Hermes.'
+    )
+  }
+  throw new Error(
+    'Could not find Hermes. Install the Hermes CLI ' +
+      '(https://github.com/NousResearch/hermes-agent#install) or set HERMES_DESKTOP_HERMES_ROOT.'
+  )
 }
 
-async function ensureBundledRuntime(backend) {
+async function ensureRuntime(backend) {
   if (!backend.bootstrap) {
     await advanceBootProgress('runtime.external', `Using ${backend.label}`, 32)
     return backend
   }
 
-  const sourceVersion = readJson(path.join(backend.root, 'package.json'))?.version || app.getVersion()
-  const marker = readJson(BUNDLED_VENV_MARKER)
-  const venvPython = getVenvPython(BUNDLED_VENV_ROOT)
+  // Step 1: Ensure ACTIVE_HERMES_ROOT is populated. On packaged installs we
+  // sync from FACTORY_HERMES_ROOT (the read-only payload bundled into the
+  // .app/.exe). We DON'T overwrite a developer install: presence of a .git
+  // dir or a Hermes-managed venv at the same place means the user set this
+  // up via install.ps1 / install.sh / git clone, and that install owns the
+  // updates (via `hermes update`).
+  const isGitCheckout = directoryExists(path.join(ACTIVE_HERMES_ROOT, '.git'))
+  const factoryAvailable = IS_PACKAGED && isHermesSourceRoot(FACTORY_HERMES_ROOT)
 
-  const runtimeReady =
-    fileExists(venvPython) &&
-    marker?.sourceVersion === sourceVersion &&
-    marker?.runtimeSchemaVersion === RUNTIME_SCHEMA_VERSION &&
-    (await hasBundledRuntimeImports(venvPython))
+  if (factoryAvailable && !isGitCheckout) {
+    const factoryVersion =
+      readPyprojectVersion(FACTORY_HERMES_ROOT) ??
+      readJson(path.join(FACTORY_HERMES_ROOT, 'package.json'))?.version ??
+      app.getVersion()
+    const marker = readJson(RUNTIME_MARKER)
+    const pyprojectHash = sha256OfFile(path.join(FACTORY_HERMES_ROOT, 'pyproject.toml'))
 
-  if (runtimeReady) {
-    await advanceBootProgress('runtime.ready', 'Reusing bundled Hermes runtime', 58)
-    backend.command = venvPython
-    backend.label = `${backend.label} runtime at ${BUNDLED_VENV_ROOT}`
-    return backend
+    const activeFresh =
+      isHermesSourceRoot(ACTIVE_HERMES_ROOT) &&
+      marker?.runtimeSchemaVersion === RUNTIME_SCHEMA_VERSION &&
+      marker?.factoryVersion === factoryVersion &&
+      marker?.pyprojectHash === pyprojectHash
+
+    if (!activeFresh) {
+      await advanceBootProgress('runtime.sync', 'Installing Hermes', 30)
+      rememberLog(`Syncing Hermes payload ${FACTORY_HERMES_ROOT} → ${ACTIVE_HERMES_ROOT}`)
+      fs.mkdirSync(ACTIVE_HERMES_ROOT, { recursive: true })
+      // Copy in factory contents. We do NOT delete venv/ — preserving it
+      // across upgrades skips re-install when deps haven't moved.
+      await syncTreeExcludingVenv(FACTORY_HERMES_ROOT, ACTIVE_HERMES_ROOT)
+    }
   }
 
-  const systemPython = findSystemPython()
-  if (!systemPython) {
-    throw new Error('Python 3.11+ is required to bootstrap the bundled Hermes runtime.')
-  }
-
-  await advanceBootProgress('runtime.prepare', 'Preparing bundled Hermes runtime', 42)
-  rememberLog(`Preparing bundled Hermes runtime in ${BUNDLED_VENV_ROOT}`)
-  fs.mkdirSync(BUNDLED_VENV_ROOT, { recursive: true })
-
-  if (!fileExists(venvPython)) {
-    await advanceBootProgress('runtime.venv', 'Creating desktop runtime virtual environment', 50)
-    await runProcess(systemPython, ['-m', 'venv', BUNDLED_VENV_ROOT])
-  }
-
-  await advanceBootProgress('runtime.dependencies', 'Installing desktop runtime dependencies', 66)
-  await runProcess(venvPython, [
-    '-m',
-    'pip',
-    'install',
-    '--disable-pip-version-check',
-    '--no-warn-script-location',
-    '--upgrade',
-    ...BUNDLED_RUNTIME_REQUIREMENTS
-  ])
-
-  await advanceBootProgress('runtime.verify', 'Validating bundled runtime dependencies', 78)
-  await runProcess(venvPython, ['-c', BUNDLED_RUNTIME_IMPORT_CHECK])
-
-  fs.writeFileSync(
-    BUNDLED_VENV_MARKER,
-    JSON.stringify(
-      {
-        runtimeSchemaVersion: RUNTIME_SCHEMA_VERSION,
-        sourceVersion,
-        installedAt: new Date().toISOString()
-      },
-      null,
-      2
+  if (!isHermesSourceRoot(ACTIVE_HERMES_ROOT)) {
+    throw new Error(
+      `Hermes install at ${ACTIVE_HERMES_ROOT} is missing or incomplete. ` +
+        'Reinstall via the desktop installer or scripts/install.ps1.'
     )
-  )
+  }
+
+  // Step 2: Ensure venv exists at <ACTIVE_HERMES_ROOT>/venv — same place
+  // install.ps1 / install.sh put it. A user who installed via the CLI script
+  // already has this; we reuse it as-is.
+  const venvPython = getVenvPython(VENV_ROOT)
+  if (!fileExists(venvPython)) {
+    const systemPython = findSystemPython()
+    if (!systemPython) {
+      throw new Error(
+        'Python 3.11+ is required to bootstrap Hermes. Install Python from ' +
+          'https://www.python.org/downloads/ (or the Microsoft Store on Windows), then relaunch Hermes.'
+      )
+    }
+    await advanceBootProgress('runtime.venv', 'Creating Hermes virtual environment', 50)
+    await runProcess(systemPython, ['-m', 'venv', VENV_ROOT])
+  }
+
+  // Step 3: Ensure deps are installed. We compare a marker against the
+  // active pyproject.toml's hash and only run pip when something changed —
+  // keeps `npm run dev` boots fast on a stable repo.
+  const expectedMarker = {
+    runtimeSchemaVersion: RUNTIME_SCHEMA_VERSION,
+    pyprojectHash: sha256OfFile(path.join(ACTIVE_HERMES_ROOT, 'pyproject.toml')),
+    factoryVersion: factoryAvailable
+      ? readPyprojectVersion(FACTORY_HERMES_ROOT) ?? app.getVersion()
+      : null
+  }
+  const currentMarker = readJson(RUNTIME_MARKER)
+  const depsFresh =
+    currentMarker?.runtimeSchemaVersion === expectedMarker.runtimeSchemaVersion &&
+    currentMarker?.pyprojectHash === expectedMarker.pyprojectHash &&
+    (await hasRuntimeImports(venvPython))
+
+  if (!depsFresh) {
+    await advanceBootProgress('runtime.dependencies', 'Installing Hermes dependencies', 66)
+    await runProcess(venvPython, [
+      '-m',
+      'pip',
+      'install',
+      '--disable-pip-version-check',
+      '--no-warn-script-location',
+      '--upgrade',
+      '-e',
+      ACTIVE_HERMES_ROOT
+    ])
+
+    await advanceBootProgress('runtime.verify', 'Validating Hermes dependencies', 78)
+    await runProcess(venvPython, ['-c', RUNTIME_IMPORT_CHECK])
+
+    fs.writeFileSync(
+      RUNTIME_MARKER,
+      JSON.stringify(
+        { ...expectedMarker, installedAt: new Date().toISOString() },
+        null,
+        2
+      )
+    )
+  } else {
+    await advanceBootProgress('runtime.ready', 'Reusing existing Hermes runtime', 78)
+  }
 
   backend.command = venvPython
-  backend.label = `${backend.label} runtime at ${BUNDLED_VENV_ROOT}`
+  backend.label = `Hermes at ${ACTIVE_HERMES_ROOT} (venv: ${VENV_ROOT})`
   updateBootProgress({
     phase: 'runtime.ready',
-    message: 'Bundled runtime is ready',
+    message: 'Hermes runtime is ready',
     progress: 82,
     running: true,
     error: null
@@ -664,14 +764,69 @@ async function ensureBundledRuntime(backend) {
   return backend
 }
 
-async function hasBundledRuntimeImports(python) {
+async function hasRuntimeImports(python) {
   try {
-    await runProcess(python, ['-c', BUNDLED_RUNTIME_IMPORT_CHECK])
+    await runProcess(python, ['-c', RUNTIME_IMPORT_CHECK])
     return true
   } catch {
-    rememberLog('Bundled Hermes runtime is missing required dashboard dependencies; reinstalling.')
+    rememberLog('Hermes runtime is missing required imports; reinstalling.')
     return false
   }
+}
+
+// Read pyproject.toml's [project].version with a regex — avoids pulling in a
+// TOML parser for one field. Returns null if the file is missing or the
+// version line can't be matched.
+function readPyprojectVersion(root) {
+  try {
+    const text = fs.readFileSync(path.join(root, 'pyproject.toml'), 'utf8')
+    const match = text.match(/^version\s*=\s*"([^"]+)"/m)
+    return match ? match[1] : null
+  } catch {
+    return null
+  }
+}
+
+function sha256OfFile(filePath) {
+  try {
+    const buf = fs.readFileSync(filePath)
+    return crypto.createHash('sha256').update(buf).digest('hex')
+  } catch {
+    return null
+  }
+}
+
+// Copy from src → dst, preserving any existing venv/ at dst.
+//
+// In practice src (FACTORY_HERMES_ROOT) never contains a venv —
+// stage-hermes-payload.mjs explicitly excludes venvs from the bundled
+// payload. The venv-preservation filter below is defensive: if a future
+// payload ever does include a venv directory, we still won't clobber the
+// user's existing one at ACTIVE_HERMES_ROOT/venv.
+//
+// Excludes .git, __pycache__, .pyc/.pyo, etc. — same set
+// stage-hermes-payload.mjs uses on the build side.
+async function syncTreeExcludingVenv(src, dst) {
+  const EXCLUDED = new Set(['.git', '.mypy_cache', '.pytest_cache', '.ruff_cache', '__pycache__', 'node_modules', '.DS_Store'])
+  const srcVenv = path.join(src, 'venv')
+  const venvPreserved = directoryExists(path.join(dst, 'venv'))
+
+  await fs.promises.cp(src, dst, {
+    recursive: true,
+    force: true,
+    filter: source => {
+      const name = path.basename(source)
+      if (EXCLUDED.has(name)) return false
+      if (name.endsWith('.pyc') || name.endsWith('.pyo')) return false
+      // Defensive: skip any venv/ inside src so we never clobber dst's venv.
+      // (The source path the filter receives is rooted at src; that's why we
+      // check srcVenv here, not dstVenv.)
+      if (venvPreserved && (source === srcVenv || source.startsWith(srcVenv + path.sep))) {
+        return false
+      }
+      return true
+    }
+  })
 }
 
 function isPortAvailable(port) {
@@ -1519,7 +1674,7 @@ async function startHermes() {
     const token = crypto.randomBytes(32).toString('base64url')
     const dashboardArgs = ['dashboard', '--no-open', '--tui', '--host', '127.0.0.1', '--port', String(port)]
     await advanceBootProgress('backend.runtime', 'Resolving Hermes runtime', 28)
-    const backend = await ensureBundledRuntime(resolveHermesBackend(dashboardArgs))
+    const backend = await ensureRuntime(resolveHermesBackend(dashboardArgs))
     const hermesCwd = resolveHermesCwd()
     const webDist = resolveWebDist()
 
@@ -1530,6 +1685,15 @@ async function startHermes() {
       cwd: hermesCwd,
       env: {
         ...process.env,
+        // Explicitly pin HERMES_HOME for the child so Python's get_hermes_home()
+        // resolves to the SAME location our resolveHermesHome() picked. Without
+        // this pin, Python falls back to ~/.hermes on every platform — fine on
+        // mac/linux (where our default matches), but on Windows our default is
+        // %LOCALAPPDATA%\hermes, which differs from C:\Users\<u>\.hermes.
+        // Mismatch would split config / sessions / .env / logs across two
+        // directories. install.ps1 sets HERMES_HOME via setx; the desktop
+        // can't reliably do that, so we set it inline for every spawn.
+        HERMES_HOME,
         ...backend.env,
         HERMES_DASHBOARD_SESSION_TOKEN: token,
         HERMES_DASHBOARD_TUI: '1',
