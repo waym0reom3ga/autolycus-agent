@@ -39,6 +39,7 @@ interface CodeSignals {
   hasMarkdown: boolean
   proseLines: number
   trimmed: string
+  urlLines: number
 }
 
 export function sanitizeLanguageTag(tag: string): string {
@@ -75,7 +76,8 @@ function codeSignals(body: string): CodeSignals {
     codeSignals: codeSignalCount(trimmed),
     hasMarkdown: markdownSignals > 0,
     proseLines: proseLineCount(trimmed),
-    trimmed
+    trimmed,
+    urlLines: (trimmed.match(/^\s*https?:\/\/\S+\s*$/gim) || []).length
   }
 }
 
@@ -96,7 +98,11 @@ export function isLikelyProseFence(info: string, body: string): boolean {
     return false
   }
 
-  if (hasInfoTail && signals.codeSignals <= 2 && (signals.proseLines >= 2 || signals.bulletLines >= 1)) {
+  if (
+    hasInfoTail &&
+    signals.codeSignals <= 2 &&
+    (signals.proseLines >= 2 || signals.bulletLines >= 1 || signals.urlLines >= 1)
+  ) {
     return true
   }
 

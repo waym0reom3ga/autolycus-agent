@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 export const COMPLETION_DRAWER_CLASS = [
   'absolute inset-x-0 bottom-[calc(100%-0.5rem)] z-50',
   'max-h-[min(23rem,calc(100vh-8rem))] overflow-y-auto overscroll-contain',
-  'rounded-t-(--composer-active-radius) border border-b-0',
+  'border border-b-0',
   'border-[color-mix(in_srgb,var(--dt-ring)_45%,transparent)]',
   'bg-[color-mix(in_srgb,var(--dt-popover)_96%,transparent)]',
   'px-1.5 pb-3 pt-1.5 text-popover-foreground',

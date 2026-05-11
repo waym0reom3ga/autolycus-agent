@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 import type { TreeNode } from './use-project-tree'
 
-const ROW_HEIGHT = 24
+const ROW_HEIGHT = 28
 const INDENT = 14
 
 interface ProjectTreeProps {
@@ -57,7 +57,6 @@ export function ProjectTree({
 
       onNodeOpenChange(id, node.isOpen)
 
-      // Lazy fetch on first expand: children===undefined means "not yet loaded".
       if (node.isOpen && node.data.children === undefined) {
         void onLoadChildren(id)
       }
@@ -117,7 +116,7 @@ function ProjectTreeRow({
       aria-expanded={isFolder ? node.isOpen : undefined}
       aria-selected={node.isSelected}
       className={cn(
-        'group/row flex h-full cursor-pointer select-none items-center gap-1 rounded-sm px-1.5 text-[0.72rem] leading-none text-foreground/85 transition-colors hover:bg-accent/55',
+        'group/row flex h-full cursor-pointer select-none items-center gap-1 rounded-sm px-1.5 text-sm font-medium leading-snug text-foreground/90 transition-colors hover:bg-[color-mix(in_srgb,var(--dt-midground)_8%,transparent)]',
         node.isSelected && 'bg-accent/65 text-foreground',
         isPlaceholder && 'pointer-events-none italic text-muted-foreground/70'
       )}
@@ -153,9 +152,6 @@ function ProjectTreeRow({
           return
         }
 
-        // Custom MIME the composer's drop handler unpacks. text/plain is set
-        // as a fallback so dragging into other apps gets a sensible payload
-        // (the absolute path).
         const payload = JSON.stringify([{ isDirectory: isFolder, path: node.data.id }])
 
         event.dataTransfer.effectAllowed = 'copy'

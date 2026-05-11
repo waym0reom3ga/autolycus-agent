@@ -149,6 +149,11 @@ function lightColors(seed: DesktopTheme, skinName: string): DesktopThemeColors {
     border,
     input: mix('#e2e2e6', accent, 0.18),
     ring: accent,
+    // Brand-accent stroke layer carries the seed's identity color into the
+    // light palette intact (no mix-with-white softening) so DS components
+    // and `bg-midground/N` surfaces still read as branded against white.
+    midground: seed.colors.midground ?? accent,
+    midgroundForeground: readableOn(seed.colors.midground ?? accent),
     destructive: '#b94a3a',
     destructiveForeground: '#ffffff',
     sidebarBackground: mix('#fafafa', accent, 0.05),
@@ -220,6 +225,11 @@ function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark') {
   root.dataset.hermesTheme = skinNameFromTheme(theme, mode)
   root.classList.toggle('dark', rendered === 'dark')
 
+  // Brand-accent stroke layer. Falls back to ring when the theme doesn't
+  // declare its own midground, so existing/custom themes keep working.
+  const midground = c.midground ?? c.ring
+  const midgroundForeground = c.midgroundForeground ?? readableOn(midground)
+
   const vars: Record<string, string> = {
     '--dt-background': c.background,
     '--dt-foreground': c.foreground,
@@ -238,6 +248,8 @@ function applyTheme(theme: DesktopTheme, mode: 'light' | 'dark') {
     '--dt-border': c.border,
     '--dt-input': c.input,
     '--dt-ring': c.ring,
+    '--dt-midground': midground,
+    '--dt-midground-foreground': midgroundForeground,
     '--dt-destructive': c.destructive,
     '--dt-destructive-foreground': c.destructiveForeground,
     '--dt-sidebar-bg': c.sidebarBackground ?? c.background,

@@ -26,13 +26,18 @@ import {
 import { previewTargetFromMarkdownHref } from '@/lib/preview-targets'
 import { cn } from '@/lib/utils'
 
+const MARKDOWN_CONTAINER_CLASS = cn(
+  'aui-md prose w-full max-w-none overflow-hidden text-base leading-(--dt-line-height) text-foreground',
+  'prose-p:leading-(--dt-line-height) prose-li:leading-(--dt-line-height)',
+  'prose-headings:text-foreground prose-strong:text-foreground',
+  'prose-a:break-words prose-p:[overflow-wrap:anywhere]',
+  'prose-li:marker:text-midground/55',
+  'prose-code:rounded prose-code:border-0 prose-code:bg-muted/80 prose-code:px-0.5 prose-code:py-px prose-code:font-mono prose-code:text-[0.86em] prose-code:text-muted-foreground prose-code:before:content-none prose-code:after:content-none'
+)
+
 function CodeHeader({ language, code }: { language?: string; code?: string }) {
   const normalizedCode = (code ?? '').replace(/^\n+/, '').trimEnd()
 
-  // Streamdown can transiently parse stray backticks / incomplete fences as
-  // an empty code block while text is streaming, e.g. "200.``` http://...".
-  // Rendering our header + empty body for that looks like a giant blank
-  // code card. Hide the whole block until there's actual code content.
   if (!normalizedCode.trim() || isLikelyProseCodeBlock(language, normalizedCode)) {
     return null
   }
@@ -41,8 +46,11 @@ function CodeHeader({ language, code }: { language?: string; code?: string }) {
   const label = cleanLanguage && cleanLanguage !== 'unknown' ? cleanLanguage : ''
 
   return (
-    <div className="m-0 flex items-center justify-between gap-2 rounded-t-md border border-b-0 border-border bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground">
-      <span className="font-mono uppercase tracking-wide">{label || 'code'}</span>
+    <div className="m-0 flex items-stretch justify-between gap-2 rounded-t-md border border-b-0 border-border bg-muted/60 pr-3 text-xs text-muted-foreground">
+      <span className="flex items-center gap-2.5 py-1.5 pl-0 font-mono uppercase tracking-[0.16em]">
+        <span aria-hidden="true" className="self-stretch w-[2px] -my-1.5 bg-midground/60" />
+        <span className="text-midground/85">{label || 'code'}</span>
+      </span>
       <CopyButton appearance="inline" iconClassName="size-3" label="Copy code" text={normalizedCode}>
         Copy
       </CopyButton>
@@ -183,7 +191,7 @@ function MarkdownLink({ className, href, ...props }: ComponentProps<'a'>) {
   return (
     <a
       className={cn(
-        'font-medium text-foreground underline underline-offset-4 decoration-foreground/30 wrap-anywhere hover:decoration-foreground/70',
+        'font-medium text-foreground underline underline-offset-4 decoration-midground/55 wrap-anywhere hover:decoration-midground',
         className
       )}
       href={href}
@@ -198,8 +206,11 @@ function MarkdownImage({ className, src, alt, ...props }: ComponentProps<'img'>)
   return (
     <ZoomableImage
       alt={alt}
-      className={className}
-      containerClassName="my-3"
+      className={cn(
+        'block h-auto w-auto max-h-(--image-preview-height) max-w-[min(100%,var(--image-preview-max-width))] rounded-[1.125rem] border border-[color-mix(in_srgb,var(--dt-border)_70%,transparent)] object-contain shadow-[0_0.0625rem_0.125rem_color-mix(in_srgb,#000_4%,transparent),0_0.625rem_1.5rem_color-mix(in_srgb,#000_5%,transparent)]',
+        className
+      )}
+      containerClassName="my-3 max-w-[min(100%,var(--image-preview-max-width))]"
       slot="aui_markdown-image"
       src={src}
       {...props}
@@ -226,7 +237,7 @@ const MarkdownTextImpl = () => {
           <h4 className={cn('text-sm font-semibold', className)} {...props} />
         ),
         p: ({ className, ...props }: ComponentProps<'p'>) => (
-          <p className={cn('wrap-anywhere leading-relaxed', className)} {...props} />
+          <p className={cn('wrap-anywhere leading-(--dt-line-height)', className)} {...props} />
         ),
         a: MarkdownLink,
         hr: ({ className, ...props }: ComponentProps<'hr'>) => (
@@ -234,18 +245,14 @@ const MarkdownTextImpl = () => {
         ),
         blockquote: ({ className, ...props }: ComponentProps<'blockquote'>) => (
           <blockquote
-            className={cn('border-l-2 border-border pl-3 text-muted-foreground italic', className)}
+            className={cn('border-l-2 border-midground/40 pl-3 text-muted-foreground italic', className)}
             {...props}
           />
         ),
-        ul: ({ className, ...props }: ComponentProps<'ul'>) => (
-          <ul className={cn('list-disc marker:text-muted-foreground/70', className)} {...props} />
-        ),
-        ol: ({ className, ...props }: ComponentProps<'ol'>) => (
-          <ol className={cn('list-decimal marker:text-muted-foreground/70', className)} {...props} />
-        ),
+        ul: ({ className, ...props }: ComponentProps<'ul'>) => <ul className={cn(className)} {...props} />,
+        ol: ({ className, ...props }: ComponentProps<'ol'>) => <ol className={cn(className)} {...props} />,
         li: ({ className, ...props }: ComponentProps<'li'>) => (
-          <li className={cn('leading-relaxed', className)} {...props} />
+          <li className={cn('leading-(--dt-line-height)', className)} {...props} />
         ),
         table: ({ className, ...props }: ComponentProps<'table'>) => (
           <div className="max-w-full overflow-x-auto rounded-md border border-border">
@@ -264,7 +271,7 @@ const MarkdownTextImpl = () => {
         th: ({ className, ...props }: ComponentProps<'th'>) => (
           <th
             className={cn(
-              'h-9 px-3 text-left align-middle text-xs font-medium uppercase tracking-wide text-muted-foreground',
+              'h-9 px-3 text-left align-middle text-xs font-semibold uppercase tracking-[0.16em] text-midground/75',
               className
             )}
             {...props}
@@ -284,7 +291,7 @@ const MarkdownTextImpl = () => {
     <StreamdownTextPrimitive
       caret="block"
       components={components}
-      containerClassName="aui-md max-w-full overflow-hidden text-foreground"
+      containerClassName={MARKDOWN_CONTAINER_CLASS}
       lineNumbers={false}
       mode="streaming"
       parseIncompleteMarkdown={!isStreaming}

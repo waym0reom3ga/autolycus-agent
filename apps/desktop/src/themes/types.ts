@@ -49,6 +49,17 @@ export interface DesktopThemeColors {
   input: string
   /** Focus ring / primary accent tint. Also `text-ring` in action bars etc. */
   ring: string
+  /**
+   * Brand-accent stroke layer. Distinct from `primary` (CTA fill) — this is
+   * the "this thing is alive / live / signal" color used on focus rings,
+   * streaming cursors, the active session pill, branded scrollbars, and text
+   * selection. Falls back to `ring` when omitted. Aliased to the DS
+   * `--midground` token so `@nous-research/ui` components inherit the
+   * desktop's active theme without further wiring.
+   */
+  midground?: string
+  /** Text on `midground` fills (badges etc). Auto-derived from luminance when omitted. */
+  midgroundForeground?: string
   /** Destructive action (delete, error). */
   destructive: string
   /** Text on destructive. */

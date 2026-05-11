@@ -45,6 +45,7 @@ import { ChatBar, ChatBarFallback } from './composer'
 import type { ChatBarState } from './composer/types'
 import type { DroppedFile } from './hooks/use-composer-actions'
 import { SessionActionsMenu } from './sidebar/session-actions-menu'
+import { lastVisibleMessageIsUser, threadLoadingState } from './thread-loading'
 
 interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   gateway: HermesGateway | null
@@ -67,30 +68,6 @@ interface ChatViewProps extends Omit<React.ComponentProps<'div'>, 'onSubmit'> {
   onEdit: (message: AppendMessage) => Promise<void>
   onReload: (parentId: string | null) => Promise<void>
   onTranscribeAudio?: (audio: Blob) => Promise<string>
-}
-
-function threadLoadingState(
-  loadingSession: boolean,
-  busy: boolean,
-  awaitingResponse: boolean,
-  lastMessageIsUser: boolean
-) {
-  if (loadingSession) {
-    return 'session'
-  }
-
-  // Only show the response spinner when we're actually waiting for an
-  // assistant reply to a user message. Previously any `busy && awaiting`
-  // window showed the spinner — including the brief gateway-hydration blip
-  // right after a session resume, which produced a visible flicker chain:
-  //   session spinner → response spinner → content.
-  // Gating on `lastMessageIsUser` means the spinner only appears when the
-  // user actually just sent something and there's no assistant reply yet.
-  if (busy && awaitingResponse && lastMessageIsUser) {
-    return 'response'
-  }
-
-  return undefined
 }
 
 export function ChatView({
@@ -145,10 +122,9 @@ export function ChatView({
   // resumed yet. Once `activeSessionId` is set (runtime has resumed), the
   // session exists — even if it has zero messages (a brand-new routed
   // session). The flicker where `busy` flips true briefly during hydrate
-  // is handled by `threadLoadingState`'s `lastMessageIsUser` gate.
+  // is handled by `threadLoadingState`'s last-visible-user gate.
   const loadingSession = isRoutedSessionView && messages.length === 0 && !activeSessionId
-  const lastMessageIsUser = messages.at(-1)?.role === 'user'
-  const threadLoading = threadLoadingState(loadingSession, busy, awaitingResponse, lastMessageIsUser)
+  const threadLoading = threadLoadingState(loadingSession, busy, awaitingResponse, lastVisibleMessageIsUser(messages))
   const showChatBar = !loadingSession
   const threadKey = selectedSessionId || activeSessionId || (isRoutedSessionView ? location.pathname : 'new')
   const title = activeStoredSession ? sessionTitle(activeStoredSession) : ''

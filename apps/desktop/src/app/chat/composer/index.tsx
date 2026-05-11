@@ -6,7 +6,6 @@ import { useStore } from '@nanostores/react'
 import LiquidGlass from 'liquid-glass-react'
 import {
   type ClipboardEvent,
-  type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
   type DragEvent as ReactDragEvent,
@@ -34,7 +33,6 @@ import { ContextMenu } from './context-menu'
 import { ComposerControls } from './controls'
 import { HelpHint } from './help-hint'
 import { useAtCompletions } from './hooks/use-at-completions'
-import { useComposerGlassTweaks } from './hooks/use-composer-glass-tweaks'
 import { useSlashCompletions } from './hooks/use-slash-completions'
 import { useVoiceConversation } from './hooks/use-voice-conversation'
 import { useVoiceRecorder } from './hooks/use-voice-recorder'
@@ -52,7 +50,7 @@ import { UrlDialog } from './url-dialog'
 import { VoiceActivity, VoicePlaybackActivity } from './voice-activity'
 
 const COMPOSER_SHELL_CLASS =
-  'group/composer absolute bottom-0 left-1/2 z-30 max-w-full pt-2 pb-[var(--composer-shell-pad-block-end)]'
+  'group/composer absolute bottom-0 left-1/2 z-30 w-[min(var(--composer-width),calc(100%-2rem))] max-w-full -translate-x-1/2 rounded-2xl pt-2 pb-[var(--composer-shell-pad-block-end)]'
 
 function extractClipboardImageBlobs(clipboard: DataTransfer): Blob[] {
   const blobs: Blob[] = []
@@ -110,17 +108,13 @@ function extractClipboardImageBlobs(clipboard: DataTransfer): Blob[] {
   return blobs
 }
 
-// Below this composer width the input gets cramped — drop controls onto a second row.
-// Floor matches the natural min-content of contextMenu + 8rem input + controls + gaps;
-// going higher caused unwanted stacking on empty state when the parent transiently
-// reported a tiny width before layout settled.
 const COMPOSER_STACK_BREAKPOINT_PX = 320
 
 const COMPOSER_SCROLLED_DIM_CLASS =
   'opacity-30 group-hover/composer:opacity-100 group-focus-within/composer:opacity-100'
 
 const COMPOSER_FROST_CLASS = cn(
-  'pointer-events-none absolute inset-0 -z-10 rounded-(--composer-active-radius)',
+  'pointer-events-none absolute inset-0 -z-10 rounded-[inherit]',
   'bg-[color-mix(in_srgb,var(--dt-card)_72%,transparent)]',
   'backdrop-blur-[0.75rem] backdrop-saturate-[1.12]',
   '[-webkit-backdrop-filter:blur(0.75rem)_saturate(1.12)]',
@@ -130,6 +124,21 @@ const COMPOSER_FROST_CLASS = cn(
   'group-focus-within/composer:[backdrop-filter:none]',
   'group-focus-within/composer:[-webkit-backdrop-filter:none]'
 )
+
+const COMPOSER_GLASS = {
+  fadeBackground: 'linear-gradient(to bottom, transparent, color-mix(in srgb, var(--dt-background) 10%, transparent))',
+  liquidKey: ['standard', '0.950', '0.072', '0', '46', '0.00', '128'].join(':'),
+  showLibraryRims: false,
+  liquid: {
+    aberrationIntensity: 0.95,
+    blurAmount: 0.072,
+    cornerRadius: 0,
+    displacementScale: 46,
+    elasticity: 0,
+    mode: 'standard' as const,
+    saturation: 128
+  }
+}
 
 interface TriggerState {
   kind: '@' | '/'
@@ -218,8 +227,6 @@ export function ChatBar({
 
   const placeholder = disabled ? 'Starting Hermes…' : 'Ask anything'
 
-  const glassTweaks = useComposerGlassTweaks()
-
   const focusInput = () => window.requestAnimationFrame(() => editorRef.current?.focus({ preventScroll: true }))
 
   useEffect(() => {
@@ -266,8 +273,6 @@ export function ChatBar({
       return
     }
 
-    // Threshold deliberately above a single rendered line + padding so font-metric
-    // jitter on an empty/short editor never triggers spurious expansion.
     const wraps = (editorRef.current?.scrollHeight ?? 0) > 56
 
     if (draft.includes('\n') || wraps) {
@@ -282,10 +287,6 @@ export function ChatBar({
       return
     }
 
-    // No sync read: getBoundingClientRect() right after mount can return a
-    // transient pre-layout width that briefly flips the composer into stacked
-    // mode. ResizeObserver fires once on observe() with the settled width, then
-    // again on every actual size change.
     const ro = new ResizeObserver(() => {
       const width = el.getBoundingClientRect().width
 
@@ -439,10 +440,6 @@ export function ChatBar({
       return
     }
 
-    // Some clipboard sources deliver an image as a giant `data:image/...;base64,...`
-    // text/plain payload. Without this guard the whole base64 string would be
-    // inserted into the textarea (and persisted as the user message). Drop it
-    // outright — image pastes belong on the image-blob path above.
     if (DATA_IMAGE_URL_RE.test(pastedText.trim())) {
       event.preventDefault()
 
@@ -460,8 +457,6 @@ export function ChatBar({
   const [triggerActive, setTriggerActive] = useState(0)
   const [triggerItems, setTriggerItems] = useState<readonly Unstable_TriggerItem[]>([])
 
-  // Try caret-anchored detection first; fall back to whole-draft so blur/select-all
-  // edge cases still surface the popover instead of silently closing it.
   const refreshTrigger = useCallback(() => {
     const editor = editorRef.current
 
@@ -479,8 +474,6 @@ export function ChatBar({
   const handleEditorInput = (event: FormEvent<HTMLDivElement>) => {
     const editor = event.currentTarget
 
-    // Strip Chrome's stray <br> when the editor is otherwise empty so :empty
-    // pseudo-class works for the placeholder.
     if (editor.childNodes.length === 1 && editor.firstChild?.nodeName === 'BR') {
       editor.replaceChildren()
     }
@@ -528,8 +521,6 @@ export function ChatBar({
     }
 
     const serialized = hermesDirectiveFormatter.serialize(item)
-    // Starters (`@file:`) drill in: insert verbatim and keep the popover live so
-    // the user can keep typing the path. Chips/simple refs commit and close.
     const starter = serialized.endsWith(':')
     const text = starter || serialized.endsWith(' ') ? serialized : `${serialized} `
     const directive = !starter && serialized.match(/^@([^:]+):(.+)$/)
@@ -545,7 +536,6 @@ export function ChatBar({
     const node = range?.startContainer
     const offset = range?.startOffset ?? 0
 
-    // No usable caret range — replace from the end of the draft instead.
     if (!sel || !range || node?.nodeType !== Node.TEXT_NODE || offset < trigger.tokenLength) {
       const current = composerPlainText(editor)
       renderComposerContents(editor, `${current.slice(0, Math.max(0, current.length - trigger.tokenLength))}${text}`)
@@ -928,12 +918,6 @@ export function ChatBar({
             submitDraft()
           }}
           ref={composerRef}
-          style={
-            {
-              '--composer-active-radius': `${glassTweaks.liquid.cornerRadius}px`,
-              '--composer-glass-radius': `${glassTweaks.liquid.cornerRadius}px`
-            } as CSSProperties
-          }
         >
           {showHelpHint && <HelpHint />}
           {trigger && (
@@ -947,31 +931,33 @@ export function ChatBar({
             />
           )}
           <SkinSlashPopover draft={draft} onSelect={selectSkinSlashCommand} />
-          <div className="pointer-events-none absolute inset-0" style={{ background: glassTweaks.fadeBackground }} />
-          <div className="relative w-full">
+          <div
+            className="pointer-events-none absolute inset-0 rounded-[inherit]"
+            style={{ background: COMPOSER_GLASS.fadeBackground }}
+          />
+          <div className="relative w-full rounded-[inherit]">
             <div
               className={cn(
-                'composer-liquid-shell-wrap absolute inset-0 isolate overflow-hidden rounded-(--composer-glass-radius,24px) transition-opacity duration-200 ease-out',
-                'group-has-data-[state=open]/composer:rounded-t-none',
+                'composer-liquid-shell-wrap absolute -inset-px isolate overflow-hidden rounded-[calc(var(--radius-2xl)+1px)] transition-opacity duration-200 ease-out',
                 scrolledUp ? COMPOSER_SCROLLED_DIM_CLASS : 'opacity-100'
               )}
               data-glass-frame="true"
-              data-show-library-rims={glassTweaks.showLibraryRims ? 'true' : undefined}
+              data-show-library-rims={COMPOSER_GLASS.showLibraryRims ? 'true' : undefined}
               data-slot="composer-liquid-shell-wrap"
               ref={glassShellRef}
             >
               <LiquidGlass
-                aberrationIntensity={glassTweaks.liquid.aberrationIntensity}
-                blurAmount={glassTweaks.liquid.blurAmount}
+                aberrationIntensity={COMPOSER_GLASS.liquid.aberrationIntensity}
+                blurAmount={COMPOSER_GLASS.liquid.blurAmount}
                 className="composer-liquid-shell pointer-events-none absolute inset-0 h-full w-full"
-                cornerRadius={glassTweaks.liquid.cornerRadius}
-                displacementScale={glassTweaks.liquid.displacementScale}
-                elasticity={glassTweaks.liquid.elasticity}
-                key={glassTweaks.liquidKey}
-                mode={glassTweaks.liquid.mode}
+                cornerRadius={COMPOSER_GLASS.liquid.cornerRadius}
+                displacementScale={COMPOSER_GLASS.liquid.displacementScale}
+                elasticity={COMPOSER_GLASS.liquid.elasticity}
+                key={COMPOSER_GLASS.liquidKey}
+                mode={COMPOSER_GLASS.liquid.mode}
                 mouseContainer={composerRef}
                 padding="0"
-                saturation={glassTweaks.liquid.saturation}
+                saturation={COMPOSER_GLASS.liquid.saturation}
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
               >
                 <span className="block h-full w-full" />
@@ -979,11 +965,11 @@ export function ChatBar({
             </div>
             <div
               className={cn(
-                'relative z-4 isolate overflow-hidden rounded-(--composer-active-radius) border border-input/70 shadow-composer transition-[border-color,box-shadow] duration-200 ease-out',
-                'group-focus-within/composer:border-ring/35 group-focus-within/composer:shadow-composer-focus',
-                'group-has-data-[state=open]/composer:rounded-t-none group-has-data-[state=open]/composer:border-t-transparent',
+                'relative z-4 isolate rounded-[inherit] border border-[color-mix(in_srgb,var(--dt-midground)_18%,var(--dt-input))] shadow-composer transition-[border-color,box-shadow] duration-200 ease-out',
+                'group-focus-within/composer:border-ring/45 group-focus-within/composer:shadow-composer-focus',
+                'group-has-data-[state=open]/composer:border-t-transparent',
                 'group-has-data-[state=open]/composer:shadow-[0_0.0625rem_0_0.0625rem_color-mix(in_srgb,var(--dt-ring)_35%,transparent),0_0.5rem_1.5rem_color-mix(in_srgb,var(--shadow-ink)_6%,transparent)]',
-                dragActive && 'border-primary/70 shadow-composer-focus ring-2 ring-primary/40'
+                dragActive && 'border-midground/70 shadow-composer-focus ring-2 ring-midground/40'
               )}
               data-slot="composer-surface"
             >
@@ -991,14 +977,14 @@ export function ChatBar({
               {dragActive && (
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0 z-3 flex items-center justify-center rounded-(--composer-active-radius) bg-primary/10 text-sm font-medium text-primary backdrop-blur-[1px]"
+                  className="pointer-events-none absolute inset-0 z-3 flex items-center justify-center bg-midground/10 text-sm font-semibold uppercase tracking-[0.18em] text-midground backdrop-blur-[1px]"
                 >
                   Drop files to attach
                 </div>
               )}
               <div
                 className={cn(
-                  'relative z-1 flex min-h-0 w-full flex-col gap-(--composer-row-gap) px-(--composer-surface-pad-x) py-(--composer-surface-pad-y) transition-opacity duration-200 ease-out',
+                  'relative z-1 flex min-h-0 w-full flex-col gap-(--composer-row-gap) overflow-hidden rounded-[inherit] px-(--composer-surface-pad-x) py-(--composer-surface-pad-y) transition-opacity duration-200 ease-out',
                   scrolledUp ? COMPOSER_SCROLLED_DIM_CLASS : 'opacity-100'
                 )}
                 data-slot="composer-fade"
@@ -1006,18 +992,6 @@ export function ChatBar({
                 <VoiceActivity state={voiceActivityState} />
                 <VoicePlaybackActivity />
                 {attachments.length > 0 && <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} />}
-                {/*
-                  Single CSS Grid keeps {input} (and the contenteditable inside
-                  it) in a stable parent across the stacked/inline toggle.
-                  Earlier this was a JSX conditional that rendered {input}
-                  inside two different fragments — when `stacked` flipped (e.g.
-                  the moment text wrapped past two lines and the auto-expand
-                  effect triggered), React reconciled them as different
-                  positions and unmounted/remounted the contenteditable. The
-                  fresh mount started empty and any in-flight characters were
-                  lost. Switching the layout via grid-template-areas keeps the
-                  exact same DOM nodes and lets the browser handle the reflow.
-                */}
                 <div
                   className={cn(
                     'grid w-full',
@@ -1053,9 +1027,8 @@ export function ChatBarFallback() {
     <div
       className={cn(COMPOSER_SHELL_CLASS, 'bg-linear-to-b from-transparent to-background/55')}
       data-slot="composer-root"
-      style={{ '--composer-active-radius': '1.5rem' } as CSSProperties}
     >
-      <div className="relative isolate h-(--composer-fallback-height) w-full overflow-hidden rounded-(--composer-active-radius) border border-input/70 shadow-composer">
+      <div className="composer-fallback-surface relative isolate h-(--composer-fallback-height) w-full rounded-[inherit] border border-[color-mix(in_srgb,var(--dt-midground)_18%,var(--dt-input))] shadow-composer">
         <div aria-hidden className={COMPOSER_FROST_CLASS} />
       </div>
     </div>

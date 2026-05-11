@@ -12,17 +12,6 @@ import {
 } from '@assistant-ui/react'
 import { useStore } from '@nanostores/react'
 import { type FC, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import spinners from 'unicode-animations'
-// Scroll behavior: delegated to `use-stick-to-bottom` (StackBlitz), the
-// reference implementation that powers bolt.new and several other streaming
-// chat UIs. It handles everything we care about — spring-animated catch-up,
-// resize-vs-user-scroll disambiguation, wheel/touch escape, text-selection
-// pause, subpixel overshoot, programmatic-scroll event suppression — via 665
-// lines of well-tested edge-case handling that we should NOT hand-roll.
-//
-// We only own the thin glue: jump-to-bottom on session switch / send, and
-// keeping `$threadScrolledUp` in sync with `isAtBottom` for the composer's
-// dim-when-scrolled-away treatment.
 import { StickToBottom, useStickToBottomContext } from 'use-stick-to-bottom'
 
 import { useElapsedSeconds } from '@/components/assistant-ui/activity-timer'
@@ -66,9 +55,12 @@ import { notifyError } from '@/store/notifications'
 import { setThreadScrolledUp } from '@/store/thread-scroll'
 import { $voicePlayback } from '@/store/voice-playback'
 
-const RESPONSE_SPINNER = spinners.braille
-
 type ThreadLoadingState = 'response' | 'session'
+
+interface StickyStateFlags {
+  escapedFromLock: boolean
+  isAtBottom: boolean
+}
 
 interface MessageActionProps {
   messageId: string
@@ -100,6 +92,17 @@ function messageContentText(content: unknown): string {
   return Array.isArray(content) ? content.map(partText).join('').trim() : ''
 }
 
+function resetStickyState(state: StickyStateFlags) {
+  state.escapedFromLock = false
+  state.isAtBottom = true
+}
+
+function pinElementToBottom(el: HTMLElement) {
+  el.scrollTop = el.scrollHeight
+
+  return el.scrollTop
+}
+
 export const Thread: FC<{
   intro?: IntroProps
   loading?: ThreadLoadingState
@@ -110,26 +113,6 @@ export const Thread: FC<{
     <GeneratedImageProvider>
       <ThreadPrimitive.Root className="relative grid h-full min-h-0 max-w-full grid-rows-[minmax(0,1fr)] overflow-hidden bg-transparent contain-[layout_paint]">
         <ThreadPrimitive.ViewportProvider>
-          {/*
-           * <StickToBottom> renders a wrapper <div>; <StickToBottom.Content>
-           * renders an inner scroll container (inline height/width 100%) plus
-           * an inner content div. So:
-           *   - `className` on <StickToBottom>        = outer wrapper sizing
-           *   - `scrollClassName` on <.Content>       = scroll container
-           *   - `className` on <.Content>             = content (flex column)
-           *
-           * `initial: 'instant'`: no animation on first mount.
-           * `resize: 'instant'`: during streaming, snap to bottom each token.
-           *   Spring animation ('smooth') visibly lags behind fast token
-           *   streams; users read that as jank. 'instant' matches ChatGPT.
-           *
-           * The composer is rendered OUTSIDE the scroller as `position:
-           * absolute; bottom: 0` (floating glass treatment) and overlays the
-           * bottom of the scroll surface. We compensate by putting a tall
-           * bottom spacer (>= composer height + margin) inside the scroll
-           * content so "scroll to bottom" naturally parks the last line of
-           * content above the composer, not hidden behind it.
-           */}
           <StickToBottom
             className="relative h-full min-h-0 max-w-full overflow-hidden contain-[layout_paint]"
             initial="instant"
@@ -137,7 +120,7 @@ export const Thread: FC<{
           >
             <ThreadScrollSync sessionKey={sessionKey} />
             <StickToBottom.Content
-              className="pb-9 mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-3 px-4 pt-[calc(var(--vsq)*19)] sm:px-6 lg:px-8"
+              className="scroll-auto pb-(--thread-bottom-pad) mx-auto flex w-full max-w-[calc(var(--composer-width)-2rem)] min-w-0 flex-col gap-3 px-4 pt-[calc(var(--vsq)*19)] sm:px-6 lg:px-8"
               data-slot="aui_thread-content"
               scrollClassName="overflow-x-hidden overflow-y-auto overscroll-contain"
             >
@@ -161,48 +144,10 @@ export const Thread: FC<{
   )
 }
 
-/**
- * Scroll glue for the chat thread. Replaces hand-rolled follow logic with
- * the exact pattern that assistant-ui's own `useThreadViewportAutoScroll`
- * uses internally: **raw DOM scroll + an armed behavior ref + a
- * ResizeObserver loop that re-pins to bottom until we actually reach it.**
- *
- * Why not use the library's `scrollToBottom` for sends?
- *   - It wraps its work in `new Promise(requestAnimationFrame)` so even
- *     `animation: 'instant'` is 1+ frame async.
- *   - It does NOT clear `escapedFromLock` on call — if the user had
- *     scrolled up before sending, the library's resize handler keeps
- *     un-setting `isAtBottom` between our scroll and the next resize.
- *   - `ignoreEscapes` only blocks NEW escapes during the animation; it
- *     doesn't unstick an already-escaped state.
- *
- * The armed-ref pattern handles all of that:
- *   1. `thread.runStart` fires after the runtime has committed the user
- *      message to state (so scrollHeight already reflects it).
- *   2. We arm a ref ('instant') and write `scrollTop = scrollHeight`
- *      synchronously.
- *   3. A ResizeObserver on the content keeps re-pinning each time the
- *      DOM grows (user message paints, assistant placeholder mounts,
- *      assistant streams) until scrollTop is actually at bottom — then
- *      we disarm.
- *   4. Any wheel-up or touch-scroll-up disarms immediately so the user
- *      can always escape.
- *
- * This mirrors:
- *   - assistant-ui's `useThreadViewportAutoScroll` (scrollToBottomBehaviorRef
- *     + useOnResizeContent loop)
- *   - Vercel ai-chatbot's `useScrollToBottom` (MutationObserver + RO on
- *     container and children + isAtBottom/isUserScrolling flags)
- *
- * Must be rendered INSIDE a <StickToBottom> because useStickToBottomContext
- * reads from that component's context.
- */
 const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) => {
   const { scrollRef, isAtBottom, state } = useStickToBottomContext()
   const sessionKeyRef = useRef<string | null>(sessionKey ?? null)
 
-  // "Armed" behavior ref. Non-null = "keep chasing bottom across resize
-  // ticks until we get there." Null = "user owns the viewport."
   const armedRef = useRef<ScrollBehavior | null>(null)
   const pinRafRef = useRef<number | null>(null)
   const previousScrollTopRef = useRef(0)
@@ -221,8 +166,6 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
     }
   }, [])
 
-  // Slam to bottom + arm the ref. Also forces library state flags off
-  // so its internal resize handler doesn't fight our re-pins.
   const armAndPin = useCallback(
     (behavior: ScrollBehavior) => {
       const el = scrollRef.current
@@ -232,19 +175,13 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
       }
 
       armedRef.current = behavior
-      // Clear the library's escape/at-bottom flags directly on the mutable
-      // state object so its resize handler sees a clean follow state.
-      state.escapedFromLock = false
-      state.isAtBottom = true
+      resetStickyState(state)
       suppressNextScrollEventRef.current = true
-      el.scrollTop = el.scrollHeight
-      previousScrollTopRef.current = el.scrollTop
+      previousScrollTopRef.current = pinElementToBottom(el)
     },
     [scrollRef, state]
   )
 
-  // ResizeObserver loop — re-pins to bottom while armed, disarms when
-  // actually at bottom. This is the assistant-ui pattern.
   useEffect(() => {
     const el = scrollRef.current
 
@@ -273,8 +210,7 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
         }
 
         suppressNextScrollEventRef.current = true
-        el.scrollTop = el.scrollHeight
-        previousScrollTopRef.current = el.scrollTop
+        previousScrollTopRef.current = pinElementToBottom(el)
       })
     })
 
@@ -296,7 +232,6 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
     }
   }, [scrollRef])
 
-  // User-intent detection — any upward gesture disarms the chase.
   useEffect(() => {
     const el = scrollRef.current
 
@@ -342,7 +277,6 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
     }
   }, [scrollRef])
 
-  // (1) Session switch — strong intent to see the bottom of the new thread.
   useEffect(() => {
     const next = sessionKey ?? null
 
@@ -355,9 +289,6 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
     armAndPin('auto')
   }, [armAndPin, sessionKey])
 
-  // (2) Bulk message load (session history arriving from storage) — pin
-  // to bottom and stay armed while the thread's markdown/code/images
-  // settle over the next several frames.
   useEffect(() => {
     const prev = prevMessageCountRef.current
     prevMessageCountRef.current = messageCount
@@ -367,11 +298,6 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
     }
   }, [armAndPin, messageCount])
 
-  // (3) User send — the runtime event `thread.runStart` fires after the
-  // user message has been committed to state (scrollHeight already reflects
-  // it). This is the canonical signal per assistant-ui's own code. We
-  // arm-and-pin synchronously in the callback, then the RO loop above
-  // keeps us at bottom as the assistant message placeholder + reply stream.
   useAuiEvent('thread.runStart', () => {
     armAndPin('instant')
   })
@@ -379,25 +305,11 @@ const ThreadScrollSync: FC<{ sessionKey?: string | null }> = ({ sessionKey }) =>
   return null
 }
 
-/**
- * Invisible bottom spacer whose height matches the currently-measured
- * composer height (plus a small gap). Because the composer is rendered
- * OUTSIDE the scroll container as `position: absolute; bottom: 0`, "scroll
- * to bottom" would otherwise park the last content line behind it. By
- * extending the scroll content down with real (blank) space equal to the
- * composer's footprint, the library's scroll-to-scrollHeight naturally
- * leaves the last message line sitting above the composer.
- *
- * A ResizeObserver on the composer keeps the spacer in sync when the
- * textarea grows (multi-line input), attachments expand, or the composer
- * enters a focused/expanded state.
- */
 const COMPOSER_BREATHING_ROOM_PX = 36
 const DEFAULT_COMPOSER_CLEARANCE_PX = 192
 
 const ComposerClearance: FC = () => {
   const [height, setHeight] = useState<number>(() => {
-    // Keep enough space even while the floating composer is still mounting.
     if (typeof document === 'undefined') {
       return DEFAULT_COMPOSER_CLEARANCE_PX
     }
@@ -496,7 +408,7 @@ const CenteredThreadSpinner: FC = () => (
   >
     <Loader
       aria-hidden="true"
-      className="size-12 text-primary/70"
+      className="size-12 text-midground/70"
       pathSteps={220}
       role="presentation"
       strokeScale={0.72}
@@ -531,13 +443,14 @@ const AssistantMessage: FC<{ onBranchInNewChat?: (messageId: string) => void }> 
       data-slot="aui_assistant-message-root"
     >
       <div
-        className="wrap-anywhere min-w-0 max-w-full overflow-hidden text-pretty text-foreground"
+        className="wrap-anywhere min-w-0 max-w-full overflow-hidden text-pretty text-base leading-(--dt-line-height) text-foreground"
         data-slot="aui_assistant-message-content"
       >
         <MessagePrimitive.Parts
           components={{
             Text: MarkdownText,
-            Reasoning: ReasoningPart,
+            Reasoning: ReasoningTextPart,
+            ReasoningGroup: ReasoningAccordionGroup,
             tools: { Fallback: ChainToolFallback }
           }}
         />
@@ -575,23 +488,11 @@ const StatusRow: FC<{ children: ReactNode; label: string }> = ({ children, label
 )
 
 const ResponseLoadingIndicator: FC = () => {
-  const [frame, setFrame] = useState(0)
   const elapsed = useElapsedSeconds()
-
-  useEffect(() => {
-    const id = window.setInterval(
-      () => setFrame(current => (current + 1) % RESPONSE_SPINNER.frames.length),
-      RESPONSE_SPINNER.interval
-    )
-
-    return () => window.clearInterval(id)
-  }, [])
 
   return (
     <StatusRow label="Hermes is loading a response">
-      <span aria-hidden="true" className="font-mono text-base leading-none text-muted-foreground/60">
-        {RESPONSE_SPINNER.frames[frame]}
-      </span>
+      <span aria-hidden="true" className="dither inline-block size-3 rounded-[2px] text-midground/80 animate-pulse" />
       <ActivityTimerText seconds={elapsed} />
     </StatusRow>
   )
@@ -639,11 +540,11 @@ const ThinkingDisclosure: FC<{
     <div className="text-sm text-muted-foreground" data-slot="tool-block">
       <button
         aria-expanded={open}
-        className="group/thinking-row flex w-full max-w-full min-w-0 items-start gap-2 rounded-md px-2 py-0.5 text-left text-muted-foreground transition-colors hover:bg-accent/35 hover:text-foreground"
+        className="group/thinking-row grid w-full min-w-0 cursor-pointer grid-cols-[var(--message-text-indent)_minmax(0,1fr)] items-start py-0.5 pr-2 text-left text-muted-foreground transition-colors hover:bg-[color-mix(in_srgb,var(--dt-midground)_8%,transparent)] hover:text-foreground"
         onClick={() => setOpen(value => !value)}
         type="button"
       >
-        <span className="flex h-[1.1rem] shrink-0 items-center">
+        <span className="flex h-[1.1rem] items-center justify-center">
           <ChevronRightIcon
             className={cn(
               'size-3 text-muted-foreground/55 transition-transform group-hover/thinking-row:text-muted-foreground/85',
@@ -651,7 +552,7 @@ const ThinkingDisclosure: FC<{
             )}
           />
         </span>
-        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+        <span className="flex min-w-0 items-baseline gap-1.5">
           <span
             className={cn(
               'text-[0.78rem] font-medium leading-[1.1rem] text-foreground/75',
@@ -666,27 +567,31 @@ const ThinkingDisclosure: FC<{
         </span>
       </button>
       {open && (
-        <div className="mt-2 w-full min-w-0 max-w-full overflow-hidden pl-6 pr-2 wrap-anywhere pb-1">{children}</div>
+        <div className="mt-2 w-full min-w-0 max-w-full overflow-hidden pl-(--message-text-indent) pr-2 wrap-anywhere pb-1">{children}</div>
       )}
     </div>
   )
 }
 
-const ReasoningPart: FC<{ text: string; status?: { type: string } }> = ({ text, status }) => {
+const ReasoningAccordionGroup: FC<{ children?: ReactNode; endIndex: number; startIndex: number }> = ({ children }) => {
+  const pending = useAuiState(s => s.message.status?.type === 'running')
+
+  return <ThinkingDisclosure pending={pending}>{children}</ThinkingDisclosure>
+}
+
+const ReasoningTextPart: FC<{ text: string; status?: { type: string } }> = ({ text, status }) => {
   const displayText = text.trimStart()
 
   return (
-    <ThinkingDisclosure pending={status?.type === 'running'}>
-      <div
-        className={cn(
-          'whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground/85',
-          status?.type === 'running' && 'shimmer text-muted-foreground/55'
-        )}
-        data-slot="aui_reasoning-text"
-      >
-        {displayText}
-      </div>
-    </ThinkingDisclosure>
+    <div
+      className={cn(
+        'whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground/85',
+        status?.type === 'running' && 'shimmer text-muted-foreground/55'
+      )}
+      data-slot="aui_reasoning-text"
+    >
+      {displayText}
+    </div>
   )
 }
 
@@ -830,7 +735,7 @@ const MessageTimestamp: FC = () => {
 }
 
 const AssistantFooter: FC<MessageActionProps> = props => (
-  <div className="flex min-h-6 flex-col items-start gap-1">
+  <div className="flex min-h-6 flex-col items-start gap-1 pl-(--message-text-indent)">
     <BranchPickerPrimitive.Root
       className="inline-flex h-6 items-center gap-1 text-xs text-muted-foreground"
       hideWhenSingleBranch
@@ -880,7 +785,7 @@ const UserMessage: FC = () => {
       data-role="user"
       data-slot="aui_user-message-root"
     >
-      <div className="flex min-w-0 max-w-full flex-col gap-1.5 overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--dt-user-bubble-border)_78%,transparent)] bg-[color-mix(in_srgb,var(--dt-user-bubble)_94%,transparent)] px-3 py-2 leading-[1.48] text-foreground/95">
+      <div className="flex min-w-0 max-w-full flex-col gap-1.5 overflow-hidden rounded-2xl border border-[color-mix(in_srgb,var(--dt-user-bubble-border)_78%,transparent)] bg-[color-mix(in_srgb,var(--dt-user-bubble)_94%,transparent)] px-3 py-2 text-base leading-(--dt-line-height) text-foreground/95">
         {attachmentRefs.length > 0 && (
           <div className="-mx-1 flex flex-wrap gap-1 border-b border-border/45 pb-1.5">
             <DirectiveContent text={attachmentRefs.join(' ')} />
@@ -955,7 +860,7 @@ const UserEditComposer: FC = () => (
   >
     <ComposerPrimitive.Input
       autoFocus
-      className="min-h-8 w-full resize-none bg-transparent leading-[1.48] text-foreground/95 outline-none"
+      className="min-h-8 w-full resize-none bg-transparent text-base leading-(--dt-line-height) text-foreground/95 outline-none"
       rows={1}
       submitMode="enter"
       unstable_focusOnScrollToBottom={false}

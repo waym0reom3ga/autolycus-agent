@@ -69,9 +69,10 @@ export function FileBrowserPane({ onActivateFile, onChangeCwd }: FileBrowserPane
       <header className="group/project-header shrink-0 pl-4 pr-2 pb-1 pt-0">
         <div className="flex items-center gap-1.5">
           <FadeText
-            className="flex-1 px-2 pb-1 pt-1 text-[0.64rem] font-semibold uppercase tracking-[0.07em] text-muted-foreground/70"
+            className="flex-1 flex items-center gap-2 px-2 pb-1 pt-1 text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-midground/75"
             title={hasCwd ? currentCwd : 'No folder selected'}
           >
+            <span aria-hidden="true" className="dither inline-block size-2 shrink-0 rounded-[1px] text-midground" />
             {cwdName}
           </FadeText>
           <Button

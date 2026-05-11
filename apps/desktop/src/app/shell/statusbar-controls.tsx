@@ -44,7 +44,7 @@ interface StatusbarControlsProps extends ComponentProps<'footer'> {
 }
 
 const statusbarItemClass =
-  'inline-flex h-5 items-center gap-1 rounded px-1 text-[0.68rem] text-muted-foreground/95 transition-colors hover:bg-accent/55 hover:text-foreground disabled:cursor-default disabled:opacity-45'
+  'inline-flex h-5 items-center gap-1 rounded px-1 text-[0.68rem] text-muted-foreground/95 transition-colors hover:bg-[color-mix(in_srgb,var(--dt-midground)_10%,transparent)] hover:text-foreground disabled:cursor-default disabled:opacity-45'
 
 export function StatusbarControls({ className, leftItems = [], items = [], ...props }: StatusbarControlsProps) {
   const navigate = useNavigate()

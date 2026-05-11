@@ -50,7 +50,7 @@ const sidebarNavItemClass =
   'flex h-7 w-full justify-start gap-2 rounded-md border border-transparent px-2 text-left text-sm font-medium text-muted-foreground transition-colors duration-300 ease-out hover:border-[color-mix(in_srgb,var(--dt-border)_60%,transparent)] hover:bg-[color-mix(in_srgb,var(--dt-card)_78%,transparent)] hover:text-foreground hover:transition-none'
 
 const sidebarNavItemActiveClass =
-  'border-[color-mix(in_srgb,var(--dt-primary)_34%,var(--dt-border))] bg-[color-mix(in_srgb,var(--dt-primary)_10%,var(--dt-card))] text-foreground shadow-[inset_0_0.0625rem_0_color-mix(in_srgb,white_40%,transparent)]'
+  'border-[color-mix(in_srgb,var(--dt-midground)_34%,var(--dt-border))] bg-[color-mix(in_srgb,var(--dt-midground)_10%,var(--dt-card))] text-foreground shadow-[inset_0_0.0625rem_0_color-mix(in_srgb,white_40%,transparent)]'
 
 interface ChatSidebarProps extends React.ComponentProps<typeof Sidebar> {
   currentView: AppView
@@ -114,7 +114,8 @@ export function ChatSidebar({
     >
       <SidebarContent className="gap-0 overflow-hidden bg-transparent">
         <SidebarGroup className="shrink-0 pl-4 pr-2 pb-2 pt-[calc(var(--titlebar-height)+0.25rem)]">
-          <SidebarGroupLabel className="h-auto px-2 pb-1 pt-1 text-[0.64rem] font-semibold uppercase tracking-[0.07em] text-muted-foreground/70">
+          <SidebarGroupLabel className="flex h-auto items-center gap-2 px-2 pb-1 pt-1 text-[0.64rem] font-semibold uppercase tracking-[0.16em] text-midground/75">
+            <span aria-hidden="true" className="dither inline-block size-2 shrink-0 rounded-[1px] text-midground" />
             Workspace
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -238,16 +239,22 @@ interface SidebarSectionHeaderProps extends React.ComponentProps<'div'> {
 function SidebarSectionHeader({ label, open, onToggle, action }: SidebarSectionHeaderProps) {
   return (
     <div className="flex shrink-0 items-center justify-between px-2 pb-1 pt-1.5">
-      <SidebarGroupLabel asChild className="h-auto p-0 text-muted-foreground">
+      <SidebarGroupLabel asChild className="h-auto p-0">
         <button
-          className="group/section-label flex w-fit items-center gap-1 bg-transparent text-left text-xs font-bold leading-none"
+          className="group/section-label flex w-fit items-center gap-2 bg-transparent text-left leading-none"
           onClick={onToggle}
           type="button"
         >
-          <span className="text-xs font-semibold uppercase leading-none">{label}</span>
+          <span aria-hidden="true" className="dither inline-block size-2 shrink-0 rounded-[1px] text-midground" />
+          <span className="text-[0.64rem] font-semibold uppercase leading-none tracking-[0.16em] text-midground/75">
+            {label}
+          </span>
 
           <ChevronDown
-            className={cn('size-3 opacity-0 transition group-hover/section-label:opacity-100', !open && '-rotate-90')}
+            className={cn(
+              'size-3 text-muted-foreground/70 opacity-0 transition group-hover/section-label:opacity-100',
+              !open && '-rotate-90'
+            )}
           />
         </button>
       </SidebarGroupLabel>

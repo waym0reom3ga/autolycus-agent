@@ -1,6 +1,7 @@
 import { useStore } from '@nanostores/react'
 import type { CSSProperties, ReactNode } from 'react'
 
+import { Backdrop } from '@/components/Backdrop'
 import { PaneShell } from '@/components/pane-shell'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import {
@@ -99,7 +100,8 @@ export function AppShell({
     >
       <TitlebarControls leftTools={leftTitlebarTools} onOpenSettings={onOpenSettings} tools={titlebarTools} />
 
-      <main className="relative flex h-screen w-full flex-col overflow-hidden bg-background pr-0.75 pb-0.75 pt-0.75 transition-none">
+      <Backdrop />
+      <main className="relative z-[3] flex h-screen w-full flex-col overflow-hidden pr-0.75 pb-0.75 pt-0.75 transition-none">
         <PaneShell className="min-h-0 flex-1">
           <div
             aria-hidden="true"

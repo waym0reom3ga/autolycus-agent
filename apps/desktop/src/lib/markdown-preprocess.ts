@@ -1,36 +1,19 @@
 import { isLikelyProseFence, sanitizeLanguageTag } from '@/lib/markdown-code'
 import { stripPreviewTargets } from '@/lib/preview-targets'
 
-/**
- * Strip provider/model "thinking" blocks before markdown render.
- *
- * Some Hermes providers stream raw `<think>…</think>` and similar into
- * assistant text. Proper reasoning UI uses dedicated `reasoning.*` parts.
- */
 const REASONING_BLOCK_RE = /<(think|thinking|reasoning|scratchpad|analysis)>[\s\S]*?<\/\1>\s*/gi
 const PREVIEW_MARKER_RE = /\[Preview:[^\]]+\]\(#preview[:/][^)]+\)/gi
 
 const FENCE_LINE_RE = /^([ \t]*)(`{3,}|~{3,})([^\n]*)$/
 const EMPTY_FENCE_BLOCK_RE = /(^|\n)[ \t]*(?:`{3,}|~{3,})[^\n]*\n[ \t]*(?:`{3,}|~{3,})[ \t]*(?=\n|$)/g
+const CODE_FENCE_SPLIT_RE = /((?:```|~~~)[\s\S]*?(?:```|~~~))/g
+const INLINE_CODE_SPLIT_RE = /(`[^`\n]+`)/g
+const RAW_URL_RE = /https?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?]/g
+const LOCAL_PREVIEW_URL_RE = /(^|\s)https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?\/?[^\s<>"'`]*/gi
+const LOCAL_PREVIEW_ONLY_RE = /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?\/?$/i
+const URL_ONLY_LINE_RE = /^\s*https?:\/\/\S+\s*$/i
+const CITATION_MARKER_RE = /(?<=[\p{L}\p{N})\].,!?:;"'”’])\[(?:\d+(?:\s*,\s*\d+)*)\](?!\()/gu
 
-/**
- * Forcefully scrub backtick noise the model streams that doesn't form a
- * valid markdown construct.
- *
- * Strategy: find every well-formed `\`\`\`…\`\`\`` (or `~~~`) block whose
- * opener and closer are each on their own line, snapshot those ranges as
- * "protected", then nuke all other triple-backtick runs in the text.
- * This handles every failure mode in one shot:
- *
- *  - mid-line `\`\`\`` (`there:\`\`\` cd /Users/...`)
- *  - orphan opener with no closer
- *  - orphan closer with no opener
- *  - chunk-boundary backticks where the preceding non-newline char isn't
- *    in the same regex window
- *  - empty `` `` `` `` and orphan double backticks
- *
- * Real, well-formed fenced blocks survive untouched.
- */
 function scrubBacktickNoise(text: string): string {
   const balancedFenceRe = /(^|\n)([ \t]*)(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)\n[ \t]*\3[ \t]*(?=\n|$)/g
   const protectedRanges: { end: number; start: number }[] = []
@@ -41,6 +24,24 @@ function scrubBacktickNoise(text: string): string {
 
     protectedRanges.push({ end: balancedFenceRe.lastIndex, start })
   }
+
+  const danglingCodeFenceRe = /(^|\n)[ \t]*(`{3,}|~{3,})([a-z0-9][a-z0-9+#-]{0,15})[ \t]*\n([\s\S]*)$/gi
+
+  while ((match = danglingCodeFenceRe.exec(text)) !== null) {
+    const start = match.index + match[1].length
+    const marker = match[2] || '```'
+    const info = match[3] || ''
+    const body = match[4] || ''
+    const closeRe = new RegExp(`\\n[ \\t]*${marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[ \\t]*(?=\\n|$)`)
+
+    if (!closeRe.test(body) && sanitizeLanguageTag(info) && !isLikelyProseFence(info, body)) {
+      protectedRanges.push({ end: text.length, start })
+
+      break
+    }
+  }
+
+  protectedRanges.sort((a, b) => a.start - b.start)
 
   const fenceNoiseRe = /`{3,}/g
   let out = ''
@@ -54,8 +55,6 @@ function scrubBacktickNoise(text: string): string {
 
   out += text.slice(cursor).replace(fenceNoiseRe, '')
 
-  // Empty inline code spans (`` `` `` `` with nothing meaningful inside)
-  // render as literal backticks. Two passes catch chains.
   for (let pass = 0; pass < 2; pass += 1) {
     out = out.replace(/``\s*``/g, '')
     out = out.replace(/(^|[^`])``(?=\s|[.,;:!?)\]'"\u2014\u2013-]|$)/g, '$1')
@@ -66,6 +65,36 @@ function scrubBacktickNoise(text: string): string {
 
 function stripEmptyFenceBlocks(text: string): string {
   return text.replace(EMPTY_FENCE_BLOCK_RE, '$1')
+}
+
+function isUrlOnlyBlock(lines: string[]): boolean {
+  const nonEmpty = lines.filter(line => line.trim())
+
+  return nonEmpty.length > 0 && nonEmpty.every(line => URL_ONLY_LINE_RE.test(line))
+}
+
+function autoLinkRawUrls(text: string): string {
+  return text.replace(RAW_URL_RE, (url: string, index: number) => {
+    const previous = text[index - 1] || ''
+    const beforePrevious = text[index - 2] || ''
+
+    if (previous === '<' || (beforePrevious === ']' && previous === '(')) {
+      return url
+    }
+
+    return `<${url}>`
+  })
+}
+
+function normalizeVisibleProse(text: string): string {
+  return text
+    .split(INLINE_CODE_SPLIT_RE)
+    .map(part =>
+      part.startsWith('`')
+        ? part
+        : autoLinkRawUrls(part.replace(/`{3,}/g, '').replace(LOCAL_PREVIEW_URL_RE, '$1').replace(CITATION_MARKER_RE, ''))
+    )
+    .join('')
 }
 
 function pushProseFence(out: string[], indent: string, info: string, lines: string[]) {
@@ -135,6 +164,19 @@ function normalizeFenceBlocks(text: string): string {
       continue
     }
 
+    if (closeIndex !== -1 && LOCAL_PREVIEW_ONLY_RE.test(body.trim())) {
+      index = closeIndex + 1
+
+      continue
+    }
+
+    if (closeIndex !== -1 && isUrlOnlyBlock(bodyLines)) {
+      out.push(...bodyLines)
+      index = closeIndex + 1
+
+      continue
+    }
+
     if (closeIndex === -1) {
       if (!body.trim()) {
         index += 1
@@ -175,8 +217,8 @@ export function preprocessMarkdown(text: string): string {
   const strippedEmptyFences = stripEmptyFenceBlocks(normalizedFences)
 
   return strippedEmptyFences
-    .split(/((?:```|~~~)[\s\S]*?(?:```|~~~))/g)
-    .map(part => (/^(?:```|~~~)/.test(part) ? part : stripPreviewTargets(part)))
+    .split(CODE_FENCE_SPLIT_RE)
+    .map(part => (/^(?:```|~~~)/.test(part) ? part : normalizeVisibleProse(stripPreviewTargets(part))))
     .join('')
     .replace(/[ \t]+\n/g, '\n')
 }

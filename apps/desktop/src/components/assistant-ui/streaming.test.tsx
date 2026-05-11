@@ -102,6 +102,23 @@ function assistantReasoningMessage(text: string): ThreadMessage {
   } as ThreadMessage
 }
 
+function assistantMultiReasoningMessage(texts: string[]): ThreadMessage {
+  return {
+    id: 'assistant-reasoning-multi-1',
+    role: 'assistant',
+    content: texts.map(text => ({ type: 'reasoning', text })),
+    status: { type: 'complete', reason: 'stop' },
+    createdAt,
+    metadata: {
+      unstable_state: null,
+      unstable_annotations: [],
+      unstable_data: [],
+      steps: [],
+      custom: {}
+    }
+  } as ThreadMessage
+}
+
 function StreamingHarness() {
   const [messages, setMessages] = useState<ThreadMessage[]>([userMessage()])
   const [isRunning, setIsRunning] = useState(true)
@@ -143,6 +160,20 @@ function StreamingHarness() {
 function ReasoningHarness() {
   const runtime = useExternalStoreRuntime<ThreadMessage>({
     messages: [assistantReasoningMessage(' The user is asking what this file is.')],
+    isRunning: false,
+    onNew: async () => {}
+  })
+
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <Thread />
+    </AssistantRuntimeProvider>
+  )
+}
+
+function GroupedReasoningHarness() {
+  const runtime = useExternalStoreRuntime<ThreadMessage>({
+    messages: [assistantMultiReasoningMessage([' First thought.', ' Second thought.'])],
     isRunning: false,
     onNew: async () => {}
   })
@@ -232,5 +263,19 @@ describe('assistant-ui streaming renderer', () => {
     expect(container.querySelector('[data-slot="aui_reasoning-text"]')?.textContent).toBe(
       'The user is asking what this file is.'
     )
+  })
+
+  it('groups consecutive reasoning parts under one thinking disclosure', () => {
+    const { container } = render(<GroupedReasoningHarness />)
+
+    const disclosures = container.querySelectorAll('[data-slot="tool-block"] > button')
+    expect(disclosures.length).toBe(1)
+
+    fireEvent.click(disclosures[0])
+
+    const reasoningParts = container.querySelectorAll('[data-slot="aui_reasoning-text"]')
+    expect(reasoningParts.length).toBe(2)
+    expect(reasoningParts[0]?.textContent).toBe('First thought.')
+    expect(reasoningParts[1]?.textContent).toBe('Second thought.')
   })
 })

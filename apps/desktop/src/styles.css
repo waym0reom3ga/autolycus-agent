@@ -1,16 +1,8 @@
 @import 'tailwindcss';
+@plugin '@tailwindcss/typography';
 @import 'tw-shimmer';
-/*---break---
- */
 @custom-variant dark (&:is(.dark *));
 
-/**
- * @theme inline bridges runtime CSS variables (--dt-*) set by the
- * ThemeProvider into Tailwind utility tokens. Every time the theme
- * switches, ThemeProvider writes new --dt-* values onto :root and
- * all Tailwind utilities (bg-background, text-muted-foreground, …)
- * update automatically — no class rewrite needed.
- */
 @theme inline {
   --color-background: var(--dt-background);
   --color-foreground: var(--dt-foreground);
@@ -32,37 +24,33 @@
   --color-destructive: var(--dt-destructive);
   --color-destructive-foreground: var(--dt-destructive-foreground);
 
+  --color-midground: var(--dt-midground);
+  --color-midground-foreground: var(--dt-midground-foreground);
+
   --font-sans: var(--dt-font-sans);
   --font-mono: var(--dt-font-mono);
 
   --spacing-mul: var(--dt-spacing-mul, 1);
-  --radius-sm: max(0rem, calc(var(--radius) - 0.25rem));
-  --radius-md: max(0rem, calc(var(--radius) - 0.125rem));
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 0.25rem);
+
+  --radius-xs: calc(var(--radius-scalar) * 0.125rem);
+  --radius-sm: calc(var(--radius-scalar) * 0.5rem);
+  --radius-md: calc(var(--radius-scalar) * 0.625rem);
+  --radius-lg: calc(var(--radius-scalar) * 0.75rem);
+  --radius-xl: calc(var(--radius-scalar) * 1rem);
+  --radius-2xl: calc(var(--radius-scalar) * 1.5rem);
+  --radius-3xl: calc(var(--radius-scalar) * 2rem);
+  --radius-4xl: calc(var(--radius-scalar) * 2.5rem);
 
   --color-sidebar-ring: var(--sidebar-ring);
-
   --color-sidebar-border: var(--sidebar-border);
-
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-
   --color-sidebar-accent: var(--sidebar-accent);
-
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-
   --color-sidebar-primary: var(--sidebar-primary);
-
   --color-sidebar-foreground: var(--sidebar-foreground);
-
   --color-sidebar: var(--sidebar);
 
-  /* Shadow ink — derived from the foreground so it warms/cools with the theme. */
   --shadow-ink: var(--dt-foreground);
-  --shadow-sidebar:
-    0.0625rem 0 0.125rem 0 color-mix(in srgb, #000 4%, transparent),
-    0.5rem 0 1.5rem -1rem color-mix(in srgb, #000 5%, transparent),
-    1.25rem 0 3rem -2rem color-mix(in srgb, #000 6%, transparent);
   --shadow-header:
     0 0.5rem 0.875rem -0.375rem color-mix(in srgb, var(--dt-background) 96%, transparent),
     0 1.25rem 2rem -0.875rem color-mix(in srgb, var(--dt-background) 82%, transparent),
@@ -74,16 +62,12 @@
     0 0 0 0.125rem color-mix(in srgb, var(--dt-ring) 14%, transparent),
     0 0 0 0.0625rem color-mix(in srgb, var(--dt-ring) 26%, transparent),
     0 0.1875rem 0.625rem color-mix(in srgb, var(--shadow-ink) 4%, transparent);
-  --shadow-user-message:
-    0 0.0625rem 0.125rem color-mix(in srgb, var(--shadow-ink) 6%, transparent),
-    0 0.25rem 0.75rem color-mix(in srgb, var(--shadow-ink) 4%, transparent);
 }
 
 @layer base {
   :root {
     color-scheme: dark;
 
-    /* Default visual tokens. ThemeProvider only overrides colors and font families. */
     --dt-background: #f7f7f7;
     --dt-foreground: #242424;
     --dt-card: #ffffff;
@@ -116,22 +100,20 @@
     --dt-spacing-mul: 1;
 
     --radius: 0.75rem;
-    /* Thread ViewportFooter — gap from last msg → composer (scroll only) */
-    --thread-composer-clearance: 8rem;
-    /* Composer geometry — single source of truth for shell + controls. */
+    --radius-scalar: 0.2;
+
+    --thread-composer-clearance: 10dvh;
+
     --composer-shell-pad-block-end: 2.5rem;
-    --composer-inline-clearance: clamp(1rem, 5vw, 4rem);
-    --composer-min-width: 34rem;
-    --composer-target-width: 68%;
-    --composer-max-width: 56rem;
+    --thread-bottom-pad: clamp(2rem, 4dvh, 3.5rem);
+
+    --message-text-indent: 1.5rem;
+
+    --composer-width: 88%;
     --composer-control-size: 2rem;
-    /* Send / voice-conversation circle is one notch larger than the ghost
-     * controls so the primary CTA visually anchors the right edge. */
     --composer-control-primary-size: 2.125rem;
     --composer-control-gap: 0.375rem;
     --composer-row-gap: 0.375rem;
-    /* Reference-clean padding: enough breathing room around the input row
-     * that the pill no longer feels cramped against its controls. */
     --composer-surface-pad-x: 0.625rem;
     --composer-surface-pad-y: 0.5rem;
     --composer-input-min-height: 2rem;
@@ -142,10 +124,8 @@
     --image-preview-max-width: 34rem;
     --image-preview-height: clamp(16.25rem, calc(var(--vsq) * 100), 26.25rem);
 
-    /* Shell layout */
     --sidebar-width: 14rem;
     --chat-min-width: 24rem;
-    --shell-gap: 0.625rem;
     --titlebar-control-size: 1.25rem;
     --titlebar-control-height: 1.375rem;
 
@@ -158,14 +138,17 @@
     --sidebar-border: var(--dt-sidebar-border);
     --sidebar-ring: var(--dt-ring);
     --sidebar-edge-border: color-mix(in srgb, var(--dt-sidebar-border) 42%, transparent);
+
+    --midground: var(--dt-midground);
+    --background: var(--dt-background);
+    --foreground: var(--dt-foreground);
+
+    --warm-glow: color-mix(in srgb, var(--dt-midground) 35%, transparent);
+    --noise-opacity-mul: 1;
   }
 
   :root.dark {
     --sidebar-edge-border: color-mix(in srgb, var(--dt-sidebar-border) 78%, transparent);
-    --shadow-sidebar:
-      0.0625rem 0 0.125rem 0 color-mix(in srgb, #000 82%, transparent),
-      0.75rem 0 1.75rem -1rem color-mix(in srgb, #000 72%, transparent),
-      1.5rem 0 3rem -1.75rem color-mix(in srgb, #000 62%, transparent);
   }
 
   * {
@@ -199,6 +182,92 @@
   button,
   textarea {
     font: inherit;
+  }
+
+  *::selection {
+    background: var(--dt-midground);
+    color: var(--dt-midground-foreground);
+  }
+}
+
+.dither {
+  background: repeating-conic-gradient(currentColor 0% 25%, transparent 0% 50%) 0 0 / 2px 2px;
+}
+
+:root:not([style*='--theme-asset-bg:']) .theme-default-filler {
+  display: block;
+}
+
+:root[style*='--theme-asset-bg:'] .theme-default-filler {
+  display: none;
+}
+
+@layer utilities {
+  [class*='rounded-full'],
+  [class*=':rounded-full'] {
+    border-radius: calc(var(--radius-scalar) * 9999px);
+  }
+}
+
+@keyframes arc-border {
+  0% {
+    background-position: 15% 15%;
+  }
+  100% {
+    background-position: 75% 75%;
+  }
+}
+
+.arc-border {
+  --arc-c0: color-mix(in srgb, var(--dt-foreground) 0%, transparent);
+  --arc-c1: var(--dt-midground);
+  --arc-c2: var(--dt-background);
+  --arc-angle: 160deg;
+  --arc-width: 1.25px;
+  --arc-inset: -2px;
+  --arc-duration: 2.23s;
+
+  pointer-events: none;
+  position: absolute;
+  overflow: hidden;
+  border-radius: inherit;
+  inset: var(--arc-inset);
+  padding: var(--arc-width);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.arc-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    var(--arc-angle),
+    transparent 0%,
+    var(--arc-c0) 15%,
+    var(--arc-c1) 20%,
+    var(--arc-c2) 25%,
+    transparent 35%,
+    transparent 40%,
+    var(--arc-c0) 55%,
+    var(--arc-c1) 60%,
+    var(--arc-c2) 65%,
+    transparent 75%,
+    transparent 80%,
+    var(--arc-c0) 95%,
+    var(--arc-c1) 100%
+  );
+  background-size: 300% 300%;
+  animation: arc-border var(--arc-duration) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arc-border::before {
+    animation: none;
   }
 }
 
@@ -238,125 +307,54 @@ canvas {
   -webkit-user-drag: none;
 }
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--dt-muted-foreground) 32%, transparent) transparent;
+@layer components {
+  .scrollbar-dt,
+  .scrollbar-dt * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--dt-midground) 18%, transparent) transparent;
+  }
+
+  .scrollbar-dt::-webkit-scrollbar,
+  .scrollbar-dt *::-webkit-scrollbar {
+    width: 0.5rem;
+    height: 0.5rem;
+  }
+
+  .scrollbar-dt::-webkit-scrollbar-track,
+  .scrollbar-dt::-webkit-scrollbar-corner,
+  .scrollbar-dt *::-webkit-scrollbar-track,
+  .scrollbar-dt *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  .scrollbar-dt::-webkit-scrollbar-thumb,
+  .scrollbar-dt *::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--dt-midground) 18%, transparent);
+    border-radius: 9999px;
+    border: 0.125rem solid transparent;
+    background-clip: padding-box;
+  }
+
+  .scrollbar-dt::-webkit-scrollbar-thumb:hover,
+  .scrollbar-dt *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--dt-midground) 40%, transparent);
+    background-clip: padding-box;
+  }
+
+  .scrollbar-dt::-webkit-scrollbar-button,
+  .scrollbar-dt *::-webkit-scrollbar-button {
+    display: none;
+  }
 }
 
-*::-webkit-scrollbar {
-  width: 0.5rem;
-  height: 0.5rem;
+[data-slot='aui_assistant-message-content'] {
+  padding-left: var(--message-text-indent);
 }
 
-*::-webkit-scrollbar-track,
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--dt-muted-foreground) 32%, transparent);
-  border-radius: 9999px;
-  border: 0.125rem solid transparent;
-  background-clip: padding-box;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--dt-muted-foreground) 55%, transparent);
-  background-clip: padding-box;
-}
-
-*::-webkit-scrollbar-button {
-  display: none;
-}
-
-/*
- * Previously applied `content-visibility: auto` + `contain-intrinsic-size` to
- * message roots for virtualization-lite perf. REMOVED because it interacts
- * badly with a stick-to-bottom scroller:
- *
- *   1. Session loads, messages render at their real heights.
- *   2. Scroller pins to `scrollHeight - clientHeight`.
- *   3. A few seconds later the browser's content-visibility heuristic kicks
- *      in for off-screen messages and collapses them to the 10rem intrinsic
- *      placeholder — shrinking total scrollHeight by a large margin.
- *   4. The browser clamps scrollTop to the new (smaller) scrollHeight, and
- *      the user's viewport "scrolls up by a weird %" a few seconds after
- *      the session loads. Feels like a scroll bug; actually CSS.
- *
- * If we want perf here again, the correct path is a real virtualizer (e.g.
- * react-virtuoso) with stable item sizing — not a CSS heuristic.
- */
-
-[data-slot='aui_assistant-message-content'] .aui-md img {
-  display: block;
-  width: auto;
-  height: auto;
-  max-width: min(100%, var(--image-preview-max-width));
-  max-height: var(--image-preview-height);
-  object-fit: contain;
-  border: 0.0625rem solid color-mix(in srgb, var(--dt-border) 70%, transparent);
-  border-radius: 1.125rem;
-  box-shadow:
-    0 0.0625rem 0.125rem color-mix(in srgb, #000 4%, transparent),
-    0 0.625rem 1.5rem color-mix(in srgb, #000 5%, transparent);
-}
-
-[data-slot='aui_assistant-message-content'] .aui-md [data-slot='aui_markdown-image'] {
-  max-width: min(100%, var(--image-preview-max-width));
-}
-
-[data-slot='aui_assistant-message-content'] .aui-md {
-  overflow-wrap: anywhere;
-}
-
-.hermes-preview-webview {
-  display: flex;
-}
-
-[data-slot='composer-root'] {
-  width: clamp(var(--composer-min-width), var(--composer-target-width), var(--composer-max-width));
-  max-width: calc(100% - var(--composer-inline-clearance));
-  transform: translateX(-50%);
-}
-
-/* Thread scroll container (from use-stick-to-bottom).
- * `scroll-behavior: auto` is critical: use-stick-to-bottom writes scrollTop
- * directly and temporarily forces this to 'auto' during its programmatic
- * scrolls, but we default it to 'auto' anyway so no smooth-scroll fight can
- * ever happen. We leave overflow-anchor at the browser default ('auto'); the
- * library handles follow-mode imperatively. */
-[data-slot='aui_thread-content'] {
-  scroll-behavior: auto;
-}
-
-[data-slot='aui_assistant-message-content'] .aui-md a {
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-/**
- * Inline `code`: monospace pill with a subtle background. Scoped to plain
- * inline code only — fenced blocks are handled by the SyntaxHighlighter
- * component and live inside `[data-streamdown='code-block']`, so we explicitly
- * unset there to keep the highlighter rendering its own chrome.
- */
-[data-slot='aui_assistant-message-content'] .aui-md code {
-  /* Inline (not inside a fenced code-block). Use plain inline rendering so
-   * the surrounding `<p>` (wrap-anywhere) can break long paths/URLs at any
-   * character. inline-block + white-space: nowrap was leaking long paths
-   * past the chat column under any sibling pane width. */
-  display: inline;
-  max-width: 100%;
-  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
-  font-size: 0.86em;
-  padding: 0.01rem 0.2rem;
-  border-radius: 0.25rem;
-  background: color-mix(in srgb, var(--dt-muted) 80%, transparent);
-  color: var(--dt-muted-foreground);
-  border: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: normal;
+[data-slot='aui_assistant-message-content'] > [data-slot='tool-block'] {
+  margin-inline-start: calc(-1 * var(--message-text-indent));
+  width: calc(100% + var(--message-text-indent));
+  max-width: calc(100% + var(--message-text-indent));
 }
 
 [data-slot='aui_assistant-message-content'] .aui-md [data-streamdown='code-block'] code {
@@ -374,37 +372,6 @@ canvas {
   white-space: inherit;
 }
 
-[data-slot='aui_assistant-message-content'] .aui-md p:has(> img:only-child) {
-  margin-block: 0.75rem;
-}
-
-[data-slot='aui_assistant-message-content'] .aui-md p:has(> [data-slot='aui_markdown-image']:only-child) {
-  margin-block: 0.75rem;
-}
-
-/**
- * Markdown rhythm. Streamdown's wrapper <div> blocks `> *` selectors and
- * its bundled `space-y-4` lives in node_modules (unscanned by Tailwind v4),
- * so we drive everything from descendant selectors against tags. Each
- * block gets a uniform `margin-bottom`; headings add `margin-top` for
- * section breaks. Margin collapse picks the larger neighbor — producing
- * "more above headings, less below" without per-pair rules.
- */
-[data-slot='aui_assistant-message-content'] .aui-md p,
-[data-slot='aui_assistant-message-content'] .aui-md ul,
-[data-slot='aui_assistant-message-content'] .aui-md ol,
-[data-slot='aui_assistant-message-content'] .aui-md blockquote,
-[data-slot='aui_assistant-message-content'] .aui-md pre,
-[data-slot='aui_assistant-message-content'] .aui-md table,
-[data-slot='aui_assistant-message-content'] .aui-md [data-streamdown='code-block'],
-[data-slot='aui_assistant-message-content'] .aui-md div:has(> table) {
-  margin: 0 0 1rem;
-}
-
-/* Streamdown wraps every fenced block in <div data-streamdown="code-block">
- * with `flex flex-col gap-2 p-2 border bg-sidebar rounded-xl my-4`. Our own
- * CodeHeader + SyntaxHighlighter already supply the chrome, so undo the
- * library's wrapper to keep the header flush with the code body. */
 [data-slot='aui_assistant-message-content'] .aui-md [data-streamdown='code-block'] {
   padding: 0 !important;
   gap: 0 !important;
@@ -418,91 +385,10 @@ canvas {
   margin: 0 !important;
 }
 
-[data-slot='aui_assistant-message-content'] .aui-md h1 {
-  margin: 1.6rem 0 0.55rem;
-}
-[data-slot='aui_assistant-message-content'] .aui-md h2 {
-  margin: 1.4rem 0 0.5rem;
-}
-[data-slot='aui_assistant-message-content'] .aui-md h3 {
-  margin: 1.15rem 0 0.45rem;
-}
-[data-slot='aui_assistant-message-content'] .aui-md h4 {
-  margin: 0.95rem 0 0.4rem;
-}
-
-[data-slot='aui_assistant-message-content'] .aui-md hr {
-  margin: 1.5rem 0;
-}
-
-/* `padding-left` keeps outside-position list markers in the gutter. */
-[data-slot='aui_assistant-message-content'] .aui-md ul,
-[data-slot='aui_assistant-message-content'] .aui-md ol {
-  padding-left: 1.75rem;
-}
-
-/* Tight inter-bullet gap; loose items override below. */
-[data-slot='aui_assistant-message-content'] .aui-md li + li {
-  margin-top: 0.375rem;
-}
-
-/* Inside a bullet, hug nested blocks to the lead text. */
-[data-slot='aui_assistant-message-content'] .aui-md li > p {
-  margin-bottom: 0.4rem;
-}
-[data-slot='aui_assistant-message-content'] .aui-md li > ul,
-[data-slot='aui_assistant-message-content'] .aui-md li > ol {
-  margin-top: 0.4rem;
-}
-
-/* Loose list items (CommonMark wraps each in <p> when any sibling has a
-   block child) need visible separation — the tight rhythm collapses
-   against a trailing heavy block like a code fence. */
-[data-slot='aui_assistant-message-content'] .aui-md li:has(> p) {
-  margin-bottom: 0.85rem;
-}
-[data-slot='aui_assistant-message-content'] .aui-md li:has(> p):last-child {
-  margin-bottom: 0;
-}
-
-/* Trim edge margins at the container, list items, and blockquotes. */
-[data-slot='aui_assistant-message-content'] .aui-md > :first-child,
-[data-slot='aui_assistant-message-content'] .aui-md > * > :first-child,
-[data-slot='aui_assistant-message-content'] .aui-md li > :first-child,
-[data-slot='aui_assistant-message-content'] .aui-md blockquote > :first-child {
-  margin-top: 0;
-}
-[data-slot='aui_assistant-message-content'] .aui-md > :last-child,
-[data-slot='aui_assistant-message-content'] .aui-md > * > :last-child,
-[data-slot='aui_assistant-message-content'] .aui-md li > :last-child,
-[data-slot='aui_assistant-message-content'] .aui-md blockquote > :last-child {
-  margin-bottom: 0;
-}
-
-/**
- * Intelligent spacing around inline tool/thinking blocks inside an
- * assistant message.
- *
- * Two cases to balance:
- *   1. Two tool/thinking rows next to each other  → keep them tight so a
- *      multi-step turn reads as one continuous activity column.
- *   2. A tool/thinking row next to prose (markdown text)  → give it real
- *      breathing room so the activity feels like a separate panel and
- *      doesn't crowd the paragraph above or below.
- *
- * Markdown text is wrapped in `.aui-md`; tool/thinking rows expose
- * `data-slot="tool-block"`. Sibling combinators handle the rest.
- */
 [data-slot='tool-block'] + [data-slot='tool-block'] {
   margin-top: 0.25rem;
 }
 
-/**
- * When the previous tool/thinking block is expanded (showing its content),
- * give the next block visible breathing room so they don't read as one
- * continuous chunk. The :has() guard keeps the tight rhythm between two
- * collapsed rows.
- */
 [data-slot='tool-block']:has(> :nth-child(2)) + [data-slot='tool-block'] {
   margin-top: 0.625rem;
 }
@@ -512,8 +398,6 @@ canvas {
   margin-top: 0.875rem;
 }
 
-/* When the assistant message starts with a tool block, don't pile padding
- * above it — the message header already provides spacing. */
 [data-slot='aui_assistant-message-content'] > [data-slot='tool-block']:first-child {
   margin-top: 0;
 }

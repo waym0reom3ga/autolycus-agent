@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { SessionActionsMenu } from './session-actions-menu'
 
 export const sidebarSessionRowClass =
-  'group relative grid min-h-7 grid-cols-[minmax(0,1fr)_1.5rem] items-center rounded-lg transition-colors duration-300 ease-out hover:bg-accent hover:transition-none'
+  'group relative grid min-h-7 grid-cols-[minmax(0,1fr)_1.5rem] items-center rounded-lg transition-colors duration-300 ease-out hover:bg-[color-mix(in_srgb,var(--dt-midground)_8%,transparent)] hover:transition-none'
 
 export const sidebarSessionFadeClass =
   'after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:z-1 after:w-18 after:rounded-[inherit] after:bg-linear-to-r after:from-transparent after:via-[color-mix(in_srgb,var(--dt-sidebar-bg)_78%,transparent)] after:to-[color-mix(in_srgb,var(--dt-sidebar-bg)_96%,transparent)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-out hover:after:opacity-100 focus-within:after:opacity-100'
@@ -46,6 +46,7 @@ export function SidebarSessionRow({
       )}
       data-working={isWorking ? 'true' : undefined}
     >
+      {isWorking && <span aria-hidden="true" className="arc-border" />}
       <button
         className="z-0 flex min-w-0 items-center gap-1.5 bg-transparent py-1 pl-2 text-left"
         onClick={event => {
@@ -65,7 +66,7 @@ export function SidebarSessionRow({
         {isWorking && (
           <span
             aria-label="Session running"
-            className="relative size-1.5 shrink-0 rounded-full bg-primary shadow-[0_0_0.625rem_color-mix(in_srgb,var(--primary)_65%,transparent)] before:absolute before:inset-0 before:rounded-full before:bg-primary before:opacity-75 before:content-[''] before:animate-ping"
+            className="relative size-1.5 shrink-0 rounded-full bg-midground shadow-[0_0_0.625rem_color-mix(in_srgb,var(--dt-midground)_65%,transparent)] before:absolute before:inset-0 before:rounded-full before:bg-midground before:opacity-75 before:content-[''] before:animate-ping"
             role="status"
           />
         )}

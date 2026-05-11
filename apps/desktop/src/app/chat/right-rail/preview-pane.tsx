@@ -1351,7 +1351,7 @@ export function PreviewPane({
     }
 
     const webview = document.createElement('webview') as PreviewWebview
-    webview.className = 'hermes-preview-webview h-full w-full flex-1 bg-background'
+    webview.className = 'flex h-full w-full flex-1 bg-background'
     webview.setAttribute('partition', 'persist:hermes-preview')
     webview.setAttribute('src', target.url)
     webview.setAttribute('webpreferences', 'contextIsolation=yes,nodeIntegration=no,sandbox=yes')

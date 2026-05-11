@@ -192,7 +192,10 @@ export const Intro: FC<IntroProps> = ({ personality, seed }) => {
         />
       </button>
       <div className="w-full min-w-0 max-w-xl">
-        <p className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground/75">Hermes Agent</p>
+        <p className="mb-3 inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.18em] text-midground/85">
+          <span aria-hidden="true" className="dither inline-block size-1.5 rounded-[1px]" />
+          Hermes Agent
+        </p>
         <h1 className="mb-2.5 text-xl font-semibold tracking-tight text-foreground">{copy.headline}</h1>
         <p className="m-0 leading-normal">{copy.body}</p>
       </div>

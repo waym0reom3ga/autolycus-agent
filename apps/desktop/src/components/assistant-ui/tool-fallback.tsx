@@ -28,11 +28,7 @@ import { cn } from '@/lib/utils'
 import { $toolInlineDiffs } from '@/store/tool-diffs'
 import { $toolDisclosureStates, $toolViewMode, setToolDisclosureOpen } from '@/store/tool-view'
 
-// Indent tool detail content via box-sizing-honoring padding, not margin.
-// Margin-left + max-w-full causes the box to overflow its parent by the
-// margin amount, which makes wide tool content (preview cards, diffs)
-// extend past the chat column when right-side panes are open.
-const TOOL_DETAIL_INDENT_CLASS = 'w-full pl-[1.5rem] pr-2'
+const TOOL_DETAIL_INDENT_CLASS = 'w-full pl-(--message-text-indent) pr-2'
 
 type ToolTone = 'agent' | 'browser' | 'default' | 'file' | 'image' | 'terminal' | 'web'
 type ToolStatus = 'error' | 'running' | 'success' | 'warning'
@@ -128,6 +124,11 @@ const STATUS_ICON_CLASS: Record<ToolStatus, string> = {
   warning: 'bg-amber-500/14 text-amber-700 dark:text-amber-300'
 }
 
+const DISPLAY_URL_RE = /https?:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?]/g
+const INLINE_CODE_SPLIT_RE = /(`[^`\n]+`)/g
+const CITATION_MARKER_RE = /(?<=[\p{L}\p{N})\].,!?:;"'”’])\[(?:\d+(?:\s*,\s*\d+)*)\](?!\()/gu
+const BACKTICK_NOISE_RE = /`{3,}/g
+
 function titleForTool(name: string): string {
   const normalized = name.replace(/^browser_/, '').replace(/^web_/, '')
 
@@ -163,13 +164,19 @@ function toolMeta(name: string): ToolMeta {
     : { done: action, pending: `Running ${action.toLowerCase()}`, icon: Wrench, tone: 'default' }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
 function compactPreview(value: unknown, max = 72): string {
   let raw: unknown
+
   if (typeof value === 'string') {
     raw = value
   } else {
     raw = parseMaybeObject(value).context
   }
+
   if (typeof raw !== 'string') {
     if (raw == null) {
       raw = ''
@@ -181,6 +188,7 @@ function compactPreview(value: unknown, max = 72): string {
       }
     }
   }
+
   const line = (raw as string).replace(/\s+/g, ' ').trim()
 
   return line.length > max ? `${line.slice(0, max - 1)}…` : line
@@ -205,8 +213,8 @@ function prettyJson(value: unknown): string {
 }
 
 function parseMaybeObject(value: unknown): Record<string, unknown> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>
+  if (isRecord(value)) {
+    return value
   }
 
   if (typeof value !== 'string' || !value.trim()) {
@@ -216,10 +224,24 @@ function parseMaybeObject(value: unknown): Record<string, unknown> {
   try {
     const parsed = JSON.parse(value)
 
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {}
+    return isRecord(parsed) ? parsed : {}
   } catch {
     return {}
   }
+}
+
+function unwrapToolPayload(value: unknown): unknown {
+  const record = parseMaybeObject(value)
+
+  for (const key of ['data', 'result', 'output', 'response', 'payload']) {
+    const payload = record[key]
+
+    if (payload !== undefined && payload !== null) {
+      return payload
+    }
+  }
+
+  return value
 }
 
 function numberValue(value: unknown): null | number {
@@ -311,6 +333,56 @@ function looksRedundant(title: string, detail: string): boolean {
   return norm(title) === norm(detail)
 }
 
+function cleanVisibleText(text: string): string {
+  return text
+    .split(INLINE_CODE_SPLIT_RE)
+    .map(part => (part.startsWith('`') ? part : part.replace(BACKTICK_NOISE_RE, '').replace(CITATION_MARKER_RE, '')))
+    .join('')
+}
+
+function openExternal(url: string) {
+  void window.hermesDesktop?.openExternal(url)
+}
+
+function LinkifiedText({ className, text }: { className?: string; text: string }) {
+  const cleanText = cleanVisibleText(text)
+  const nodes: ReactNode[] = []
+  let cursor = 0
+
+  for (const match of cleanText.matchAll(DISPLAY_URL_RE)) {
+    const url = match[0]
+    const index = match.index ?? 0
+
+    if (index > cursor) {
+      nodes.push(cleanText.slice(cursor, index))
+    }
+
+    nodes.push(
+      <a
+        className="font-medium text-foreground underline underline-offset-4 decoration-midground/55 wrap-anywhere hover:decoration-midground"
+        href={url}
+        key={`${url}-${index}`}
+        onClick={event => {
+          event.stopPropagation()
+          event.preventDefault()
+          openExternal(url)
+        }}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        {url}
+      </a>
+    )
+    cursor = index + url.length
+  }
+
+  if (cursor < cleanText.length) {
+    nodes.push(cleanText.slice(cursor))
+  }
+
+  return <span className={className}>{nodes.length ? nodes : cleanText}</span>
+}
+
 function summarizeBrowserSnapshot(snapshot: string): string {
   const count = (re: RegExp) => snapshot.match(re)?.length ?? 0
 
@@ -340,27 +412,131 @@ function firstStringField(record: Record<string, unknown>, keys: readonly string
   return ''
 }
 
-function extractSearchResults(result: unknown): SearchResultRow[] {
-  const row = parseMaybeObject(result)
+function formatScalar(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim()
+  }
 
-  const list = (
-    Array.isArray(row.results)
-      ? row.results
-      : Array.isArray(row.items)
-        ? row.items
-        : Array.isArray(row.data)
-          ? row.data
-          : []
-  ) as unknown[]
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  return ''
+}
+
+function summarizeRecord(record: Record<string, unknown>): string {
+  const title = firstStringField(record, ['title', 'name', 'path', 'file', 'filepath', 'url', 'href', 'link'])
+  const subtitle = firstStringField(record, ['url', 'href', 'link', 'status', 'category'])
+  const body = firstStringField(record, ['snippet', 'description', 'summary', 'message', 'preview', 'text', 'content'])
+
+  if (title || subtitle || body) {
+    return cleanVisibleText([title, subtitle !== title ? subtitle : '', body].filter(Boolean).join('\n'))
+  }
+
+  return Object.entries(record)
+    .map(([key, value]) => {
+      const scalar = formatScalar(value)
+
+      return scalar ? `${titleForTool(key)}: ${compactPreview(cleanVisibleText(scalar), 96)}` : ''
+    })
+    .filter(Boolean)
+    .slice(0, 4)
+    .join('\n')
+}
+
+function summarizeList(items: unknown[], max = 5): string {
+  return items
+    .map(item => {
+      if (isRecord(item) || (typeof item === 'string' && item.trim().startsWith('{'))) {
+        return summarizeRecord(parseMaybeObject(item))
+      }
+
+      return compactPreview(item, 140)
+    })
+    .filter(Boolean)
+    .slice(0, max)
+    .join('\n\n')
+}
+
+function collectResultItems(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value
+  }
+
+  const record = parseMaybeObject(value)
+
+  for (const key of ['web', 'results', 'items', 'organic_results', 'organic', 'matches', 'documents']) {
+    const candidate = record[key]
+
+    if (Array.isArray(candidate)) {
+      return candidate
+    }
+
+    if (isRecord(candidate)) {
+      const nested = collectResultItems(candidate)
+
+      if (nested.length) {
+        return nested
+      }
+    }
+  }
+
+  const payload = unwrapToolPayload(record)
+
+  return payload === record ? [] : collectResultItems(payload)
+}
+
+function friendlyJsonSummary(value: unknown, depth = 0): string {
+  if (depth > 2) {
+    return ''
+  }
+
+  if (Array.isArray(value)) {
+    return summarizeList(value)
+  }
+
+  const record = parseMaybeObject(value)
+
+  if (!Object.keys(record).length) {
+    return ''
+  }
+
+  const direct = firstStringField(record, ['message', 'summary', 'preview', 'content', 'text', 'stdout', 'stderr', 'error'])
+
+  if (direct) {
+    return cleanVisibleText(direct)
+  }
+
+  const items = collectResultItems(record)
+
+  if (items.length) {
+    return summarizeList(items)
+  }
+
+  const payload = unwrapToolPayload(record)
+
+  if (payload !== value && payload !== record) {
+    const payloadSummary = friendlyJsonSummary(payload, depth + 1)
+
+    if (payloadSummary) {
+      return payloadSummary
+    }
+  }
+
+  return ''
+}
+
+function extractSearchResults(result: unknown): SearchResultRow[] {
+  const list = collectResultItems(result)
 
   return list
     .map(item => {
       const r = parseMaybeObject(item)
 
       return {
-        title: firstStringField(r, ['title', 'name']),
+        title: cleanVisibleText(firstStringField(r, ['title', 'name'])),
         url: firstStringField(r, ['url', 'href', 'link']),
-        snippet: firstStringField(r, ['snippet', 'description', 'body'])
+        snippet: cleanVisibleText(firstStringField(r, ['snippet', 'description', 'body']))
       }
     })
     .filter(hit => hit.title || hit.url)
@@ -493,10 +669,10 @@ function fallbackDetailText(args: unknown, result: unknown): string {
   }
 
   if (result !== undefined) {
-    return prettyJson(result)
+    return friendlyJsonSummary(result) || prettyJson(result)
   }
 
-  return prettyJson(args)
+  return friendlyJsonSummary(args) || prettyJson(args)
 }
 
 function toolSubtitle(
@@ -593,7 +769,10 @@ function toolSubtitle(
   }
 
   return (
-    compactPreview(resultRecord, 120) || compactPreview(argsRecord, 120) || fallbackDetailText(argsRecord, resultRecord)
+    compactPreview(friendlyJsonSummary(part.result), 120) ||
+    compactPreview(resultRecord, 120) ||
+    compactPreview(argsRecord, 120) ||
+    fallbackDetailText(argsRecord, resultRecord)
   )
 }
 
@@ -682,17 +861,6 @@ function toolDetailText(
   return fallbackDetailText(argsRecord, resultRecord)
 }
 
-/**
- * Pick the most useful single string for the user to copy from this tool
- * call.
- *
- * Heuristic: prefer the substantive *output* (the thing the user actually
- * sees in the expanded panel) over the meta target (URL, path, query). The
- * old behavior was the reverse, which meant clicking copy on a `read_file`
- * row that had just dumped a 400-line file would copy "src/foo.ts" instead
- * of the file. Tools where the meta is genuinely more useful than the
- * output (e.g. a search query) keep their meta-first behavior.
- */
 function toolCopyPayload(part: ToolPart, view: ToolView): { label: string; text: string } {
   const args = parseMaybeObject(part.args)
   const result = parseMaybeObject(part.result)
@@ -996,10 +1164,7 @@ function ToolEntry({ embedded = false, part }: ToolEntryProps) {
 
   const renderDetailAsCode =
     view.status !== 'error' &&
-    (part.toolName === 'terminal' ||
-      part.toolName === 'execute_code' ||
-      part.toolName === 'read_file' ||
-      part.toolName === 'web_extract')
+    (part.toolName === 'terminal' || part.toolName === 'execute_code' || part.toolName === 'read_file')
 
   const hasExpandableContent = Boolean(
     (view.previewTarget && isPreviewableTarget(view.previewTarget)) ||
@@ -1019,24 +1184,25 @@ function ToolEntry({ embedded = false, part }: ToolEntryProps) {
       <div
         className={cn(
           'group/tool-row relative flex w-full max-w-full min-w-0 items-start rounded-md text-muted-foreground transition-colors',
-          hasExpandableContent && 'hover:bg-accent/35 hover:text-foreground'
+          hasExpandableContent &&
+            'hover:bg-[color-mix(in_srgb,var(--dt-midground)_8%,transparent)] hover:text-foreground'
         )}
       >
         <button
           aria-expanded={hasExpandableContent ? open : undefined}
           className={cn(
-            'flex min-w-0 flex-1 items-start gap-2 px-2 py-0.5 text-left',
+            'grid w-full min-w-0 grid-cols-[var(--message-text-indent)_minmax(0,1fr)] items-start py-0.5 pr-2 text-left',
             hasExpandableContent ? 'cursor-pointer' : 'cursor-default'
           )}
           disabled={!hasExpandableContent}
           onClick={hasExpandableContent ? () => setToolDisclosureOpen(disclosureId, !open) : undefined}
           type="button"
         >
-          <span className="flex h-[1.1rem] shrink-0 items-center">
+          <span className="flex h-[1.1rem] items-center justify-center">
             {hasExpandableContent ? (
               <ChevronRight
                 className={cn(
-                  'size-3 text-muted-foreground/55 transition-transform group-hover/tool-row:text-muted-foreground/85',
+                  'size-3 text-midground/55 transition-transform group-hover/tool-row:text-midground',
                   open && 'rotate-90'
                 )}
               />
@@ -1044,7 +1210,7 @@ function ToolEntry({ embedded = false, part }: ToolEntryProps) {
               <span aria-hidden="true" className="size-3" />
             )}
           </span>
-          <span className="min-w-0 flex-1">
+          <span className="min-w-0">
             <span className="flex min-w-0 items-baseline gap-1.5">
               {showStatusGlyph && (
                 <span className="flex h-[1.1rem] shrink-0 items-center">
@@ -1062,7 +1228,7 @@ function ToolEntry({ embedded = false, part }: ToolEntryProps) {
                 {view.title}
               </FadeText>
               {!isPending && view.durationLabel && (
-                <span className="shrink-0 text-[0.625rem] tabular-nums text-muted-foreground/55">
+                <span className="shrink-0 text-[0.625rem] tabular-nums text-midground/60 tracking-[0.04em]">
                   {view.durationLabel}
                 </span>
               )}
@@ -1119,7 +1285,9 @@ function ToolEntry({ embedded = false, part }: ToolEntryProps) {
             (view.status === 'error' ? (
               detailSections.summary || detailSections.body ? (
                 <div className="max-w-full text-xs leading-relaxed text-destructive">
-                  {detailSections.summary && <p className="font-medium">{detailSections.summary}</p>}
+                  {detailSections.summary && (
+                    <LinkifiedText className="block font-medium" text={detailSections.summary} />
+                  )}
                   {detailSections.body && (
                     <pre
                       className={cn(
@@ -1144,7 +1312,7 @@ function ToolEntry({ embedded = false, part }: ToolEntryProps) {
                     {view.detail}
                   </pre>
                 ) : (
-                  <p className="whitespace-pre-wrap wrap-anywhere">{view.detail}</p>
+                  <LinkifiedText className="whitespace-pre-wrap wrap-anywhere" text={view.detail} />
                 )}
               </div>
             ))}
@@ -1196,9 +1364,6 @@ function ToolGroup({ parts }: { parts: ToolPart[] }) {
   const disclosureStates = useStore($toolDisclosureStates)
   const disclosureId = toolGroupDisclosureId(parts)
   const open = disclosureStates[disclosureId] ?? isRunning
-  // Auto-collapse once the whole turn settles. While streaming, keep open
-  // so the user can watch progress; on completion we fold it down to a
-  // single Activity row, matching the webui pattern.
   const wasRunningRef = useRef(isRunning)
 
   useEffect(() => {
@@ -1274,11 +1439,11 @@ function ToolGroup({ parts }: { parts: ToolPart[] }) {
       <div className="group/tool-row relative flex w-full max-w-full min-w-0 items-start rounded-md text-muted-foreground transition-colors hover:bg-accent/35 hover:text-foreground">
         <button
           aria-expanded={open}
-          className="flex min-w-0 flex-1 items-start gap-2 px-2 py-0.5 text-left"
+          className="grid w-full min-w-0 cursor-pointer grid-cols-[var(--message-text-indent)_minmax(0,1fr)] items-start py-0.5 pr-2 text-left"
           onClick={() => setToolDisclosureOpen(disclosureId, !open)}
           type="button"
         >
-          <span className="flex h-[1.1rem] shrink-0 items-center">
+          <span className="flex h-[1.1rem] items-center justify-center">
             <ChevronRight
               className={cn(
                 'size-3 text-muted-foreground/55 transition-transform group-hover/tool-row:text-muted-foreground/85',
@@ -1286,7 +1451,7 @@ function ToolGroup({ parts }: { parts: ToolPart[] }) {
               )}
             />
           </span>
-          <span className="min-w-0 flex-1">
+          <span className="min-w-0">
             <span className="flex min-w-0 items-baseline gap-1.5">
               {showGroupStatusGlyph && (
                 <span className="flex h-[1.1rem] shrink-0 items-center">{statusGlyph(status)}</span>
