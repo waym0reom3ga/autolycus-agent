@@ -121,6 +121,36 @@ def custom_provider_slug(display_name: str) -> str:
 PYEOF
 fi
 
+# === Post-sync patches: remove Windows-specific files and CI jobs ===
+# These files are not needed on our FreeBSD/Linux-focused fork
+if [ -f scripts/check-windows-footguns.py ]; then
+    echo "Removing scripts/check-windows-footguns.py..."
+    rm scripts/check-windows-footguns.py
+fi
+if [ -f scripts/install.cmd ]; then
+    echo "Removing scripts/install.cmd..."
+    rm scripts/install.cmd
+fi
+if [ -f scripts/install.ps1 ]; then
+    echo "Removing scripts/install.ps1..."
+    rm scripts/install.ps1
+fi
+
+# Remove windows-footguns job from lint workflow if present
+if grep -q "windows-footguns:" .github/workflows/lint.yml 2>/dev/null; then
+    echo "Removing windows-footguns job from lint.yml..."
+    python3 -c "
+import re
+path = '.github/workflows/lint.yml'
+with open(path) as f:
+    content = f.read()
+# Remove the windows-footguns job block (indented under jobs:)
+content = re.sub(r'\n  windows-footguns:.*?(?=\n  [a-z]|\n\njobs:|\Z)', '', content, flags=re.DOTALL)
+with open(path, 'w') as f:
+    f.write(content)
+"
+fi
+
 # Push to origin
 git add -A
 git commit -m "upstream-sync: auto-rebase cleanup $(date -u +%Y-%m-%dT%H:%M:%SZ)" --allow-empty
