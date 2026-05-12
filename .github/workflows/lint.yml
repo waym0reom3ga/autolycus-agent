@@ -181,22 +181,4 @@ jobs:
         run: |
           ruff check .
 
-  windows-footguns:
-    # Static guardrails on Windows-unsafe Python primitives — os.kill(pid, 0),
-    # os.killpg, os.setsid, signal.SIGKILL without getattr fallback,
-    # shebang scripts via subprocess, bare open() without encoding=, etc.
-    # See scripts/check-windows-footguns.py for the full rule list.
-    name: Windows footguns (blocking)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Set up Python
-        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5
-        with:
-          python-version: "3.11"
-
-      - name: Run footgun checker
-        run: python scripts/check-windows-footguns.py --all

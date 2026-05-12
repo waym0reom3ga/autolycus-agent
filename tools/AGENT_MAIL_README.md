@@ -86,9 +86,7 @@ python3 test_agent_mail.py
 ### Test Output
 
 ```
-============================================================
 Agent Mail Tool Test Suite
-============================================================
 
 Config: test@domain.local @ mail.domain.local:993
 SMTP: mail.domain.local:587
@@ -103,9 +101,7 @@ Functional Tests:
   ✓ Tool Module Import - All 6 tools registered
   ✓ Send/Receive Loop - Test email delivered successfully
 
-============================================================
 Test Summary: 5/5 passed
-============================================================
 ```
 
 ### CI/CD Integration

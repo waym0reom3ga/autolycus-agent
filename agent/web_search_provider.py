@@ -1,6 +1,5 @@
 """
 Web Search Provider ABC
-=======================
 
 Defines the pluggable-backend interface for web search and content extraction.
 Providers register instances via ``PluginContext.register_web_search_provider()``;
