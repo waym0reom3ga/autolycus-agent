@@ -242,7 +242,7 @@ def get_dynamic_greeting() -> tuple:
         from pathlib import Path
         personality_file = Path.home() / '.hermes' / 'lycus_personality.yaml'
         if personality_file.exists():
-            with open(personality_file) as f:
+            with open(personality_file, encoding="utf-8") as f:
                 personality = yaml.safe_load(f)
             active = personality.get('active_template', 'default')
             template = personality.get('templates', {}).get(active, personality.get('templates', {}).get('default', ''))

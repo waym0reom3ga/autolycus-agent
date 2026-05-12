@@ -1,6 +1,5 @@
 """
 Web Search Provider Registry
-============================
 
 Central map of registered web providers. Populated by plugins at import-time
 via :meth:`PluginContext.register_web_search_provider`; consumed by the
