@@ -8035,7 +8035,7 @@ class HermesCLI:
                 print("(._.) Lycus personality file not found at ~/.hermes/lycus_personality.yaml")
                 return
             
-            with open(personality_file) as f:
+            with open(personality_file, encoding="utf-8") as f:
                 personality = yaml.safe_load(f)
             
             parts = cmd.split(maxsplit=1)
@@ -8046,7 +8046,7 @@ class HermesCLI:
                 
                 if template_name in available:
                     personality['active_template'] = template_name
-                    with open(personality_file, 'w') as f:
+                    with open(personality_file, 'w', encoding="utf-8") as f:
                         yaml.dump(personality, f, default_flow_style=False)
                     print(f"(^_^)b Lycus greeting template set to '{template_name}'")
                     preview = personality['templates'][template_name].strip()[:80]
