@@ -21,36 +21,45 @@ fi
 echo "Found $AHEAD new upstream commits. Rebasing..."
 
 # Rebase onto upstream
-git rebase upstream/main 2>&1 || true
-
-# Resolve known conflict patterns
-# README conflicts: always keep our (Autolycus) version
-while git status --porcelain | grep -q "UU README.md"; do
-    git checkout --ours README.md
-    git add README.md
-    GIT_EDITOR=true git rebase --continue 2>&1 || true
-done
-
-# main.py conflicts: take upstream (theirs) - our rebranding is in earlier commits
-while git status --porcelain | grep -q "UU hermes_cli/main.py"; do
-    git checkout --theirs hermes_cli/main.py
-    git add hermes_cli/main.py
-    GIT_EDITOR=true git rebase --continue 2>&1 || true
-done
-
-# cli.py conflicts: take ours (our custom additions)
-while git status --porcelain | grep -q "UU cli.py"; do
-    git checkout --ours cli.py
-    git add cli.py
-    GIT_EDITOR=true git rebase --continue 2>&1 || true
-done
-
-# General fallback: take ours for any remaining conflicts
-while git status --porcelain | grep -q "UU"; do
-    git checkout --ours $(git status --porcelain | grep "UU" | awk '{print $2}')
-    git add $(git status --porcelain | grep "UU" | awk '{print $2}')
-    GIT_EDITOR=true git rebase --continue 2>&1 || true
-done
+# Use --autostash to handle uncommitted changes, --autostash to skip empty commits
+git rebase --autostash --rebase-merges upstream/main 2>&1 || {
+    echo "Rebase had issues, attempting to auto-resolve..."
+    
+    # Resolve known conflict patterns
+    # README conflicts: always keep our (Autolycus) version
+    while git status --porcelain | grep -q "UU README.md"; do
+        git checkout --ours README.md
+        git add README.md
+        GIT_EDITOR=true git rebase --continue 2>&1 || true
+    done
+    
+    # main.py conflicts: take upstream (theirs) - our rebranding is in earlier commits
+    while git status --porcelain | grep -q "UU hermes_cli/main.py"; do
+        git checkout --theirs hermes_cli/main.py
+        git add hermes_cli/main.py
+        GIT_EDITOR=true git rebase --continue 2>&1 || true
+    done
+    
+    # cli.py conflicts: take ours (our custom additions)
+    while git status --porcelain | grep -q "UU cli.py"; do
+        git checkout --ours cli.py
+        git add cli.py
+        GIT_EDITOR=true git rebase --continue 2>&1 || true
+    done
+    
+    # General fallback: take ours for any remaining conflicts
+    while git status --porcelain | grep -q "UU"; do
+        git checkout --ours $(git status --porcelain | grep "UU" | awk '{print $2}')
+        git add $(git status --porcelain | grep "UU" | awk '{print $2}')
+        GIT_EDITOR=true git rebase --continue 2>&1 || true
+    done
+    
+    # Handle stuck "editing commit" states (empty commits during rebase)
+    if git status | grep -q "currently editing a commit"; then
+        echo "Stuck on empty commit edit, continuing..."
+        GIT_EDITOR=true git rebase --continue 2>&1 || true
+    fi
+}
 
 # Clean up any leftover conflict markers in all Python files
 for f in $(grep -rl "^<<<<<<<\|^=======\|^>>>>>>>" --include="*.py" . 2>/dev/null); do
@@ -152,6 +161,12 @@ with open(path, 'w') as f:
 fi
 
 # Push to origin
+# Safety check: ensure rebase is complete before committing
+if git status | grep -q "rebase in progress\|rebase-merge\|rebase-apply"; then
+    echo "ERROR: Rebase appears incomplete, aborting sync!"
+    exit 1
+fi
+
 git add -A
 git commit -m "upstream-sync: auto-rebase cleanup $(date -u +%Y-%m-%dT%H:%M:%SZ)" --allow-empty
 git push origin main --force-with-lease
