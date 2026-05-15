@@ -7,11 +7,13 @@
 <p align="center">
   <a href="https://github.com/waym0reom3ga/autolycus-agent"><img src="https://img.shields.io/badge/GitHub-waym0reom3ga/autolycus--agent-6e5494?style=for-the-badge&logo=github" alt="GitHub"></a>
   <a href="https://github.com/waym0reom3ga/autolycus-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-LGPL%20v2.1-blue?style=for-the-badge" alt="License: LGPL v2.1"></a>
-  <img src="https://img.shields.io/badge/FreeBSD-AB1D2E?style=for-the-badge&logo=freebsd&logoColor=white" alt="FreeBSD Only">
+  <img src="https://img.shields.io/badge/FreeBSD-AB1D2E?style=for-the-badge&logo=freebsd&logoColor=white" alt="FreeBSD">
+  <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Linux">
+  <img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS">
   <img src="https://img.shields.io/badge/Technetia%20Inc-0066cc?style=for-the-badge" alt="Technetia Inc">
 </p>
 
-> 🎉 **The World's First AI Agent for FreeBSD** — Autolycus runs natively on FreeBSD, delivering full terminal execution, file operations, and intelligent automation. An independent project by **Technetia Inc**. Not affiliated with Nous Research or the original Hermes Agent.
+> 🎉 **The World's First AI Agent for FreeBSD** — Autolycus runs natively on FreeBSD, Linux, and macOS, delivering full terminal execution, file operations, and intelligent automation. An independent project by **Technetia Inc**. Not affiliated with Nous Research or the original Hermes Agent.
 
 **The self-improving AI agent.** It creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on FreeBSD — natively, without emulation or containers.
 
@@ -28,17 +30,51 @@ Use any model you want — A local lmstudio or ollama server, or some hosted ser
 
 ---
 
-## Quick Install (FreeBSD Only)
+## Quick Install
 
-⚠️ **Autolycus runs on FreeBSD only.** Linux/macOS users should use the original [Hermes Agent](https://github.com/NousResearch/hermes-agent).
+⚠️ **Autolycus runs on FreeBSD, Linux, and macOS.** The automated installer handles OS detection and platform-specific setup.
 
 ### Prerequisites
 
 - Tested on FreeBSD 15.0 (your mileage may vary on other versions)
-- Rust/Cargo installed (`pkg install rust`)
-- Python 3.11+ available (check with `which python3.11`; if missing: `pkg install python311`)
+- Rust/Cargo installed (`pkg install rust` on FreeBSD, `rustup` on Linux/macOS)
+- Python 3.11+ available
+- `make` installed (required for building uv from source on FreeBSD)
+- Optional: add a brain to your AI Agent with a persistent database (`pkg install py311-sqlite` on FreeBSD)
 
-### Installation
+### Automated Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/waym0reom3ga/autolycus-agent.git
+cd autolycus-agent
+
+# Run the installer
+./scripts/install-autolycus.sh
+```
+
+The installer will:
+1. Detect your operating system (FreeBSD / Linux / macOS)
+2. Install uv via cargo (skips if already present)
+3. Create a virtual environment with Python 3.11
+4. Install dependencies with OS-appropriate extras (voice excluded on FreeBSD)
+5. Set up the `hermes` CLI command in `~/.local/bin`
+6. Create config files from templates
+7. Sync bundled skills
+
+After installation:
+
+```bash
+source ~/.bashrc    # reload shell (or restart your terminal)
+hermes setup        # configure API keys and model provider
+hermes              # start chatting!
+```
+
+> **Note:** If you see "Permission denied" when creating the virtual environment, it may be from a previous installation attempt with different ownership. Simply re-run the installer — it will handle it.
+
+### Manual Installation (FreeBSD)
+
+If you prefer to install step by step:
 
 ```bash
 # Clone the repository
@@ -64,16 +100,6 @@ mkdir -p ~/.local/bin
 ln -sf $(pwd)/venv/bin/hermes ~/.local/bin/hermes
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ```
-
-After installation:
-
-```bash
-. ~/.bashrc    # reload shell (or source ~/.bashrc in bash/zsh)
-hermes setup   # configure API keys and model provider
-hermes         # start chatting!
-```
-
-> **Note:** If you see "Permission denied" when creating the virtual environment, it may be from a previous installation attempt with different ownership. Simply use a different name: `uv venv myvenv --python 3.11`
 
 ### Optional Dependencies
 
@@ -135,7 +161,7 @@ Autolycus is API-compatible with Hermes Agent. For full documentation, refer to 
 | [MCP Integration](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp) | Connect any MCP server for extended capabilities |
 | [Cron Scheduling](https://hermes-agent.nousresearch.com/docs/user-guide/features/cron) | Scheduled tasks with platform delivery |
 
-> **Note:** Autolycus is FreeBSD-only. Voice transcription (faster-whisper) is unavailable due to missing ctranslate2 wheels on FreeBSD — use cloud-based STT instead.
+> **Note:** Voice transcription (faster-whisper) is unavailable on FreeBSD due to missing ctranslate2 wheels — use cloud-based STT instead. On Linux/macOS, voice tools work out of the box.
 
 ---
 
@@ -172,17 +198,13 @@ See `hermes claw migrate --help` for all options, or use the `openclaw-migration
 
 We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and PR process.
 
-Quick start for contributors (FreeBSD only):
+Quick start for contributors (FreeBSD / Linux / macOS):
 
 ```bash
 git clone https://github.com/waym0reom3ga/autolycus-agent.git
 cd autolycus-agent
-cargo install uv  # Build uv from source (~4 minutes)
-export PATH="$HOME/.cargo/bin:$PATH"
-uv venv venv --python 3.11
+./scripts/install-autolycus.sh  # handles OS detection and setup
 source venv/bin/activate
-# Note: [all] extras include voice which doesn't work on FreeBSD
-uv pip install -e ".[modal,daytona,messaging,cron,cli,dev,tts-premium,slack,honcho,mcp]"
 python -m pytest tests/ -q
 ```
 
