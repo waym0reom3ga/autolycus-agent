@@ -46,6 +46,13 @@ from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+# Lycus branch: unified vision — no auxiliary model separation.
+# Import early so patches apply before any vision-related code runs.
+try:
+    import agent.lycus_vision  # noqa: F401 — applies patches at import time
+except Exception as _e:
+    logger.debug("Lycus vision init failed (non-fatal): %s", _e)
+
 # Suppress startup messages for clean CLI experience
 os.environ["HERMES_QUIET"] = "1"  # Our own modules
 
@@ -2669,6 +2676,12 @@ class ChatConsole:
         ``HermesCLI._busy_command()``.
         """
         yield self
+
+# Lycus branch: patch ChatConsole._preprocess_images_with_vision
+try:
+    agent.lycus_vision.patch_cli_preprocess(ChatConsole)
+except Exception:
+    pass  # Non-fatal — upstream fallback still works
 
 # ASCII Art - HERMES-AGENT logo (full width, single line - requires ~95 char terminal)
 HERMES_AGENT_LOGO = """[bold #FFD700]██╗  ██╗███████╗██████╗ ███╗   ███╗███████╗███████╗       █████╗  ██████╗ ███████╗███╗   ██╗████████╗[/]
