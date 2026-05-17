@@ -5,7 +5,6 @@ Skins are defined as YAML files in ~/.hermes/skins/ or as built-in presets.
 No code changes are needed to add a new skin.
 
 SKIN YAML SCHEMA
-================
 
 All fields are optional. Missing values inherit from the ``default`` skin.
 
@@ -81,7 +80,6 @@ USAGE
     set_active_skin("mytheme")            # Switch to user skin from ~/.hermes/skins/
 
 BUILT-IN SKINS
-==============
 
 - ``default`` — Classic Hermes gold/kawaii (the current look)
 - ``ares``    — Crimson/bronze war-god theme with custom spinner wings
@@ -89,7 +87,6 @@ BUILT-IN SKINS
 - ``slate``   — Cool blue developer-focused theme
 
 USER SKINS
-==========
 
 Drop a YAML file in ``~/.hermes/skins/<name>.yaml`` following the schema above.
 Activate with ``/skin <name>`` in the CLI or ``display.skin: <name>`` in config.yaml.
