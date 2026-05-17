@@ -22,6 +22,12 @@ FORK_FILES=(
     "pyproject.toml|LGPL"
     "agent/skill_commands.py|def build_plan_path"
     "hermes_cli/providers.py|def custom_provider_slug"
+    "hermes_cli/skin_engine.py|Autolycus"
+    "hermes_cli/banner.py|AUTOLYCUS"
+    "hermes_cli/default_soul.py|Autolycus"
+    "ui-tui/src/theme.ts|Autolycus"
+    "ui-tui/src/components/branding.tsx|Autolycus"
+    "ui-tui/src/app/useMainApp.ts|Autolycus"
 )
 
 # Temp directory for backups (survives rebase)
