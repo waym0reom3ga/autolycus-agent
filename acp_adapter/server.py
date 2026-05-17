@@ -1,4 +1,4 @@
-"""ACP agent server — exposes Hermes Agent via the Agent Client Protocol."""
+"""ACP agent server — exposes Autolycus Agent via the Agent Client Protocol."""
 
 from __future__ import annotations
 
