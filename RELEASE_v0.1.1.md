@@ -23,7 +23,7 @@
 
 ## ✨ Highlights
 
-- **Unified Vision Pipeline** — The 4700-line auxiliary client chain has been replaced with a 9KB self-contained module. All image processing now routes through the main model.
+- **Unified Vision Pipeline** — The 4700-line auxiliary client chain has been replaced with a 226-line self-contained module. All image processing now routes through the main model.
 
 - **Hermes 0.14.0 Compliance** — Autolycus is fully synchronized with the latest upstream Hermes Agent release, inheriting all stability improvements, bug fixes, and feature additions.
 
@@ -64,7 +64,7 @@ User image → vision_analyze_tool()
 
 ### Technical Implementation
 
-- **New file:** `agent/lycus_vision.py` (9KB) — self-contained unified vision module
+- **New file:** `agent/lycus_vision.py` (226 lines) — self-contained unified vision module
 - **Patched:** `cli.py` (2 additions) — import at startup, patch after class definition
 - **4 injection points patched at runtime:**
   1. `agent.auxiliary_client.async_call_llm` → `_lycus_async_vision_call`
