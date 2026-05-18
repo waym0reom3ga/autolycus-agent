@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from crawl import FileCrawler
 from analyze_python import PythonAnalyzer
 from analyze_generic import GenericAnalyzer
+from analyze_runtime import analyze_runtime_dependencies
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "depgraph.db")
 
@@ -222,6 +223,9 @@ def populate_database(conn, codebase_path):
     print("Analyzing generic dependencies...")
     generic_analyzer = GenericAnalyzer(conn, codebase_path)
     generic_analyzer.analyze()
+    
+    print("Analyzing runtime dependencies...")
+    analyze_runtime_dependencies(conn, codebase_path)
     
     # Update FTS index
     print("Updating full-text search index...")
