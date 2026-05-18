@@ -1,6 +1,5 @@
 """
 Transcription Provider ABC
-==========================
 
 Defines the pluggable-backend interface for speech-to-text. Providers
 register instances via
