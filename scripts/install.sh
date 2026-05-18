@@ -40,6 +40,17 @@ if [ -z "${HOME:-}" ]; then
     HOME="/root"
 fi
 
+# FreeBSD installs packages to /usr/local/bin, which sudo may strip from PATH.
+# Ensure it's always present so cargo/rustc/make are found under sudo.
+case "$(uname -s)" in
+    FreeBSD*)
+        case ":${PATH}:" in
+            *:/usr/local/bin:*) ;; # already there
+            *) PATH="/usr/local/bin:${PATH}" ;;
+        esac
+        ;;
+esac
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
