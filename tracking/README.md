@@ -15,9 +15,22 @@ tracking/
 │   ├── crawl.py         ← Walks directories, registers all files
 │   ├── analyze_python.py ← AST-based Python import/usage extraction
 │   ├── analyze_generic.py ← Regex-based analysis for YAML/JSON/shell/Dockerfiles
+│   ├── analyze_runtime.py ← Runtime discovery analysis (plugins, skills, locales)
 │   └── build_db.py      ← Orchestrates the entire indexing process
 └── query.py             ← CLI query interface for the dependency graph
 ```
+
+## Dependency Types
+
+The database tracks three types of dependencies:
+
+1. **Static imports** (confidence: 1.0) - Python AST analysis of import statements
+2. **File references** (confidence: 0.6-0.9) - Regex-based detection of file paths in configs, shell scripts, etc.
+3. **Runtime discovery** (confidence: 0.7-1.0) - Files loaded at runtime by discovery mechanisms:
+   - `plugins/` - Loaded by `hermes_cli/plugins.py` via `discover_plugins()`
+   - `skills/` - Synced by `tools/skills_sync.py` on every CLI launch
+   - `optional-skills/` - Scanned by `gateway/run.py` when skills are requested
+   - `locales/` - Loaded by i18n system for TUI and web dashboard
 
 ## Setup
 
