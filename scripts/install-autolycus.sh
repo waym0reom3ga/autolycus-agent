@@ -136,24 +136,12 @@ check_prerequisites() {
     CARGO_VERSION=$($CARGO_CMD --version | awk '{print $2}')
     echo -e "${GREEN}✓${NC} Cargo $CARGO_VERSION found"
 
-    # Check for make
-    # On FreeBSD, Rust builds (jemalloc) need GNU make (gmake), not BSD make
-    if [ "$OS" = "freebsd" ]; then
-        if ! command -v gmake &> /dev/null; then
-            echo -e "${RED}✗${NC} GNU make (gmake) not found (required for building Rust crates on FreeBSD)."
-            echo ""
-            echo "Install GNU make:"
-            echo "  FreeBSD:  pkg install gmake"
-            echo ""
-            exit 1
-        fi
-        echo -e "${GREEN}✓${NC} gmake found"
-    else
+    # Check for make (required for cargo build on non-FreeBSD)
+    if [ "$OS" != "freebsd" ]; then
         if ! command -v make &> /dev/null; then
             echo -e "${RED}✗${NC} make not found (required for building uv from source)."
             echo ""
             echo "Install make:"
-            echo "  FreeBSD:  pkg install make"
             echo "  Arch:     sudo pacman -S make"
             echo "  Ubuntu:   sudo apt install make"
             echo "  macOS:    xcode-select --install"
@@ -165,11 +153,6 @@ check_prerequisites() {
 }
 
 check_prerequisites
-
-# On FreeBSD, set MAKE=gmake so Rust builds (jemalloc) use GNU make instead of BSD make
-if [ "$OS" = "freebsd" ]; then
-    export MAKE=gmake
-fi
 
 # ============================================================================
 # Install uv via cargo
