@@ -1,6 +1,5 @@
 """
 Transcription Provider Registry
-================================
 
 Central map of registered STT providers. Populated by plugins at
 import-time via :meth:`PluginContext.register_transcription_provider`;

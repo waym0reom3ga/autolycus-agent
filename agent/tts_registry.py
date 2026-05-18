@@ -1,6 +1,5 @@
 """
 TTS Provider Registry
-=====================
 
 Central map of registered TTS providers. Populated by plugins at
 import-time via :meth:`PluginContext.register_tts_provider`; consumed
