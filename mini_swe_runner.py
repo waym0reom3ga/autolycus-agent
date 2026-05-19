@@ -3,11 +3,11 @@
 SWE Runner with Hermes Trajectory Format
 
 A runner that uses Hermes-Agent's built-in execution environments
-(local, docker, modal) and outputs trajectories in the Hermes-Agent format
+(local, modal) and outputs trajectories in the Hermes-Agent format
 compatible with batch_runner.py and trajectory_compressor.py.
 
 Features:
-- Uses Hermes-Agent's Docker, Modal, or Local environments for command execution
+- Uses Hermes-Agent's Modal or Local environments for command execution
 - Outputs trajectories in Hermes format (from/value pairs with <tool_call>/<tool_response> XML)
 - Compatible with the trajectory compression pipeline
 - Supports batch processing from JSONL prompt files
@@ -16,14 +16,11 @@ Usage:
     # Run a single task with local environment
     python mini_swe_runner.py --task "Create a hello world Python script" --env local
     
-    # Run with Docker
-    python mini_swe_runner.py --task "List files in /tmp" --env docker --image python:3.11-slim
-    
     # Run with Modal (cloud)
     python mini_swe_runner.py --task "Install numpy and test it" --env modal --image python:3.11-slim
     
     # Batch mode from JSONL file
-    python mini_swe_runner.py --prompts_file prompts.jsonl --output_file trajectories.jsonl --env docker
+    python mini_swe_runner.py --prompts_file prompts.jsonl --output_file trajectories.jsonl --env modal
 """
 
 import json
@@ -175,8 +172,8 @@ class MiniSWERunner:
             model: Model name for OpenAI-compatible API
             base_url: API base URL (optional, uses env vars if not provided)
             api_key: API key (optional, uses env vars if not provided)
-            env_type: Environment type - "local", "docker", or "modal"
-            image: Docker/Modal image (ignored for local)
+            env_type: Environment type - "local" or "modal"
+            image: Modal image (ignored for local)
             cwd: Working directory for commands
             max_iterations: Maximum tool-calling iterations
             command_timeout: Default timeout for commands
@@ -653,8 +650,8 @@ def main(
         model: Model name (default: claude-sonnet-4-20250514)
         base_url: API base URL (optional)
         api_key: API key (optional, uses env vars)
-        env: Environment type - "local", "docker", or "modal"
-        image: Docker/Modal image (default: python:3.11-slim)
+        env: Environment type - "local" or "modal"
+        image: Modal image (default: python:3.11-slim)
         cwd: Working directory (default: /tmp)
         max_iterations: Maximum tool-calling iterations (default: 15)
         timeout: Command timeout in seconds (default: 60)
@@ -664,8 +661,8 @@ def main(
         # Single task with local environment
         python mini_swe_runner.py --task "Create hello.py that prints Hello World"
         
-        # Single task with Docker
-        python mini_swe_runner.py --task "List files" --env docker
+        # Single task with Modal
+        python mini_swe_runner.py --task "List files" --env modal
         
         # Batch from file
         python mini_swe_runner.py --prompts_file tasks.jsonl --output_file results.jsonl
