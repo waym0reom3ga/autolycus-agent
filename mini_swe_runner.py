@@ -129,8 +129,8 @@ def create_environment(
     Create an execution environment using Hermes-Agent's built-in backends.
     
     Args:
-        env_type: One of "local", "docker", "modal"
-        image: Docker/Modal image name (ignored for local)
+        env_type: One of "local", "modal"
+        image: Modal image name (ignored for local)
         cwd: Working directory
         timeout: Default command timeout
         **kwargs: Additional environment-specific options
@@ -142,16 +142,12 @@ def create_environment(
         from tools.environments.local import LocalEnvironment
         return LocalEnvironment(cwd=cwd, timeout=timeout)
     
-    elif env_type == "docker":
-        from tools.environments.docker import DockerEnvironment
-        return DockerEnvironment(image=image, cwd=cwd, timeout=timeout, **kwargs)
-    
     elif env_type == "modal":
         from tools.environments.modal import ModalEnvironment
         return ModalEnvironment(image=image, cwd=cwd, timeout=timeout, **kwargs)
     
     else:
-        raise ValueError(f"Unknown environment type: {env_type}. Use 'local', 'docker', or 'modal'")
+        raise ValueError(f"Unknown environment type: {env_type}. Use 'local' or 'modal'")
 
 
 # ============================================================================
