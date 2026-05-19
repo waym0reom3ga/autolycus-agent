@@ -3,21 +3,19 @@
 # Autolycus Agent Installer
 # ============================================================================
 # POSIX-compliant installer for FreeBSD, Linux, macOS, and BSD.
-# Works with /bin/sh (dash, ash, ksh, bash, zsh).
+# Works with /bin/sh (dash, ash, ksh, bash, zsh, csh).
 # Assumes the repository is already cloned and the script is run from
 # inside the autolycus-agent directory, or uses HERMES_HOME fallback.
 #
 # Prerequisites:
 #   - Rust/Cargo installed
-#   - make installed (required for cargo build on FreeBSD)
 #
 # Usage:
-#   ./scripts/install-autolycus.sh
-#   curl -fsSL https://raw.githubusercontent.com/waym0reom3ga/autolycus-agent/main/scripts/install-autolycus.sh | sh
+#   sh scripts/install-autolycus.sh
 #
 # This script:
 #   1. Detects the operating system
-#   2. Installs uv via cargo
+#   2. Installs uv via cargo (skips if already present)
 #   3. Creates a virtual environment with Python 3.11
 #   4. Installs dependencies (OS-specific extras)
 #   5. Sets up the hermes CLI command
@@ -424,8 +422,18 @@ setup_config() {
 
     # Agent identity — assign a random name on first install
     if [ ! -f "$HERMES_HOME/.hermes_agent_name" ]; then
-        AGENT_NAMES=("Atlas" "Bastion" "Cipher" "Drift" "Echo" "Flux" "Glint" "Haven" "Ion" "Jinx" "Kairo" "Lumen" "Nexus" "Orbit" "Prism" "Quill" "Rift" "Spark" "Talus" "Vex" "Warden" "Zephyr" "Axiom" "Blaze" "Coda" "Dusk" "Ember" "Frost" "Grail" "Haze" "Inferno" "Jade" "Kite" "Lance" "Mist" "Nova" "Onyx" "Pulse" "Quasar" "Rune" "Sage" "Titan" "Umber" "Volt" "Wrath" "Xenon" "Yucca" "Zenith" "Apex" "Bolt" "Crux" "Dune" "Eclipse" "Forge" "Gale" "Horizon" "Ignis" "Jolt" "Kinetic" "Lynx" "Magma" "Nimbus" "Opal" "Phoenix" "Quantum" "Radar" "Solar" "Terra" "Ultra" "Vector" "Wraith" "Yield" "Zen" "Arc")
-        AGENT_NAME="${AGENT_NAMES[$((RANDOM % ${#AGENT_NAMES[@]}))]}"
+        # POSIX-compatible random name selection (no bash arrays)
+        AGENT_NAMES="Atlas Bastion Cipher Drift Echo Flux Glint Haven Ion Jinx Kairo Lumen Nexus Orbit Prism Quill Rift Spark Talus Vex Warden Zephyr Axiom Blaze Coda Dusk Ember Frost Grail Haze Inferno Jade Kite Lance Mist Nova Onyx Pulse Quasar Rune Sage Titan Umber Volt Wrath Xenon Yucca Zenith Apex Bolt Crux Dune Eclipse Forge Gale Horizon Ignis Jolt Kinetic Lynx Magma Nimbus Opal Phoenix Quantum Radar Solar Terra Ultra Vector Wraith Yield Zen Arc"
+        # Pick a random name using $RANDOM or /dev/urandom fallback
+        if [ -n "${RANDOM:-}" ]; then
+            IDX=$((RANDOM % 78))
+        else
+            IDX=$(od -An -tu4 -N4 /dev/urandom 2>/dev/null | tr -d ' ' || echo 0)
+            IDX=$((IDX % 78))
+        fi
+        # Convert space-separated list to positional-like selection using cut
+        AGENT_NAME=$(echo "$AGENT_NAMES" | tr ' ' '\n' | sed -n "$((IDX + 1))p")
+        [ -z "$AGENT_NAME" ] && AGENT_NAME="Terra"
         echo "$AGENT_NAME" > "$HERMES_HOME/.hermes_agent_name"
         echo -e "${GREEN}✓${NC} Agent identity assigned: $AGENT_NAME"
     else
