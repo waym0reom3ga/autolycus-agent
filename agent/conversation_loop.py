@@ -225,6 +225,70 @@ def _try_refresh_nous_paid_entitlement_credentials(agent) -> bool:
     except Exception:
         return False
 
+def _take_desktop_screenshot() -> Optional[str]:
+    """Take a desktop screenshot and return the absolute path, or None on failure.
+
+    Tries screenshot tools in priority order: scrot, maim, screencapture.
+    scrot is preferred since it's available on FreeBSD, Linux, and macOS.
+    Saves to /tmp with a timestamp to avoid collisions. Never raises.
+    """
+    try:
+        import subprocess
+        import datetime
+        _path = f"/tmp/autolycus_screenshot_{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')}.png"
+        for _tool in ["scrot", "maim", "screencapture"]:
+            try:
+                if _tool == "screencapture":
+                    # macOS: -x avoids the capture sound
+                    subprocess.run(
+                        [_tool, "-x", _path],
+                        check=True, capture_output=True, timeout=10,
+                    )
+                else:
+                    # scrot / maim: last argument is the output path
+                    subprocess.run(
+                        [_tool, _path],
+                        check=True, capture_output=True, timeout=10,
+                    )
+                return os.path.abspath(_path)
+            except (FileNotFoundError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                continue
+        return None
+    except Exception:
+        return None
+
+
+def _inject_screenshot_into_messages(api_messages: list) -> None:
+    """Inject a desktop screenshot as base64 into the last user message.
+
+    Modifies api_messages in-place. Wraps everything in try/except so a
+    screenshot failure never breaks the conversation loop.
+    """
+    try:
+        import base64
+        _path = _take_desktop_screenshot()
+        if not _path:
+            return
+        with open(_path, "rb") as _sf:
+            _img_b64 = base64.b64encode(_sf.read()).decode()
+        # Find the last user message and inject the image
+        for _i in range(len(api_messages) - 1, -1, -1):
+            if api_messages[_i].get("role") == "user":
+                _uc = api_messages[_i].get("content", "")
+                if isinstance(_uc, str):
+                    api_messages[_i]["content"] = [
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{_img_b64}"}},
+                        {"type": "text", "text": _uc},
+                    ]
+                elif isinstance(_uc, list):
+                    api_messages[_i]["content"].insert(0, {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{_img_b64}"},
+                    })
+                break
+    except Exception:
+        pass  # Never let screenshot failure break the conversation
+
 
 def _restore_or_build_system_prompt(agent, system_message, conversation_history):
     """Restore the cached system prompt from the session DB or build it fresh.
@@ -786,6 +850,13 @@ def run_conversation(
         api_call_count += 1
         agent._api_call_count = api_call_count
         agent._touch_activity(f"starting API call #{api_call_count}")
+        # ── DEBUG: log API call count to file ──
+        try:
+            import datetime
+            with open("/tmp/terra_api_calls.log", "a") as _f:
+                _f.write(f"[{datetime.datetime.now().isoformat()}] API call #{api_call_count} | task={effective_task_id or 'N/A'}\n")
+        except Exception:
+            pass
 
         # Grace call: the budget is exhausted but we gave the model one
         # more chance.  Consume the grace flag so the loop exits after
@@ -1191,6 +1262,8 @@ def run_conversation(
                 # unless the active provider needs it) so the fallback request
                 # isn't sent with stale, primary-shaped reasoning fields.
                 agent._reapply_reasoning_echo_for_provider(api_messages)
+                # ── Desktop screenshot injection ──
+                _inject_screenshot_into_messages(api_messages)
                 api_kwargs = agent._build_api_kwargs(api_messages)
                 if agent._force_ascii_payload:
                     _sanitize_structure_non_ascii(api_kwargs)
