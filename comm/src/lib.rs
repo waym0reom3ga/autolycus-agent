@@ -9,14 +9,14 @@ mod bridge;
 mod config;
 mod discovery;
 
-pub use matrix::MatrixClient;
+pub use matrix::LycusMatrixClient;
 pub use bridge::CronBridge;
 pub use config::CommConfig;
 pub use discovery::AgentDiscovery;
 
 /// Main entry point for the communication module
 pub struct LycusComm {
-    matrix_client: MatrixClient,
+    matrix_client: LycusMatrixClient,
     cron_bridge: CronBridge,
     discovery: AgentDiscovery,
 }
@@ -24,7 +24,7 @@ pub struct LycusComm {
 impl LycusComm {
     /// Create a new LycusComm instance
     pub async fn new(config: CommConfig) -> Result<Self, anyhow::Error> {
-        let matrix_client = MatrixClient::new(config.matrix_config())?;
+        let matrix_client = LycusMatrixClient::new(config.matrix_config())?;
         let cron_bridge = CronBridge::new(config.bridge_config())?;
         let discovery = AgentDiscovery::new(config.discovery_config())?;
         
@@ -36,7 +36,7 @@ impl LycusComm {
     }
     
     /// Start the communication module
-    pub async fn start(&self) -> Result<(), anyhow::Error> {
+    pub async fn start(&mut self) -> Result<(), anyhow::Error> {
         println!("Starting Lycus communication module...");
         
         // Connect to Matrix homeserver
@@ -58,9 +58,9 @@ impl LycusComm {
         Ok(())
     }
     
-    /// Send a message to another agent
-    pub async fn send_message(&self, target_agent: &str, message: &str) -> Result<(), anyhow::Error> {
-        self.matrix_client.send_message(target_agent, message).await
+    /// Send a message to the agent room
+    pub async fn send_message(&self, message: &str) -> Result<(), anyhow::Error> {
+        self.matrix_client.send_message(message).await
     }
     
     /// Discover available agents

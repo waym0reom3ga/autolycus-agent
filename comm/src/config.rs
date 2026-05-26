@@ -27,6 +27,36 @@ pub struct CommConfig {
     pub discovery: DiscoveryConfig,
 }
 
+impl CommConfig {
+    pub fn matrix_config(&self) -> MatrixClientConfig {
+        MatrixClientConfig {
+            homeserver_url: self.homeserver_url.clone(),
+            username: self.username.clone(),
+            password: self.password.clone(),
+            device_id: self.device_id.clone(),
+            agent_room: self.agent_room.clone(),
+        }
+    }
+    
+    pub fn bridge_config(&self) -> BridgeConfig {
+        self.bridge.clone()
+    }
+    
+    pub fn discovery_config(&self) -> DiscoveryConfig {
+        self.discovery.clone()
+    }
+}
+
+/// Configuration for Matrix client
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MatrixClientConfig {
+    pub homeserver_url: String,
+    pub username: String,
+    pub password: String,
+    pub device_id: String,
+    pub agent_room: String,
+}
+
 /// Configuration for the cron bridge
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BridgeConfig {

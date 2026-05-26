@@ -112,11 +112,17 @@ check_prerequisites() {
 
     # Check for cargo/rust
     # On FreeBSD, cargo may be at /usr/local/bin even if not in PATH (e.g. under sudo)
+    # On Debian/Ubuntu, cargo may be at /usr/bin/cargo or ~/.cargo/bin/cargo
+    # Use `type` instead of `command -v` for better portability and reliability
     CARGO_CMD=""
-    if command -v cargo &> /dev/null; then
+    if type cargo &> /dev/null; then
         CARGO_CMD="cargo"
     elif [ -x "/usr/local/bin/cargo" ]; then
         CARGO_CMD="/usr/local/bin/cargo"
+    elif [ -x "/usr/bin/cargo" ]; then
+        CARGO_CMD="/usr/bin/cargo"
+    elif [ -x "$HOME/.cargo/bin/cargo" ]; then
+        CARGO_CMD="$HOME/.cargo/bin/cargo"
     fi
 
     if [ -z "$CARGO_CMD" ]; then
@@ -125,13 +131,19 @@ check_prerequisites() {
         echo "Install Rust:"
         echo "  FreeBSD:  pkg install rust"
         echo "  Arch:     sudo pacman -S rust"
-        echo "  Ubuntu:   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+        echo "  Debian:   sudo apt install cargo"
+        echo "  Ubuntu:   sudo apt install cargo"
         echo "  macOS:    brew install rustup && rustup init"
         echo ""
         exit 1
     fi
 
-    CARGO_VERSION=$($CARGO_CMD --version | awk '{print $2}')
+    # Verify cargo actually works (command -v can be misleading)
+    if ! CARGO_VERSION=$($CARGO_CMD --version 2>/dev/null | awk '{print $2}'); then
+        echo -e "${RED}✗${NC} Found cargo at $CARGO_CMD but it failed to run."
+        echo "Check your Rust installation or add cargo to PATH."
+        exit 1
+    fi
     echo -e "${GREEN}✓${NC} Cargo $CARGO_VERSION found"
 
     # Check for make (required for cargo build on non-FreeBSD)
