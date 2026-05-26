@@ -37,7 +37,7 @@ impl CronBridge {
     /// Create a new cron bridge
     pub fn new(config: BridgeConfig) -> Result<Self> {
         Ok(Self {
-            socket_path: config.socket_path.into(),
+            socket_path: config.socket_path.clone().into(),
             config,
         })
     }
