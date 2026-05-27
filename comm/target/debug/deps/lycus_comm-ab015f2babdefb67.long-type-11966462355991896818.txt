@@ -1,0 +1,1 @@
+impl futures_core::stream::Stream<Item = Result<ruma_client_api::sync::sync_events::v3::Response, ruma_client::Error<<reqwest::async_impl::client::Client as HttpClient>::Error, ruma_client_api::error::Error>>> + '_
