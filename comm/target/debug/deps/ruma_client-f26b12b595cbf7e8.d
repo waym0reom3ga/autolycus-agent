@@ -1,0 +1,10 @@
+/home/waymore/compiled/autolycus-agent/comm/target/debug/deps/ruma_client-f26b12b595cbf7e8.d: /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/lib.rs /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/client.rs /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/client/builder.rs /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/error.rs /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/http_client.rs /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/http_client/reqwest.rs
+
+/home/waymore/compiled/autolycus-agent/comm/target/debug/deps/libruma_client-f26b12b595cbf7e8.rmeta: /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/lib.rs /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/client.rs /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/client/builder.rs /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/error.rs /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/http_client.rs /home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/http_client/reqwest.rs
+
+/home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/lib.rs:
+/home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/client.rs:
+/home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/client/builder.rs:
+/home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/error.rs:
+/home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/http_client.rs:
+/home/waymore/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ruma-client-0.10.0/src/http_client/reqwest.rs:
