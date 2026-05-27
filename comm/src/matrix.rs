@@ -4,8 +4,10 @@
 //! with other Lycus agents. Provides room joining, message sending, and sync processing.
 
 use anyhow::{Result, Context};
+use futures_util::StreamExt;
 use ruma_common::{
-    OwnedUserId, OwnedRoomId, RoomAliasId,
+    events::room::message::{MessageType, RoomMessageEventContent},
+    OwnedRoomId, OwnedUserId, RoomAliasId,
 };
 use ruma_client::{
     http_client::Reqwest,
@@ -66,7 +68,7 @@ impl LycusMatrixClient {
     pub async fn join_agent_room(&mut self) -> Result<()> {
         println!("Joining agent room: {}", self.config.agent_room);
 
-        let _client = self.client.as_ref()
+        let client = self.client.as_ref()
             .context("Not connected to Matrix")?;
 
         // Parse room alias for validation
@@ -94,7 +96,6 @@ impl LycusMatrixClient {
             .context("Not connected to Matrix")?;
 
         // TODO: Implement actual sync loop using ruma API
-        // The sync stream requires special handling for async iteration
         println!("Message listener started (sync loop not yet implemented)");
 
         Ok(())
