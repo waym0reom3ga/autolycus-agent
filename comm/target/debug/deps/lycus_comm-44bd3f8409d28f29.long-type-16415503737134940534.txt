@@ -1,0 +1,4 @@
+async_stream::async_stream::_::__Origin<'_, Result<ruma_client_api::sync::sync_events::v3::Response, ruma_client::Error<reqwest::error::Error, ruma_client_api::Error>>, {async block@ruma_client::Client<reqwest::async_impl::client::Client>::sync::{closure#0}}>
+async_stream::async_stream::AsyncStream<Result<ruma_client_api::sync::sync_events::v3::Response, ruma_client::Error<reqwest::error::Error, ruma_client_api::Error>>, {async block@ruma_client::Client<reqwest::async_impl::client::Client>::sync::{closure#0}}>
+impl Stream<Item = Result<ruma_client_api::sync::sync_events::v3::Response, ruma_client::Error<<reqwest::async_impl::client::Client as HttpClient>::Error, ruma_client_api::Error>>> + '_
+Next<'_, impl Stream<Item = Result<ruma_client_api::sync::sync_events::v3::Response, ruma_client::Error<<reqwest::async_impl::client::Client as HttpClient>::Error, ruma_client_api::Error>>> + '_>

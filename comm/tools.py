@@ -1,7 +1,7 @@
 """
 Lycus Communication Tools for Hermes Agent
 
-Provides Matrix-based inter-agent communication as callable tools.
+Provides Matrix-based inter-agent communication as callable tools using matrix-nio.
 Each Lycus agent can use these tools to send/receive messages from other agents.
 """
 
@@ -12,6 +12,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
+
+import nio
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +44,7 @@ class CommToolConfig:
 class LycusCommTools:
     """Matrix communication tools for Lycus agents.
     
-    These tools enable inter-agent messaging through the Matrix protocol.
+    These tools enable inter-agent messaging through the Matrix protocol using matrix-nio.
     Each agent connects to its local homeserver and communicates with others
     via federation or shared rooms.
     """
@@ -54,11 +56,29 @@ class LycusCommTools:
         self.agents: Dict[str, dict] = {}
         self.message_queue: asyncio.Queue = asyncio.Queue(maxsize=self.config.queue_size)
         
+        # Matrix client
+        self.client = nio.MatrixClient(
+            homeserver=self.config.homeserver_url,
+            user=f"@{self.config.username}:lycus.local",
+            device_id=self.config.device_id,
+        )
+        
     async def start(self):
         """Start the communication module and Unix socket bridge."""
         logger.info("Starting Lycus communication tools")
         logger.info("Homeserver: %s", self.config.homeserver_url)
         
+        # Login to Matrix
+        login_response = await self.client.login(
+            password=self.config.password,
+            device_name="Lycus Agent"
+        )
+        
+        if login_response.is_success():
+            logger.info("✓ Logged in as %s", self.client.user_id)
+        else:
+            logger.error("✗ Login failed: %s", login_response.message)
+            
         # Start the Unix socket bridge for receiving triggers
         await self._start_bridge()
         
@@ -173,14 +193,63 @@ class LycusCommTools:
         """
         logger.info("Sending message to %s: %s", target, message[:100])
         
-        # TODO: Implement actual Matrix message sending via Rust client
-        # For now, simulate success
-        return {
-            "status": "sent",
-            "target": target,
-            "message_id": f"msg_{int(time.time())}",
-            "timestamp": time.time()
-        }
+        try:
+            # Join the room if not already joined
+            room = await self._get_or_join_room()
+            
+            if room:
+                # Send the message
+                response = await self.client.room_send(
+                    room_id=room.room_id,
+                    message_type="m.room.message",
+                    content={
+                        "msgtype": "m.text",
+                        "body": message
+                    }
+                )
+                
+                if response.is_success():
+                    return {
+                        "status": "sent",
+                        "target": target,
+                        "message_id": response.event_id,
+                        "timestamp": time.time()
+                    }
+                else:
+                    return {
+                        "status": "failed",
+                        "error": response.message
+                    }
+            else:
+                return {
+                    "status": "failed",
+                    "error": "Could not join room"
+                }
+                
+        except Exception as e:
+            logger.error("Failed to send message: %s", e)
+            return {
+                "status": "error",
+                "error": str(e)
+            }
+    
+    async def _get_or_join_room(self):
+        """Get or join the agent room."""
+        # Check if we're already in the room
+        for room in self.client.rooms.values():
+            if room.room_id == self.config.agent_room:
+                return room
+        
+        # Try to join by alias
+        try:
+            response = await self.client.join(self.config.agent_room)
+            if response.is_success():
+                logger.info("Joined room %s", response.room_id)
+                return self.client.rooms.get(response.room_id)
+        except Exception as e:
+            logger.error("Failed to join room: %s", e)
+            
+        return None
     
     def list_agents(self) -> List[str]:
         """List known agents.
