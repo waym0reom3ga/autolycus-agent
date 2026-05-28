@@ -222,6 +222,19 @@ class ProcessRegistry:
         session.paused = True
         session.prompt_text = prompt_text
 
+        # Start output reader thread to capture new output after agent responds
+        try:
+            reader = threading.Thread(
+                target=self._reader_loop,
+                args=(session,),
+                daemon=True,
+                name=f"proc-reader-{session.id}",
+            )
+            session._reader_thread = reader
+            reader.start()
+        except Exception as e:
+            logger.warning("Failed to start reader thread for paused process %s: %s", session.id, e)
+
         with self._lock:
             self._prune_if_needed()
             self._running[session.id] = session

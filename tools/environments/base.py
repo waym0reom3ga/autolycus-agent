@@ -36,17 +36,17 @@ _DEBUG_INTERRUPT = bool(os.getenv("HERMES_DEBUG_INTERRUPT"))
 # is waiting for user input. When detected, the foreground command pauses
 # and hands control to the agent via process_registry so it can respond.
 _PROMPT_PATTERNS = [
-    r'(?m)^\s*(?:password|passwd)\s*[:]\s*$',           # Password prompts
-    r'(?m)^\s*(?:yes|no)\s*\?',                          # Yes/no confirmation
-    r'(?m)^\s*(?:continue|proceed)\s*\[y/n\]',          # Continue prompts
-    r'(?m)^\s*are\s+you\s+sure',                        # "Are you sure?"
-    r'(?m)^\s*(?:do\s+you\s+want|would\s+you\s+like)',  # Preference prompts
-    r'(?m)^\s*\[y/n\]\s*',                              # [y/n] choice
-    r'(?m)^\s*>\s*$',                                   # REPL/interactive > prompt
-    r'(?m)^\s*(?:>>>|\.+)\s*$',                         # Python/shell REPL prompts
-    r'(?m)^\s*(?:enter|type)\s+\w+',                    # "Enter <something>"
+    r'^\s*(?:password|passwd)\s*[:]\s*$',           # Password prompts
+    r'^\s*(?:yes|no)\s*\?',                          # Yes/no confirmation
+    r'^\s*(?:continue|proceed)\s*\[y/n\]',          # Continue prompts
+    r'^\s*are\s+you\s+sure',                        # "Are you sure?"
+    r'^\s*(?:do\s+you\s+want|would\s+you\s+like)',  # Preference prompts
+    r'^\s*\[y/n\]\s*',                              # [y/n] choice
+    r'^\s*>\s*$',                                   # REPL/interactive > prompt
+    r'^\s*(?:>>>|\.+)\s*$',                         # Python/shell REPL prompts
+    r'^\s*(?:enter|type)\s+\w+',                    # "Enter <something>"
 ]
-_PROMPT_RE = re.compile('|'.join(_PROMPT_PATTERNS), re.IGNORECASE)
+_PROMPT_RE = re.compile('|'.join(_PROMPT_PATTERNS), re.IGNORECASE | re.MULTILINE)
 
 
 if _DEBUG_INTERRUPT:
