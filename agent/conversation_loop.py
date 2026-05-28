@@ -1262,8 +1262,8 @@ def run_conversation(
                 # unless the active provider needs it) so the fallback request
                 # isn't sent with stale, primary-shaped reasoning fields.
                 agent._reapply_reasoning_echo_for_provider(api_messages)
-                # ── Desktop screenshot injection ──
-                _inject_screenshot_into_messages(api_messages)
+                # ── Desktop screenshot injection (disabled — let agent decide) ──
+                # _inject_screenshot_into_messages(api_messages)
                 api_kwargs = agent._build_api_kwargs(api_messages)
                 if agent._force_ascii_payload:
                     _sanitize_structure_non_ascii(api_kwargs)
