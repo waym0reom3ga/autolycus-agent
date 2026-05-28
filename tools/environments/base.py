@@ -10,6 +10,7 @@ import codecs
 import json
 import logging
 import os
+import re
 import select
 import shlex
 import subprocess
@@ -30,6 +31,23 @@ logger = logging.getLogger(__name__)
 # every is_interrupted() state change from _wait_for_process.  Off by default
 # to avoid flooding production gateway logs.
 _DEBUG_INTERRUPT = bool(os.getenv("HERMES_DEBUG_INTERRUPT"))
+
+# Dynamic prompt detection: patterns that indicate an interactive program
+# is waiting for user input. When detected, the foreground command pauses
+# and hands control to the agent via process_registry so it can respond.
+_PROMPT_PATTERNS = [
+    r'(?m)^\s*(?:password|passwd)\s*[:]\s*$',           # Password prompts
+    r'(?m)^\s*(?:yes|no)\s*\?',                          # Yes/no confirmation
+    r'(?m)^\s*(?:continue|proceed)\s*\[y/n\]',          # Continue prompts
+    r'(?m)^\s*are\s+you\s+sure',                        # "Are you sure?"
+    r'(?m)^\s*(?:do\s+you\s+want|would\s+you\s+like)',  # Preference prompts
+    r'(?m)^\s*\[y/n\]\s*',                              # [y/n] choice
+    r'(?m)^\s*>\s*$',                                   # REPL/interactive > prompt
+    r'(?m)^\s*(?:>>>|\.+)\s*$',                         # Python/shell REPL prompts
+    r'(?m)^\s*(?:enter|type)\s+\w+',                    # "Enter <something>"
+]
+_PROMPT_RE = re.compile('|'.join(_PROMPT_PATTERNS), re.IGNORECASE)
+
 
 if _DEBUG_INTERRUPT:
     # AIAgent's quiet_mode path (run_agent.py) forces the `tools` logger to
