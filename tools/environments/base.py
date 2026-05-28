@@ -663,6 +663,21 @@ class BaseEnvironment(ABC):
                 # Periodic activity touch so the gateway knows we're alive
                 touch_activity_if_due(_activity_state, "terminal command running")
 
+                # Dynamic prompt detection: check if output contains an interactive
+                # prompt that needs user input. If detected, pause and hand control
+                # to the agent via process_registry so it can respond.
+                current_output = "".join(output_chunks)
+                _prompt_match = _PROMPT_RE.search(current_output)
+                if _prompt_match is not None:
+                    drain_thread.join(timeout=1)
+                    return {
+                        "output": current_output,
+                        "returncode": 0,
+                        "paused": True,
+                        "prompt_detected": _prompt_match.group(0).strip(),
+                        "proc_handle": proc,
+                    }
+
                 # Heartbeat every ~30s: proves the loop is alive and reports
                 # the activity-callback state (thread-local, can get clobbered
                 # by nested tool calls or executor thread reuse).
