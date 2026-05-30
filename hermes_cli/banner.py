@@ -23,6 +23,22 @@ from prompt_toolkit.formatted_text import ANSI as _PT_ANSI
 
 logger = logging.getLogger(__name__)
 
+HERMES_CADUCEUS = """[bold #E8E8E8]⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⠀⠀⠀⠀⠀⠀[/]
+[bold #E8E8E8]⠀⠀⠀⠀⢀⣠⣾⣿⣿⣷⣄⠀⠀⠀⠀⠀⠀[/]
+[#C0C0C0]⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣦⡀⠀⠀⠀⠀[/]
+[#C0C0C0]⠀⠀⢀⣴⣿⣿⣿⣿⣿⣿⣿⣿⣦⡄⠀⠀⠀[/]
+[#00CED1]⠀⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡄⠀⠀⠀[/]
+[#00CED1]⢀⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡄⠀⠀[/]
+[#DC143C]⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀[/]
+[#DC143C]⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇[/]
+[#DC143C]⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇[/]
+[#DC143C]⠈⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠀[/]
+[#00CED1]⠀⠈⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠀[/]
+[#00CED1]⠀⠀⠀⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠀[/]
+[#FFA500]⠀⠀⠀⠀⠙⢿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠀⠀[/]
+[#FFD700]⠀⠀⠀⠀⠀⠸⣷⣶⣾⣿⣿⣿⣿⣿⣿⣄⠀[/]
+[#FFA500]⠀⠀⠀⠀⠀⠀⠀⠉⠻⢿⣿⣿⣿⣿⡟⠀⠀[/]"""
+
 
 # =========================================================================
 # ANSI building blocks for conversation display
@@ -50,17 +66,6 @@ def _skin_color(key: str, fallback: str) -> str:
         return get_active_skin().get_color(key, fallback)
     except Exception:
         return fallback
-
-
-def _skin_branding(key: str, fallback: str) -> str:
-    """Get a branding string from the active skin, or return fallback."""
-    try:
-        from hermes_cli.skin_engine import get_active_skin
-        return get_active_skin().get_branding(key, fallback)
-    except Exception:
-        return fallback
-
-
 # =========================================================================
 # ASCII Art & Branding
 # =========================================================================
@@ -83,7 +88,6 @@ COMPACT_BANNER = """
 [bold #00CED1]║[/]  [#1E90FF]The World's First AI Agent for FreeBSD[/]    [dim #4169E1]Technetia Inc[/]   [bold #00CED1]║[/]
 [bold #00CED1]╚══════════════════════════════════════════════════════════════╝[/]
 """
-
 
 # =========================================================================
 # Skills scanning
@@ -116,35 +120,36 @@ def get_available_skills() -> Dict[str, List[str]]:
 # Cache update check results for 6 hours to avoid repeated git fetches
 _UPDATE_CHECK_CACHE_SECONDS = 6 * 3600
 
+# Sentinel returned when we know an update exists but can't count commits
+# (e.g. nix-built hermes — no local git history to count against).
+UPDATE_AVAILABLE_NO_COUNT = -1
 
-def check_for_updates() -> Optional[int]:
-    """Check how many commits behind origin/main the local repo is.
+_UPSTREAM_REPO_URL = "https://github.com/NousResearch/hermes-agent.git"
 
-    Does a ``git fetch`` at most once every 6 hours (cached to
-    ``~/.hermes/.update_check``).  Returns the number of commits behind,
-    or ``None`` if the check fails or isn't applicable.
+
+def _check_via_rev(local_rev: str) -> Optional[int]:
+    """Compare an embedded git revision to upstream main via ls-remote.
+
+    Returns 0 if up-to-date, ``UPDATE_AVAILABLE_NO_COUNT`` if behind,
+    or ``None`` on failure.
     """
-    hermes_home = get_hermes_home()
-    repo_dir = hermes_home / "hermes-agent"
-    cache_file = hermes_home / ".update_check"
-
-    # Must be a git repo — fall back to project root for dev installs
-    if not (repo_dir / ".git").exists():
-        repo_dir = Path(__file__).parent.parent.resolve()
-    if not (repo_dir / ".git").exists():
-        return None
-
-    # Read cache
-    now = time.time()
     try:
-        if cache_file.exists():
-            cached = json.loads(cache_file.read_text())
-            if now - cached.get("ts", 0) < _UPDATE_CHECK_CACHE_SECONDS:
-                return cached.get("behind")
+        result = subprocess.run(
+            ["git", "ls-remote", _UPSTREAM_REPO_URL, "refs/heads/main"],
+            capture_output=True, text=True, timeout=10,
+        )
     except Exception:
-        pass
+        return None
+    if result.returncode != 0 or not result.stdout:
+        return None
+    upstream_rev = result.stdout.split()[0]
+    if not upstream_rev:
+        return None
+    return 0 if upstream_rev == local_rev else UPDATE_AVAILABLE_NO_COUNT
 
-    # Fetch latest refs (fast — only downloads ref metadata, no files)
+
+def _check_via_local_git(repo_dir: Path) -> Optional[int]:
+    """Count commits behind origin/main in a local checkout."""
     try:
         subprocess.run(
             ["git", "fetch", "origin", "--quiet"],
@@ -154,7 +159,6 @@ def check_for_updates() -> Optional[int]:
     except Exception:
         pass  # Offline or timeout — use stale refs, that's fine
 
-    # Count commits behind
     try:
         result = subprocess.run(
             ["git", "rev-list", "--count", "HEAD..origin/main"],
@@ -162,15 +166,105 @@ def check_for_updates() -> Optional[int]:
             cwd=str(repo_dir),
         )
         if result.returncode == 0:
-            behind = int(result.stdout.strip())
-        else:
-            behind = None
+            return int(result.stdout.strip())
     except Exception:
-        behind = None
+        pass
+    return None
 
-    # Write cache
+
+def _version_tuple(v: str) -> tuple[int, ...]:
+    """Parse '0.13.0' into (0, 13, 0) for comparison. Non-numeric segments become 0."""
+    parts = []
+    for segment in v.split("."):
+        try:
+            parts.append(int(segment))
+        except ValueError:
+            parts.append(0)
+    return tuple(parts)
+
+
+def _fetch_pypi_latest(package: str = "hermes-agent") -> Optional[str]:
+    """Fetch the latest version of a package from PyPI. Returns None on failure."""
     try:
-        cache_file.write_text(json.dumps({"ts": now, "behind": behind}))
+        import urllib.request
+        url = f"https://pypi.org/pypi/{package}/json"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+            return data.get("info", {}).get("version")
+    except Exception:
+        return None
+
+
+def check_via_pypi() -> Optional[int]:
+    """Compare installed version against PyPI latest.
+
+    Returns 0 if up-to-date, 1 if behind, None on failure.
+    """
+    latest = _fetch_pypi_latest()
+    if latest is None:
+        return None
+    if latest == VERSION:
+        return 0
+    try:
+        if _version_tuple(latest) > _version_tuple(VERSION):
+            return 1
+        return 0
+    except Exception:
+        return 1 if latest != VERSION else 0
+
+
+def check_for_updates() -> Optional[int]:
+    """Check whether a Hermes update is available.
+
+    Two paths: if ``HERMES_REVISION`` is set (nix builds embed it), compare
+    it to upstream main via ``git ls-remote``. Otherwise look for a local
+    git checkout and count commits behind ``origin/main``.
+
+    Returns the number of commits behind, ``UPDATE_AVAILABLE_NO_COUNT`` (-1)
+    if behind but the count is unknown, ``0`` if up-to-date, or ``None`` if
+    the check failed or doesn't apply. Cached for 6 hours.
+    """
+    hermes_home = get_hermes_home()
+    cache_file = hermes_home / ".update_check"
+    embedded_rev = os.environ.get("HERMES_REVISION") or None
+
+    # Read cache — invalidate if the embedded rev OR installed version has
+    # changed since the last check. The version guard matters for pip installs:
+    # `check_via_pypi()` compares against VERSION, so a `pip install --upgrade`
+    # changes VERSION but leaves rev unchanged (both None), and without this
+    # the stale "behind" count would survive the upgrade for up to 6h. See #34491.
+    now = time.time()
+    try:
+        if cache_file.exists():
+            cached = json.loads(cache_file.read_text())
+            if (
+                now - cached.get("ts", 0) < _UPDATE_CHECK_CACHE_SECONDS
+                and cached.get("rev") == embedded_rev
+                and cached.get("ver") == VERSION
+            ):
+                return cached.get("behind")
+    except Exception:
+        pass
+
+    if embedded_rev:
+        behind = _check_via_rev(embedded_rev)
+    else:
+        # Prefer the running code's location over the profile-scoped path.
+        # $HERMES_HOME/hermes-agent/ may be a stale copy from --clone-all;
+        # Path(__file__) always resolves to the actual installed checkout.
+        repo_dir = Path(__file__).parent.parent.resolve()
+        if not (repo_dir / ".git").exists():
+            repo_dir = hermes_home / "hermes-agent"
+        if not (repo_dir / ".git").exists():
+            behind = check_via_pypi()
+        else:
+            behind = _check_via_local_git(repo_dir)
+
+    try:
+        cache_file.write_text(
+            json.dumps({"ts": now, "behind": behind, "rev": embedded_rev, "ver": VERSION})
+        )
     except Exception:
         pass
 
@@ -178,11 +272,16 @@ def check_for_updates() -> Optional[int]:
 
 
 def _resolve_repo_dir() -> Optional[Path]:
-    """Return the active Hermes git checkout, or None if this isn't a git install."""
-    hermes_home = get_hermes_home()
-    repo_dir = hermes_home / "hermes-agent"
+    """Return the active Hermes git checkout, or None if this isn't a git install.
+
+    Prefers the running code's location over the profile-scoped path
+    because ``$HERMES_HOME/hermes-agent/`` may be a stale copy carried
+    over by ``--clone-all``.
+    """
+    repo_dir = Path(__file__).parent.parent.resolve()
     if not (repo_dir / ".git").exists():
-        repo_dir = Path(__file__).parent.parent.resolve()
+        hermes_home = get_hermes_home()
+        repo_dir = hermes_home / "hermes-agent"
     return repo_dir if (repo_dir / ".git").exists() else None
 
 
@@ -260,9 +359,55 @@ def get_git_banner_state(repo_dir: Optional[Path] = None) -> Optional[dict]:
     return {"upstream": upstream, "local": local, "ahead": max(ahead, 0)}
 
 
+_RELEASE_URL_BASE = "https://github.com/NousResearch/hermes-agent/releases/tag"
+_latest_release_cache: Optional[tuple] = None  # (tag, url) once resolved
+
+
+def get_latest_release_tag(repo_dir: Optional[Path] = None) -> Optional[tuple]:
+    """Return ``(tag, release_url)`` for the latest git tag, or None.
+
+    Local-only — runs ``git describe --tags --abbrev=0`` against the
+    Hermes checkout. Cached per-process. Release URL always points at the
+    canonical NousResearch/hermes-agent repo (forks don't get a link).
+    """
+    global _latest_release_cache
+    if _latest_release_cache is not None:
+        return _latest_release_cache or None
+
+    repo_dir = repo_dir or _resolve_repo_dir()
+    if repo_dir is None:
+        _latest_release_cache = ()  # falsy sentinel — skip future lookups
+        return None
+
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            cwd=str(repo_dir),
+        )
+    except Exception:
+        _latest_release_cache = ()
+        return None
+
+    if result.returncode != 0:
+        _latest_release_cache = ()
+        return None
+
+    tag = (result.stdout or "").strip()
+    if not tag:
+        _latest_release_cache = ()
+        return None
+
+    url = f"{_RELEASE_URL_BASE}/{tag}"
+    _latest_release_cache = (tag, url)
+    return _latest_release_cache
+
+
 def format_banner_version_label() -> str:
     """Return the version label shown in the startup banner title."""
-    base = "Autolycus Agent v.0.0.2"
+    base = f"Hermes Agent v{VERSION} ({RELEASE_DATE})"
     state = get_git_banner_state()
     if not state:
         return base
@@ -310,10 +455,16 @@ def _format_context_length(tokens: int) -> str:
     """Format a token count for display (e.g. 128000 → '128K', 1048576 → '1M')."""
     if tokens >= 1_000_000:
         val = tokens / 1_000_000
-        return f"{val:g}M"
+        rounded = round(val)
+        if abs(val - rounded) < 0.05:
+            return f"{rounded}M"
+        return f"{val:.1f}M"
     elif tokens >= 1_000:
         val = tokens / 1_000
-        return f"{val:g}K"
+        rounded = round(val)
+        if abs(val - rounded) < 0.05:
+            return f"{rounded}K"
+        return f"{val:.1f}K"
     return str(tokens)
 
 
@@ -372,22 +523,20 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     layout_table.add_column("left", justify="center")
     layout_table.add_column("right", justify="left")
 
-    # Resolve skin colors once for the entire banner (high-contrast defaults)
-    accent = _skin_color("banner_accent", "#00d4aa")  # Bright teal
-    dim = _skin_color("banner_dim", "#1a5f7a")        # Medium blue-gray
-    text = _skin_color("banner_text", "#ffffff")      # White for max contrast
+    # Resolve skin colors once for the entire banner
+    accent = _skin_color("banner_accent", "#FFBF00")
+    dim = _skin_color("banner_dim", "#B8860B")
+    text = _skin_color("banner_text", "#FFF8DC")
     session_color = _skin_color("session_border", "#8B8682")
-    sky_blue = "#00BFFF"  # Sky blue for toolset names and lazy tools (high contrast)
-    flashy_teal = "#00CED1"  # Flashy blue-teal for model name (brighter than sky blue)
 
-    # Use skin's custom caduceus art if provided (small icon only, not full logo)
+    # Use skin's custom caduceus art if provided
     try:
         from hermes_cli.skin_engine import get_active_skin
         _bskin = get_active_skin()
-        _hero = _bskin.banner_hero if hasattr(_bskin, 'banner_hero') and _bskin.banner_hero else ""
+        _hero = _bskin.banner_hero if hasattr(_bskin, 'banner_hero') and _bskin.banner_hero else HERMES_CADUCEUS
     except Exception:
         _bskin = None
-        _hero = ""
+        _hero = HERMES_CADUCEUS
     left_lines = []
     model_short = model.split("/")[-1] if "/" in model else model
     if model_short.endswith(".gguf"):
@@ -395,10 +544,13 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     if len(model_short) > 28:
         model_short = model_short[:25] + "..."
     ctx_str = f" [dim {dim}]·[/] [dim {dim}]{_format_context_length(context_length)} context[/]" if context_length else ""
-    left_lines.append(f"[bold {flashy_teal}]{model_short}[/]{ctx_str} [dim {dim}]·[/] [bold {sky_blue}]Technetia Inc[/]")
-    left_lines.append(f"[bold {sky_blue}]{cwd}[/]")
+    left_lines.append(f"[{accent}]{model_short}[/]{ctx_str} [dim {dim}]·[/] [dim {dim}]Nous Research[/]")
+
+    if os.getenv("HERMES_YOLO_MODE"):
+        left_lines.append(f"[bold red]⚠ YOLO mode[/] [dim {dim}]— all approval prompts bypassed[/]")
+    left_lines.append(f"[dim {dim}]{cwd}[/]")
     if session_id:
-        left_lines.append(f"[{accent}]Session: {session_id}[/]")
+        left_lines.append(f"[dim {session_color}]Session: {session_id}[/]")
     left_content = "\n".join(left_lines)
 
     right_lines = [f"[bold {accent}]Available Tools[/]"]
@@ -429,7 +581,7 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
             if name in disabled_tools:
                 colored_names.append(f"[red]{name}[/]")
             elif name in lazy_tools:
-                colored_names.append(f"[{sky_blue}]{name}[/]")  # Sky blue for high-contrast lazy tools
+                colored_names.append(f"[yellow]{name}[/]")
             else:
                 colored_names.append(f"[{text}]{name}[/]")
 
@@ -450,15 +602,15 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
                 elif name in disabled_tools:
                     colored_names.append(f"[red]{name}[/]")
                 elif name in lazy_tools:
-                    colored_names.append(f"[{sky_blue}]{name}[/]")  # Sky blue for high-contrast lazy tools
+                    colored_names.append(f"[yellow]{name}[/]")
                 else:
                     colored_names.append(f"[{text}]{name}[/]")
             tools_str = ", ".join(colored_names)
 
-        right_lines.append(f"[bold {sky_blue}]{toolset}:[/] {tools_str}")
+        right_lines.append(f"[dim {dim}]{toolset}:[/] {tools_str}")
 
     if remaining_toolsets > 0:
-        right_lines.append(f"[bold {sky_blue}](and {remaining_toolsets} more toolsets...)[/]")
+        right_lines.append(f"[dim {dim}](and {remaining_toolsets} more toolsets...)[/]")
 
     # MCP Servers section (only if configured)
     try:
@@ -497,7 +649,7 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
                 skills_str = ", ".join(skill_names)
             if len(skills_str) > 50:
                 skills_str = skills_str[:47] + "..."
-            right_lines.append(f"[bold {sky_blue}]{category}:[/] [{text}]{skills_str}[/]")
+            right_lines.append(f"[dim {dim}]{category}:[/] [{text}]{skills_str}[/]")
     else:
         right_lines.append(f"[dim {dim}]No skills installed[/]")
 
@@ -507,6 +659,19 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     if mcp_connected:
         summary_parts.append(f"{mcp_connected} MCP servers")
     summary_parts.append("/help for commands")
+    # Indicate when the codex_app_server runtime is active so users
+    # understand why tool counts may not match what's actually reachable
+    # (codex builds its own tool list inside the spawned subprocess).
+    try:
+        from hermes_cli.codex_runtime_switch import get_current_runtime
+        from hermes_cli.config import load_config as _load_cfg
+        if get_current_runtime(_load_cfg()) == "codex_app_server":
+            right_lines.append(
+                f"[bold {accent}]Runtime:[/] [{text}]codex app-server[/] "
+                f"[dim {dim}](terminal/file ops/MCP run inside codex)[/]"
+            )
+    except Exception:
+        pass
     # Show active profile name when not 'default'
     try:
         from hermes_cli.profiles import get_active_profile_name
@@ -516,30 +681,61 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     except Exception:
         pass  # Never break the banner over a profiles.py bug
 
-    right_lines.append(f"[bold {sky_blue}]{' · '.join(summary_parts)}[/]")
+    right_lines.append(f"[dim {dim}]{' · '.join(summary_parts)}[/]")
 
     # Update check — use prefetched result if available
     try:
         behind = get_update_result(timeout=0.5)
-        if behind and behind > 0:
-            from hermes_cli.config import recommended_update_command
-            commits_word = "commit" if behind == 1 else "commits"
-            right_lines.append(
-                f"[bold yellow]⚠ {behind} {commits_word} behind[/]"
-                f"[dim yellow] — run [bold]{recommended_update_command()}[/bold] to update[/]"
-            )
+        if behind is not None and behind != 0:
+            from hermes_cli.config import get_managed_update_command, recommended_update_command
+            if behind > 0:
+                commits_word = "commit" if behind == 1 else "commits"
+                right_lines.append(
+                    f"[bold yellow]⚠ {behind} {commits_word} behind[/]"
+                    f"[dim yellow] — run [bold]{recommended_update_command()}[/bold] to update[/]"
+                )
+            else:
+                # UPDATE_AVAILABLE_NO_COUNT: nix-built hermes; we know an update
+                # exists but not by how much, and we don't know how the user
+                # installed it (nix run, profile, system flake, home-manager).
+                managed_cmd = get_managed_update_command()
+                line = "[bold yellow]⚠ update available[/]"
+                if managed_cmd:
+                    line += f"[dim yellow] — run [bold]{managed_cmd}[/bold][/]"
+                right_lines.append(line)
     except Exception:
         pass  # Never break the banner over an update check
+
+    # Pip-install warning — `pip install hermes-agent` is not the supported
+    # install path (it exists on PyPI for internal/CI reasons, not end users).
+    # Such installs miss the git checkout + installer-managed deps, so updates,
+    # self-update, and issue triage don't behave correctly. Warn, don't block.
+    try:
+        from hermes_cli.config import detect_install_method
+        if detect_install_method() == "pip":
+            right_lines.append(
+                "[bold yellow]⚠ pip install not officially supported[/]"
+                "[dim yellow] — exists for reasons other than user install; "
+                "expect instability and an inability to support issues[/]"
+            )
+    except Exception:
+        pass  # Never break the banner over the install-method check
 
     right_content = "\n".join(right_lines)
     layout_table.add_row(left_content, right_content)
 
-    agent_name = _skin_branding("agent_name", "Autolycus Agent")
-    title_color = _skin_color("banner_title", "#00d4aa")  # Bright teal
-    border_color = _skin_color("banner_border", "#0a3d62")  # Dark navy for contrast
+    title_color = _skin_color("banner_title", "#FFD700")
+    border_color = _skin_color("banner_border", "#CD7F32")
+    version_label = format_banner_version_label()
+    release_info = get_latest_release_tag()
+    if release_info:
+        _tag, _url = release_info
+        title_markup = f"[bold {title_color}][link={_url}]{version_label}[/link][/]"
+    else:
+        title_markup = f"[bold {title_color}]{version_label}[/]"
     outer_panel = Panel(
         layout_table,
-        title=f"[bold {title_color}]{format_banner_version_label()}[/]",
+        title=title_markup,
         border_style=border_color,
         padding=(0, 2),
     )
