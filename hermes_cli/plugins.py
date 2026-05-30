@@ -33,7 +33,6 @@ so plugin-defined tools appear alongside the built-in tools.
 from __future__ import annotations
 
 import asyncio
-import importlib
 import importlib.metadata
 import importlib.util
 import inspect
