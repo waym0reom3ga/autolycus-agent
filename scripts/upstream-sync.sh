@@ -277,7 +277,19 @@ PYEOF
     fi
 fi
 
-# === STEP 6: Post-sync patches - remove Windows-specific files ===
+# === STEP 6: Enforce Autolycus branding - replace Hermes medical staff with trident ===
+STAFF_COUNT=$(grep -r '⚕' --include='*.py' --include='*.md' --include='*.toml' --include='*.yml' . 2>/dev/null | grep -v venv | wc -l || echo "0")
+if [ "$STAFF_COUNT" -gt 0 ]; then
+    echo "Enforcing trident branding: replacing $STAFF_COUNT medical staff symbol(s)..."
+    find . -type f \( -name '*.py' -o -name '*.md' -o -name '*.toml' -o -name '*.yml' \) \
+        -not -path './venv/*' -not -path './.venv/*' -not -path './tracking/venv/*' \
+        -exec sed -i 's/⚕/🔱/g' {} +
+    echo "  Trident branding enforced."
+else
+    echo "  OK: No medical staff symbols found (trident branding intact)."
+fi
+
+# === STEP 7: Post-sync patches - remove Windows-specific files ===
 if [ -f scripts/check-windows-footguns.py ]; then
     echo "Removing scripts/check-windows-footguns.py..."
     rm scripts/check-windows-footguns.py
@@ -305,13 +317,13 @@ with open(path, 'w') as f:
 "
 fi
 
-# === STEP 7: Safety check - ensure rebase is complete ===
+# === STEP 8: Safety check - ensure rebase is complete ===
 if git status | grep -q "rebase in progress\|rebase-merge\|rebase-apply"; then
     echo "ERROR: Rebase appears incomplete, aborting sync!"
     exit 1
 fi
 
-# === STEP 8: Commit and push ===
+# === STEP 9: Commit and push ===
 git add -A
 git commit -m "upstream-sync: auto-rebase with both-sides conflict resolution $(date -u +%Y-%m-%dT%H:%M:%SZ)" --allow-empty
 git push origin main --force-with-lease
