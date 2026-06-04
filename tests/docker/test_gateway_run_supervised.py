@@ -340,7 +340,7 @@ def test_supervised_gateway_stdout_reaches_docker_logs(
     swallows the gateway's stdout into the file and ``docker logs``
     only sees stderr (Python ``logging`` defaults to stderr). That's
     a poor user experience: the iconic "Hermes Gateway Starting…"
-    banner with the ⚕ symbol is the most visible "yes, your gateway
+    banner with the 🔱 symbol is the most visible "yes, your gateway
     started" signal, and forcing users to ``docker exec`` + ``tail``
     the log file just to see it is friction users don't expect.
 
@@ -349,7 +349,7 @@ def test_supervised_gateway_stdout_reaches_docker_logs(
     /init's stdout = container stdout = ``docker logs``) AND also
     writes a timestamped copy to the rotated file. Best of both.
 
-    We assert by looking for the literal banner glyph (``⚕``) — a
+    We assert by looking for the literal banner glyph (``🔱``) — a
     distinctive character that won't appear in stderr-routed
     Python-logging output, so its presence in ``docker logs`` proves
     the stdout-tee is working.
@@ -369,10 +369,10 @@ def test_supervised_gateway_stdout_reaches_docker_logs(
     )
     combined = logs.stdout + logs.stderr
 
-    # The banner ⚕ symbol is the load-bearing assertion — it's unique
+    # The banner 🔱 symbol is the load-bearing assertion — it's unique
     # to gateway startup stdout output and won't appear in stderr
     # (Python logging) or s6 boot messages.
-    assert "⚕" in combined or "Hermes Gateway Starting" in combined, (
+    assert "🔱" in combined or "Hermes Gateway Starting" in combined, (
         "Supervised gateway's stdout banner did not reach docker logs. "
         "This means the `1` action directive in _render_log_run isn't "
         "forwarding stdout to /init. "
@@ -387,7 +387,7 @@ def test_supervised_gateway_stdout_reaches_docker_logs(
     file_contents = _sh(
         container_name, "cat /opt/data/logs/gateways/default/current",
     ).stdout
-    assert "⚕" in file_contents or "Hermes Gateway Starting" in file_contents, (
+    assert "🔱" in file_contents or "Hermes Gateway Starting" in file_contents, (
         "Banner also missing from rotated log file — the file "
         "destination may have been dropped by the new s6-log script. "
         f"File contents:\n{file_contents}"

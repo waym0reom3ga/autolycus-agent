@@ -88,7 +88,7 @@ AUTOLYCUS_LOGO = """[bold #00CED1] ░▒▓██████▓▒░░▒▓
 
 COMPACT_BANNER = """
 [bold #00CED1]╔══════════════════════════════════════════════════════════════╗[/]
-[bold #00CED1]║[/]  [#4169E1]⚕ AUTOLYCUS[/] [dim #5F9EA0]- AI Agent Framework[/]              [bold #00CED1]║[/]
+[bold #00CED1]║[/]  [#4169E1]🔱 AUTOLYCUS[/] [dim #5F9EA0]- AI Agent Framework[/]              [bold #00CED1]║[/]
 [bold #00CED1]║[/]  [#1E90FF]The World's First AI Agent for FreeBSD[/]    [dim #4169E1]Technetia Inc[/]   [bold #00CED1]║[/]
 [bold #00CED1]╚══════════════════════════════════════════════════════════════╝[/]
 """

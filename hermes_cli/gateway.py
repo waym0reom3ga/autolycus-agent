@@ -5443,7 +5443,7 @@ def gateway_setup():
     )
     print(
         color(
-            "│             ⚕ Gateway Setup                            │", Colors.MAGENTA
+            "│             🔱 Gateway Setup                            │", Colors.MAGENTA
         )
     )
     print(
