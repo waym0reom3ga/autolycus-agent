@@ -2697,6 +2697,9 @@ def select_provider_and_model(args=None):
     #   members != [] → group row, key is "group:<gid>"
     ordered: list[tuple[str, str, list[str]]] = []
     default_idx = 0
+
+    # Custom endpoint first for Autolycus (local-first setup)
+    ordered.append(("custom", "Custom endpoint (enter URL manually)", []))
     for row in grouped_rows:
         if row["kind"] == "group":
             gid = row["group_id"]
@@ -2730,7 +2733,6 @@ def select_provider_and_model(args=None):
         else:
             ordered.append((key, label, []))
 
-    ordered.append(("custom", "Custom endpoint (enter URL manually)", []))
     _has_saved_custom_list = isinstance(config.get("custom_providers"), list) and bool(
         config.get("custom_providers")
     )
