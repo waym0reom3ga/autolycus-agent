@@ -176,6 +176,80 @@ class TestSessionKeyContext:
 
 
 
+class TestRepeatedCommandDetection:
+    """Tests for the repeated-command loop guard."""
+
+    def test_allows_first_two_runs(self):
+        from tools import approval as mod
+        session = "test-repeat-session"
+        cmd = "pip install -e ."
+        # First run — no history, should pass.
+        blocked, desc = mod.detect_repeated_command(session, cmd)
+        assert not blocked
+        # Second run — one previous match, still under threshold (2).
+        blocked, desc = mod.detect_repeated_command(session, cmd)
+        assert not blocked
+        # Clean up.
+        mod._command_history.clear()
+
+    def test_blocks_third_consecutive_run(self):
+        from tools import approval as mod
+        session = "test-repeat-block"
+        cmd = "pip install -e ."
+        mod.detect_repeated_command(session, cmd)  # 1st
+        mod.detect_repeated_command(session, cmd)  # 2nd
+        blocked, desc = mod.detect_repeated_command(session, cmd)  # 3rd — should block.
+        assert blocked
+        assert "repeated command" in desc
+        assert "3 times consecutively" in desc
+        mod._command_history.clear()
+
+    def test_different_command_resets_counter(self):
+        from tools import approval as mod
+        session = "test-repeat-reset"
+        cmd_a = "pip install -e ."
+        cmd_b = "ls -la"
+        mod.detect_repeated_command(session, cmd_a)  # A: 1st
+        mod.detect_repeated_command(session, cmd_a)  # A: 2nd
+        mod.detect_repeated_command(session, cmd_b)  # B: breaks streak — no block.
+        blocked, _ = mod.detect_repeated_command(session, cmd_b)
+        assert not blocked
+        mod._command_history.clear()
+
+    def test_whitespace_normalization(self):
+        """Commands with different whitespace should be treated as identical."""
+        from tools import approval as mod
+        session = "test-repeat-ws"
+        mod.detect_repeated_command(session, "pip  install   -e .")
+        mod.detect_repeated_command(session, "pip install -e .")
+        blocked, desc = mod.detect_repeated_command(session, "pip install -e .")
+        assert blocked
+        mod._command_history.clear()
+
+    def test_block_result_is_hardline(self):
+        """Repeated-command block must be hardline (unbypassable by yolo)."""
+        from tools import approval as mod
+        result = mod._repeated_command_block_result("repeated command (3 times consecutively)")
+        assert not result["approved"]
+        assert result.get("hardline") is True
+        assert "agent loop" in result["message"].lower()
+
+    def test_check_all_guards_blocks_repeated(self):
+        """check_all_command_guards must block repeated commands before yolo."""
+        from tools import approval as mod
+        session = "test-repeat-guards"
+        os.environ["HERMES_SESSION_KEY"] = session
+        # Seed history with 2 runs.
+        cmd = "echo hello"
+        mod.detect_repeated_command(session, cmd)
+        mod.detect_repeated_command(session, cmd)
+        # Third run through the full guard should block.
+        result = mod.check_all_command_guards(cmd, "local")
+        assert not result["approved"]
+        assert "repeated command" in result.get("message", "")
+        mod._command_history.clear()
+        os.environ.pop("HERMES_SESSION_KEY", None)
+
 
 class TestRmFalsePositiveFix:
     """Regression tests: filenames starting with 'r' must NOT trigger recursive delete."""
@@ -1437,6 +1511,7 @@ class TestApprovalTimeoutIsNotConsent:
         mod._session_approved.clear()
         mod._permanent_approved.clear()
         mod._pending.clear()
+        mod._command_history.clear()
 
         self._saved_env = {
             k: os.environ.get(k)
@@ -1457,6 +1532,7 @@ class TestApprovalTimeoutIsNotConsent:
         from tools import approval as mod
         mod._gateway_queues.clear()
         mod._gateway_notify_cbs.clear()
+        mod._command_history.clear()
         for k, v in self._saved_env.items():
             if v is None:
                 os.environ.pop(k, None)
