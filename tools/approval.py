@@ -268,11 +268,16 @@ HARDLINE_PATTERNS = [
     (_CMDPOS + r'init\s+[06]\b', "init 0/6 (shutdown/reboot)"),
     (_CMDPOS + r'systemctl\s+(poweroff|reboot|halt|kexec)\b', "systemctl poweroff/reboot"),
     (_CMDPOS + r'telinit\s+[06]\b', "telinit 0/6 (shutdown/reboot)"),
+    # --break-system-packages bypasses the protection against installing pip
+    # packages globally, which wrecks system package management on Debian/Ubuntu.
+    # On Arch this is less of an issue but still a hard no — it's always a sign
+    # of the agent ignoring proper virtualenv usage.
+    (r'--break-system-packages\b', "pip/apt --break-system-packages"),
 ]
 
 # Pre-compiled variant used by the hot-path matcher. Building these at module
 # load eliminates the ~2.6 ms cold-cache re.compile fan-out on the first
-# terminal() call per process (12 HARDLINE + 47 DANGEROUS patterns, each
+# terminal() call per process (13 HARDLINE + 47 DANGEROUS patterns, each
 # potentially evicted from Python's 512-entry ``re._cache`` by unrelated
 # regex work elsewhere in the agent). DANGEROUS_PATTERNS_COMPILED is built
 # at the end of this module after DANGEROUS_PATTERNS is defined.
@@ -328,6 +333,62 @@ def detect_hardline_command(command: str) -> tuple:
         if pattern_re.search(normalized):
             return (True, description)
     return (False, None)
+
+
+def _normalize_for_repeat_check(command: str) -> str:
+    """Normalize a command for repeated-command comparison.
+
+    Collapses whitespace and strips leading/trailing spaces so that
+    cosmetic differences don't defeat the check, but preserves the
+    semantic content of the command.
+    """
+    return " ".join(_normalize_command_for_detection(command).split())
+
+
+def detect_repeated_command(session_key: str, command: str) -> tuple:
+    """Detect if the same command has been run too many times consecutively.
+
+    Returns:
+        (is_blocked, description) or (False, None)
+    """
+    normalized = _normalize_for_repeat_check(command)
+    with _lock:
+        history = _command_history.get(session_key, [])
+
+    # Check if this command matches the last N entries consecutively.
+    consecutive = 0
+    for prev in reversed(history):
+        if prev == normalized:
+            consecutive += 1
+        else:
+            break
+
+    if consecutive >= _REPEATED_COMMAND_THRESHOLD:
+        return (True, f"repeated command ({consecutive + 1} times consecutively)")
+
+    # Record this command in history. Keep a bounded window.
+    with _lock:
+        history.append(normalized)
+        # Trim to last 50 commands per session — enough for detection,
+        # prevents unbounded memory growth over long sessions.
+        if len(history) > 50:
+            history[:] = history[-50:]
+        _command_history[session_key] = history
+
+    return (False, None)
+
+
+def _repeated_command_block_result(description: str) -> dict:
+    """Build the standard block result for a repeated-command match."""
+    return {
+        "approved": False,
+        "hardline": True,
+        "message": (
+            f"BLOCKED (hardline): {description}. "
+            "The same command has been executed too many times consecutively. "
+            "This indicates an agent loop — stop retrying and find a different approach."
+        ),
+    }
 
 
 def _hardline_block_result(description: str) -> dict:
@@ -563,6 +624,13 @@ _pending: dict[str, dict] = {}
 _session_approved: dict[str, set] = {}
 _session_yolo: set[str] = set()
 _permanent_approved: set = set()
+
+# Per-session command history for repeated-command detection.
+# Maps session_key -> list of recent normalized commands (most recent last).
+_command_history: dict[str, list[str]] = {}
+
+# Maximum number of consecutive identical commands allowed before blocking.
+_REPEATED_COMMAND_THRESHOLD = 2
 
 # =========================================================================
 # Blocking gateway approval (mirrors CLI's synchronous input() flow)
@@ -1240,6 +1308,15 @@ def check_all_command_guards(command: str, env_type: str,
     if is_hardline:
         logger.warning("Hardline block: %s (command: %s)", hardline_desc, command[:200])
         return _hardline_block_result(hardline_desc)
+
+    # Repeated-command guard: unconditional block when the same command runs
+    # too many times consecutively. This catches agent loops where the model
+    # retries a failing command endlessly instead of diagnosing the problem.
+    session_key = get_current_session_key()
+    is_repeated, repeated_desc = detect_repeated_command(session_key, command)
+    if is_repeated:
+        logger.warning("Repeated-command block: %s (command: %s)", repeated_desc, command[:200])
+        return _repeated_command_block_result(repeated_desc)
 
     # == Sudo stdin guard ==
     # Like the hardline floor above, this is unconditional: there is never a
