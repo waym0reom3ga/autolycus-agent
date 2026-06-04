@@ -205,6 +205,18 @@ setup_python
 setup_venv() {
     printf '%b\n' "${CYAN}→${NC} Setting up virtual environment..."
 
+    # Pre-flight: check for root-owned files that would block installation
+    ROOT_OWNED=$(find "$_INSTALL_REPO_DIR" -maxdepth 1 ! -user "$(whoami)" -type f 2>/dev/null | head -5)
+    if [ -n "$ROOT_OWNED" ]; then
+        printf '%b\n' "${RED}✗${NC} Found files not owned by $(whoami) in $_INSTALL_REPO_DIR:"
+        echo "$ROOT_OWNED" | sed 's/^/   /'
+        echo ""
+        echo "This usually means the repo was cloned or a previous install ran with sudo."
+        echo "Fix ownership first:"
+        echo "  chown -R $(whoami) $_INSTALL_REPO_DIR"
+        exit 1
+    fi
+
     # Check if we can write to the repo directory
     if [ ! -w "$_INSTALL_REPO_DIR" ]; then
         printf '%b\n' "${RED}✗${NC} Cannot write to repository directory: $_INSTALL_REPO_DIR"
@@ -235,15 +247,39 @@ setup_venv() {
         rm -rf "$_INSTALL_REPO_DIR/venv"
     fi
 
-    # Create the venv — use explicit path to avoid any CWD confusion
+    # Create the venv — use explicit absolute path to avoid any CWD confusion
+    _VENV_PATH="$_INSTALL_REPO_DIR/venv"
+
     if [ -n "$PYTHON_PATH" ]; then
-        $UV_CMD venv "$_INSTALL_REPO_DIR/venv" --python "$PYTHON_PATH"
+        $UV_CMD venv "$_VENV_PATH" --python "$PYTHON_PATH" 2>&1 || {
+            printf '%b\n' "${RED}✗${NC} Failed to create virtual environment at: $_VENV_PATH"
+            echo ""
+            echo "Common causes on FreeBSD:"
+            echo "  1. Previous install ran with sudo — root-owned files block creation"
+            echo "     Fix: chown -R $(whoami) $_INSTALL_REPO_DIR"
+            echo "  2. Insufficient disk space"
+            echo "     Check: df -h $_INSTALL_REPO_DIR"
+            echo "  3. Parent directory not writable"
+            echo "     Check: ls -ld $_INSTALL_REPO_DIR"
+            exit 1
+        }
     else
-        $UV_CMD venv "$_INSTALL_REPO_DIR/venv" --python "$PYTHON_VERSION"
+        $UV_CMD venv "$_VENV_PATH" --python "$PYTHON_VERSION" 2>&1 || {
+            printf '%b\n' "${RED}✗${NC} Failed to create virtual environment at: $_VENV_PATH"
+            echo ""
+            echo "Common causes on FreeBSD:"
+            echo "  1. Previous install ran with sudo — root-owned files block creation"
+            echo "     Fix: chown -R $(whoami) $_INSTALL_REPO_DIR"
+            echo "  2. Insufficient disk space"
+            echo "     Check: df -h $_INSTALL_REPO_DIR"
+            echo "  3. Parent directory not writable"
+            echo "     Check: ls -ld $_INSTALL_REPO_DIR"
+            exit 1
+        }
     fi
 
     printf '%b\n' "${GREEN}✓${NC} venv created (Python $PYTHON_VERSION)"
-    export VIRTUAL_ENV="$_INSTALL_REPO_DIR/venv"
+    export VIRTUAL_ENV="$_VENV_PATH"
 }
 
 setup_venv
