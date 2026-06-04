@@ -255,9 +255,9 @@ setup_venv
 install_deps() {
     printf '%b\n' "${CYAN}→${NC} Installing dependencies..."
 
-    # FreeBSD: exclude voice (faster-whisper) and pty — no wheels available
-    EXTRAS="[modal,daytona,messaging,cron,cli,dev,tts-premium,slack,honcho,mcp]"
-    printf '%b\n' "${CYAN}→${NC} FreeBSD detected — installing selective extras (voice/pty excluded)"
+    # FreeBSD: exclude voice (faster-whisper), pty, and dev (ruff/jemalloc build fails on FreeBSD)
+    EXTRAS="[modal,daytona,messaging,cron,cli,tts-premium,slack,honcho,mcp]"
+    printf '%b\n' "${CYAN}→${NC} FreeBSD detected — installing selective extras (voice/pty/dev excluded)"
 
     # Prefer uv sync with lockfile
     if [ -f "$_INSTALL_REPO_DIR/uv.lock" ]; then
