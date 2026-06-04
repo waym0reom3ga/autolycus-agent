@@ -2979,7 +2979,7 @@ def run_setup_wizard(args):
         setup_mode = prompt_choice(
             "How would you like to set up Hermes?",
             [
-                "Quick Setup (Nous Portal) — free OAuth login, no API keys, model + tools (recommended)",
+                "Quick Setup (Local Provider) — connect to a local model server",
                 "Full setup — configure every provider, tool & option yourself (bring your own keys)",
             ],
             0,
@@ -3036,43 +3036,119 @@ def run_setup_wizard(args):
 
 
 def _run_first_time_quick_setup(config: dict, hermes_home, is_existing: bool):
-    """Streamlined first-time setup via Nous Portal: OAuth, model, terminal & messaging.
+    """Streamlined first-time setup for a local model provider.
 
-    Routes straight to the Nous Portal provider — runs the device-code OAuth
-    login, picks a Nous model, then configures the terminal backend and (optionally)
-    a messaging platform. Applies sensible defaults for everything else (agent
-    settings, tools); the user can customize later via ``hermes setup <section>``
-    or switch providers with ``hermes model``.
+    Asks for the local server's HTTP base URL and API key, saves it as a
+    custom provider, then configures the terminal backend and (optionally)
+    a messaging platform. Applies sensible defaults for everything else;
+    the user can customize later via ``hermes setup <section>`` or switch
+    providers with ``hermes model``.
     """
     from hermes_cli.config import load_config
 
-    # Step 1: Nous Portal — OAuth login + model selection.
-    # _model_flow_nous() handles both the logged-out path (device-code OAuth,
-    # which selects a model internally) and the already-logged-in path (curated
-    # Nous model picker). Provider is set to "nous" by the login/model save.
+    # Step 1: Local provider — URL + API key.
     print()
-    print_header("Nous Portal")
-    print_info("One subscription, 300+ models, plus the Tool Gateway:")
-    print_info("  web search, image generation, TTS, browser automation.")
-    print_info("Sign up: https://portal.nousresearch.com/manage-subscription")
+    print_header("Local Model Provider")
+    print_info("Connect to a local OpenAI-compatible model server.")
+    print_info("This can be any endpoint serving the chat completions API.")
     print()
-    try:
-        from hermes_cli.main import _model_flow_nous
-        _model_flow_nous(config)
-    except (KeyboardInterrupt, EOFError):
-        print()
-        print_info("Nous Portal setup cancelled.")
-    except Exception as exc:
-        logger.debug("_model_flow_nous error during quick setup: %s", exc)
-        print_warning(f"Nous Portal setup encountered an error: {exc}")
-        print_info("You can try again later with: hermes model")
 
-    # Re-sync the wizard's config dict from disk — _model_flow_nous (and the
-    # underlying login/model save) write via their own load/save cycle, and the
-    # wizard's later save_config(config) must not clobber those values (#4172).
-    _refreshed = load_config()
+    default_url = "http://localhost:1234/v1"
+    try:
+        base_url = input(f"API base URL [{default_url}]: ").strip() or default_url
+        api_key = masked_secret_prompt("API key [optional]: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\nCancelled.")
+        return
+
+    # Validate URL format
+    if not base_url.startswith(("http://", "https://")):
+        print(f"Invalid URL: {base_url} (must start with http:// or https://)")
+        return
+
+    # Hint for missing /v1 on local-looking URLs
+    _url_lower = base_url.rstrip("/").lower()
+    _looks_local = any(
+        h in _url_lower
+        for h in ("localhost", "127.0.0.1", "0.0.0.0")
+    )
+    if _looks_local and not _url_lower.endswith("/v1"):
+        print()
+        print(f"  Hint: Most local model servers require /v1 at the end.")
+        print(f"  e.g. {base_url.rstrip('/')}/v1")
+        try:
+            _add_v1 = input("  Add /v1? [Y/n]: ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            _add_v1 = "n"
+        if _add_v1 in {"", "y", "yes"}:
+            base_url = base_url.rstrip("/") + "/v1"
+            print(f"  Updated URL: {base_url}")
+        print()
+
+    # Probe for available models
+    from hermes_cli.models import probe_api_models
+    probe = probe_api_models(api_key, base_url)
+    detected_models = probe.get("models") or []
+    if detected_models:
+        print(f"Verified endpoint ({len(detected_models)} model(s) visible)")
+    else:
+        print(
+            f"Warning: could not verify this endpoint. Hermes will still save it."
+        )
+
+    # Select model from detected list, or ask manually
+    model_name = ""
+    try:
+        if len(detected_models) == 1:
+            print(f"  Detected model: {detected_models[0]}")
+            confirm = input("  Use this model? [Y/n]: ").strip().lower()
+            if confirm in {"", "y", "yes"}:
+                model_name = detected_models[0]
+            else:
+                model_name = input("Model name: ").strip()
+        elif len(detected_models) > 1:
+            print("  Available models:")
+            for i, m in enumerate(detected_models, 1):
+                print(f"    {i}. {m}")
+            pick = input(
+                f"  Select model [1-{len(detected_models)}] or type name: "
+            ).strip()
+            if pick.isdigit() and 1 <= int(pick) <= len(detected_models):
+                model_name = detected_models[int(pick) - 1]
+            elif pick:
+                model_name = pick
+            else:
+                model_name = input("Model name: ").strip()
+        else:
+            model_name = input("Model name (e.g. qwen3.6-27b): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\nCancelled.")
+        return
+
+    # Save the custom provider configuration
+    from hermes_cli.auth import _save_model_choice, deactivate_provider
+
+    if model_name:
+        _save_model_choice(model_name)
+
+    cfg = load_config()
+    model_cfg = cfg.get("model")
+    if not isinstance(model_cfg, dict):
+        model_cfg = {"default": model_cfg} if model_cfg else {}
+        cfg["model"] = model_cfg
+    model_cfg["provider"] = "custom"
+    model_cfg["base_url"] = base_url
+    if api_key:
+        model_cfg["api_key"] = api_key
+    save_config(cfg)
+    deactivate_provider()
+
+    # Sync back to the caller's config dict so later saves don't clobber it
     config.clear()
-    config.update(_refreshed)
+    config.update(load_config())
+
+    print(f"  Default model set to: {model_name} (via {base_url})")
+    print_success("Local provider configured.")
 
     # Step 2: Terminal Backend — where commands run is a core decision
     setup_terminal_backend(config)
