@@ -51,8 +51,8 @@ All fields are optional. Missing values inherit from the ``default`` skin.
     branding:
       agent_name: "Hermes Agent"          # Banner title, status display
       welcome: "Welcome message"          # Shown at CLI startup
-      goodbye: "Goodbye! ⚕"              # Shown on exit
-      response_label: " ⚕ Hermes "       # Response box header label
+      goodbye: "Goodbye! 🔱"              # Shown on exit
+      response_label: " 🔱 Hermes "       # Response box header label
       prompt_symbol: "❯ "                # Input prompt symbol
       help_header: "(^_^)? Commands"      # /help header text
 
@@ -663,7 +663,7 @@ def get_active_help_header(fallback: str = "(^_^)? Available Commands") -> str:
 
 
 
-def get_active_goodbye(fallback: str = "Goodbye! ⚕") -> str:
+def get_active_goodbye(fallback: str = "Goodbye! 🔱") -> str:
     """Get the goodbye line from the active skin."""
     try:
         return get_active_skin().get_branding("goodbye", fallback)

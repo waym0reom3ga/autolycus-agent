@@ -15182,7 +15182,7 @@ class GatewayRunner:
                             default_hint = f" (default: {default})" if default else ""
                             await adapter.send(
                                 chat_id,
-                                f"⚕ **Update needs your input:**\n\n"
+                                f"🔱 **Update needs your input:**\n\n"
                                 f"{prompt_text}{default_hint}\n\n"
                                 f"Reply `/approve` (yes) or `/deny` (no), "
                                 f"or type your answer directly.",

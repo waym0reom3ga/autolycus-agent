@@ -171,7 +171,7 @@ The new color scheme and branding will be applied automatically on next startup!
 #### Before (v_0.0.2 - Hermes-inspired):
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  ⚕ HERMES - AI Agent Framework              ║
+║  🔱 HERMES - AI Agent Framework              ║
 ║  Built on Nous Research architecture         Nous Research ║
 ╚══════════════════════════════════════════════════════════════╝
 Colors: Gold (#FFD700), Yellow (#FFBF00)
@@ -180,7 +180,7 @@ Colors: Gold (#FFD700), Yellow (#FFBF00)
 #### After (v_0.0.3 - Autolycus):
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║  ⚕ AUTOLYCUS - AI Agent Framework              ║
+║  🔱 AUTOLYCUS - AI Agent Framework              ║
 ║  The World's First AI Agent for FreeBSD    Technetia Inc   ║
 ╚══════════════════════════════════════════════════════════════╝
 Colors: Teal (#00CED1), Blue (#4169E1)
