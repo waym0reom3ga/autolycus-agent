@@ -265,12 +265,12 @@ install_deps() {
         UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD sync --all-extras --locked 2>/dev/null && \
             printf '%b\n' "${GREEN}✓${NC} Dependencies installed (lockfile verified)" || {
             printf '%b\n' "${YELLOW}⚠${NC} Lockfile install failed, falling back to pip..."
-            UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e "$_INSTALL_REPO_DIR.$EXTRAS"
+            UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e ".${EXTRAS}"
             printf '%b\n' "${GREEN}✓${NC} Dependencies installed"
         }
     else
-        UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e "$_INSTALL_REPO_DIR.$EXTRAS" || \
-        UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e "$_INSTALL_REPO_DIR"
+        UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e ".${EXTRAS}" || \
+        UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e "."
         printf '%b\n' "${GREEN}✓${NC} Dependencies installed"
     fi
 }
