@@ -31,6 +31,10 @@ case ":${PATH}:" in
     *) PATH="/usr/local/bin:${PATH}" ;;
 esac
 
+# Ensure we use native FreeBSD tools — not GNU equivalents
+export MAKE=${MAKE:-/usr/bin/make}  # BSD make, not gmake
+export CC=${CC:-cc}                # system clang, not gcc
+
 # Detect repo directory
 _install_detect_dirs "$0"
 
