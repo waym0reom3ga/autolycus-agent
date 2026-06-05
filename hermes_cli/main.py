@@ -10206,7 +10206,7 @@ def _cmd_update_impl(args, gateway_mode: bool):
             logger.debug("Could not read updates.non_interactive_local_changes: %s", exc)
             discard_local_changes = False
 
-    print("⚕ Updating Hermes Agent...")
+    print("🔱 Updating Hermes Agent...")
     print()
 
     # On Windows, abort early if another hermes.exe is holding the venv shim
