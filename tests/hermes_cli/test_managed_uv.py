@@ -76,11 +76,10 @@ class TestEnsureUv:
         _make_executable(tmp_path / "bin" / "uv")
         with patch("hermes_cli.managed_uv.get_hermes_home", return_value=tmp_path):
             from hermes_cli.managed_uv import ensure_uv
-            path, fresh = ensure_uv()
+            path = ensure_uv()
             assert path == str(tmp_path / "bin" / "uv")
-            assert fresh is False
 
-    def test_installs_if_missing_sets_bootstrap_flag(self, tmp_path):
+    def test_installs_if_missing(self, tmp_path):
         with patch("hermes_cli.managed_uv.get_hermes_home", return_value=tmp_path), \
              patch("hermes_cli.managed_uv._install_uv") as mock_install:
             # Simulate the installer creating the binary
@@ -89,16 +88,15 @@ class TestEnsureUv:
             mock_install.side_effect = fake_install
 
             from hermes_cli.managed_uv import ensure_uv
-            path, fresh = ensure_uv()
+            path = ensure_uv()
             assert path == str(tmp_path / "bin" / "uv")
-            assert fresh is True
             mock_install.assert_called_once()
 
-    def test_install_failure_returns_none_false(self, tmp_path):
+    def test_install_failure_returns_none(self, tmp_path):
         with patch("hermes_cli.managed_uv.get_hermes_home", return_value=tmp_path), \
              patch("hermes_cli.managed_uv._install_uv", side_effect=RuntimeError("network down")):
             from hermes_cli.managed_uv import ensure_uv
-            path, fresh = ensure_uv()
+            path = ensure_uv()
             assert path is None
             assert fresh is False
 
