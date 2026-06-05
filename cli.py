@@ -982,7 +982,7 @@ def _run_cleanup():
     try:
         from tools.mcp_tool import shutdown_mcp_servers
         shutdown_mcp_servers()
-    except Exception:
+    except BaseException:
         pass
     # Close cached auxiliary LLM clients (sync + async) so that
     # AsyncHttpxClientWrapper.__del__ doesn't fire on a closed event loop
