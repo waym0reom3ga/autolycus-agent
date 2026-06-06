@@ -25,6 +25,13 @@ import { triggerHaptic } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 import { $composerAttachments, clearComposerAttachments, type ComposerAttachment } from '@/store/composer'
 import {
+  browseBackward,
+  browseForward,
+  deriveUserHistory,
+  isBrowsingHistory,
+  resetBrowseState
+} from '@/store/composer-input-history'
+import {
   $queuedPromptsBySession,
   enqueueQueuedPrompt,
   promoteQueuedPrompt,
@@ -116,6 +123,7 @@ export function ChatBar({
   onPickFolders,
   onPickImages,
   onRemoveAttachment,
+  onSteer,
   onSubmit,
   onTranscribeAudio
 }: ChatBarProps) {
@@ -124,6 +132,7 @@ export function ChatBar({
   const attachments = useStore($composerAttachments)
   const queuedPromptsBySession = useStore($queuedPromptsBySession)
   const scrolledUp = useStore($threadScrolledUp)
+  const sessionMessages = useStore($messages)
   const activeQueueSessionKey = queueSessionKey || sessionId || null
 
   const queuedPrompts = useMemo(
@@ -157,10 +166,15 @@ export function ChatBar({
   const slash = useSlashCompletions({ gateway: gateway ?? null })
 
   const stacked = expanded || narrow || tight
-  const hasComposerPayload = draft.trim().length > 0 || attachments.length > 0
+  const trimmedDraft = draft.trim()
+  const hasComposerPayload = trimmedDraft.length > 0 || attachments.length > 0
   const canSubmit = busy || hasComposerPayload
   const editingQueuedPrompt = queueEdit ? (queuedPrompts.find(entry => entry.id === queueEdit.entryId) ?? null) : null
   const busyAction = busy && hasComposerPayload ? 'queue' : 'stop'
+  // Steer only makes sense mid-turn, text-only (the gateway can't carry images
+  // into a tool result) and never for a slash command (those execute inline).
+  const canSteer =
+    busy && !!onSteer && attachments.length === 0 && trimmedDraft.length > 0 && !SLASH_COMMAND_RE.test(trimmedDraft)
   const showHelpHint = draft === '?'
 
   const { t } = useI18n()
@@ -193,6 +207,7 @@ export function ChatBar({
       return
     }
 
+    resetBrowseState(prev)
     setRestingPlaceholder(pickPlaceholder(sessionId ? followUpPlaceholders : newSessionPlaceholders))
   }, [followUpPlaceholders, newSessionPlaceholders, sessionId])
 
@@ -715,6 +730,87 @@ export function ChatBar({
       }
     }
 
+    // ArrowUp/ArrowDown navigate, in priority order: the queue (edit entries in
+    // place) then sent-message history. The history ring is derived from live
+    // session messages each press — single source of truth, no mirror.
+    if (event.key === 'ArrowUp') {
+      const currentDraft = draftRef.current
+
+      // Editing a queued turn → walk to the older entry.
+      if (queueEdit && stepQueuedEdit(-1)) {
+        event.preventDefault()
+        triggerKeyConsumedRef.current = true
+
+        return
+      }
+
+      // Empty composer + a queued turn → open the newest queued entry for edit
+      // (the row's pencil), not a text recall. Enter saves it back to the queue.
+      if (!currentDraft.trim() && !queueEdit && queuedPrompts.length > 0) {
+        event.preventDefault()
+        triggerKeyConsumedRef.current = true
+        beginQueuedEdit(queuedPrompts[queuedPrompts.length - 1]!)
+
+        return
+      }
+
+      // Don't hijack a typed draft unless already browsing — they'd lose it.
+      if (currentDraft.trim() && !isBrowsingHistory(sessionId)) {
+        return
+      }
+
+      event.preventDefault()
+      triggerKeyConsumedRef.current = true
+
+      const history = deriveUserHistory(sessionMessages, chatMessageText)
+      const entry = browseBackward(sessionId, currentDraft, history)
+
+      if (entry !== null) {
+        loadIntoComposer(entry, $composerAttachments.get())
+      }
+
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      // Editing a queued turn → walk to the newer entry (past the newest exits).
+      if (queueEdit) {
+        event.preventDefault()
+        triggerKeyConsumedRef.current = true
+        stepQueuedEdit(1)
+
+        return
+      }
+
+      // Browsing sent history → step toward the present, restoring the draft.
+      if (isBrowsingHistory(sessionId)) {
+        event.preventDefault()
+        triggerKeyConsumedRef.current = true
+
+        const history = deriveUserHistory(sessionMessages, chatMessageText)
+        const result = browseForward(sessionId, history)
+
+        if (result !== null) {
+          loadIntoComposer(result.text, $composerAttachments.get())
+        }
+      }
+
+      return
+    }
+
+    // Cmd/Ctrl+Enter is reserved for steering the live run — never a send.
+    // Steer when there's a steerable draft, otherwise swallow it so it can't
+    // surprise-send. (Plain Enter still queues while busy / sends when idle.)
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
+      event.preventDefault()
+
+      if (canSteer) {
+        steerDraft()
+      }
+
+      return
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
 
@@ -735,11 +831,21 @@ export function ChatBar({
       return
     }
 
-    // Esc interrupts the running turn (Stop-button parity).
-    if (event.key === 'Escape' && busy) {
-      event.preventDefault()
-      triggerHaptic('cancel')
-      void Promise.resolve(onCancel())
+    if (event.key === 'Escape') {
+      // Editing a queued turn → Esc cancels the edit, restoring the prior draft.
+      if (queueEdit) {
+        event.preventDefault()
+        exitQueuedEdit('cancel')
+
+        return
+      }
+
+      // Otherwise Esc interrupts the running turn (Stop-button parity).
+      if (busy) {
+        event.preventDefault()
+        triggerHaptic('cancel')
+        void Promise.resolve(onCancel())
+      }
     }
   }
 
@@ -905,6 +1011,42 @@ export function ChatBar({
     focusInput()
   }
 
+  // Walk queued entries while editing (ArrowUp = older, ArrowDown = newer),
+  // saving the in-progress edit on each step. Stepping newer past the last
+  // entry exits edit mode and restores the pre-edit draft.
+  const stepQueuedEdit = (direction: -1 | 1) => {
+    if (!queueEdit) {
+      return false
+    }
+
+    const index = queuedPrompts.findIndex(e => e.id === queueEdit.entryId)
+    const target = index + direction
+
+    if (index < 0 || target < 0) {
+      return index >= 0 // at the oldest: swallow; missing entry: let it fall through
+    }
+
+    const saved = updateQueuedPrompt(queueEdit.sessionKey, queueEdit.entryId, {
+      attachments: cloneAttachments($composerAttachments.get()),
+      text: draftRef.current
+    })
+
+    const next = queuedPrompts[target]
+
+    if (next) {
+      setQueueEdit({ ...queueEdit, entryId: next.id })
+      loadIntoComposer(next.text, next.attachments)
+    } else {
+      setQueueEdit(null)
+      loadIntoComposer(queueEdit.draft, queueEdit.attachments)
+    }
+
+    triggerHaptic(saved ? 'success' : 'selection')
+    focusInput()
+
+    return true
+  }
+
   const exitQueuedEdit = (action: 'cancel' | 'save'): boolean => {
     if (!queueEdit) {
       return false
@@ -947,6 +1089,26 @@ export function ChatBar({
     return true
   }, [activeQueueSessionKey, attachments, clearDraft, draft])
 
+  // Steer the live turn (nudge without interrupting). Clears the draft up front
+  // for snappy feedback; if the gateway rejects (no live tool window) the words
+  // are re-queued so nothing is lost — same safety net as a plain queue.
+  const steerDraft = useCallback(() => {
+    if (!onSteer || !canSteer) {
+      return
+    }
+
+    const text = draftRef.current.trim()
+
+    triggerHaptic('submit')
+    clearDraft()
+
+    void Promise.resolve(onSteer(text)).then(accepted => {
+      if (!accepted && activeQueueSessionKey) {
+        enqueueQueuedPrompt(activeQueueSessionKey, { text, attachments: [] })
+      }
+    })
+  }, [activeQueueSessionKey, canSteer, clearDraft, onSteer])
+
   // All queue drain paths share one lock + send-then-remove sequence.
   // `pickEntry` lets each caller choose head, by-id, or skip-edited.
   const runDrain = useCallback(
@@ -973,13 +1135,14 @@ export function ChatBar({
         }
 
         removeQueuedPrompt(activeQueueSessionKey, entry.id)
+        resetBrowseState(sessionId)
 
         return true
       } finally {
         drainingQueueRef.current = false
       }
     },
-    [activeQueueSessionKey, onSubmit, queuedPrompts]
+    [activeQueueSessionKey, onSubmit, queuedPrompts, sessionId]
   )
 
   const drainNextQueued = useCallback(
@@ -1077,6 +1240,7 @@ export function ChatBar({
     } else if (draft.trim() || attachments.length > 0) {
       const submitted = draft
       triggerHaptic('submit')
+      resetBrowseState(sessionId)
       clearDraft()
       clearComposerAttachments()
       void onSubmit(submitted, { attachments })
@@ -1146,6 +1310,7 @@ export function ChatBar({
     }
 
     triggerHaptic('submit')
+    resetBrowseState(sessionId)
     clearDraft()
     await onSubmit(text)
   }
@@ -1179,6 +1344,7 @@ export function ChatBar({
     <ComposerControls
       busy={busy}
       busyAction={busyAction}
+      canSteer={canSteer}
       canSubmit={canSubmit}
       conversation={{
         active: voiceConversationActive,
@@ -1196,6 +1362,7 @@ export function ChatBar({
       disabled={disabled}
       hasComposerPayload={hasComposerPayload}
       onDictate={dictate}
+      onSteer={steerDraft}
       state={state}
       voiceStatus={voiceStatus}
     />
