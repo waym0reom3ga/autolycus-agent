@@ -6692,6 +6692,9 @@ def cmd_import(args):
 
 def _print_version_info(*, check_updates: bool = True) -> None:
     print(f"Autolycus Agent v0.0.2")
+    from hermes_cli.banner import format_banner_version_label
+
+    print(format_banner_version_label())
     print(f"Project: {PROJECT_ROOT}")
 
     # Show Python version
