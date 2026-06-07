@@ -692,23 +692,41 @@ def _apply_main_model_assignment(
 ) -> dict:
     """Apply a main-slot model assignment to a ``model`` config dict in place.
 
-    Sets ``provider``/``default``, then reconciles ``base_url``: custom/local
-    providers persist the supplied endpoint URL (the runtime resolver reads
-    ``model.base_url`` from config and ignores ``OPENAI_BASE_URL``), while every
-    other provider clears any stale URL so the resolver picks that provider's
-    own default endpoint. The hardcoded ``context_length`` override is always
-    dropped since the new model may have a different context window.
+    Sets ``provider``/``default``, then reconciles ``base_url``:
+
+    - An explicitly supplied ``base_url`` is always persisted (covers
+      ``custom``/local endpoints and any provider whose key is bound to a
+      non-default host).
+    - Otherwise, a stale ``base_url`` is cleared ONLY when switching to a
+      *different* provider — that URL belonged to the old provider. When the
+      provider is unchanged and no new URL is supplied, the existing
+      ``base_url`` is preserved. This keeps a user's custom endpoint (e.g. a
+      Xiaomi MiMo Token Plan host, ``https://token-plan-*.xiaomimimo.com/v1``)
+      alive when they merely re-pick a model under the same provider — picking
+      a model previously wiped it, forcing the registry default and breaking
+      Token Plan keys.
+
+    The runtime resolver reads ``model.base_url`` from config (it ignores
+    ``OPENAI_BASE_URL``) and only honors it when the configured provider matches
+    and the pool entry is on the registry default, so preserving it here is what
+    lets the override actually route. The hardcoded ``context_length`` override
+    is always dropped since the new model may have a different context window.
 
     Returns the same dict (coerced to a fresh dict if the input wasn't one) so
-    callers can assign it straight back onto ``cfg["model"]``.
+    callers can assign it straight back onto the model config.
     """
     if not isinstance(model_cfg, dict):
         model_cfg = {}
+    prev_provider = str(model_cfg.get("provider") or "").strip().lower()
+    new_provider = provider.strip().lower()
     model_cfg["provider"] = provider
     model_cfg["default"] = model
-    if provider.strip().lower() == "custom" and base_url.strip():
+    if base_url.strip():
         model_cfg["base_url"] = base_url.strip()
-    elif model_cfg.get("base_url"):
+    elif model_cfg.get("base_url") and new_provider != prev_provider:
+        # Switching providers: the old URL belonged to the old provider, drop
+        # it so the new provider's default endpoint is used. Same-provider
+        # re-assignment keeps the user's configured base_url intact.
         model_cfg["base_url"] = ""
     model_cfg.pop("context_length", None)
     return model_cfg
@@ -5657,9 +5675,14 @@ async def list_cron_job_runs(job_id: str, profile: Optional[str] = None, limit: 
     Cron runs are stored as ordinary sessions whose id is
     ``cron_{job_id}_{timestamp}`` (see cron/scheduler.run_job). A job's history
     is therefore every session whose id carries that prefix; ``source='cron'``
-    narrows it and the id substring binds it to this job. Powers the run-history
+    narrows it and the id prefix binds it to this job. Powers the run-history
     list under each job in the desktop cron detail. Same row shape as
     ``/api/sessions`` so the frontend can reuse SessionInfo.
+
+    Backed by ``SessionDB.list_cron_job_runs`` — a bounded ``[prefix, hi)``
+    id-range scan, not the compression-chain CTE used for the recents list,
+    so the cost scales with the requested window and not the (unbounded) total
+    cron history.
     """
     selected = profile or _find_cron_job_profile(job_id)
     # job_id may be a human name; resolve to the canonical id used in run-session ids.
@@ -5676,13 +5699,7 @@ async def list_cron_job_runs(job_id: str, profile: Optional[str] = None, limit: 
 
     db = _open_session_db_for_profile(selected)
     try:
-        runs = db.list_sessions_rich(
-            source="cron",
-            id_query=f"cron_{canonical}_",
-            limit=limit_n,
-            offset=0,
-            order_by_last_active=True,
-        )
+        runs = db.list_cron_job_runs(canonical, limit=limit_n, offset=0)
         now = time.time()
         for s in runs:
             s["is_active"] = (
