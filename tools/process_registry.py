@@ -537,6 +537,7 @@ class ProcessRegistry:
                     text=True,
                     timeout=10,
                     creationflags=windows_hide_flags(),
+                    stdin=subprocess.DEVNULL,
                 )
             except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
                 try:
