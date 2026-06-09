@@ -4,6 +4,10 @@
 
 # Autolycus 🦊
 
+# Hermes Agent ☤
+<p align="center">
+  <a href="https://hermes-agent.nousresearch.com/">Hermes Agent</a> | <a href="https://hermes-agent.nousresearch.com/">Hermes Desktop</a>
+</p>
 <p align="center">
   <a href="https://github.com/waym0reom3ga/autolycus-agent"><img src="https://img.shields.io/badge/GitHub-waym0reom3ga/autolycus--agent-6e5494?style=for-the-badge&logo=github" alt="GitHub"></a>
   <a href="https://github.com/waym0reom3ga/autolycus-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-LGPL%20v2.1-blue?style=for-the-badge" alt="License: LGPL v2.1"></a>
