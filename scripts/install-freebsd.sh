@@ -91,6 +91,31 @@ check_prerequisites() {
     else
         printf '%b\n' "${GREEN}✓${NC} git found"
     fi
+
+    # Check for Pillow build dependencies (no pre-built wheels for FreeBSD arm64)
+    # Pillow must compile from source — needs jpeg-turbo at minimum.
+    if ! pkg info -Q jpeg-turbo > /dev/null 2>&1; then
+        printf '%b\n' "${YELLOW}⚠${NC} jpeg-turbo not found (required to build Pillow on FreeBSD)"
+        echo "Installing jpeg-turbo via pkg..."
+        if ! sudo pkg install -y jpeg-turbo > /dev/null 2>&1; then
+            printf '%b\n' "${RED}✗${NC} Failed to install jpeg-turbo."
+            echo ""
+            echo "Install manually:"
+            echo "  pkg install jpeg-turbo"
+            exit 1
+        fi
+        printf '%b\n' "${GREEN}✓${NC} jpeg-turbo installed"
+    else
+        printf '%b\n' "${GREEN}✓${NC} jpeg-turbo found"
+    fi
+
+    # Optional: install other Pillow build deps for full image format support
+    for dep in libtiff zlib libwebp; do
+        if ! pkg info -Q "$dep" > /dev/null 2>&1; then
+            printf '%b\n' "${CYAN}→${NC} Installing $dep (Pillow image format support)..."
+            sudo pkg install -y "$dep" > /dev/null 2>&1 || true
+        fi
+    done
 }
 
 check_prerequisites
