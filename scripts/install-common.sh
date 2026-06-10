@@ -23,13 +23,13 @@ _install_detect_dirs() {
     _INSTALL_SCRIPT_DIR="$(cd "$(dirname "${1:-$0}" 2>/dev/null || echo .)" 2>/dev/null && pwd)" || _INSTALL_SCRIPT_DIR="."
 
     if [ ! -f "$_INSTALL_SCRIPT_DIR/../pyproject.toml" ] && [ ! -f "$_INSTALL_SCRIPT_DIR/pyproject.toml" ]; then
-        _INSTALL_SCRIPT_DIR="${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+        _INSTALL_SCRIPT_DIR="${LYCUS_HOME:-$HOME/compiled}/autolycus-agent"
     fi
 
     _INSTALL_REPO_DIR="$(cd "$_INSTALL_SCRIPT_DIR/.." 2>/dev/null && pwd)" || _INSTALL_REPO_DIR="$_INSTALL_SCRIPT_DIR"
 
     if [ ! -f "$_INSTALL_REPO_DIR/pyproject.toml" ]; then
-        _INSTALL_REPO_DIR="${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+        _INSTALL_REPO_DIR="${LYCUS_HOME:-$HOME/compiled}/autolycus-agent"
     fi
 
     cd "$_INSTALL_REPO_DIR"
