@@ -1372,11 +1372,28 @@ def _tail_lines(path: Path, n: int) -> List[str]:
     return lines[-n:] if n > 0 else lines
 
 
+def _spawn_gateway_restart() -> Tuple[subprocess.Popen, bool]:
+    """Spawn ``hermes gateway restart``, reusing an in-flight restart.
+
+    Multiple dashboard paths can request a restart in quick succession
+    (restart button double-click, or a stale cached frontend firing its own
+    restart after the server already auto-restarted post-onboarding). Two
+    concurrent ``hermes gateway restart`` children race each other on the
+    manual kill-and-start path, so reuse the live one instead.
+
+    Returns ``(proc, reused)``.
+    """
+    existing = _ACTION_PROCS.get("gateway-restart")
+    if existing is not None and existing.poll() is None:
+        return existing, True
+    return _spawn_hermes_action(["gateway", "restart"], "gateway-restart"), False
+
+
 @app.post("/api/gateway/restart")
 async def restart_gateway():
     """Kick off a ``hermes gateway restart`` in the background."""
     try:
-        proc = _spawn_hermes_action(["gateway", "restart"], "gateway-restart")
+        proc, _reused = _spawn_gateway_restart()
     except Exception as exc:
         _log.exception("Failed to spawn gateway restart")
         raise HTTPException(status_code=500, detail=f"Failed to restart gateway: {exc}")
@@ -3748,6 +3765,34 @@ async def get_telegram_onboarding_status(pairing_id: str):
     )
 
 
+def _restart_gateway_after_telegram_onboarding() -> dict[str, Any]:
+    """Best-effort gateway restart after saving Telegram QR onboarding.
+
+    The QR flow naturally pulls users into Telegram on another device. If the
+    saved token waits on a separate dashboard restart click, Hermes appears
+    broken from the chat side. Keep the config save authoritative, but report
+    restart failures so the UI can fall back to the existing manual banner.
+    """
+    try:
+        proc, reused = _spawn_gateway_restart()
+    except Exception as exc:
+        _log.exception("Failed to auto-restart gateway after Telegram onboarding")
+        return {
+            "restart_started": False,
+            "restart_error": str(exc),
+        }
+    if reused:
+        _log.info(
+            "Telegram onboarding: reusing in-flight gateway restart (pid %s)",
+            proc.pid,
+        )
+    return {
+        "restart_started": True,
+        "restart_action": "gateway-restart",
+        "restart_pid": proc.pid,
+    }
+
+
 @app.post("/api/messaging/telegram/onboarding/{pairing_id}/apply")
 async def apply_telegram_onboarding(
     pairing_id: str, body: TelegramOnboardingApply
@@ -3802,11 +3847,14 @@ async def apply_telegram_onboarding(
     with _telegram_onboarding_lock:
         _telegram_onboarding_pairings.pop(pairing_id, None)
 
+    restart_result = _restart_gateway_after_telegram_onboarding()
+
     return {
         "ok": True,
         "platform": "telegram",
         "bot_username": bot_username,
-        "needs_restart": True,
+        "needs_restart": not restart_result["restart_started"],
+        **restart_result,
     }
 
 
