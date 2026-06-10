@@ -95,6 +95,12 @@ check_prerequisites() {
 
 check_prerequisites
 
+# FreeBSD-specific hint (informational only — installer proceeds regardless)
+echo ""
+printf '%b\n' "${YELLOW}⚠ Tip:${NC} For better performance on FreeBSD, install native packages:"
+echo "  pkg install py311-pillow py311-sqlite"
+echo ""
+
 # ============================================================================
 # Install uv
 # ============================================================================
