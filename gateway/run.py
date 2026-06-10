@@ -9367,6 +9367,12 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             adapter._voice_input_callback = self._handle_voice_channel_input
         if hasattr(adapter, "_on_voice_disconnect"):
             adapter._on_voice_disconnect = self._handle_voice_timeout_cleanup
+        # Let the adapter's inactivity timer see the live voice-reply mode so it
+        # doesn't disconnect a deliberately text-only (/voice off) session.
+        if hasattr(adapter, "_voice_mode_getter"):
+            adapter._voice_mode_getter = lambda chat_id: self._voice_mode.get(
+                self._voice_key(Platform.DISCORD, str(chat_id)), "off"
+            )
 
         try:
             success = await adapter.join_voice_channel(voice_channel)
@@ -11538,7 +11544,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             # when we successfully transcribed the audio — it's redundant.
             _placeholder = "(The user sent a message with no text content)"
             if user_text and user_text.strip() == _placeholder:
-                return prefix
+                return prefix, successful_transcripts
             if user_text:
                 return f"{prefix}\n\n{user_text}", successful_transcripts
             return prefix, successful_transcripts
