@@ -4221,6 +4221,7 @@ class AIAgent:
         return str(path), path
 
     def _describe_image_for_anthropic_fallback(self, image_url: str, role: str) -> str:
+        """Return a text reference to an attached image (no separate vision call)."""
         cache_key = hashlib.sha256(str(image_url or "").encode("utf-8")).hexdigest()
         cached = self._anthropic_image_fallback_cache.get(cache_key)
         if cached:
@@ -4230,44 +4231,9 @@ class AIAgent:
             "assistant": "assistant",
             "tool": "tool result",
         }.get(role, "user")
-        analysis_prompt = (
-            "Describe everything visible in this image in thorough detail. "
-            "Include any text, code, UI, data, objects, people, layout, colors, "
-            "and any other notable visual information."
-        )
 
-        vision_source = str(image_url or "")
-        cleanup_path: Optional[Path] = None
-        if vision_source.startswith("data:"):
-            vision_source, cleanup_path = self._materialize_data_url_for_vision(vision_source)
-
-        description = ""
-        try:
-            from tools.vision_tools import vision_analyze_tool
-
-            result_json = asyncio.run(
-                vision_analyze_tool(image_url=vision_source, user_prompt=analysis_prompt)
-            )
-            result = json.loads(result_json) if isinstance(result_json, str) else {}
-            description = (result.get("analysis") or "").strip()
-        except Exception as e:
-            description = f"Image analysis failed: {e}"
-        finally:
-            if cleanup_path and cleanup_path.exists():
-                try:
-                    cleanup_path.unlink()
-                except OSError:
-                    pass
-
-        if not description:
-            description = "Image analysis failed."
-
-        note = f"[The {role_label} attached an image. Here's what it contains:\n{description}]"
-        if vision_source and not str(image_url or "").startswith("data:"):
-            note += (
-                f"\n[If you need a closer look, use vision_analyze with image_url: {vision_source}]"
-            )
-
+        # Just include the image path as a text reference - main model handles vision natively
+        note = f"[The {role_label} attached an image at: {image_url}]"
         self._anthropic_image_fallback_cache[cache_key] = note
         return note
 

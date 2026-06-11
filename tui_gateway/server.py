@@ -3273,40 +3273,19 @@ def _resolve_checkpoint_hash(mgr, cwd: str, ref: str) -> str:
 
 
 def _enrich_with_attached_images(user_text: str, image_paths: list[str]) -> str:
-    """Pre-analyze attached images via vision and prepend descriptions to user text."""
-    import asyncio, json as _json
-    from tools.vision_tools import vision_analyze_tool
-
-    prompt = (
-        "Describe everything visible in this image in thorough detail. "
-        "Include any text, code, data, objects, people, layout, colors, "
-        "and any other notable visual information."
-    )
-
+    """Return text references to attached images (no separate vision call)."""
     parts: list[str] = []
     for path in image_paths:
         p = Path(path)
         if not p.exists():
             continue
-        hint = f"[You can examine it with vision_analyze using image_url: {p}]"
-        try:
-            r = _json.loads(
-                asyncio.run(vision_analyze_tool(image_url=str(p), user_prompt=prompt))
-            )
-            desc = r.get("analysis", "") if r.get("success") else None
-            parts.append(
-                f"[The user attached an image:\n{desc}]\n{hint}"
-                if desc
-                else f"[The user attached an image but analysis failed.]\n{hint}"
-            )
-        except Exception:
-            parts.append(f"[The user attached an image but analysis failed.]\n{hint}")
+        parts.append(f"[The user attached an image at: {p}]")
 
     text = user_text or ""
     prefix = "\n\n".join(parts)
     if prefix:
         return f"{prefix}\n\n{text}" if text else prefix
-    return text or "What do you see in this image?"
+    return text
 
 
 def _content_display_text(content: Any) -> str:

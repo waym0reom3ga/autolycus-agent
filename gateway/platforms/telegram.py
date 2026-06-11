@@ -5851,25 +5851,18 @@ class TelegramAdapter(BasePlatformAdapter):
             logger.info("[Telegram] Sticker cache hit: %s", sticker.file_unique_id)
             return
 
-        # Cache miss -- download and analyze
+        # Cache miss -- download and use filename as reference
         try:
             file_obj = await sticker.get_file()
             image_bytes = await file_obj.download_as_bytearray()
             cached_path = cache_image_from_bytes(bytes(image_bytes), ext=".webp")
-            logger.info("[Telegram] Analyzing sticker at %s", cached_path)
+            logger.info("[Telegram] Sticker saved at %s", cached_path)
 
-            from tools.vision_tools import vision_analyze_tool
-            result_json = await vision_analyze_tool(
-                image_url=cached_path,
-                user_prompt=STICKER_VISION_PROMPT,
-            )
-            result = json.loads(result_json)
-
-            if result.get("success"):
-                description = result.get("analysis", "a sticker")
-                cache_sticker_description(sticker.file_unique_id, description, emoji, set_name)
-                event.text = build_sticker_injection(description, emoji, set_name)
-            else:
+            # Use emoji/filename as description - main model handles vision natively
+            description = f"a sticker with emoji {emoji}" if emoji else "a sticker"
+            cache_sticker_description(sticker.file_unique_id, description, emoji, set_name)
+            event.text = build_sticker_injection(description, emoji, set_name)
+        except Exception as e:
                 # Vision failed -- use emoji as fallback
                 event.text = build_sticker_injection(
                     f"a sticker with emoji {emoji}" if emoji else "a sticker",
