@@ -5552,4 +5552,4 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         width = 58
         pad = width - len(title)
         print("+" + "-" * width + "+")
-        print("|" + " " * (pad // 2) + ti
+        print("|" + " " * (pad // 2) + title + " " * (pad - pad // 2) + "|")
