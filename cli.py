@@ -9569,7 +9569,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         show_full = state.get("show_full", False)
 
         title = "⚠️  Dangerous Command"
-        cmd_display = command if show_full or len(command) <= 70 else command[:70] + '...'
+        cmd_display = command
         choice_labels = {
             "once": "Allow once",
             "session": "Allow for this session",
@@ -9593,6 +9593,11 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
 
         # Pre-wrap the mandatory content — command + choices must always render.
         cmd_wrapped = _wrap_panel_text(cmd_display, inner_text_width)
+        if not show_full and "view" in choices and len(cmd_wrapped) > 4:
+            cmd_wrapped = cmd_wrapped[:3] + _wrap_panel_text(
+                "… (choose Show full command)",
+                inner_text_width,
+            )
 
         # (choice_index, wrapped_line) so we can re-apply selected styling below
         choice_wrapped: list[tuple[int, str]] = []
@@ -9642,7 +9647,10 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         max_cmd_rows = max(1, available - chrome_rows - len(choice_wrapped))
         if len(cmd_wrapped) > max_cmd_rows:
             keep = max(1, max_cmd_rows - 1) if max_cmd_rows > 1 else 1
-            cmd_wrapped = cmd_wrapped[:keep] + ["… (command truncated — use /logs or /debug for full text)"]
+            cmd_wrapped = cmd_wrapped[:keep] + _wrap_panel_text(
+                "… (command truncated — use /logs or /debug for full text)",
+                inner_text_width,
+            )
 
         # Allocate any remaining rows to description. The extra -1 in full mode
         # accounts for the blank separator between choices and description.
