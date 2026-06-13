@@ -1360,10 +1360,28 @@ def check_all_command_guards(command: str, env_type: str,
         logger.warning("Hardline block: %s (command: %s)", hardline_desc, command[:200])
         return _hardline_block_result(hardline_desc)
 
+    # Get session key early for both rogue AI policy and repeated-command guard.
+    session_key = get_current_session_key()
+
+    # Rogue AI Policy: persistent SQLite-based command tracking with global
+    # web-command limits. Fires BEFORE in-memory repeated-command guard so it
+    # catches cross-session spam and enforces hard halts on 4th+ attempts.
+    try:
+        from tools.rogue_ai_policy import check_command_guard as _rogue_check
+        rogue_blocked, rogue_msg = _rogue_check(session_key or "unknown", command)
+        if rogue_blocked:
+            logger.warning("Rogue AI policy block: %s (command: %s)", rogue_msg, command[:200])
+            return {
+                "approved": False,
+                "hardline": True,
+                "message": f"BLOCKED (rogue AI policy): {rogue_msg}",
+            }
+    except ImportError:
+        pass  # Module not available - skip rogue AI check
+
     # Repeated-command guard: unconditional block when the same command runs
     # too many times consecutively. This catches agent loops where the model
     # retries a failing command endlessly instead of diagnosing the problem.
-    session_key = get_current_session_key()
     is_repeated, repeated_desc = detect_repeated_command(session_key, command)
     if is_repeated:
         logger.warning("Repeated-command block: %s (command: %s)", repeated_desc, command[:200])
