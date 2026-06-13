@@ -496,6 +496,18 @@ def run_conversation(
     _plugin_user_context = _ctx.plugin_user_context
     _ext_prefetch_cache = _ctx.ext_prefetch_cache
 
+    # Rogue AI Policy: log initial user message to session_log
+    try:
+        from tools.rogue_ai_policy import log_session_item as _log_item
+        _sid = getattr(agent, '_session_id', None) or "unknown"
+        if original_user_message:
+            for line in str(original_user_message).split("\n"):
+                stripped = line.strip()
+                if stripped:
+                    _log_item(_sid, f"[user] {stripped}")
+    except ImportError:
+        pass  # Module not available - skip session logging
+
     # Main conversation loop counters (pure locals consumed by the loop below).
     api_call_count = 0
     final_response = None
@@ -523,6 +535,18 @@ def run_conversation(
         )
 
     while (api_call_count < agent.max_iterations and agent.iteration_budget.remaining > 0) or agent._budget_grace_call:
+        # Rogue AI Policy: check for absolute hard halt from rogue AI detection
+        try:
+            from tools.rogue_ai_policy import check_hard_halt as _check_halt
+            _sid = getattr(agent, '_session_id', None) or "unknown"
+            if _check_halt(_sid):
+                agent._safe_print("\n🛑 HARD HALT: Rogue AI detected - terminating session immediately")
+                interrupted = True
+                _turn_exit_reason = "rogue_ai_hard_halt"
+                break
+        except ImportError:
+            pass  # Module not available - skip hard halt check
+
         # Reset per-turn checkpoint dedup so each iteration can take one snapshot
         agent._checkpoint_mgr.new_turn()
 
@@ -2606,6 +2630,14 @@ def run_conversation(
                             approx_tokens=approx_tokens,
                             task_id=effective_task_id,
                         )
+                        # Rogue AI Policy: log compression event
+                        try:
+                            from tools.rogue_ai_policy import log_session_item as _log_item
+                            _sid = getattr(agent, '_session_id', None) or "unknown"
+                            _log_item(_sid, f"[system] Context compressed: {original_len} -> {len(messages)} messages")
+                        except ImportError:
+                            pass  # Module not available - skip session logging
+
                         # Compression created a new session — clear history
                         # so _flush_messages_to_session_db writes compressed
                         # messages to the new session, not skipping them.
@@ -3461,6 +3493,18 @@ def run_conversation(
                 else:
                     agent._vprint(f"{agent.log_prefix}🤖 Assistant: {assistant_message.content[:100]}{'...' if len(assistant_message.content) > 100 else ''}")
 
+            # Rogue AI Policy: log assistant output to session_log
+            try:
+                from tools.rogue_ai_policy import log_session_item as _log_item
+                _sid = getattr(agent, '_session_id', None) or "unknown"
+                if assistant_message.content:
+                    for line in str(assistant_message.content).split("\n"):
+                        stripped = line.strip()
+                        if stripped:
+                            _log_item(_sid, f"[assistant] {stripped}")
+            except ImportError:
+                pass  # Module not available - skip session logging
+
             # Notify progress callback of model's thinking (used by subagent
             # delegation to relay the child's reasoning to the parent display).
             if (assistant_message.content and agent.tool_progress_callback):
@@ -3796,6 +3840,18 @@ def run_conversation(
                 messages.append(assistant_msg)
                 agent._emit_interim_assistant_message(assistant_msg)
 
+                # Rogue AI Policy: log assistant message with tool calls
+                try:
+                    from tools.rogue_ai_policy import (
+                        log_session_item as _log_item,
+                        log_tool_call as _log_tc,
+                    )
+                    _sid = getattr(agent, '_session_id', None) or "unknown"
+                    for tc in assistant_message.tool_calls:
+                        _log_tc(_sid, tc.function.name, tc.function.arguments[:500])
+                except ImportError:
+                    pass  # Module not available - skip session logging
+
                 # Close any open streaming display (response box, reasoning
                 # box) before tool execution begins.  Intermediate turns may
                 # have streamed early content that opened the response box;
@@ -3809,6 +3865,22 @@ def run_conversation(
                         pass
 
                 agent._execute_tool_calls(assistant_message, messages, effective_task_id, api_call_count)
+
+                # Rogue AI Policy: log tool results added by _execute_tool_calls
+                try:
+                    from tools.rogue_ai_policy import (
+                        log_session_item as _log_item,
+                        log_tool_result as _log_tr,
+                    )
+                    _sid = getattr(agent, '_session_id', None) or "unknown"
+                    # Find new tool result messages added by execution
+                    for msg in messages:
+                        if isinstance(msg, dict) and msg.get("role") == "tool":
+                            tool_name = msg.get("name", "unknown")
+                            content = str(msg.get("content", ""))[:500]
+                            _log_tr(_sid, tool_name, content)
+                except ImportError:
+                    pass  # Module not available - skip session logging
 
                 if agent._tool_guardrail_halt_decision is not None:
                     decision = agent._tool_guardrail_halt_decision
