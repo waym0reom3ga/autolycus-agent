@@ -1518,21 +1518,32 @@ FOCUS TOPIC: "{focus_topic}"
 This compaction should PRIORITISE preserving all information related to the focus topic above. For content related to "{focus_topic}", include full detail — exact values, file paths, command outputs, error messages, and decisions. For content NOT related to the focus topic, summarise more aggressively (brief one-liners or omit if truly irrelevant). The focus topic sections should receive roughly 60-70% of the summary token budget. Even for the focus topic, NEVER preserve API keys, tokens, passwords, or credentials — use [REDACTED]."""
 
         try:
-            call_kwargs = {
-                "task": "compression",
-                "main_runtime": {
-                    "model": self.model,
+            # Progressive decoupling: lycus uses unified model — compression
+            # calls the SAME model as the main conversation, no auxiliary routing.
+            if getattr(self, '_lycus_mode', False):
+                call_kwargs = {
                     "provider": self.provider,
+                    "model": self.model,
                     "base_url": self.base_url,
                     "api_key": self.api_key,
-                    "api_mode": self.api_mode,
-                },
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": int(summary_budget * 1.3),
-                # timeout resolved from auxiliary.compression.timeout config by call_llm
-            }
-            if self.summary_model:
-                call_kwargs["model"] = self.summary_model
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": int(summary_budget * 1.3),
+                }
+            else:
+                call_kwargs = {
+                    "task": "compression",
+                    "main_runtime": {
+                        "model": self.model,
+                        "provider": self.provider,
+                        "base_url": self.base_url,
+                        "api_key": self.api_key,
+                        "api_mode": self.api_mode,
+                    },
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": int(summary_budget * 1.3),
+                }
+                if self.summary_model:
+                    call_kwargs["model"] = self.summary_model
             response = call_llm(**call_kwargs)
             content = response.choices[0].message.content
             # Handle cases where content is not a string (e.g., dict from llama.cpp)
