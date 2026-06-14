@@ -220,6 +220,9 @@ export const ja = defineLocale({
       themeDesc: 'デスクトップ専用のパレットです。選択したモードの上に適用されます。',
       themeProfileNote: profile =>
         `「${profile}」プロファイルに保存されます。プロファイルごとに個別のテーマを保持します。`,
+      completionSoundTitle: '完了サウンド',
+      completionSoundDesc: 'エージェントのターン終了時に再生されます。プリセットを選んでここで試聴できます。',
+      completionSoundPreview: '試聴',
       installTitle: 'VS Code から導入',
       installDesc:
         'Marketplace の拡張機能 ID（例: dracula-theme.theme-dracula）を貼り付けると、その配色テーマをデスクトップ用パレットに変換します。',
@@ -642,6 +645,12 @@ export const ja = defineLocale({
       collapse: '折りたたむ',
       connectAnother: '別のプロバイダーを接続',
       otherProviders: 'その他のプロバイダー',
+      removeConfirm: provider => `${provider} を削除しますか？`,
+      removeExternal: (provider, command) => `${provider} は Hermes の外部で管理されています。${command} で削除してください。`,
+      removeKeyManaged: provider => `${provider} は API キーで設定されています。API Keys から削除してください。`,
+      removedTitle: 'アカウントを削除しました',
+      removedMessage: provider => `${provider} を削除しました。`,
+      failedRemove: provider => `${provider} を削除できませんでした`,
       noProviderKeys: '利用可能なプロバイダー API キーがありません。',
       loading: 'プロバイダーを読み込み中...'
     },
