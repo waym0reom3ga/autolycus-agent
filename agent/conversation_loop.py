@@ -2796,7 +2796,9 @@ def run_conversation(
                     # Guard: if tokens are well below the compressor's threshold,
                     # the 413 is likely spurious (crashed server, transient error)
                     # and compression would be futile. Abort instead of looping.
-                    if approx_tokens < MINIMUM_CONTEXT_LENGTH:
+                    # Use approx_request_tokens (includes tool schemas) rather
+                    # than approx_tokens (messages only) to avoid false positives.
+                    if approx_request_tokens < MINIMUM_CONTEXT_LENGTH:
                         agent._flush_status_buffer()
                         agent._vprint(
                             f"{agent.log_prefix}❌ Payload-too-large error at ~{approx_tokens:,} tokens "
@@ -2891,7 +2893,11 @@ def run_conversation(
                     # the "context overflow" error is likely spurious (crashed
                     # server returning a misleading message). Compression at
                     # 7K tokens on a 262K-context model is futile — abort.
-                    if approx_tokens < MINIMUM_CONTEXT_LENGTH:
+                    # Use approx_request_tokens (includes tool schemas) rather
+                    # than approx_tokens (messages only) to avoid false positives
+                    # where the provider rejects a large payload but message-only
+                    # estimate appears small.
+                    if approx_request_tokens < MINIMUM_CONTEXT_LENGTH:
                         agent._flush_status_buffer()
                         agent._vprint(
                             f"{agent.log_prefix}❌ Context-overflow error at ~{approx_tokens:,} tokens "
