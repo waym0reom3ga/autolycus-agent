@@ -2793,6 +2793,36 @@ def run_conversation(
                     )
 
                 if is_payload_too_large:
+                    # Guard: if tokens are well below the compressor's threshold,
+                    # the 413 is likely spurious (crashed server, transient error)
+                    # and compression would be futile. Abort instead of looping.
+                    if approx_tokens < MINIMUM_CONTEXT_LENGTH:
+                        agent._flush_status_buffer()
+                        agent._vprint(
+                            f"{agent.log_prefix}❌ Payload-too-large error at ~{approx_tokens:,} tokens "
+                            f"(below {MINIMUM_CONTEXT_LENGTH:,} floor). The server may have crashed — "
+                            "compression skipped.",
+                            force=True,
+                        )
+                        agent._vprint(
+                            f"{agent.log_prefix}   💡 Try /new to start a fresh conversation or retry manually.",
+                            force=True,
+                        )
+                        logger.error(
+                            f"{agent.log_prefix}413 at {approx_tokens:,} tokens — "
+                            "below compression floor, likely spurious server error."
+                        )
+                        agent._persist_session(messages, conversation_history)
+                        return {
+                            "messages": messages,
+                            "completed": False,
+                            "api_calls": api_call_count,
+                            "error": f"Request payload too large at ~{approx_tokens:,} tokens (below compression floor).",
+                            "partial": True,
+                            "failed": True,
+                            "compression_exhausted": True,
+                        }
+
                     compression_attempts += 1
                     if compression_attempts > max_compression_attempts:
                         # Terminal — surface the buffered retry trace.
@@ -2856,6 +2886,37 @@ def run_conversation(
                 if is_context_length_error:
                     compressor = agent.context_compressor
                     old_ctx = compressor.context_length
+
+                    # Guard: if tokens are well below the compression floor,
+                    # the "context overflow" error is likely spurious (crashed
+                    # server returning a misleading message). Compression at
+                    # 7K tokens on a 262K-context model is futile — abort.
+                    if approx_tokens < MINIMUM_CONTEXT_LENGTH:
+                        agent._flush_status_buffer()
+                        agent._vprint(
+                            f"{agent.log_prefix}❌ Context-overflow error at ~{approx_tokens:,} tokens "
+                            f"(below {MINIMUM_CONTEXT_LENGTH:,} floor). The server may have crashed — "
+                            "compression skipped.",
+                            force=True,
+                        )
+                        agent._vprint(
+                            f"{agent.log_prefix}   💡 Try /new to start a fresh conversation or retry manually.",
+                            force=True,
+                        )
+                        logger.error(
+                            f"{agent.log_prefix}Context overflow at {approx_tokens:,} tokens — "
+                            "below compression floor, likely spurious server error."
+                        )
+                        agent._persist_session(messages, conversation_history)
+                        return {
+                            "messages": messages,
+                            "completed": False,
+                            "api_calls": api_call_count,
+                            "error": f"Context overflow at ~{approx_tokens:,} tokens (below compression floor).",
+                            "partial": True,
+                            "failed": True,
+                            "compression_exhausted": True,
+                        }
 
                     # ── Distinguish two very different errors ───────────
                     # 1. "Prompt too long": the INPUT exceeds the context window.
