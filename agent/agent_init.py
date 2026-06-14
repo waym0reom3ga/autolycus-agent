@@ -1513,6 +1513,12 @@ def init_agent(
             api_mode=agent.api_mode,
             abort_on_summary_failure=compression_abort_on_summary_failure,
         )
+    # Progressive decoupling: lycus command gets its own summarizer prompts.
+    # Detect by checking if the process was invoked as "lycus".
+    import sys as _sys
+    import os as _os
+    _invoked_as = _os.path.basename(getattr(_sys, 'argv', [''])[0] or '')
+    agent.context_compressor._lycus_mode = _invoked_as in ('lycus', 'lycus.exe')
     agent.compression_enabled = compression_enabled
 
     # Reject models whose context window is below the minimum required
