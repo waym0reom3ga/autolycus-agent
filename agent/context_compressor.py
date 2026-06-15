@@ -715,8 +715,14 @@ class ContextCompressor(ContextEngine):
         )
         self.compression_count = 0
 
-        # Derive token budgets: ratio is relative to the threshold, not total context
-        target_tokens = int(self.threshold_tokens * self.summary_target_ratio)
+        # Derive token budgets: ratio is relative to the threshold, not total context.
+        # For Lycus unified model mode, use a smaller tail budget so each compression
+        # pass removes enough tokens to drop below threshold (prevents thrashing loops).
+        if getattr(self, '_lycus_mode', False):
+            _effective_ratio = min(self.summary_target_ratio, 0.15)
+        else:
+            _effective_ratio = self.summary_target_ratio
+        target_tokens = int(self.threshold_tokens * _effective_ratio)
         self.tail_token_budget = target_tokens
         self.max_summary_tokens = min(
             int(self.context_length * 0.05), _SUMMARY_TOKENS_CEILING,
@@ -726,11 +732,12 @@ class ContextCompressor(ContextEngine):
             logger.info(
                 "Context compressor initialized: model=%s context_length=%d "
                 "threshold=%d (%.0f%%) target_ratio=%.0f%% tail_budget=%d "
-                "provider=%s base_url=%s",
+                "provider=%s base_url=%s lycus_mode=%s",
                 model, self.context_length, self.threshold_tokens,
-                threshold_percent * 100, self.summary_target_ratio * 100,
+                threshold_percent * 100, _effective_ratio * 100,
                 self.tail_token_budget,
                 provider or "none", base_url or "none",
+                getattr(self, '_lycus_mode', False),
             )
         self._context_probed = False  # True after a step-down from context error
 
@@ -1334,6 +1341,17 @@ Summary generation was unavailable, so this is a best-effort deterministic fallb
 
         summary_budget = self._compute_summary_budget(turns_to_summarize)
         content_to_summarize = self._serialize_for_summary(turns_to_summarize)
+
+        # Hard cap: serialized content must fit within the model's context window
+        # with headroom for the prompt template. Without this, the summarizer
+        # can receive more tokens than its context allows and crash (exit code null).
+        _prompt_template_tokens = 3000  # preamble + template sections overhead
+        _max_serialized_chars = int((self.context_length * 0.85 - _prompt_template_tokens) * _CHARS_PER_TOKEN)
+        if len(content_to_summarize) > _max_serialized_chars:
+            content_to_summarize = (
+                content_to_summarize[:_max_serialized_chars] +
+                f"\n\n...[serialized content truncated at {_max_serialized_chars:,} chars to fit context window]\n"
+            )
 
         # Current date for temporal anchoring (see ## Temporal Anchoring below).
         # Date-only granularity matches system_prompt.py:337 (PR #20451) and the
