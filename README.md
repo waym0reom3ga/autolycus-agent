@@ -262,6 +262,28 @@ python -m pytest tests/ -q
 ```
 
 > **Note:** Voice transcription (faster-whisper) is unavailable on FreeBSD due to missing ctranslate2 wheels — use cloud-based STT instead. On Linux/macOS, voice tools work out of the box. Autolycus is cross-platform and runs natively on FreeBSD, Linux, and macOS.
+Quick start for contributors — use the standard installer, then work from the
+full git checkout it creates at `$HERMES_HOME/hermes-agent` (usually
+`~/.hermes/hermes-agent`). This matches the layout used by `hermes update`, the
+managed venv, lazy dependencies, gateway, and docs tooling.
+
+```bash
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+cd "${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+uv pip install -e ".[all,dev]"
+scripts/run_tests.sh
+```
+
+Manual clone fallback (for throwaway clones/CI where you intentionally do not
+want the managed install layout):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv venv .venv --python 3.11
+source .venv/bin/activate
+uv pip install -e ".[all,dev]"
+scripts/run_tests.sh
+```
 
 ---
 
