@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import tempfile
 import uuid
 from datetime import datetime
@@ -84,8 +85,19 @@ def check_compression_model_feasibility(agent: Any) -> None:
     *after* construction, so :func:`replay_compression_warning` re-sends
     the stored warning through the callback on the first
     ``run_conversation()`` call.
+
+    For Lycus unified model mode (detected via sys.argv), skip this check
+    entirely — compression uses the same model as the main conversation, so
+    there is no separate auxiliary model to validate.
     """
     if not agent.compression_enabled:
+        return
+    # Progressive decoupling: lycus uses unified model — no auxiliary check needed.
+    try:
+        _lycus_mode = os.path.basename(sys.argv[0]).lower() == "lycus"
+    except Exception:
+        _lycus_mode = False
+    if _lycus_mode:
         return
     try:
         from agent.auxiliary_client import (
