@@ -253,6 +253,7 @@ DEFAULT_CONTEXT_LENGTHS = {
     "qwen3.6-plus": 1048576,      # 1M context (DashScope/Alibaba & OpenRouter)
     "qwen3-coder-plus": 1000000,  # 1M context
     "qwen3-coder": 262144,        # 256K context
+    "qwen3.6": 262144,            # 256K context (e.g. unsloth/qwen3.6-27b-mtp)
     "qwen": 131072,
     # MiniMax — M3 is 1M context (max output 512K); M2.x series is 204,800.
     # Keys use substring matching (longest-first), so "minimax-m3" wins over
