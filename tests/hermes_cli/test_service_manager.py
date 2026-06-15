@@ -69,6 +69,20 @@ def test_detect_service_manager_returns_known_value() -> None:
     assert result in ("systemd", "launchd", "windows", "s6", "none")
 
 
+def test_detect_service_manager_s6_keys_off_s6_running_not_is_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: Fly runs s6-overlay as PID 1 in a Firecracker microVM, which
+    is not a Docker/Podman container. Gating s6 detection on is_container() made
+    the dispatch path inert on Fly, so `hermes gateway restart` spawned a
+    foreground gateway that fought the supervised one. Detection must key off
+    s6 being PID 1 (`_s6_running`) alone."""
+    monkeypatch.setattr(
+        "hermes_cli.service_manager._s6_running", lambda: True,
+    )
+    assert detect_service_manager() == "s6"
+
+
 # ---------------------------------------------------------------------------
 # _s6_running — must work for unprivileged users, not just root
 # ---------------------------------------------------------------------------
@@ -570,6 +584,35 @@ def test_s6_register_creates_service_dir_and_triggers_scan(
         and str(s6_scandir) in cmd
         for cmd in fake_subprocess_run
     ), f"s6-svscanctl -a not invoked; saw: {fake_subprocess_run}"
+
+
+def test_s6_register_start_now_false_writes_down_marker(
+    s6_scandir, fake_subprocess_run,
+) -> None:
+    """When start_now=False, a `down` marker must be written so
+    s6-supervise does not auto-start the service on rescan."""
+    mgr = S6ServiceManager(scandir=s6_scandir)
+    mgr.register_profile_gateway("coder", start_now=False)
+
+    svc_dir = s6_scandir / "gateway-coder"
+    assert svc_dir.is_dir()
+    assert (svc_dir / "down").is_file(), (
+        "start_now=False must write a `down` marker file"
+    )
+
+
+def test_s6_register_start_now_true_no_down_marker(
+    s6_scandir, fake_subprocess_run,
+) -> None:
+    """When start_now=True (default), no `down` marker should exist."""
+    mgr = S6ServiceManager(scandir=s6_scandir)
+    mgr.register_profile_gateway("coder")
+
+    svc_dir = s6_scandir / "gateway-coder"
+    assert svc_dir.is_dir()
+    assert not (svc_dir / "down").exists(), (
+        "start_now=True must NOT write a `down` marker file"
+    )
 
 
 def test_s6_register_extra_env_is_quoted(s6_scandir, fake_subprocess_run) -> None:
