@@ -662,7 +662,12 @@ class ContextCompressor(ContextEngine):
         )
         # Recalculate token budgets for the new context length so the
         # compressor stays calibrated after a model switch (e.g. 200K → 32K).
-        target_tokens = int(self.threshold_tokens * self.summary_target_ratio)
+        # For Lycus unified mode, use smaller effective ratio to prevent thrashing.
+        if getattr(self, '_lycus_mode', False):
+            _effective_ratio = min(self.summary_target_ratio, 0.15)
+        else:
+            _effective_ratio = self.summary_target_ratio
+        target_tokens = int(self.threshold_tokens * _effective_ratio)
         self.tail_token_budget = target_tokens
         self.max_summary_tokens = min(
             int(context_length * 0.05), _SUMMARY_TOKENS_CEILING,
