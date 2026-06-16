@@ -135,9 +135,23 @@ if [ "$PATCHES_APPLIED" -gt 0 ]; then
         sed -i 's/license = ".*"/license = "LGPL-3.0"/' pyproject.toml || true
     fi
 
-    # For README.md — restore Autolycus branding if missing
+    # For README.md — restore Autolycus branding if missing, and detect Hermes leaks
     if ! grep -q "Autolycus" README.md 2>/dev/null; then
         echo "  WARNING: README.md lost Autolycus marker — manual review needed"
+    fi
+    # Check for upstream Hermes badges that leaked through merge
+    _hermes_leaks=0
+    if grep -q "^# Hermes Agent" README.md 2>/dev/null; then
+        echo "  WARNING: README.md has '# Hermes Agent' header (upstream leak)"
+        _hermes_leaks=1
+    fi
+    if grep -q "discord.gg/NousResearch\|License-MIT\|Built.*Nous.*Research" README.md 2>/dev/null; then
+        echo "  WARNING: README.md has Hermes badges (Discord/MIT/Nous Research)"
+        _hermes_leaks=1
+    fi
+    if grep -q "README.zh-CN\|README.ur-pk" README.md 2>/dev/null; then
+        echo "  WARNING: README.md has upstream language links (Chinese/Urdu)"
+        _hermes_leaks=1
     fi
 
     # For install scripts — restore if markers missing
@@ -167,6 +181,73 @@ if [ "$STAFF_COUNT" -gt 0 ]; then
     echo "  Trident branding enforced."
 else
     echo "  OK: No medical staff symbols found (trident branding intact)."
+fi
+
+# === STEP 5b: Clean Hermes-specific badges from README.md ===
+# Upstream merges bring in Discord, MIT License, Nous Research, and language
+# badges. Remove them to keep Autolycus branding clean.
+if [ -f README.md ]; then
+    _hermes_badges=0
+
+    # Remove duplicate "# Hermes Agent" header section (lines 7-10)
+    if grep -q "^# Hermes Agent" README.md; then
+        echo "  Removing '# Hermes Agent' header from README..."
+        sed -i '/^# Hermes Agent ☤$/,/^<\/p>$/{ /^<p align="center">/,/^<\/p>$/d; /^# Hermes Agent/d; }' README.md || true
+        _hermes_badges=1
+    fi
+
+    # Remove Hermes Desktop links
+    if grep -q "Hermes Desktop" README.md; then
+        echo "  Removing 'Hermes Desktop' link from README..."
+        sed -i '/Hermes Desktop/d' README.md || true
+        _hermes_badges=1
+    fi
+
+    # Remove Discord badge (NousResearch)
+    if grep -q "discord.gg/NousResearch" README.md; then
+        echo "  Removing Nous Research Discord badge from README..."
+        sed -i '/discord\.gg\/NousResearch/d' README.md || true
+        _hermes_badges=1
+    fi
+
+    # Remove MIT License badge (upstream)
+    if grep -q "License-MIT" README.md; then
+        echo "  Removing MIT License badge from README..."
+        sed -i '/License-MIT/d' README.md || true
+        _hermes_badges=1
+    fi
+
+    # Remove "Built by Nous Research" badge
+    if grep -q "Built%20by-Nous%20Research\|Built by Nous Research" README.md; then
+        echo "  Removing 'Built by Nous Research' badge from README..."
+        sed -i '/Built.*Nous.*Research/d' README.md || true
+        _hermes_badges=1
+    fi
+
+    # Remove Chinese/Urdu language badges (upstream translations)
+    if grep -q "Lang-中文\|README.zh-CN" README.md; then
+        echo "  Removing Chinese language badge from README..."
+        sed -i '/README\.zh-CN/d' README.md || true
+        _hermes_badges=1
+    fi
+    if grep -q "Lang-اردو\|README.ur-pk" README.md; then
+        echo "  Removing Urdu language badge from README..."
+        sed -i '/README\.ur-pk/d' README.md || true
+        _hermes_badges=1
+    fi
+
+    # Remove stray upstream install curl commands (not inside code blocks)
+    if grep -q "^curl -fsSL https://hermes-agent.nousresearch.com/install.sh" README.md; then
+        echo "  Removing stray Hermes install curl command from README..."
+        sed -i '/^curl -fsSL https:\/\/hermes-agent\.nousresearch\.com\/install\.sh/d' README.md || true
+        _hermes_badges=1
+    fi
+
+    if [ "$_hermes_badges" -eq 1 ]; then
+        echo "  Hermes badges cleaned from README."
+    else
+        echo "  OK: No Hermes badges found in README (clean)."
+    fi
 fi
 
 # === STEP 6: Post-sync patches — remove Windows-specific files ===
