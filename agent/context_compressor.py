@@ -1546,6 +1546,9 @@ This compaction should PRIORITISE preserving all information related to the focu
                     "api_key": self.api_key,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": int(summary_budget * 1.3),
+                    # Compression summaries can be large — use generous timeout
+                    # to avoid cutting off mid-generation on slow local models.
+                    "timeout": 600.0,
                 }
             else:
                 call_kwargs = {
