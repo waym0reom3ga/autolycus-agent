@@ -93,10 +93,16 @@ def check_compression_model_feasibility(agent: Any) -> None:
     if not agent.compression_enabled:
         return
     # Progressive decoupling: lycus uses unified model — no auxiliary check needed.
+    # Detect by checking if running from autolycus-agent codebase (more robust than sys.argv).
     try:
-        _lycus_mode = os.path.basename(sys.argv[0]).lower() == "lycus"
+        import agent as _agent_mod
+        _lycus_mode = 'autolycus' in str(getattr(_agent_mod, '__file__', '') or '').lower()
     except Exception:
-        _lycus_mode = False
+        # Fallback to argv check if module path unavailable
+        try:
+            _lycus_mode = os.path.basename(sys.argv[0]).lower() == "lycus"
+        except Exception:
+            _lycus_mode = False
     if _lycus_mode:
         return
     try:
