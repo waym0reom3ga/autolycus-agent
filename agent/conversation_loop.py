@@ -3181,10 +3181,29 @@ def run_conversation(
                             f"keeping context_length at {old_ctx:,} tokens and compressing."
                         )
                     else:
-                        agent._buffer_vprint(
-                            f"⚠️  Context length exceeded, but provider did not report a max context length; "
-                            f"keeping context_length at {old_ctx:,} tokens and compressing."
-                        )
+                        # Provider didn't report actual limit. For custom endpoints
+                        # (llama.cpp, Ollama, etc.), our token estimation may be off.
+                        # Halve the effective context length to find a working baseline.
+                        _provider_lower = (getattr(agent, "provider", "") or "").lower()
+                        if _provider_lower == "custom" and old_ctx > 65536:
+                            new_ctx = max(int(old_ctx * 0.5), MINIMUM_CONTEXT_LENGTH)
+                            agent._buffer_vprint(
+                                f"⚠️  Context length exceeded, provider didn't report limit — "
+                                f"halving effective context for custom endpoint: {old_ctx:,} → {new_ctx:,} tokens"
+                            )
+                            compressor.update_model(
+                                model=agent.model,
+                                context_length=new_ctx,
+                                base_url=agent.base_url,
+                                api_key=getattr(agent, "api_key", ""),
+                                provider=agent.provider,
+                                api_mode=agent.api_mode,
+                            )
+                        else:
+                            agent._buffer_vprint(
+                                f"⚠️  Context length exceeded, but provider did not report a max context length; "
+                                f"keeping context_length at {old_ctx:,} tokens and compressing."
+                            )
 
                     compression_attempts += 1
                     if compression_attempts > max_compression_attempts:
