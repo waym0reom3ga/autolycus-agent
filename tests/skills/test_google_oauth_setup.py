@@ -258,70 +258,70 @@ class TestExchangeAuthCode:
         assert not setup_module.PENDING_AUTH_PATH.exists()
 
 
-class TestHermesConstantsFallback:
-    """Tests for _hermes_home.py fallback when hermes_constants is unavailable."""
+class TestLycusConstantsFallback:
+    """Tests for _lycus_home.py fallback when lycus_constants is unavailable."""
 
     HELPER_PATH = (
         Path(__file__).resolve().parents[2]
-        / "skills/productivity/google-workspace/scripts/_hermes_home.py"
+        / "skills/productivity/google-workspace/scripts/_lycus_home.py"
     )
 
     def _load_helper(self, monkeypatch):
-        """Load _hermes_home.py with hermes_constants blocked."""
-        monkeypatch.setitem(sys.modules, "hermes_constants", None)
-        spec = importlib.util.spec_from_file_location("_hermes_home_test", self.HELPER_PATH)
+        """Load _lycus_home.py with lycus_constants blocked."""
+        monkeypatch.setitem(sys.modules, "lycus_constants", None)
+        spec = importlib.util.spec_from_file_location("_lycus_home_test", self.HELPER_PATH)
         module = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
         spec.loader.exec_module(module)
         return module
 
-    def test_fallback_uses_hermes_home_env_var(self, monkeypatch, tmp_path):
-        """When hermes_constants is missing, HERMES_HOME comes from env var."""
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "custom-hermes"))
+    def test_fallback_uses_lycus_home_env_var(self, monkeypatch, tmp_path):
+        """When lycus_constants is missing, AUTOLYCUS_HOME comes from env var."""
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path / "custom-lycus"))
         module = self._load_helper(monkeypatch)
-        assert module.get_hermes_home() == tmp_path / "custom-hermes"
+        assert module.get_lycus_home() == tmp_path / "custom-lycus"
 
-    def test_fallback_defaults_to_dot_hermes(self, monkeypatch):
-        """When hermes_constants is missing and HERMES_HOME unset, default to ~/.hermes."""
-        monkeypatch.delenv("HERMES_HOME", raising=False)
+    def test_fallback_defaults_to_dot_lycus(self, monkeypatch):
+        """When lycus_constants is missing and AUTOLYCUS_HOME unset, default to ~/.autolycus."""
+        monkeypatch.delenv("AUTOLYCUS_HOME", raising=False)
         module = self._load_helper(monkeypatch)
-        assert module.get_hermes_home() == Path.home() / ".hermes"
+        assert module.get_lycus_home() == Path.home() / ".autolycus"
 
-    def test_fallback_ignores_empty_hermes_home(self, monkeypatch):
-        """Empty/whitespace HERMES_HOME is treated as unset."""
-        monkeypatch.setenv("HERMES_HOME", "  ")
+    def test_fallback_ignores_empty_lycus_home(self, monkeypatch):
+        """Empty/whitespace AUTOLYCUS_HOME is treated as unset."""
+        monkeypatch.setenv("AUTOLYCUS_HOME", "  ")
         module = self._load_helper(monkeypatch)
-        assert module.get_hermes_home() == Path.home() / ".hermes"
+        assert module.get_lycus_home() == Path.home() / ".autolycus"
 
-    def test_fallback_display_hermes_home_shortens_path(self, monkeypatch):
-        """Fallback display_hermes_home() uses ~/ shorthand like the real one."""
-        monkeypatch.delenv("HERMES_HOME", raising=False)
+    def test_fallback_display_lycus_home_shortens_path(self, monkeypatch):
+        """Fallback display_lycus_home() uses ~/ shorthand like the real one."""
+        monkeypatch.delenv("AUTOLYCUS_HOME", raising=False)
         module = self._load_helper(monkeypatch)
-        assert module.display_hermes_home() == "~/.hermes"
+        assert module.display_lycus_home() == "~/.autolycus"
 
-    def test_fallback_display_hermes_home_profile_path(self, monkeypatch):
-        """Fallback display_hermes_home() handles profile paths under ~/."""
-        monkeypatch.setenv("HERMES_HOME", str(Path.home() / ".hermes/profiles/coder"))
+    def test_fallback_display_lycus_home_profile_path(self, monkeypatch):
+        """Fallback display_lycus_home() handles profile paths under ~/."""
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(Path.home() / ".autolycus/profiles/coder"))
         module = self._load_helper(monkeypatch)
-        assert module.display_hermes_home() == "~/.hermes/profiles/coder"
+        assert module.display_lycus_home() == "~/.autolycus/profiles/coder"
 
-    def test_fallback_display_hermes_home_custom_path(self, monkeypatch):
-        """Fallback display_hermes_home() returns full path for non-home locations."""
-        monkeypatch.setenv("HERMES_HOME", "/opt/hermes-custom")
+    def test_fallback_display_lycus_home_custom_path(self, monkeypatch):
+        """Fallback display_lycus_home() returns full path for non-home locations."""
+        monkeypatch.setenv("AUTOLYCUS_HOME", "/opt/lycus-custom")
         module = self._load_helper(monkeypatch)
-        assert module.display_hermes_home() == "/opt/hermes-custom"
+        assert module.display_lycus_home() == "/opt/lycus-custom"
 
-    def test_delegates_to_hermes_constants_when_available(self):
-        """When hermes_constants IS importable, _hermes_home delegates to it."""
+    def test_delegates_to_lycus_constants_when_available(self):
+        """When lycus_constants IS importable, _lycus_home delegates to it."""
         spec = importlib.util.spec_from_file_location(
-            "_hermes_home_happy", self.HELPER_PATH
+            "_lycus_home_happy", self.HELPER_PATH
         )
         module = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
         spec.loader.exec_module(module)
-        import hermes_constants
-        assert module.get_hermes_home is hermes_constants.get_hermes_home
-        assert module.display_hermes_home is hermes_constants.display_hermes_home
+        import lycus_constants
+        assert module.get_lycus_home is lycus_constants.get_lycus_home
+        assert module.display_lycus_home is lycus_constants.display_lycus_home
 
 
 def _load_setup_module(monkeypatch):
@@ -345,7 +345,7 @@ def _force_deps_missing(monkeypatch):
 class TestInstallDeps:
     """Tests for install_deps() interpreter/installer selection.
 
-    Regression coverage for the Hermes Docker image, whose venv is built with
+    Regression coverage for the Lycus Docker image, whose venv is built with
     `uv sync` and ships without pip — `sys.executable -m pip install` fails
     with `No module named pip`, so install_deps() must fall back to uv.
     """
@@ -429,7 +429,7 @@ class TestInstallDeps:
 
         assert module.install_deps() is False
         out = capsys.readouterr().out
-        assert "hermes-agent[google]" in out
+        assert "lycus-agent[google]" in out
 
     def test_returns_false_when_uv_fallback_also_fails(self, monkeypatch, capsys):
         """uv present but its install fails → failure surfaced (not swallowed)."""

@@ -142,8 +142,8 @@ stdenv.mkDerivation {
   };
 
   meta = with lib; {
-    description = "Native Electron desktop shell for Hermes Agent";
-    homepage = "https://github.com/NousResearch/hermes-agent";
+    description = "Native Electron desktop shell for Lycus Agent";
+    homepage = "https://github.com/NousResearch/lycus-agent";
     license = licenses.mit;
     platforms = platforms.unix;
     mainProgram = "hermes-desktop";

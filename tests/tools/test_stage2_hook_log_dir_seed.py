@@ -1,15 +1,15 @@
-"""Contract test: the s6-overlay stage2 hook seeds $HERMES_HOME/logs/gateways
-as the hermes user.
+"""Contract test: the s6-overlay stage2 hook seeds $AUTOLYCUS_HOME/logs/gateways
+as the lycus user.
 
 Regression guard for #45258: the per-profile gateway log service
 (`gateway-<profile>/log/run`) creates `logs/gateways/` via `mkdir -p` but only
 chowns the leaf `logs/gateways/<profile>`. If the first log service to boot
 runs in root context, the `gateways/` parent is created root-owned and stays
 that way; every profile registered later runs its log service as the dropped
-hermes user and s6-log crash-loops on `mkdir: Permission denied`.
+lycus user and s6-log crash-loops on `mkdir: Permission denied`.
 
 Seeding `logs/gateways` in stage2 (cont-init runs before any service starts)
-guarantees the parent already exists hermes-owned by the time the first
+guarantees the parent already exists lycus-owned by the time the first
 log/run executes its `mkdir -p`.
 """
 from __future__ import annotations
@@ -31,21 +31,21 @@ def stage2_text() -> str:
 
 
 def _seed_mkdir_block(text: str) -> str:
-    """Extract the `as_hermes mkdir -p \\ ...` seed block."""
-    m = re.search(r"as_hermes mkdir -p \\\n(?:[^\n]*\\\n)*[^\n]*\n", text)
-    assert m, "stage2-hook.sh must contain the as_hermes mkdir -p seed block"
+    """Extract the `as_lycus mkdir -p \\ ...` seed block."""
+    m = re.search(r"as_lycus mkdir -p \\\n(?:[^\n]*\\\n)*[^\n]*\n", text)
+    assert m, "stage2-hook.sh must contain the as_lycus mkdir -p seed block"
     return m.group(0)
 
 
 def test_logs_gateways_is_seeded(stage2_text: str) -> None:
     block = _seed_mkdir_block(stage2_text)
-    assert '"$HERMES_HOME/logs/gateways"' in block, (
-        "logs/gateways must be seeded hermes-owned in stage2 so profiles "
+    assert '"$AUTOLYCUS_HOME/logs/gateways"' in block, (
+        "logs/gateways must be seeded lycus-owned in stage2 so profiles "
         "added after first boot can create their log dirs (#45258)"
     )
     # The parent must also be seeded so mkdir -p inside the block never
     # creates logs/ implicitly with surprising ownership.
-    assert '"$HERMES_HOME/logs"' in block
+    assert '"$AUTOLYCUS_HOME/logs"' in block
 
 
 def test_logs_subtree_is_healed_when_chown_needed(stage2_text: str) -> None:

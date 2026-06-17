@@ -51,7 +51,7 @@ import { broadcastSessionsChanged } from '@/store/session-sync'
 import { clearSessionSubagents, pruneDelegateFallbackSubagents, upsertSubagent } from '@/store/subagents'
 import { setSessionTodos } from '@/store/todos'
 import { recordToolDiff } from '@/store/tool-diffs'
-import type { RpcEvent } from '@/types/hermes'
+import type { RpcEvent } from '@/types/lycus'
 
 import type { ClientSessionState } from '../../types'
 
@@ -63,7 +63,7 @@ interface MessageStreamOptions {
     runtimeSessionId?: string | null
   ) => Promise<void>
   queryClient: QueryClient
-  refreshHermesConfig: () => Promise<void>
+  refreshLycusConfig: () => Promise<void>
   refreshSessions: () => Promise<void>
   sessionStateByRuntimeIdRef: MutableRefObject<Map<string, ClientSessionState>>
   updateSessionState: (
@@ -257,7 +257,7 @@ export function useMessageStream({
   activeSessionIdRef,
   hydrateFromStoredSession,
   queryClient,
-  refreshHermesConfig,
+  refreshLycusConfig,
   refreshSessions,
   sessionStateByRuntimeIdRef,
   updateSessionState
@@ -670,7 +670,7 @@ export function useMessageStream({
         const streamId = state.streamId ?? `assistant-error-${Date.now()}`
         const groupId = state.pendingBranchGroup ?? undefined
         const prev = state.messages
-        const error = errorMessage.trim() || 'Hermes reported an error'
+        const error = errorMessage.trim() || 'Lycus reported an error'
 
         const nextMessages = prev.some(m => m.id === streamId)
           ? prev.map(message =>
@@ -822,7 +822,7 @@ export function useMessageStream({
           requestDesktopOnboarding(payload.credential_warning)
         }
 
-        void refreshHermesConfig()
+        void refreshLycusConfig()
 
         if (modelChanged || providerChanged) {
           void queryClient.invalidateQueries({
@@ -1081,7 +1081,7 @@ export function useMessageStream({
           void refreshBackgroundProcesses(sessionId)
         }
       } else if (event.type === 'error') {
-        const errorMessage = payload?.message || 'Hermes reported an error'
+        const errorMessage = payload?.message || 'Lycus reported an error'
         const looksLikeProviderSetup = isProviderSetupErrorMessage(errorMessage)
 
         // A turn that errors out has also ended — drop any open blocking prompt
@@ -1105,7 +1105,7 @@ export function useMessageStream({
         } else if (isActiveEvent) {
           notify({
             kind: 'error',
-            title: 'Hermes error',
+            title: 'Lycus error',
             message: errorMessage
           })
         }
@@ -1128,7 +1128,7 @@ export function useMessageStream({
       failAssistantMessage,
       flushQueuedDeltas,
       queryClient,
-      refreshHermesConfig,
+      refreshLycusConfig,
       sessionInterrupted,
       updateSessionState,
       upsertToolCall

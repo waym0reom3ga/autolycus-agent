@@ -23,7 +23,7 @@
 
 ## ✨ Highlights
 
-- **True Lycus Branch** — The first release that establishes Lycus as a distinct identity from upstream Hermes Agent, with its own personality, behavior patterns, and evolution path.
+- **True Lycus Branch** — The first release that establishes Lycus as a distinct identity from upstream Lycus Agent, with its own personality, behavior patterns, and evolution path.
 
 - **Personality System** — Dynamic greeting templates that adapt to time, weather, and location. Lycus now introduces itself with context-aware greetings that feel alive and present.
 
@@ -52,7 +52,7 @@
 
 ## 🧠 Agent Identity
 
-- **Separate Lycus Identity** — Lycus now maintains its own agent name file (`.lycus_agent_name`)
+- **Separate Lycus Identity** — Lycus now maintains its own agent name file (`.autolycus_agent_name`)
 - **Random Name Assignment** — Each install receives a unique name from 80 possible identities
 - **Persistent Identity** — Name persists across sessions and restarts
 
@@ -80,7 +80,7 @@
 - Added `get_dynamic_greeting()` function in `agent/onboarding.py`
 - Added `get_lycus_agent_name()` function in `agent/prompt_builder.py`
 - Added `/lycus-greeting` slash command in `cli.py`
-- Created `~/.hermes/lycus_personality.yaml` configuration file
+- Created `~/.autolycus/lycus_personality.yaml` configuration file
 - Updated banner version to 0.1.0
 
 ---

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/pagination'
 import { TextTab, TextTabMeta } from '@/components/ui/text-tab'
 import { Tip } from '@/components/ui/tooltip'
-import { getSessionMessages, listAllProfileSessions } from '@/hermes'
+import { getSessionMessages, listAllProfileSessions } from '@/lycus'
 import { type Translations, useI18n } from '@/i18n'
 import { sessionTitle } from '@/lib/chat-runtime'
 import { ExternalLink, ExternalLinkIcon, hostPathLabel, urlSlugTitleLabel, useLinkTitle } from '@/lib/external-link'
@@ -26,7 +26,7 @@ import { FileImage, FileText, FolderOpen, Link2 } from '@/lib/icons'
 import { mediaExternalUrl } from '@/lib/media'
 import { cn } from '@/lib/utils'
 import { notifyError } from '@/store/notifications'
-import type { SessionInfo, SessionMessage } from '@/types/hermes'
+import type { SessionInfo, SessionMessage } from '@/types/lycus'
 
 import { useRefreshHotkey } from '../hooks/use-refresh-hotkey'
 import { useRouteEnumParam } from '../hooks/use-route-enum-param'
@@ -479,8 +479,8 @@ export function ArtifactsView({ setStatusbarItemGroup: _setStatusbarItemGroup, .
 
   const openArtifact = useCallback(async (href: string) => {
     try {
-      if (window.hermesDesktop?.openExternal) {
-        await window.hermesDesktop.openExternal(href)
+      if (window.autolycusDesktop?.openExternal) {
+        await window.autolycusDesktop.openExternal(href)
       } else {
         window.open(href, '_blank', 'noopener,noreferrer')
       }

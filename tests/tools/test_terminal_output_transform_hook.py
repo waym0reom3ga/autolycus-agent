@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import hermes_cli.plugins as plugins_mod
+import lycus_cli.plugins as plugins_mod
 import tools.terminal_tool as terminal_tool_module
 
 
@@ -52,7 +52,7 @@ def _run_terminal(
     monkeypatch.setitem(terminal_tool_module._last_activity, "default", 0.0)
 
     if invoke_hook is not _UNSET:
-        monkeypatch.setattr("hermes_cli.plugins.invoke_hook", invoke_hook)
+        monkeypatch.setattr("lycus_cli.plugins.invoke_hook", invoke_hook)
 
     result = json.loads(terminal_tool_module.terminal_tool(command=command))
     return result, mock_env
@@ -175,8 +175,8 @@ def test_terminal_output_transform_does_not_change_approval_or_exit_code_meaning
 def test_terminal_output_transform_integration_with_real_plugin(monkeypatch, tmp_path):
     import yaml
 
-    hermes_home = Path(os.environ["HERMES_HOME"])
-    plugins_dir = hermes_home / "plugins"
+    lycus_home = Path(os.environ["AUTOLYCUS_HOME"])
+    plugins_dir = lycus_home / "plugins"
     plugin_dir = plugins_dir / "terminal_transform"
     plugin_dir.mkdir(parents=True)
     (plugin_dir / "plugin.yaml").write_text("name: terminal_transform\n", encoding="utf-8")
@@ -187,7 +187,7 @@ def test_terminal_output_transform_integration_with_real_plugin(monkeypatch, tmp
         encoding="utf-8",
     )
     # Plugins are opt-in — must be listed in plugins.enabled to load.
-    cfg_path = hermes_home / "config.yaml"
+    cfg_path = lycus_home / "config.yaml"
     cfg_path.write_text(
         yaml.safe_dump({"plugins": {"enabled": ["terminal_transform"]}}),
         encoding="utf-8",

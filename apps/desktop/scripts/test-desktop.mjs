@@ -14,14 +14,14 @@ const PLATFORM = process.platform
 
 // Platform-specific packaged-app layout. The thin installer ships an Electron
 // app shell plus extraResources (install-stamp.json + native-deps/) -- it
-// no longer bundles the Hermes Agent Python payload (that's fetched at first
+// no longer bundles the Lycus Agent Python payload (that's fetched at first
 // launch via install.ps1 / install.sh, per the Phase 1 thin-installer flow).
 const APP = (() => {
   if (PLATFORM === 'darwin') {
-    const appPath = path.join(RELEASE_ROOT, `mac-${ARCH}`, 'Hermes.app')
+    const appPath = path.join(RELEASE_ROOT, `mac-${ARCH}`, 'Lycus.app')
     return {
       appPath,
-      binary: path.join(appPath, 'Contents', 'MacOS', 'Hermes'),
+      binary: path.join(appPath, 'Contents', 'MacOS', 'Lycus'),
       resourcesPath: path.join(appPath, 'Contents', 'Resources'),
       asarPath: path.join(appPath, 'Contents', 'Resources', 'app.asar'),
       unpackedDistIndex: path.join(appPath, 'Contents', 'Resources', 'app.asar.unpacked', 'dist', 'index.html')
@@ -31,7 +31,7 @@ const APP = (() => {
     const unpacked = path.join(RELEASE_ROOT, 'win-unpacked')
     return {
       appPath: unpacked,
-      binary: path.join(unpacked, 'Hermes.exe'),
+      binary: path.join(unpacked, 'Lycus.exe'),
       resourcesPath: path.join(unpacked, 'resources'),
       asarPath: path.join(unpacked, 'resources', 'app.asar'),
       unpackedDistIndex: path.join(unpacked, 'resources', 'app.asar.unpacked', 'dist', 'index.html')
@@ -41,25 +41,25 @@ const APP = (() => {
   const unpacked = path.join(RELEASE_ROOT, 'linux-unpacked')
   return {
     appPath: unpacked,
-    binary: path.join(unpacked, 'hermes'),
+    binary: path.join(unpacked, 'lycus'),
     resourcesPath: path.join(unpacked, 'resources'),
     asarPath: path.join(unpacked, 'resources', 'app.asar'),
     unpackedDistIndex: path.join(unpacked, 'resources', 'app.asar.unpacked', 'dist', 'index.html')
   }
 })()
 
-// Default HERMES_HOME for non-sandboxed runs -- matches main.cjs's
-// resolveHermesHome(). On Windows it's %LOCALAPPDATA%\hermes; elsewhere
-// it's ~/.hermes. The fresh-install sandbox launchFresh() sets its own
-// HERMES_HOME and never touches this.
-const DEFAULT_HERMES_HOME = (() => {
+// Default AUTOLYCUS_HOME for non-sandboxed runs -- matches main.cjs's
+// resolveLycusHome(). On Windows it's %LOCALAPPDATA%\lycus; elsewhere
+// it's ~/.autolycus. The fresh-install sandbox launchFresh() sets its own
+// AUTOLYCUS_HOME and never touches this.
+const DEFAULT_AUTOLYCUS_HOME = (() => {
   if (PLATFORM === 'win32' && process.env.LOCALAPPDATA) {
-    return path.join(process.env.LOCALAPPDATA, 'hermes')
+    return path.join(process.env.LOCALAPPDATA, 'lycus')
   }
-  return path.join(os.homedir(), '.hermes')
+  return path.join(os.homedir(), '.autolycus')
 })()
-const VENV_ROOT = path.join(DEFAULT_HERMES_HOME, 'hermes-agent', 'venv')
-const FRESH_SANDBOX_ROOT = path.join(os.tmpdir(), 'hermes-desktop-fresh-install')
+const VENV_ROOT = path.join(DEFAULT_AUTOLYCUS_HOME, 'lycus-agent', 'venv')
+const FRESH_SANDBOX_ROOT = path.join(os.tmpdir(), 'lycus-desktop-fresh-install')
 
 function die(message) {
   console.error(`\n${message}`)
@@ -118,10 +118,10 @@ function ensurePackagedApp() {
 
 function resolveDmgPath() {
   if (!exists(RELEASE_ROOT)) {
-    return path.join(RELEASE_ROOT, `Hermes-${PACKAGE_JSON.version}-${ARCH}.dmg`)
+    return path.join(RELEASE_ROOT, `Lycus-${PACKAGE_JSON.version}-${ARCH}.dmg`)
   }
 
-  const prefix = `Hermes-${PACKAGE_JSON.version}`
+  const prefix = `Lycus-${PACKAGE_JSON.version}`
   const candidates = fs
     .readdirSync(RELEASE_ROOT)
     .filter(name => name.endsWith('.dmg'))
@@ -135,11 +135,11 @@ function resolveDmgPath() {
 
   return candidates.length > 0
     ? path.join(RELEASE_ROOT, candidates[0])
-    : path.join(RELEASE_ROOT, `Hermes-${PACKAGE_JSON.version}-${ARCH}.dmg`)
+    : path.join(RELEASE_ROOT, `Lycus-${PACKAGE_JSON.version}-${ARCH}.dmg`)
 }
 
 function resolveNsisPath() {
-  // electron-builder NSIS artifactName template is 'Hermes-${version}-${os}-${arch}.${ext}'
+  // electron-builder NSIS artifactName template is 'Lycus-${version}-${os}-${arch}.${ext}'
   if (!exists(RELEASE_ROOT)) return null
   const candidates = fs
     .readdirSync(RELEASE_ROOT)
@@ -236,11 +236,11 @@ function launchFresh() {
 
   const sandbox = fs.mkdtempSync(`${FRESH_SANDBOX_ROOT}-`)
   const userDataDir = path.join(sandbox, 'electron-user-data')
-  const hermesHome = path.join(sandbox, 'hermes-home')
+  const lycusHome = path.join(sandbox, 'lycus-home')
   const cwd = path.join(sandbox, 'workspace')
 
   fs.mkdirSync(userDataDir, { recursive: true })
-  fs.mkdirSync(hermesHome, { recursive: true })
+  fs.mkdirSync(lycusHome, { recursive: true })
   fs.mkdirSync(cwd, { recursive: true })
 
   // Strip every credential-shaped env var so the sandbox is actually fresh.
@@ -254,7 +254,7 @@ function launchFresh() {
   env.HERMES_DESKTOP_IGNORE_EXISTING = '1'
   env.HERMES_DESKTOP_TEST_MODE = 'fresh-install'
   env.HERMES_DESKTOP_USER_DATA_DIR = userDataDir
-  env.HERMES_HOME = hermesHome
+  env.AUTOLYCUS_HOME = lycusHome
   delete env.HERMES_DESKTOP_HERMES
   delete env.HERMES_DESKTOP_HERMES_ROOT
 
@@ -269,14 +269,14 @@ function launchFresh() {
   console.log('\nFresh install sandbox:')
   console.log(`  root: ${sandbox}`)
   console.log(`  electron userData: ${userDataDir}`)
-  console.log(`  HERMES_HOME: ${hermesHome}`)
+  console.log(`  AUTOLYCUS_HOME: ${lycusHome}`)
   console.log(`  cwd: ${cwd}`)
 
-  return { runtimeRoot: path.join(hermesHome, 'hermes-agent', 'venv') }
+  return { runtimeRoot: path.join(lycusHome, 'lycus-agent', 'venv') }
 }
 
 // Validate the packaged bundle matches the thin-installer architecture:
-//   - The Hermes Agent Python payload is NOT shipped (it's fetched at first
+//   - The Lycus Agent Python payload is NOT shipped (it's fetched at first
 //     launch via install.ps1's stage protocol).
 //   - install-stamp.json IS shipped in resources/ with a valid commit + branch.
 //   - native-deps/@homebridge/node-pty-prebuilt-multiarch/ IS shipped with
@@ -290,9 +290,9 @@ function validateBundle() {
   }
 
   // Negative assertion: the OLD fat-installer factory payload must NOT be
-  // present anymore. If a stray ship of hermes_cli sneaks back in we want
+  // present anymore. If a stray ship of lycus_cli sneaks back in we want
   // to fail loudly rather than re-introduce the 400MB delta we just removed.
-  const staleFactoryMarker = path.join(APP.resourcesPath, 'hermes-agent', 'hermes_cli', 'main.py')
+  const staleFactoryMarker = path.join(APP.resourcesPath, 'lycus-agent', 'lycus_cli', 'main.py')
   if (exists(staleFactoryMarker)) {
     die(
       `Thin-installer regression: factory-payload file should NOT be in the package: ${staleFactoryMarker}`
@@ -382,8 +382,8 @@ function printArtifacts(options = {}) {
 
 function help() {
   console.log(`Usage:
-  npm run test:desktop:existing  # build packaged app, launch with normal PATH/existing Hermes
-  npm run test:desktop:fresh     # build packaged app, launch with temp userData + HERMES_HOME
+  npm run test:desktop:existing  # build packaged app, launch with normal PATH/existing Lycus
+  npm run test:desktop:fresh     # build packaged app, launch with temp userData + AUTOLYCUS_HOME
   npm run test:desktop:dmg       # (macOS only) build DMG and open it
   npm run test:desktop:nsis      # (win32 only) build NSIS installer
   npm run test:desktop:all       # build installer, validate app payload, print paths

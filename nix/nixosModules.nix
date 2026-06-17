@@ -1,4 +1,4 @@
-# nix/nixosModules.nix — NixOS module for hermes-agent
+# nix/nixosModules.nix — NixOS module for lycus-agent
 #
 # Two modes:
 #   container.enable = false (default) → native systemd service
@@ -7,7 +7,7 @@
 # Container mode: hermes runs from /nix/store bind-mounted read-only into a
 # plain Ubuntu container. The writable layer (apt/pip/npm installs) persists
 # across restarts and agent updates. Only image/volume/options changes trigger
-# container recreation. Environment variables are written to $HERMES_HOME/.env
+# container recreation. Environment variables are written to $LYCUS_HOME/.env
 # and read by hermes at startup — no container recreation needed for env changes.
 #
 # Tool resolution: the hermes wrapper uses --suffix PATH for nix store tools,
@@ -17,7 +17,7 @@
 # writable tool prefixes for npm i -g, pip install, uv tool install, etc.
 #
 # Usage:
-#   services.hermes-agent = {
+#   services.lycus-agent = {
 #     enable = true;
 #     settings.model = "anthropic/claude-sonnet-4";
 #     environmentFiles = [ config.sops.secrets."hermes/env".path ];
@@ -27,14 +27,14 @@
   flake.nixosModules.default = { config, lib, pkgs, ... }:
 
   let
-    cfg = config.services.hermes-agent;
+    cfg = config.services.lycus-agent;
     effectivePackage =
       if cfg.extraPythonPackages == [ ] && cfg.extraDependencyGroups == [ ]
       then cfg.package
       else cfg.package.override { inherit (cfg) extraPythonPackages extraDependencyGroups; };
-    hermes-agent = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+    lycus-agent = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.default;
 
-    # Deep-merge config type (from 0xrsydn/nix-hermes-agent)
+    # Deep-merge config type (from 0xrsydn/nix-lycus-agent)
     deepConfigType = lib.types.mkOptionType {
       name = "hermes-config-attrs";
       description = "Hermes YAML config (attrset), merged deeply via lib.recursiveUpdate.";
@@ -50,7 +50,7 @@
     configMergeScript = pkgs.callPackage ./configMergeScript.nix { };
 
     # config.yaml mode: group-writable (0660) when interactive users share this
-    # HERMES_HOME via addToSystemPackages, so they can save settings through the
+    # LYCUS_HOME via addToSystemPackages, so they can save settings through the
     # CLI/TUI without hitting EACCES; otherwise group-read-only (0640). Secrets
     # (.env) stay 0640 regardless — see below.
     configYamlMode = if cfg.addToSystemPackages then "0660" else "0640";
@@ -72,7 +72,7 @@
       )
     );
 
-    containerName = "hermes-agent";
+    containerName = "lycus-agent";
     containerDataDir = "/data";     # stateDir mount point inside container
     containerHomeDir = "/home/hermes";
 
@@ -123,13 +123,13 @@
       chown "$HERMES_UID:$HERMES_GID" "$TARGET_HOME"
       chmod 0750 "$TARGET_HOME"
 
-      # Ensure HERMES_HOME is owned by the target user.
+      # Ensure LYCUS_HOME is owned by the target user.
       # Use find instead of chown -R: chown strips the setgid bit (kernel
       # behavior), destroying the 2770 permissions the NixOS activation
       # script sets for group access by hostUsers.  Only touch files with
       # wrong ownership so correctly-owned dirs keep their permission bits.
-      if [ -n "''${HERMES_HOME:-}" ] && [ -d "$HERMES_HOME" ]; then
-        find "$HERMES_HOME" \! -user "$HERMES_UID" -exec chown "$HERMES_UID:$HERMES_GID" {} +
+      if [ -n "''${LYCUS_HOME:-}" ] && [ -d "$LYCUS_HOME" ]; then
+        find "$LYCUS_HOME" \! -user "$HERMES_UID" -exec chown "$HERMES_UID:$HERMES_GID" {} +
       fi
 
       # ── Provision apt packages (first boot only, cached in writable layer) ──
@@ -190,7 +190,7 @@
 
     # Identity hash — only recreate container when structural config changes.
     # Package and entrypoint use stable symlinks (current-package, current-entrypoint)
-    # so they can update without recreation. Env vars go through $HERMES_HOME/.env.
+    # so they can update without recreation. Env vars go through $LYCUS_HOME/.env.
     containerIdentity = builtins.hashString "sha256" (builtins.toJSON {
       schema = 4; # bump when identity inputs change (4: Node 18→22 via NodeSource)
       image = cfg.container.image;
@@ -208,14 +208,14 @@
       else cfg.workingDirectory;
 
   in {
-    options.services.hermes-agent = with lib; {
-      enable = mkEnableOption "Hermes Agent gateway service";
+    options.services.lycus-agent = with lib; {
+      enable = mkEnableOption "Lycus Agent gateway service";
 
       # ── Package ──────────────────────────────────────────────────────────
       package = mkOption {
         type = types.package;
-        default = hermes-agent;
-        description = "The hermes-agent package to use.";
+        default = lycus-agent;
+        description = "The lycus-agent package to use.";
       };
 
       # ── Service identity ─────────────────────────────────────────────────
@@ -241,7 +241,7 @@
       stateDir = mkOption {
         type = types.str;
         default = "/var/lib/hermes";
-        description = "State directory. Contains .hermes/ subdir (HERMES_HOME).";
+        description = "State directory. Contains .hermes/ subdir (LYCUS_HOME).";
       };
 
       workingDirectory = mkOption {
@@ -284,7 +284,7 @@
         default = [ ];
         description = ''
           Paths to environment files containing secrets (API keys, tokens).
-          Contents are merged into $HERMES_HOME/.env at activation time.
+          Contents are merged into $LYCUS_HOME/.env at activation time.
           Hermes reads this file on every startup via load_hermes_dotenv().
         '';
       };
@@ -293,7 +293,7 @@
         type = types.attrsOf types.str;
         default = { };
         description = ''
-          Non-secret environment variables. Merged into $HERMES_HOME/.env
+          Non-secret environment variables. Merged into $LYCUS_HOME/.env
           at activation time. Do NOT put secrets here — use environmentFiles.
         '';
       };
@@ -368,7 +368,7 @@
               default = null;
               description = ''
                 Authentication method. Set to "oauth" for OAuth 2.1 PKCE flow
-                (remote MCP servers). Tokens are stored in $HERMES_HOME/mcp-tokens/.
+                (remote MCP servers). Tokens are stored in $LYCUS_HOME/mcp-tokens/.
               '';
             };
 
@@ -505,7 +505,7 @@
         description = ''
           Python packages to add to PYTHONPATH for entry-point plugin discovery.
           These are pip-packaged plugins that register via the
-          hermes_agent.plugins entry-point group. Each package must be built
+          lycus_agent.plugins entry-point group. Each package must be built
           with the same Python interpreter as hermes (python312).
         '';
         example = literalExpression ''
@@ -532,7 +532,7 @@
           the sealed Python venv. These are resolved by uv alongside core
           dependencies — no PYTHONPATH patching or collision risk.
 
-          Use this for optional extras already declared in hermes-agent's
+          Use this for optional extras already declared in lycus-agent's
           pyproject.toml (e.g. "hindsight", "honcho", "voice").
           Use extraPythonPackages for external packages not in pyproject.toml.
         '';
@@ -556,7 +556,7 @@
         default = false;
         description = ''
           Add the hermes CLI to environment.systemPackages and export
-          HERMES_HOME system-wide (via environment.variables) so interactive
+          LYCUS_HOME system-wide (via environment.variables) so interactive
           shells share state with the gateway service.
         '';
       };
@@ -594,7 +594,7 @@
           type = types.listOf types.str;
           default = [ ];
           description = ''
-            Interactive users who get a ~/.hermes symlink to the service
+            Interactive users who get a ~/.lycus symlink to the service
             stateDir. These users are automatically added to the hermes group.
           '';
           example = [ "sidbin" ];
@@ -606,7 +606,7 @@
 
       # ── Merge MCP servers into settings ────────────────────────────────
       (lib.mkIf (cfg.mcpServers != { }) {
-        services.hermes-agent.settings.mcp_servers = lib.mapAttrs (_name: srv:
+        services.lycus-agent.settings.mcp_servers = lib.mapAttrs (_name: srv:
           # Stdio transport
           lib.optionalAttrs (srv.command != null) { inherit (srv) command args; }
           // lib.optionalAttrs (srv.env != { }) { inherit (srv) env; }
@@ -649,12 +649,12 @@
       })
 
       # ── Host CLI ──────────────────────────────────────────────────────
-      # Add the hermes CLI to system PATH and export HERMES_HOME system-wide
+      # Add the hermes CLI to system PATH and export LYCUS_HOME system-wide
       # so interactive shells share state (sessions, skills, cron) with the
-      # gateway service instead of creating a separate ~/.hermes/.
+      # gateway service instead of creating a separate ~/.lycus/.
       (lib.mkIf cfg.addToSystemPackages {
         environment.systemPackages = [ effectivePackage ];
-        environment.variables.HERMES_HOME = "${cfg.stateDir}/.hermes";
+        environment.variables.LYCUS_HOME = "${cfg.stateDir}/.hermes";
       })
 
       # ── Host user group membership ─────────────────────────────────────
@@ -670,7 +670,7 @@
           names = map lib.getName cfg.extraPlugins;
         in [{
           assertion = (lib.length names) == (lib.length (lib.unique names));
-          message = "services.hermes-agent.extraPlugins: duplicate plugin names detected: ${toString names}. If using fetchFromGitHub, set name = \"plugin-name\" to disambiguate.";
+          message = "services.lycus-agent.extraPlugins: duplicate plugin names detected: ${toString names}. If using fetchFromGitHub, set name = \"plugin-name\" to disambiguate.";
         }];
       }
 
@@ -680,7 +680,7 @@
           names = map lib.getName cfg.extraPlugins;
         in [{
           assertion = (lib.length names) == (lib.length (lib.unique names));
-          message = "services.hermes-agent.extraPlugins: duplicate plugin names detected: ${toString names}. If using fetchFromGitHub, set name = \"plugin-name\" to disambiguate.";
+          message = "services.lycus-agent.extraPlugins: duplicate plugin names detected: ${toString names}. If using fetchFromGitHub, set name = \"plugin-name\" to disambiguate.";
         }];
       }
 
@@ -699,7 +699,7 @@
       (lib.mkIf (cfg.container.enable && !cfg.addToSystemPackages && cfg.container.hostUsers != []) {
         warnings = [
           ''
-            services.hermes-agent: container.enable is true and container.hostUsers
+            services.lycus-agent: container.enable is true and container.hostUsers
             is set, but addToSystemPackages is false. Without a host-installed hermes
             binary, container routing will not work for interactive users.
             Set addToSystemPackages = true or ensure hermes is on PATH.
@@ -724,7 +724,7 @@
 
       # ── Activation: link config + auth + documents ────────────────────
       {
-        system.activationScripts."hermes-agent-setup" = lib.stringAfter ([ "users" ] ++ lib.optional (config.system.activationScripts ? setupSecrets) "setupSecrets") ''
+        system.activationScripts."lycus-agent-setup" = lib.stringAfter ([ "users" ] ++ lib.optional (config.system.activationScripts ? setupSecrets) "setupSecrets") ''
           # Ensure directories exist (activation runs before tmpfiles)
           mkdir -p ${cfg.stateDir}/.hermes
           mkdir -p ${cfg.stateDir}/home
@@ -789,13 +789,13 @@
               in ''
                 if [ -L "${symlinkPath}" ] && [ "$(readlink "${symlinkPath}")" = "${cfg.stateDir}/.hermes" ]; then
                   rm -f "${symlinkPath}"
-                  echo "hermes-agent: removed symlink ${symlinkPath}"
+                  echo "lycus-agent: removed symlink ${symlinkPath}"
                 fi
               '') cfg.container.hostUsers)}
           ''}
 
           # ── Symlink bridge for interactive users ───────────────────────
-          # Create ~/.hermes -> stateDir/.hermes for each hostUser so the
+          # Create ~/.lycus -> stateDir/.hermes for each hostUser so the
           # host CLI shares state with the container service.
           # Only runs when container mode is enabled.
           ${lib.optionalString cfg.container.enable
@@ -809,7 +809,7 @@
                   # Real directory — back it up, then create symlink.
                   # (ln -sfn cannot atomically replace a directory.)
                   _backup="${symlinkPath}.bak.$(date +%s)"
-                  echo "hermes-agent: backing up existing ${symlinkPath} to $_backup"
+                  echo "lycus-agent: backing up existing ${symlinkPath} to $_backup"
                   mv "${symlinkPath}" "$_backup"
                 fi
                 # For everything else (existing symlink, doesn't exist, etc.)
@@ -830,7 +830,7 @@
           ''}
 
           # Seed .env from Nix-declared environment + environmentFiles.
-          # Hermes reads $HERMES_HOME/.env at startup via load_hermes_dotenv(),
+          # Hermes reads $LYCUS_HOME/.env at startup via load_hermes_dotenv(),
           # so this is the single source of truth for both native and container mode.
           ${lib.optionalString (cfg.environment != {} || cfg.environmentFiles != []) ''
             ENV_FILE="${cfg.stateDir}/.hermes/.env"
@@ -873,15 +873,15 @@
       # MODE A: Native systemd service (default)
       # ══════════════════════════════════════════════════════════════════
       (lib.mkIf (!cfg.container.enable) {
-        systemd.services.hermes-agent = {
-          description = "Hermes Agent Gateway";
+        systemd.services.lycus-agent = {
+          description = "Lycus Agent Gateway";
           wantedBy = [ "multi-user.target" ];
           after = [ "network-online.target" ];
           wants = [ "network-online.target" ];
 
           environment = {
             HOME = cfg.stateDir;
-            HERMES_HOME = "${cfg.stateDir}/.hermes";
+            LYCUS_HOME = "${cfg.stateDir}/.hermes";
             HERMES_MANAGED = "true";
             MESSAGING_CWD = cfg.workingDirectory;
           };
@@ -892,7 +892,7 @@
             WorkingDirectory = cfg.workingDirectory;
 
             # cfg.environment and cfg.environmentFiles are written to
-            # $HERMES_HOME/.env by the activation script. load_hermes_dotenv()
+            # $LYCUS_HOME/.env by the activation script. load_hermes_dotenv()
             # reads them at Python startup — no systemd EnvironmentFile needed.
 
             ExecStart = lib.concatStringsSep " " ([
@@ -934,8 +934,8 @@
         # Ensure the container runtime is available
         virtualisation.docker.enable = lib.mkDefault (cfg.container.backend == "docker");
 
-        systemd.services.hermes-agent = {
-          description = "Hermes Agent Gateway (container)";
+        systemd.services.lycus-agent = {
+          description = "Lycus Agent Gateway (container)";
           wantedBy = [ "multi-user.target" ];
           after = [ "network-online.target" ]
             ++ lib.optional (cfg.container.backend == "docker") "docker.service";
@@ -977,7 +977,7 @@
                 ${lib.concatStringsSep " " (map (v: "--volume ${v}") cfg.container.extraVolumes)} \
                 --env HERMES_UID="$HERMES_UID" \
                 --env HERMES_GID="$HERMES_GID" \
-                --env HERMES_HOME=${containerDataDir}/.hermes \
+                --env LYCUS_HOME=${containerDataDir}/.hermes \
                 --env HERMES_MANAGED=true \
                 --env HOME=${containerHomeDir} \
                 --env MESSAGING_CWD=${containerWorkDir} \

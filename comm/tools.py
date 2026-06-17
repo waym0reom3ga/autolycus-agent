@@ -1,5 +1,5 @@
 """
-Lycus Communication Tools for Hermes Agent
+Lycus Communication Tools for Lycus Agent
 
 Provides Matrix-based inter-agent communication as callable tools using matrix-nio.
 Each Lycus agent can use these tools to send/receive messages from other agents.

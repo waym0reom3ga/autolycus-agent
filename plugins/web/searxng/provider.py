@@ -32,9 +32,9 @@ logger = logging.getLogger(__name__)
 
 
 def _searxng_url() -> str:
-    """Return SEARXNG_URL from Hermes config-aware env, falling back to process env."""
+    """Return SEARXNG_URL from Lycus config-aware env, falling back to process env."""
     try:
-        from hermes_cli.config import get_env_value
+        from lycus_cli.config import get_env_value
 
         val = get_env_value("SEARXNG_URL")
     except Exception:

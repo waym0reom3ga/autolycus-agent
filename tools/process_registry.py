@@ -42,17 +42,17 @@ import uuid
 
 _IS_WINDOWS = platform.system() == "Windows"
 from tools.environments.local import _find_shell, _resolve_safe_cwd, _sanitize_subprocess_env
-from hermes_cli._subprocess_compat import windows_hide_flags
+from lycus_cli._subprocess_compat import windows_hide_flags
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from hermes_cli.config import get_hermes_home
+from lycus_cli.config import get_lycus_home
 
 logger = logging.getLogger(__name__)
 
 
 # Checkpoint file for crash recovery (gateway only)
-CHECKPOINT_PATH = get_hermes_home() / "processes.json"
+CHECKPOINT_PATH = get_lycus_home() / "processes.json"
 
 # Limits
 MAX_OUTPUT_CHARS = 200_000      # 200KB rolling output buffer
@@ -751,9 +751,9 @@ class ProcessRegistry:
 
         # Run the command in the sandbox with output capture
         temp_dir = self._env_temp_dir(env)
-        log_path = f"{temp_dir}/hermes_bg_{session.id}.log"
-        pid_path = f"{temp_dir}/hermes_bg_{session.id}.pid"
-        exit_path = f"{temp_dir}/hermes_bg_{session.id}.exit"
+        log_path = f"{temp_dir}/lycus_bg_{session.id}.log"
+        pid_path = f"{temp_dir}/lycus_bg_{session.id}.pid"
+        exit_path = f"{temp_dir}/lycus_bg_{session.id}.exit"
         quoted_command = shlex.quote(command)
         quoted_temp_dir = shlex.quote(temp_dir)
         quoted_log_path = shlex.quote(log_path)
@@ -1008,7 +1008,7 @@ class ProcessRegistry:
         The reader thread (`_reader_loop`) sets `session.exited = True` only
         in its `finally` block, which runs when `stdout.read()` returns EOF.
         If the direct `Popen` child has exited but a descendant process (e.g.
-        a daemon spawned by `hermes update` restarting the gateway) is still
+        a daemon spawned by `lycus update` restarting the gateway) is still
         holding the stdout pipe open, the reader blocks forever and poll()
         keeps returning "running" indefinitely (issue #17327 — 74 polls over
         7 minutes on Feishu).
@@ -1720,7 +1720,7 @@ def format_process_notification(evt: dict) -> "str | None":
     if _exit in {-15, 143, "-15", "143"}:
         _signal = ", SIGTERM"
     if _reason == "killed":
-        _status = f"terminated by {_source or 'Hermes'}"
+        _status = f"terminated by {_source or 'Lycus'}"
     elif _reason == "lost":
         _status = "marked lost because the process backend disappeared"
     elif _reason == "failed_start":

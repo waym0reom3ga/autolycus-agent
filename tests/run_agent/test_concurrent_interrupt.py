@@ -8,9 +8,9 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _isolate_hermes(tmp_path, monkeypatch):
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path / ".hermes"))
-    (tmp_path / ".hermes").mkdir(exist_ok=True)
+def _isolate_lycus(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path / ".autolycus"))
+    (tmp_path / ".autolycus").mkdir(exist_ok=True)
 
 
 def _make_agent(monkeypatch):

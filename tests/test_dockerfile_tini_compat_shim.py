@@ -3,7 +3,7 @@ for orchestration templates that still reference /usr/bin/tini.
 
 This is a documentation-as-test guard: removing the shim is a real
 choice, but it should be done deliberately (e.g. once Hostinger's
-'Hermes WebUI' catalog updates to /init) and not by accident.
+'Lycus WebUI' catalog updates to /init) and not by accident.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def test_tini_compat_symlink_present():
     assert "ln -sf /init /usr/bin/tini" in df, (
         "Dockerfile must keep the tini compat symlink (#34192). "
         "Removing it breaks orchestration templates that still pin "
-        "/usr/bin/tini as the entrypoint (Hostinger 'Hermes WebUI' "
+        "/usr/bin/tini as the entrypoint (Hostinger 'Lycus WebUI' "
         "catalog as of v0.14.x)."
     )
 

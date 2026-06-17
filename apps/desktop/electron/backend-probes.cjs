@@ -37,7 +37,7 @@ const { execFileSync } = require('node:child_process')
 const PROBE_TIMEOUT_MS = 5000
 
 /**
- * Return true iff `python -c "import hermes_cli"` exits 0.
+ * Return true iff `python -c "import lycus_cli"` exits 0.
  *
  * Used to gate the "fallback to system Python with hermes_cli installed"
  * rung of resolveHermesBackend. Without this, a system Python 3.11-3.13
@@ -52,7 +52,7 @@ const PROBE_TIMEOUT_MS = 5000
 function canImportHermesCli(pythonPath) {
   if (!pythonPath) return false
   try {
-    execFileSync(pythonPath, ['-c', 'import hermes_cli'], {
+    execFileSync(pythonPath, ['-c', 'import lycus_cli'], {
       stdio: 'ignore',
       timeout: PROBE_TIMEOUT_MS,
       windowsHide: true

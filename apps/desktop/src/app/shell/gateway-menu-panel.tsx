@@ -7,7 +7,7 @@ import { useI18n } from '@/i18n'
 import { Activity, AlertCircle } from '@/lib/icons'
 import type { RuntimeReadinessResult } from '@/lib/runtime-readiness'
 import { cn } from '@/lib/utils'
-import type { StatusResponse } from '@/types/hermes'
+import type { StatusResponse } from '@/types/lycus'
 
 interface GatewayMenuPanelProps {
   gatewayState: string

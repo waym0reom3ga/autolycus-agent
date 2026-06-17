@@ -328,15 +328,15 @@ install_deps
 # ============================================================================
 
 setup_path() {
-    printf '%b\n' "${CYAN}→${NC} Setting up hermes and lycus commands..."
+    printf '%b\n' "${CYAN}→${NC} Setting up lycus and lycus commands..."
 
-    local hermes_bin="$_INSTALL_REPO_DIR/venv/bin/hermes"
+    local lycus_bin="$_INSTALL_REPO_DIR/venv/bin/lycus"
     local lycus_bin="$_INSTALL_REPO_DIR/venv/bin/lycus"
 
     mkdir -p "$HOME/.local/bin"
 
-    ln -sf "$hermes_bin" "$HOME/.local/bin/hermes"
-    printf '%b\n' "${GREEN}✓${NC} Symlinked hermes → ~/.local/bin/hermes"
+    ln -sf "$lycus_bin" "$HOME/.local/bin/lycus"
+    printf '%b\n' "${GREEN}✓${NC} Symlinked lycus → ~/.local/bin/lycus"
 
     ln -sf "$lycus_bin" "$HOME/.local/bin/lycus"
     printf '%b\n' "${GREEN}✓${NC} Symlinked lycus → ~/.local/bin/lycus"
@@ -368,15 +368,15 @@ echo "  1. Reload your shell:"
 echo "     source ~/.zshrc"
 echo ""
 echo "  2. Configure API keys:"
-echo "     hermes setup"
+echo "     lycus setup"
 echo ""
 echo "  3. Start chatting:"
-echo "     hermes"
+echo "     lycus"
 echo ""
 echo "Other commands:"
-echo "  hermes status        # Check configuration"
-echo "  hermes doctor        # Diagnose issues"
-echo "  hermes gateway install # Install gateway service"
+echo "  lycus status        # Check configuration"
+echo "  lycus doctor        # Diagnose issues"
+echo "  lycus gateway install # Install gateway service"
 echo ""
 
 # macOS-specific notes

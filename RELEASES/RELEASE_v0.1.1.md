@@ -17,7 +17,7 @@
 
 **Release Date:** May 17, 2026
 
-> Unified vision pipeline — the auxiliary model paradigm is retired. With qwen3.5+ and qwen3.6, LLMs and vision models are no longer separate. Autolycus now processes images directly through the main model, eliminating redundant API calls, secondary model loading, and credit drain. Fully compliant with Hermes 0.14.0.
+> Unified vision pipeline — the auxiliary model paradigm is retired. With qwen3.5+ and qwen3.6, LLMs and vision models are no longer separate. Autolycus now processes images directly through the main model, eliminating redundant API calls, secondary model loading, and credit drain. Fully compliant with Lycus 0.14.0.
 
 ---
 
@@ -25,7 +25,7 @@
 
 - **Unified Vision Pipeline** — The 4700-line auxiliary client chain has been replaced with a 226-line self-contained module. All image processing now routes through the main model.
 
-- **Hermes 0.14.0 Compliance** — Autolycus is fully synchronized with the latest upstream Hermes Agent release, inheriting all stability improvements, bug fixes, and feature additions.
+- **Lycus 0.14.0 Compliance** — Autolycus is fully synchronized with the latest upstream Lycus Agent release, inheriting all stability improvements, bug fixes, and feature additions.
 
 - **Zero Information Loss** — The main model sees actual pixels, not a lossy text description. No more "describe this image" round-trips.
 
@@ -35,7 +35,7 @@
 
 ### The Problem
 
-The Hermes Agent architecture maintained a separate "auxiliary vision" backend (typically Gemini Flash) for image processing. When the agent called `vision_analyze`, it went through a 4700-line resolution chain to hit a secondary model, then returned a text description to the main model. This meant:
+The Lycus Agent architecture maintained a separate "auxiliary vision" backend (typically Gemini Flash) for image processing. When the agent called `vision_analyze`, it went through a 4700-line resolution chain to hit a secondary model, then returned a text description to the main model. This meant:
 - Extra API credits burned on a separate backend
 - Secondary model loading (causing VRAM OOM during context compression)
 - Information loss from pixel-to-text-to-pixel translation
@@ -89,8 +89,8 @@ User image → vision_analyze_tool()
   - Auto-applies all patches at import time
 
 - Modified `cli.py`:
-  - Line 48: `import agent.lycus_vision` (triggers patches at startup)
-  - Line 2323: `agent.lycus_vision.patch_cli_preprocess(ChatConsole)` (applies after class definition)
+  - Line 48: `import agent.autolycus_vision` (triggers patches at startup)
+  - Line 2323: `agent.autolycus_vision.patch_cli_preprocess(ChatConsole)` (applies after class definition)
 
 - Updated `vision_analyze` tool schema description — no longer references "auxiliary vision model"
 
@@ -99,7 +99,7 @@ User image → vision_analyze_tool()
 ## 📋 Compatibility
 
 - **Requires:** Multimodal-capable main model (qwen3.5+, qwen3.6, or equivalent)
-- **Hermes 0.14.0:** Fully compliant — all upstream features inherited
+- **Lycus 0.14.0:** Fully compliant — all upstream features inherited
 - **Graceful degradation:** If lycus_vision import fails, upstream behavior is preserved
 - **Config:** No schema changes — `auxiliary.vision` settings are simply ignored
 

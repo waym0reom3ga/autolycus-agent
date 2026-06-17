@@ -7,10 +7,10 @@
 #
 # Strategy (first hit wins — respects the user's existing tooling):
 #   1. modern `node` already on PATH
-#   2. ~/.hermes/node/ from a prior Hermes-managed install
+#   2. ~/.autolycus/node/ from a prior Lycus-managed install
 #   3. fnm, proto, nvm (in that order) if the user already uses a version manager
 #   4. Termux `pkg`, macOS Homebrew
-#   5. pinned nodejs.org tarball into ~/.hermes/node/ (always works, zero shell rc edits)
+#   5. pinned nodejs.org tarball into ~/.autolycus/node/ (always works, zero shell rc edits)
 #
 # Usage:
 #   source scripts/lib/node-bootstrap.sh
@@ -20,12 +20,12 @@
 # Env inputs (set before sourcing to override defaults):
 #   HERMES_NODE_MIN_VERSION   (default: 20)   — accepted on PATH
 #   HERMES_NODE_TARGET_MAJOR  (default: 22)   — installed when we install
-#   HERMES_HOME               (default: $HOME/.hermes)
+#   AUTOLYCUS_HOME               (default: $HOME/.autolycus)
 # ============================================================================
 
 HERMES_NODE_MIN_VERSION="${HERMES_NODE_MIN_VERSION:-20}"
 HERMES_NODE_TARGET_MAJOR="${HERMES_NODE_TARGET_MAJOR:-22}"
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+AUTOLYCUS_HOME="${AUTOLYCUS_HOME:-$HOME/.autolycus}"
 HERMES_NODE_AVAILABLE=false
 
 # ---------------------------------------------------------------------------
@@ -57,17 +57,17 @@ _nb_get_link_dir() {
     fi
 }
 
-# Redirect a Hermes-managed Node's `npm install -g` to the command link dir
-# (already on PATH) instead of the default $HERMES_HOME/node/bin, which is off
+# Redirect a Lycus-managed Node's `npm install -g` to the command link dir
+# (already on PATH) instead of the default $AUTOLYCUS_HOME/node/bin, which is off
 # PATH and wiped on every Node upgrade. Scoped to the managed Node via its
 # prefix-local global npmrc; the user's other Node installs / ~/.npmrc are
 # untouched. Idempotent no-op when there's no managed npm.
 _nb_configure_npm_prefix() {
-    [ -x "$HERMES_HOME/node/bin/npm" ] || return 0
+    [ -x "$AUTOLYCUS_HOME/node/bin/npm" ] || return 0
     local _link_dir
     _link_dir="$(_nb_get_link_dir)"
-    mkdir -p "$HERMES_HOME/node/etc"
-    printf 'prefix=%s\n' "$(dirname "$_link_dir")" > "$HERMES_HOME/node/etc/npmrc"
+    mkdir -p "$AUTOLYCUS_HOME/node/etc"
+    printf 'prefix=%s\n' "$(dirname "$_link_dir")" > "$AUTOLYCUS_HOME/node/etc/npmrc"
 }
 
 _nb_node_major() {
@@ -193,7 +193,7 @@ _nb_install_bundled_node() {
         _nb_warn "Download failed"; rm -rf "$tmp"; return 1
     }
 
-    _nb_log "Extracting to $HERMES_HOME/node/..."
+    _nb_log "Extracting to $AUTOLYCUS_HOME/node/..."
     if [[ "$tarball" == *.tar.xz ]]; then
         tar xf  "$tmp/$tarball" -C "$tmp" || { rm -rf "$tmp"; return 1; }
     else
@@ -208,24 +208,24 @@ _nb_install_bundled_node() {
         return 1
     fi
 
-    mkdir -p "$HERMES_HOME"
-    rm -rf "$HERMES_HOME/node"
-    mv "$extracted" "$HERMES_HOME/node"
+    mkdir -p "$AUTOLYCUS_HOME"
+    rm -rf "$AUTOLYCUS_HOME/node"
+    mv "$extracted" "$AUTOLYCUS_HOME/node"
     rm -rf "$tmp"
 
     local _link_dir
     _link_dir="$(_nb_get_link_dir)"
     mkdir -p "$_link_dir"
-    ln -sf "$HERMES_HOME/node/bin/node" "$_link_dir/node"
-    ln -sf "$HERMES_HOME/node/bin/npm"  "$_link_dir/npm"
-    ln -sf "$HERMES_HOME/node/bin/npx"  "$_link_dir/npx"
+    ln -sf "$AUTOLYCUS_HOME/node/bin/node" "$_link_dir/node"
+    ln -sf "$AUTOLYCUS_HOME/node/bin/npm"  "$_link_dir/npm"
+    ln -sf "$AUTOLYCUS_HOME/node/bin/npx"  "$_link_dir/npx"
 
     _nb_configure_npm_prefix
 
-    export PATH="$HERMES_HOME/node/bin:$PATH"
+    export PATH="$AUTOLYCUS_HOME/node/bin:$PATH"
 
     _nb_have_modern_node || return 1
-    _nb_ok "Node $(node --version) installed to $HERMES_HOME/node/"
+    _nb_ok "Node $(node --version) installed to $AUTOLYCUS_HOME/node/"
     return 0
 }
 
@@ -246,10 +246,10 @@ ensure_node() {
         return 0
     fi
 
-    if [ -x "$HERMES_HOME/node/bin/node" ]; then
-        export PATH="$HERMES_HOME/node/bin:$PATH"
+    if [ -x "$AUTOLYCUS_HOME/node/bin/node" ]; then
+        export PATH="$AUTOLYCUS_HOME/node/bin:$PATH"
         if _nb_have_modern_node; then
-            _nb_ok "Node $(node --version) found (Hermes-managed)"
+            _nb_ok "Node $(node --version) found (Lycus-managed)"
             HERMES_NODE_AVAILABLE=true
             return 0
         fi

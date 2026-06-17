@@ -58,7 +58,7 @@ jobs:
           fi
           MCP_CATALOG_FILES=$(git diff --name-only "$BASE"..."$HEAD" -- \
             'optional-mcps/**' \
-            'hermes_cli/mcp_catalog.py' || true)
+            'lycus_cli/mcp_catalog.py' || true)
           if [ -n "$MCP_CATALOG_FILES" ]; then
             echo "mcp_catalog=true" >> "$GITHUB_OUTPUT"
           else
@@ -143,7 +143,7 @@ jobs:
           # Anchored at repo root: only the top-level setup.py/setup.cfg run during
           # `pip install`, and only top-level sitecustomize.py/usercustomize.py are
           # auto-loaded by the interpreter via site.py. Any nested file with the
-          # same name (e.g. hermes_cli/setup.py — the CLI setup wizard) is unrelated
+          # same name (e.g. lycus_cli/setup.py — the CLI setup wizard) is unrelated
           # and produced false positives that trained reviewers to ignore the scanner.
           SETUP_HITS=$(git diff --name-only "$BASE"..."$HEAD" | grep -E '^(setup\.py|setup\.cfg|sitecustomize\.py|usercustomize\.py|__init__\.pth)$' || true)
           if [ -n "$SETUP_HITS" ]; then

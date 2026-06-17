@@ -1,4 +1,4 @@
-import type { HermesConnection } from '@/global'
+import type { LycusConnection } from '@/global'
 
 /**
  * The desktop main process exposes `getGatewayWsUrl()` to re-mint a WebSocket
@@ -25,7 +25,7 @@ import type { HermesConnection } from '@/global'
  * transport failure.
  */
 export interface ResolveGatewayWsUrlDeps {
-  /** `window.hermesDesktop.getGatewayWsUrl`, if the preload exposes it. The
+  /** `window.autolycusDesktop.getGatewayWsUrl`, if the preload exposes it. The
    *  optional profile selects which backend to mint for — critical when swapping
    *  to a pooled profile, since the default mint resolves the primary backend. */
   getGatewayWsUrl?: (profile?: null | string) => Promise<string>
@@ -49,7 +49,7 @@ export function isGatewayReauthRequired(error: unknown): error is GatewayReauthR
 
 export async function resolveGatewayWsUrl(
   desktop: ResolveGatewayWsUrlDeps,
-  conn: Pick<HermesConnection, 'authMode' | 'profile' | 'wsUrl'>
+  conn: Pick<LycusConnection, 'authMode' | 'profile' | 'wsUrl'>
 ): Promise<string> {
   const mint = desktop.getGatewayWsUrl
   // Mint for THIS connection's profile, not the primary. Without it a pooled

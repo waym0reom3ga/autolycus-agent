@@ -234,7 +234,7 @@ async def test_dispatch_attachment_downloads_document(
     adapter = _make_adapter(monkeypatch)
     captured = _capture(adapter, monkeypatch)
 
-    raw = b"%PDF-1.4 hermes test document"
+    raw = b"%PDF-1.4 lycus test document"
     event = _attachment_event(
         {
             "name": "report.pdf",

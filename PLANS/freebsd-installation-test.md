@@ -75,45 +75,45 @@ uv pip install -e ".[modal,daytona,messaging,cron,cli,dev,tts-premium,slack,honc
 
 **Result:** ✅ SUCCESS  
 - Resolved 126 packages in 359ms
-- Built `hermes-agent @ file:///home/slave001/Documents/Claude/autolycus-agent`
+- Built `lycus-agent @ file:///home/slave001/Documents/Claude/autolycus-agent`
 - Installed all packages in 30ms
 
 **Note:** The `[all]` extra was NOT used per README instructions, as it includes `voice` and `pty` which have no FreeBSD wheels.
 
 ---
 
-### Step 5: Add hermes to PATH
+### Step 5: Add lycus to PATH
 ```bash
 mkdir -p ~/.local/bin
-ln -sf $(pwd)/venv-new/bin/hermes ~/.local/bin/hermes
+ln -sf $(pwd)/venv-new/bin/lycus ~/.local/bin/lycus
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ```
 
-**Result:** ✅ SUCCESS - Symlink created at `~/.local/bin/hermes`
+**Result:** ✅ SUCCESS - Symlink created at `~/.local/bin/lycus`
 
 ---
 
 ### Step 6: Verify installation
 ```bash
-hermes --version
+lycus --version
 ```
 
 **Result:** ✅ SUCCESS  
 ```
-Hermes Agent v0.8.0 (2026.4.8)
+Lycus Agent v0.8.0 (2026.4.8)
 Project: /home/slave001/Documents/Claude/autolycus-agent
 Python: 3.11.15
 OpenAI SDK: 2.31.0
-Update available: 1 commit behind — run 'hermes update'
+Update available: 1 commit behind — run 'lycus update'
 ```
 
-**Observation:** Still shows "Hermes Agent" branding - rebranding to "Autolycus" only exists in README.md, not source code.
+**Observation:** Still shows "Lycus Agent" branding - rebranding to "Autolycus" only exists in README.md, not source code.
 
 ---
 
 ### Step 7: Test CLI startup
 ```bash
-echo "" | hermes
+echo "" | lycus
 ```
 
 **Result:** ✅ SUCCESS  
@@ -189,7 +189,7 @@ The following platform warnings are correctly displayed at startup:
 
 ## Next Steps for Testing
 
-1. Run `hermes setup` interactively to verify configuration wizard works on FreeBSD
+1. Run `lycus setup` interactively to verify configuration wizard works on FreeBSD
 2. Test basic file operations (`read_file`, `write_file`) 
 3. Test terminal execution tool with simple commands
 4. Verify LM Studio API connectivity if local model is available

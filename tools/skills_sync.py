@@ -2,7 +2,7 @@
 """
 Skills Sync -- Manifest-based seeding and updating of bundled skills.
 
-Copies bundled skills from the repo's skills/ directory into ~/.hermes/skills/
+Copies bundled skills from the repo's skills/ directory into ~/.autolycus/skills/
 and uses a manifest to track which skills have been synced and their origin hash.
 
 Manifest format (v2): each line is "skill_name:origin_hash" where origin_hash
@@ -18,7 +18,7 @@ Update logic:
   - DELETED by user (in manifest, absent from user dir): respected, not re-added.
   - REMOVED from bundled (in manifest, gone from repo): cleaned from manifest.
 
-The manifest lives at ~/.hermes/skills/.bundled_manifest.
+The manifest lives at ~/.autolycus/skills/.bundled_manifest.
 """
 
 import hashlib
@@ -28,7 +28,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from hermes_constants import get_bundled_skills_dir, get_hermes_home, get_optional_skills_dir
+from lycus_constants import get_bundled_skills_dir, get_lycus_home, get_optional_skills_dir
 from agent.skill_utils import is_excluded_skill_path
 from typing import Dict, List, Tuple
 from utils import atomic_replace
@@ -36,16 +36,16 @@ from utils import atomic_replace
 logger = logging.getLogger(__name__)
 
 
-HERMES_HOME = get_hermes_home()
-SKILLS_DIR = HERMES_HOME / "skills"
+AUTOLYCUS_HOME = get_lycus_home()
+SKILLS_DIR = AUTOLYCUS_HOME / "skills"
 MANIFEST_FILE = SKILLS_DIR / ".bundled_manifest"
 
-# Marker file written by `hermes profile create --no-skills` (named profiles)
-# and by the installer's `--no-skills` flag (the default ~/.hermes profile).
-# When present in HERMES_HOME, sync_skills() is a no-op so neither the
-# installer, `hermes update`, nor a direct sync re-injects bundled skills.
+# Marker file written by `lycus profile create --no-skills` (named profiles)
+# and by the installer's `--no-skills` flag (the default ~/.autolycus profile).
+# When present in AUTOLYCUS_HOME, sync_skills() is a no-op so neither the
+# installer, `lycus update`, nor a direct sync re-injects bundled skills.
 # Delete the file to opt back in. Mirrors
-# hermes_cli.profiles.NO_BUNDLED_SKILLS_MARKER (kept as a literal here to
+# lycus_cli.profiles.NO_BUNDLED_SKILLS_MARKER (kept as a literal here to
 # avoid importing the CLI layer into this low-level sync module).
 NO_BUNDLED_SKILLS_MARKER = ".no-bundled-skills"
 
@@ -96,7 +96,7 @@ def _read_suppressed_names() -> set:
     """Built-in skills the curator pruned — must NOT be re-seeded on sync.
 
     Delegates to ``tools.skill_usage`` (single source of truth) and falls back
-    to reading ``~/.hermes/skills/.curator_suppressed`` directly if that import
+    to reading ``~/.autolycus/skills/.curator_suppressed`` directly if that import
     is unavailable in a packaged/update context.
     """
     try:
@@ -194,7 +194,7 @@ def _discover_bundled_skills(bundled_dir: Path) -> List[Tuple[str, Path]]:
 def _compute_relative_dest(skill_dir: Path, bundled_dir: Path) -> Path:
     """
     Compute the destination path in SKILLS_DIR preserving the category structure.
-    e.g., bundled/skills/mlops/axolotl -> ~/.hermes/skills/mlops/axolotl
+    e.g., bundled/skills/mlops/axolotl -> ~/.autolycus/skills/mlops/axolotl
     """
     rel = skill_dir.relative_to(bundled_dir)
     return SKILLS_DIR / rel
@@ -453,18 +453,18 @@ def _backfill_optional_provenance(quiet: bool = False) -> List[str]:
 
 def sync_skills(quiet: bool = False) -> dict:
     """
-    Sync bundled skills into ~/.hermes/skills/ using the manifest.
+    Sync bundled skills into ~/.autolycus/skills/ using the manifest.
 
     Returns:
         dict with keys: copied (list), updated (list), skipped (int),
                         user_modified (list), cleaned (list), total_bundled (int)
     """
-    # Opt-out: a profile (named or the default ~/.hermes) that wrote the
+    # Opt-out: a profile (named or the default ~/.autolycus) that wrote the
     # .no-bundled-skills marker gets zero bundled-skill seeding. Returning the
     # empty-result shape with skipped_opt_out lets callers report "opted out"
     # instead of "synced 0 / failed". This is the default-profile counterpart
     # to seed_profile_skills()'s marker check for named profiles.
-    if (HERMES_HOME / NO_BUNDLED_SKILLS_MARKER).exists():
+    if (AUTOLYCUS_HOME / NO_BUNDLED_SKILLS_MARKER).exists():
         if not quiet:
             print("  (skipped — profile opted out of bundled skills via .no-bundled-skills)")
         return {
@@ -495,9 +495,9 @@ def sync_skills(quiet: bool = False) -> dict:
 
     for skill_name, skill_src in bundled_skills:
         # Curator-pruned built-ins: do not re-seed. The suppression list
-        # (~/.hermes/skills/.curator_suppressed) is written when the curator
+        # (~/.autolycus/skills/.curator_suppressed) is written when the curator
         # archives a bundled skill with curator.prune_builtins enabled. Without
-        # this skip, every `hermes update` would resurrect a skill the user
+        # this skip, every `lycus update` would resurrect a skill the user
         # deliberately pruned. Restoring the skill clears its suppression entry.
         if skill_name in suppressed:
             suppressed_skipped.append(skill_name)
@@ -544,7 +544,7 @@ def sync_skills(quiet: bool = False) -> dict:
                         print(
                             f"  ⚠ {skill_name}: bundled version shipped but you "
                             f"already have a local skill by this name — yours "
-                            f"was kept. Run `hermes skills reset {skill_name}` "
+                            f"was kept. Run `lycus skills reset {skill_name}` "
                             f"to replace it with the bundled version."
                         )
                 else:
@@ -724,7 +724,7 @@ def reset_bundled_skill(name: str, restore: bool = False) -> dict:
             "action": "not_in_manifest",
             "message": (
                 f"'{name}' is not a tracked bundled skill. Nothing to reset. "
-                f"(Hub-installed skills use `hermes skills uninstall`.)"
+                f"(Hub-installed skills use `lycus skills uninstall`.)"
             ),
             "synced": None,
         }
@@ -778,7 +778,7 @@ def reset_bundled_skill(name: str, restore: bool = False) -> dict:
     else:
         action = "manifest_cleared"
         message = (
-            f"Cleared manifest entry for '{name}'. Future `hermes update` runs "
+            f"Cleared manifest entry for '{name}'. Future `lycus update` runs "
             f"will re-baseline against your current copy and accept upstream changes."
         )
 
@@ -788,10 +788,10 @@ def reset_bundled_skill(name: str, restore: bool = False) -> dict:
 def set_bundled_skills_opt_out(enabled: bool) -> dict:
     """Toggle the .no-bundled-skills opt-out marker for the active profile.
 
-    When ``enabled`` is True, writes HERMES_HOME/.no-bundled-skills so the
-    installer, ``hermes update``, and any direct sync stop seeding bundled
+    When ``enabled`` is True, writes AUTOLYCUS_HOME/.no-bundled-skills so the
+    installer, ``lycus update``, and any direct sync stop seeding bundled
     skills. When False, removes the marker so seeding resumes on the next
-    sync. This is the on-disk-state half of ``hermes skills opt-out`` /
+    sync. This is the on-disk-state half of ``lycus skills opt-out`` /
     ``opt-in``; removal of already-present skills is a separate, explicit
     step (see ``remove_pristine_bundled_skills``).
 
@@ -799,15 +799,15 @@ def set_bundled_skills_opt_out(enabled: bool) -> dict:
         dict with keys: ok (bool), changed (bool), marker (str path),
                         message (str).
     """
-    marker = HERMES_HOME / NO_BUNDLED_SKILLS_MARKER
+    marker = AUTOLYCUS_HOME / NO_BUNDLED_SKILLS_MARKER
     existed = marker.exists()
     try:
         if enabled:
-            HERMES_HOME.mkdir(parents=True, exist_ok=True)
+            AUTOLYCUS_HOME.mkdir(parents=True, exist_ok=True)
             marker.write_text(
                 "This profile opted out of bundled-skill seeding "
-                "(`hermes skills opt-out`).\n"
-                "Delete this file to re-enable sync on the next `hermes update`.\n",
+                "(`lycus skills opt-out`).\n"
+                "Delete this file to re-enable sync on the next `lycus update`.\n",
                 encoding="utf-8",
             )
             changed = not existed
@@ -822,7 +822,7 @@ def set_bundled_skills_opt_out(enabled: bool) -> dict:
                 marker.unlink()
             changed = existed
             message = (
-                "Opted back in. The next `hermes update` (or `hermes skills "
+                "Opted back in. The next `lycus update` (or `lycus skills "
                 "opt-in --sync`) will re-seed bundled skills."
                 if changed
                 else "Not opted out — no marker to remove."
@@ -837,7 +837,7 @@ def set_bundled_skills_opt_out(enabled: bool) -> dict:
 
 def is_bundled_skills_opt_out() -> bool:
     """Return True if the active profile carries the opt-out marker."""
-    return (HERMES_HOME / NO_BUNDLED_SKILLS_MARKER).exists()
+    return (AUTOLYCUS_HOME / NO_BUNDLED_SKILLS_MARKER).exists()
 
 
 def remove_pristine_bundled_skills(dry_run: bool = False) -> dict:
@@ -911,7 +911,7 @@ def remove_pristine_bundled_skills(dry_run: bool = False) -> dict:
 
 
 if __name__ == "__main__":
-    print("Syncing bundled skills into ~/.hermes/skills/ ...")
+    print("Syncing bundled skills into ~/.autolycus/skills/ ...")
     result = sync_skills(quiet=False)
     parts = [
         f"{len(result['copied'])} new",

@@ -79,7 +79,7 @@ from gateway.platforms.base import (
     SUPPORTED_DOCUMENT_TYPES,
 )
 from gateway.platforms.whatsapp_common import WhatsAppBehaviorMixin
-from hermes_constants import get_hermes_dir
+from lycus_constants import get_lycus_dir
 
 logger = logging.getLogger(__name__)
 
@@ -160,16 +160,16 @@ def _ext_for_mime(mime: str) -> Optional[str]:
     return mimetypes.guess_extension(primary) or None
 
 
-# Inbound media cache lives under the user's hermes dir so it survives
+# Inbound media cache lives under the user's lycus dir so it survives
 # restarts and gateway reloads — same convention the Baileys bridge uses.
-_INBOUND_MEDIA_CACHE = Path(get_hermes_dir("platforms/whatsapp_cloud/media", "whatsapp_cloud/media"))
+_INBOUND_MEDIA_CACHE = Path(get_lycus_dir("platforms/whatsapp_cloud/media", "whatsapp_cloud/media"))
 
 
 def check_whatsapp_cloud_requirements() -> bool:
     """Return whether transport dependencies are available.
 
     aiohttp is needed for the webhook server (inbound). httpx is needed
-    for Graph API calls (outbound). Both ship with hermes-agent's default
+    for Graph API calls (outbound). Both ship with lycus-agent's default
     dependency set, so this should always be True in normal installs.
     """
     return AIOHTTP_AVAILABLE and HTTPX_AVAILABLE
@@ -350,7 +350,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             self._set_fatal_error(
                 "whatsapp_cloud_deps_missing",
                 "aiohttp and httpx are required for whatsapp_cloud — "
-                "reinstall hermes-agent.",
+                "reinstall lycus-agent.",
                 retryable=False,
             )
             return False
@@ -1099,7 +1099,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
 
         WhatsApp renders ``audio/ogg; codecs=opus`` as the green
         voice-note bubble; other audio types (MP3, AAC, etc.) appear as
-        a generic audio attachment. Hermes TTS produces MP3, so we try
+        a generic audio attachment. Lycus TTS produces MP3, so we try
         ffmpeg conversion to opus first and fall back to sending the
         MP3 as-is when ffmpeg is unavailable.
         """
@@ -1759,7 +1759,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         contacts_by_waid: Dict[str, str],
         metadata: Dict[str, Any],
     ) -> Optional[MessageEvent]:
-        """Convert a Cloud-API message object into a Hermes MessageEvent.
+        """Convert a Cloud-API message object into a Lycus MessageEvent.
 
         Phase 4 expands beyond text to download inbound media (image,
         video, audio/voice, document, sticker) by ``media_id`` via the

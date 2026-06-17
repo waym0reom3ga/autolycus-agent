@@ -105,7 +105,7 @@ pub async fn start_update(app: AppHandle) -> Result<(), String> {
 
 async fn run_update(app: AppHandle) -> Result<()> {
     let hermes_home = crate::paths::hermes_home();
-    let install_root = hermes_home.join("hermes-agent");
+    let install_root = hermes_home.join("lycus-agent");
     let update_branch = update_branch_from_args(std::env::args().skip(1))
         .or_else(|| option_env_string("BUILD_PIN_BRANCH"))
         .unwrap_or_else(|| "main".to_string());
@@ -635,7 +635,7 @@ fn resolve_hermes(install_root: &Path) -> Option<PathBuf> {
 fn update_child_env(install_root: &Path) -> Vec<(String, OsString)> {
     let hermes_home = crate::paths::hermes_home();
     let mut envs = vec![(
-        "HERMES_HOME".to_string(),
+        "LYCUS_HOME".to_string(),
         hermes_home.as_os_str().to_os_string(),
     )];
     if let Some(path) = path_with_prepended_entries(&[
@@ -923,7 +923,7 @@ mod tests {
 
     #[test]
     fn venv_hermes_is_under_install_root() {
-        let root = Path::new("/x/hermes-agent");
+        let root = Path::new("/x/lycus-agent");
         let shim = venv_hermes(root);
         assert!(shim.starts_with(root));
         assert!(shim.to_string_lossy().contains("venv"));
@@ -936,7 +936,7 @@ mod tests {
 
     #[test]
     fn lock_probe_paths_include_desktop_app_payload() {
-        let root = Path::new("/x/hermes-agent");
+        let root = Path::new("/x/lycus-agent");
         let probes = install_lock_probe_paths(root);
 
         assert!(
@@ -951,7 +951,7 @@ mod tests {
 
     #[test]
     fn locked_paths_ignores_missing_payloads() {
-        let root = Path::new("/nonexistent/hermes-agent");
+        let root = Path::new("/nonexistent/lycus-agent");
         let probes = install_lock_probe_paths(root);
 
         assert!(locked_paths(&probes).is_empty());

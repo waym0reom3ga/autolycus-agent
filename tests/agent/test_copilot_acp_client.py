@@ -50,16 +50,16 @@ class CopilotACPClientSafetyTests(unittest.TestCase):
         outcome = (((response.get("result") or {}).get("outcome") or {}).get("outcome"))
         self.assertEqual(outcome, "cancelled")
 
-    def test_read_text_file_blocks_internal_hermes_hub_files(self) -> None:
+    def test_read_text_file_blocks_internal_lycus_hub_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             home = Path(tmpdir) / "home"
-            blocked = home / ".hermes" / "skills" / ".hub" / "index-cache" / "entry.json"
+            blocked = home / ".autolycus" / "skills" / ".hub" / "index-cache" / "entry.json"
             blocked.parent.mkdir(parents=True, exist_ok=True)
             blocked.write_text('{"token":"sk-test-secret-1234567890"}')
 
             with patch.dict(
                 os.environ,
-                {"HOME": str(home), "HERMES_HOME": str(home / ".hermes")},
+                {"HOME": str(home), "AUTOLYCUS_HOME": str(home / ".autolycus")},
                 clear=False,
             ):
                 response = self._dispatch(
@@ -175,13 +175,13 @@ def _fake_popen_capture(captured):
 
 
 def test_run_prompt_preserves_real_home_when_profile_home_available(monkeypatch, tmp_path):
-    hermes_home = tmp_path / "hermes"
-    (hermes_home / "home").mkdir(parents=True)
+    lycus_home = tmp_path / "lycus"
+    (lycus_home / "home").mkdir(parents=True)
     real_home = tmp_path / "real-home"
     real_home.mkdir()
 
     monkeypatch.setenv("HOME", str(real_home))
-    monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(lycus_home))
 
     captured = {}
     client = _make_home_client(tmp_path)
@@ -196,7 +196,7 @@ def test_run_prompt_preserves_real_home_when_profile_home_available(monkeypatch,
 
 def test_run_prompt_passes_home_when_parent_env_is_clean(monkeypatch, tmp_path):
     monkeypatch.delenv("HOME", raising=False)
-    monkeypatch.delenv("HERMES_HOME", raising=False)
+    monkeypatch.delenv("AUTOLYCUS_HOME", raising=False)
 
     captured = {}
     client = _make_home_client(tmp_path)

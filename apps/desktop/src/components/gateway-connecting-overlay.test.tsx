@@ -60,7 +60,7 @@ const isRecoveryShown = () =>
 describe('connecting overlay vs recovery surface', () => {
   it('hard initial-boot failure surfaces the recovery overlay (the working path)', () => {
     // failDesktopBoot() ran: error set, gateway never opened.
-    $desktopBoot.set({ ...$desktopBoot.get(), error: 'Hermes backend did not become ready', running: false, visible: true })
+    $desktopBoot.set({ ...$desktopBoot.get(), error: 'Lycus backend did not become ready', running: false, visible: true })
     setGatewayState('error')
 
     render(
@@ -124,7 +124,7 @@ describe('connecting overlay vs recovery surface', () => {
     setGatewayState('error')
     $desktopBoot.set({
       ...$desktopBoot.get(),
-      error: 'Lost connection to the Hermes gateway and could not reconnect.',
+      error: 'Lost connection to the Lycus gateway and could not reconnect.',
       running: false,
       visible: true
     })

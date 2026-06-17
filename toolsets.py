@@ -107,7 +107,7 @@ TOOLSETS = {
             "Search X (Twitter) posts and threads via xAI's built-in "
             "x_search Responses tool. Available when xAI credentials are "
             "configured (SuperGrok OAuth or XAI_API_KEY). Off by default; "
-            "enable in `hermes tools` → X (Twitter) Search."
+            "enable in `lycus tools` → X (Twitter) Search."
         ),
         "tools": ["x_search"],
         "includes": []
@@ -136,7 +136,7 @@ TOOLSETS = {
             "Video generation tools. Single ``video_generate`` tool covers "
             "text-to-video (prompt only) and image-to-video (prompt + "
             "image_url) — the active backend auto-routes. Configure via "
-            "``hermes tools`` → Video Generation."
+            "``lycus tools`` → Video Generation."
         ),
         "tools": ["video_generate"],
         "includes": []
@@ -340,7 +340,7 @@ TOOLSETS = {
         "includes": ["web", "vision", "image_gen"]
     },
 
-    # Coding posture (base Hermes — CLI/TUI/desktop/ACP). Auto-selected in a
+    # Coding posture (base Lycus — CLI/TUI/desktop/ACP). Auto-selected in a
     # code workspace; see agent/coding_context.py. Keeps everything you reach
     # for while pairing on code and drops the rest (messaging, tts, image_gen,
     # spotify, home-assistant, cron, computer-use).
@@ -363,18 +363,18 @@ TOOLSETS = {
         "includes": [],
         # Posture toolset: selected per-session by agent/coding_context.py,
         # never auto-recovered into per-platform tool config (see the
-        # non-configurable-toolset recovery loop in hermes_cli/tools_config.py).
+        # non-configurable-toolset recovery loop in lycus_cli/tools_config.py).
         "posture": True,
     },
     
     # ==========================================================================
-    # Full Hermes toolsets (CLI + messaging platforms)
+    # Full Lycus toolsets (CLI + messaging platforms)
     #
     # All platforms share the same core tools (including send_message,
     # which is gated on gateway running via its check_fn).
     # ==========================================================================
 
-    "hermes-acp": {
+    "lycus-acp": {
         "description": "Editor integration (VS Code, Zed, JetBrains) — coding-focused tools without messaging, audio, or clarify UI",
         "tools": [
             "web_search", "web_extract",
@@ -393,7 +393,7 @@ TOOLSETS = {
         "includes": []
     },
 
-    "hermes-api-server": {
+    "lycus-api-server": {
         "description": "OpenAI-compatible API server — full agent tools accessible via HTTP (no interactive UI tools like clarify or send_message)",
         "tools": [
             # Web
@@ -426,30 +426,30 @@ TOOLSETS = {
         "includes": []
     },
     
-    "hermes-cli": {
+    "lycus-cli": {
         "description": "Full interactive CLI toolset - all default tools plus cronjob management",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-cron": {
-        # Mirrors hermes-cli so cron's "default" toolset is the same set of
-        # core tools users see interactively — then `hermes tools` filters
+    "lycus-cron": {
+        # Mirrors lycus-cli so cron's "default" toolset is the same set of
+        # core tools users see interactively — then `lycus tools` filters
         # them down per the platform config. _DEFAULT_OFF_TOOLSETS (moa,
         # homeassistant) are excluded by _get_platform_tools() unless
         # the user explicitly enables them.
-        "description": "Default cron toolset - same core tools as hermes-cli; gated by `hermes tools`",
+        "description": "Default cron toolset - same core tools as lycus-cli; gated by `lycus tools`",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-telegram": {
+    "lycus-telegram": {
         "description": "Telegram bot toolset - full access for personal use (terminal has safety checks)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
     
-    "hermes-discord": {
+    "lycus-discord": {
         "description": "Discord bot toolset - full access (terminal has safety checks via dangerous command approval)",
         "tools": _HERMES_CORE_TOOLS + [
             "discord",
@@ -458,61 +458,61 @@ TOOLSETS = {
         "includes": []
     },
     
-    "hermes-whatsapp": {
+    "lycus-whatsapp": {
         "description": "WhatsApp bot toolset - similar to Telegram (personal messaging, more trusted)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
     
-    "hermes-slack": {
+    "lycus-slack": {
         "description": "Slack bot toolset - full access for workspace use (terminal has safety checks)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
     
-    "hermes-signal": {
+    "lycus-signal": {
         "description": "Signal bot toolset - encrypted messaging platform (full access)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-bluebubbles": {
+    "lycus-bluebubbles": {
         "description": "BlueBubbles iMessage bot toolset - Apple iMessage via local BlueBubbles server",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-homeassistant": {
+    "lycus-homeassistant": {
         "description": "Home Assistant bot toolset - smart home event monitoring and control",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-email": {
-        "description": "Email bot toolset - interact with Hermes via email (IMAP/SMTP)",
+    "lycus-email": {
+        "description": "Email bot toolset - interact with Lycus via email (IMAP/SMTP)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-mattermost": {
+    "lycus-mattermost": {
         "description": "Mattermost bot toolset - self-hosted team messaging (full access)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-matrix": {
+    "lycus-matrix": {
         "description": "Matrix bot toolset - decentralized encrypted messaging (full access)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-dingtalk": {
+    "lycus-dingtalk": {
         "description": "DingTalk bot toolset - enterprise messaging platform (full access)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-feishu": {
+    "lycus-feishu": {
         "description": "Feishu/Lark bot toolset - enterprise messaging via Feishu/Lark (full access)",
         "tools": _HERMES_CORE_TOOLS + [
             "feishu_doc_read",
@@ -524,31 +524,31 @@ TOOLSETS = {
         "includes": []
     },
 
-    "hermes-weixin": {
+    "lycus-weixin": {
         "description": "Weixin bot toolset - personal WeChat messaging via iLink (full access)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-qqbot": {
+    "lycus-qqbot": {
         "description": "QQBot toolset - QQ messaging via Official Bot API v2 (full access)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-wecom": {
+    "lycus-wecom": {
         "description": "WeCom bot toolset - enterprise WeChat messaging (full access)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-wecom-callback": {
+    "lycus-wecom-callback": {
         "description": "WeCom callback toolset - enterprise self-built app messaging (full access)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-yuanbao": {
+    "lycus-yuanbao": {
         "description": "Yuanbao Bot 元宝消息平台工具集 - 群信息、成员查询、私聊、贴纸表情",
         "tools": _HERMES_CORE_TOOLS + [
             "yb_query_group_info",
@@ -561,22 +561,22 @@ TOOLSETS = {
         "includes": []
     },
 
-    "hermes-sms": {
-        "description": "SMS bot toolset - interact with Hermes via SMS (Twilio)",
+    "lycus-sms": {
+        "description": "SMS bot toolset - interact with Lycus via SMS (Twilio)",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
-    "hermes-webhook": {
+    "lycus-webhook": {
         "description": "Webhook toolset - receive and process external webhook events",
         "tools": _HERMES_WEBHOOK_SAFE_TOOLS,
         "includes": []
     },
 
-    "hermes-gateway": {
+    "lycus-gateway": {
         "description": "Gateway toolset - union of all messaging platform tools",
         "tools": [],
-        "includes": ["hermes-telegram", "hermes-discord", "hermes-whatsapp", "hermes-slack", "hermes-signal", "hermes-bluebubbles", "hermes-homeassistant", "hermes-email", "hermes-sms", "hermes-mattermost", "hermes-matrix", "hermes-dingtalk", "hermes-feishu", "hermes-wecom", "hermes-wecom-callback", "hermes-weixin", "hermes-qqbot", "hermes-webhook", "hermes-yuanbao"]
+        "includes": ["lycus-telegram", "lycus-discord", "lycus-whatsapp", "lycus-slack", "lycus-signal", "lycus-bluebubbles", "lycus-homeassistant", "lycus-email", "lycus-sms", "lycus-mattermost", "lycus-matrix", "lycus-dingtalk", "lycus-feishu", "lycus-wecom", "lycus-wecom-callback", "lycus-weixin", "lycus-qqbot", "lycus-webhook", "lycus-yuanbao"]
     }
 }
 
@@ -671,11 +671,11 @@ def resolve_toolset(name: str, visited: Set[str] = None) -> List[str]:
     # Get toolset definition
     toolset = get_toolset(name)
     if not toolset:
-        # Auto-generate a toolset for plugin platforms (hermes-<name>).
+        # Auto-generate a toolset for plugin platforms (lycus-<name>).
         # Gives them _HERMES_CORE_TOOLS plus any tools the plugin registered
         # into a toolset matching the platform name.
-        if name.startswith("hermes-"):
-            platform_name = name[len("hermes-"):]
+        if name.startswith("lycus-"):
+            platform_name = name[len("lycus-"):]
             try:
                 from gateway.platform_registry import platform_registry
                 if platform_registry.is_registered(platform_name):

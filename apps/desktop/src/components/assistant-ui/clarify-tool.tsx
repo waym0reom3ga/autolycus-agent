@@ -71,7 +71,7 @@ function RadioDot({ selected }: { selected: boolean }) {
 export const ClarifyTool = (props: ToolCallMessagePartProps) => {
   const isPending = props.result === undefined
 
-  // Once Hermes records an answer, fall back to the standard tool block so
+  // Once Lycus records an answer, fall back to the standard tool block so
   // the past Q/A renders consistently with every other tool in the thread.
   if (!isPending) {
     return <ToolFallback {...props} />

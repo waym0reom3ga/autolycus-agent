@@ -22,17 +22,17 @@ OMIT_TEMPERATURE = object()
 
 
 def _profile_user_agent() -> str:
-    """Return a ``hermes-cli/<version>`` UA string, with a stable fallback.
+    """Return a ``lycus-cli/<version>`` UA string, with a stable fallback.
 
     Used by ``ProviderProfile.fetch_models`` so the catalog probe is not
     served the default ``Python-urllib/<ver>`` UA — some providers
     (OpenCode Zen, etc.) sit behind a WAF that returns 403 for that.
     """
     try:
-        from hermes_cli import __version__ as _ver  # lazy: avoid layer cycle at import time
-        return f"hermes-cli/{_ver}"
+        from lycus_cli import __version__ as _ver  # lazy: avoid layer cycle at import time
+        return f"lycus-cli/{_ver}"
     except Exception:
-        return "hermes-cli"
+        return "lycus-cli"
 
 
 @dataclass
@@ -199,7 +199,7 @@ class ProviderProfile:
         req.add_header("Accept", "application/json")
         # Some providers (e.g. OpenCode Zen) sit behind a WAF that blocks
         # the default ``Python-urllib/<ver>`` User-Agent.  Set a generic
-        # hermes-cli UA so the catalog endpoint is reachable.
+        # lycus-cli UA so the catalog endpoint is reachable.
         req.add_header("User-Agent", _profile_user_agent())
         for k, v in self.default_headers.items():
             req.add_header(k, v)

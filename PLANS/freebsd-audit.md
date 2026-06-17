@@ -26,9 +26,9 @@ The Autolycus codebase has **moderate FreeBSD compatibility issues**. Most core 
 
 | File | Line | Pattern | Impact |
 |------|------|---------|--------|
-| `hermes_cli/setup.py` | 1315, 2301 | `_platform.system() == "Linux"` | Setup script logic - needs FreeBSD branch |
-| `hermes_cli/uninstall.py` | 123 | `platform.system() != "Linux"` | Uninstall may fail on FreeBSD |
-| `hermes_cli/profiles.py` | 586, 605 | Linux/Darwin branches only | Profile management incomplete for FreeBSD |
+| `lycus_cli/setup.py` | 1315, 2301 | `_platform.system() == "Linux"` | Setup script logic - needs FreeBSD branch |
+| `lycus_cli/uninstall.py` | 123 | `platform.system() != "Linux"` | Uninstall may fail on FreeBSD |
+| `lycus_cli/profiles.py` | 586, 605 | Linux/Darwin branches only | Profile management incomplete for FreeBSD |
 | `tools/tirith_security.py` | 191 | `system == "Linux"` | Security tool platform detection |
 | `tools/voice_mode.py` | 690 | `system == "Linux"` | Voice mode backend selection |
 
@@ -37,8 +37,8 @@ The Autolycus codebase has **moderate FreeBSD compatibility issues**. Most core 
 | File | Pattern | FreeBSD Status |
 |------|---------|----------------|
 | `tools/code_execution_tool.py:51` | `sys.platform != "win32"` | ✅ Works (FreeBSD passes) |
-| `hermes_cli/clipboard.py:34-48` | darwin/win32 branches only | ❌ No FreeBSD clipboard support |
-| `hermes_cli/status.py:310, 329` | linux/darwin branches | ⚠️ Missing FreeBSD status display |
+| `lycus_cli/clipboard.py:34-48` | darwin/win32 branches only | ❌ No FreeBSD clipboard support |
+| `lycus_cli/status.py:310, 329` | linux/darwin branches | ⚠️ Missing FreeBSD status display |
 
 ---
 
@@ -113,7 +113,7 @@ Use cloud STT instead:
 
 ### 5. Clipboard Tools
 
-**File**: `hermes_cli/clipboard.py:34-48`
+**File**: `lycus_cli/clipboard.py:34-48`
 
 Current implementation only supports:
 - macOS (`sys.platform == "darwin"`) - uses `pbcopy`/`pbpaste`
@@ -167,7 +167,7 @@ _PLATFORM_MAP = {
 
 ### 7. Setup Script FreeBSD Support
 
-**File**: `hermes_cli/setup.py`
+**File**: `lycus_cli/setup.py`
 
 Current OS detection:
 - Line 1315: `is_linux = _platform.system() == "Linux"`
@@ -195,7 +195,7 @@ The setup script handles package installation differently per platform. FreeBSD 
 
 4. **Add clipboard support** for FreeBSD using xclip/xsel
 
-5. **Update status display** in `hermes_cli/status.py` to show FreeBSD correctly
+5. **Update status display** in `lycus_cli/status.py` to show FreeBSD correctly
 
 6. **Test uninstall script** on FreeBSD or add FreeBSD branch
 
@@ -210,7 +210,7 @@ The setup script handles package installation differently per platform. FreeBSD 
 ## Test Results (Current Session)
 
 ✅ **Verified Working**:
-- `hermes --version` → Shows 0.8.0 correctly
+- `lycus --version` → Shows 0.8.0 correctly
 - LM Studio API integration via OpenAI-compatible endpoint
 - File read/write operations
 - Basic Python package installation via `uv pip install`
@@ -238,9 +238,9 @@ The setup script handles package installation differently per platform. FreeBSD 
 |------|---------------|-------|
 | `tools/skills_tool.py` | Add freebsd to _PLATFORM_MAP | 96 |
 | `agent/skill_utils.py` | Add freebsd to _PLATFORM_MAP | 109 |
-| `hermes_cli/clipboard.py` | Add FreeBSD clipboard implementation | 34-50 |
-| `hermes_cli/status.py` | Add FreeBSD status display | 310-335 |
-| `hermes_cli/setup.py` | Add FreeBSD package manager support | 1315+, 2301+ |
+| `lycus_cli/clipboard.py` | Add FreeBSD clipboard implementation | 34-50 |
+| `lycus_cli/status.py` | Add FreeBSD status display | 310-335 |
+| `lycus_cli/setup.py` | Add FreeBSD package manager support | 1315+, 2301+ |
 | `README.md` | Document FreeBSD limitations | New section |
 
 ---

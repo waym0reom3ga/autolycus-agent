@@ -31,5 +31,5 @@ Nothing works, and that's about it.
 
 ---
 
-*Built on the Hermes Agent architecture.*  
+*Built on the Lycus Agent architecture.*  
 *A Technetia Inc project.*

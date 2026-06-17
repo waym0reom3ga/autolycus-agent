@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from cli import HermesCLI
+from cli import LycusCLI
 
 
 class _InsightsEngineStub:
@@ -18,10 +18,10 @@ class _InsightsEngineStub:
 
 
 def _run_show_insights(command: str):
-    cli_obj = HermesCLI.__new__(HermesCLI)
+    cli_obj = LycusCLI.__new__(LycusCLI)
     db = MagicMock()
     _InsightsEngineStub.calls = []
-    with patch("hermes_state.SessionDB", return_value=db), \
+    with patch("lycus_state.SessionDB", return_value=db), \
          patch("agent.insights.InsightsEngine", _InsightsEngineStub):
         cli_obj._show_insights(command)
     return _InsightsEngineStub.calls, db

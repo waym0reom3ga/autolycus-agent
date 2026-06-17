@@ -22,7 +22,7 @@
 
 ### About This Release
 
-Autolycus v0.0.5-beta is the first release built on the new upstream sync pipeline. It integrates 100+ commits from upstream Hermes Agent v0.11.0 while preserving our Autolycus TUI branding, custom provider support, and cross-platform installer. The fork now stays current with upstream innovations automatically via an hourly sync cron job.
+Autolycus v0.0.5-beta is the first release built on the new upstream sync pipeline. It integrates 100+ commits from upstream Lycus Agent v0.11.0 while preserving our Autolycus TUI branding, custom provider support, and cross-platform installer. The fork now stays current with upstream innovations automatically via an hourly sync cron job.
 
 This release has been verified working on aarch64 (Radxa Rock 5B running Armbian), proving ARM64 compatibility.
 
@@ -30,7 +30,7 @@ This release has been verified working on aarch64 (Radxa Rock 5B running Armbian
 
 ### What's New
 
-- **Upstream v0.11.0 integration:** Full rebase onto Hermes Agent v0.11.0, bringing in:
+- **Upstream v0.11.0 integration:** Full rebase onto Lycus Agent v0.11.0, bringing in:
   - Internationalization (i18n) support with French and Turkish locale files
   - SSE token batching and error handling for Open WebUI performance
   - Kanban multi-agent board dispatcher with dashboard plugin
@@ -49,7 +49,7 @@ This release has been verified working on aarch64 (Radxa Rock 5B running Armbian
 ### Technical Details
 
 - **Rebase strategy:** Our 31 Autolycus-specific commits rebased cleanly on top of upstream's 100+ new commits
-- **Conflict resolution:** README.md (Autolycus branding preserved), cli.py (our custom functions kept), hermes_cli/main.py (upstream's latest taken)
+- **Conflict resolution:** README.md (Autolycus branding preserved), cli.py (our custom functions kept), lycus_cli/main.py (upstream's latest taken)
 - **Preserved customizations:** `build_plan_path` function, `custom_provider_slug` function, Autolycus README branding
 - **Git identity:** Commits authored as waym0reom3ga, committed as Waymore
 
@@ -72,7 +72,7 @@ cd ~/compiled/autolycus-agent && git pull
 ./scripts/install-autolycus.sh
 
 # Start
-hermes
+lycus
 ```
 
 ---

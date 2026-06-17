@@ -115,7 +115,7 @@ function shouldRemoveAppBundle(isPackaged, appPath) {
  *   3. removes the app bundle if one was resolved.
  *
  * `pythonExe` should be a Python OUTSIDE the venv for lite/full (the venv is
- * being deleted); `pythonPath` is prepended to PYTHONPATH so `import hermes_cli`
+ * being deleted); `pythonPath` is prepended to PYTHONPATH so `import lycus_cli`
  * resolves from the agent source. `q()` single-quote-escapes for the shell
  * (closes-escapes-reopens any embedded apostrophe), defending against spaces.
  */
@@ -133,7 +133,7 @@ function buildPosixCleanupScript({ desktopPid, pythonExe, pythonPath, agentRoot,
     '    sleep 0.5',
     '  done',
     'fi',
-    `export HERMES_HOME=${q(hermesHome)}`
+    `export LYCUS_HOME=${q(hermesHome)}`
   ]
   if (pythonPath) {
     lines.push(`export PYTHONPATH=${q(pythonPath)}\${PYTHONPATH:+:$PYTHONPATH}`)
@@ -158,7 +158,7 @@ function buildPosixCleanupScript({ desktopPid, pythonExe, pythonPath, agentRoot,
  * the venv that contains `python.exe`. A running .exe is mandatory-locked on
  * Windows, so running the uninstall from the venv's OWN python half-fails. The
  * desktop passes a system Python (findSystemPython) as `pythonExe` for those
- * modes + `pythonPath`=agentRoot so `import hermes_cli` resolves from source
+ * modes + `pythonPath`=agentRoot so `import lycus_cli` resolves from source
  * while the venv is torn down. gui-only doesn't touch the venv, so it can use
  * either interpreter.
  *
@@ -178,7 +178,7 @@ function buildWindowsCleanupScript({ desktopPid, pythonExe, pythonPath, agentRoo
   const lines = [
     '@echo off',
     'setlocal enableextensions',
-    `set "HERMES_HOME=${String(hermesHome).replace(/"/g, '')}"`,
+    `set "LYCUS_HOME=${String(hermesHome).replace(/"/g, '')}"`,
     `set "PID=${pid}"`
   ]
   if (pythonPath) {

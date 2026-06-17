@@ -17,7 +17,7 @@ def test_main_wrapper_preserves_docker_workdir() -> None:
     text = MAIN_WRAPPER.read_text(encoding="utf-8")
 
     # Must save original cwd before cd /opt/data.
-    assert "_hermes_orig_cwd" in text, (
+    assert "_lycus_orig_cwd" in text, (
         "main-wrapper.sh must save the original cwd before cd /opt/data"
     )
     assert 'HERMES_ORIG_CWD:-$PWD' in text, (
@@ -30,11 +30,11 @@ def test_main_wrapper_preserves_docker_workdir() -> None:
     # Must restore original cwd before exec'ing the user command.
     # The restore cd must appear AFTER venv activation but BEFORE the
     # first exec / if-block.
-    activate_idx = text.index("/opt/hermes/.venv/bin/activate")
-    restore_idx = text.index('cd "$_hermes_orig_cwd"')
+    activate_idx = text.index("/opt/lycus/.venv/bin/activate")
+    restore_idx = text.index('cd "$_lycus_orig_cwd"')
     exec_idx = text.index("if [ $# -eq 0 ]")
     assert activate_idx < restore_idx < exec_idx, (
-        "cd $_hermes_orig_cwd must appear after venv activation and "
+        "cd $_lycus_orig_cwd must appear after venv activation and "
         "before the exec routing block"
     )
 
@@ -44,7 +44,7 @@ def test_dashboard_run_resets_home_before_dropping_privileges() -> None:
 
     assert "#!/command/with-contenv sh" in text
     assert "export HOME=/opt/data" in text
-    assert "exec s6-setuidgid hermes hermes dashboard" in text
+    assert "exec s6-setuidgid lycus lycus dashboard" in text
 
 
 def test_dashboard_run_does_not_derive_insecure_from_bind_host() -> None:
@@ -84,8 +84,8 @@ def test_stage2_hook_repairs_profiles_and_cron_ownership_on_every_boot() -> None
     """profiles/ and cron/ must both be reclaimed after root-context writes."""
     text = STAGE2_HOOK.read_text(encoding="utf-8")
 
-    assert 'if [ -d "$HERMES_HOME/profiles" ]; then' in text
-    assert 'chown -R hermes:hermes "$HERMES_HOME/profiles" 2>/dev/null || true' in text
+    assert 'if [ -d "$AUTOLYCUS_HOME/profiles" ]; then' in text
+    assert 'chown -R lycus:lycus "$AUTOLYCUS_HOME/profiles" 2>/dev/null || true' in text
 
-    assert 'if [ -d "$HERMES_HOME/cron" ]; then' in text
-    assert 'chown -R hermes:hermes "$HERMES_HOME/cron" 2>/dev/null || true' in text
+    assert 'if [ -d "$AUTOLYCUS_HOME/cron" ]; then' in text
+    assert 'chown -R lycus:lycus "$AUTOLYCUS_HOME/cron" 2>/dev/null || true' in text

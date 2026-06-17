@@ -28,7 +28,7 @@ import {
   type SessionInfo,
   triggerCronJob,
   updateCronJob
-} from '@/hermes'
+} from '@/lycus'
 import { type Translations, useI18n } from '@/i18n'
 import { AlertTriangle, Clock } from '@/lib/icons'
 import { cn } from '@/lib/utils'

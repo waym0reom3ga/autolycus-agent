@@ -20,10 +20,10 @@ class FakeVikingClient:
 
 class TestOpenVikingSummaryUriNormalization:
     def test_normalize_summary_uri_maps_pseudo_files_to_parent_directory(self):
-        assert OpenVikingMemoryProvider._normalize_summary_uri("viking://user/hermes/.overview.md") == "viking://user/hermes"
+        assert OpenVikingMemoryProvider._normalize_summary_uri("viking://user/lycus/.overview.md") == "viking://user/lycus"
         assert OpenVikingMemoryProvider._normalize_summary_uri("viking://resources/.abstract.md") == "viking://resources"
         assert OpenVikingMemoryProvider._normalize_summary_uri("viking://") == "viking://"
-        assert OpenVikingMemoryProvider._normalize_summary_uri("viking://user/hermes/memories/profile.md") == "viking://user/hermes/memories/profile.md"
+        assert OpenVikingMemoryProvider._normalize_summary_uri("viking://user/lycus/memories/profile.md") == "viking://user/lycus/memories/profile.md"
 
 
 class TestOpenVikingRead:
@@ -33,20 +33,20 @@ class TestOpenVikingRead:
             {
                 (
                     "/api/v1/content/overview",
-                    (("uri", "viking://user/hermes"),),
+                    (("uri", "viking://user/lycus"),),
                 ): {"result": {"content": "overview text"}},
             }
         )
 
-        result = json.loads(provider._tool_read({"uri": "viking://user/hermes/.overview.md", "level": "overview"}))
+        result = json.loads(provider._tool_read({"uri": "viking://user/lycus/.overview.md", "level": "overview"}))
 
-        assert result["uri"] == "viking://user/hermes/.overview.md"
-        assert result["resolved_uri"] == "viking://user/hermes"
+        assert result["uri"] == "viking://user/lycus/.overview.md"
+        assert result["resolved_uri"] == "viking://user/lycus"
         assert result["level"] == "overview"
         assert result["content"] == "overview text"
         assert provider._client.calls == [(
             "/api/v1/content/overview",
-            {"uri": "viking://user/hermes"},
+            {"uri": "viking://user/lycus"},
         )]
 
     def test_full_read_keeps_original_uri(self):
@@ -55,26 +55,26 @@ class TestOpenVikingRead:
             {
                 (
                     "/api/v1/content/read",
-                    (("uri", "viking://user/hermes/memories/profile.md"),),
+                    (("uri", "viking://user/lycus/memories/profile.md"),),
                 ): {"result": "full text"},
             }
         )
 
-        result = json.loads(provider._tool_read({"uri": "viking://user/hermes/memories/profile.md", "level": "full"}))
+        result = json.loads(provider._tool_read({"uri": "viking://user/lycus/memories/profile.md", "level": "full"}))
 
-        assert result["uri"] == "viking://user/hermes/memories/profile.md"
-        assert result["resolved_uri"] == "viking://user/hermes/memories/profile.md"
+        assert result["uri"] == "viking://user/lycus/memories/profile.md"
+        assert result["resolved_uri"] == "viking://user/lycus/memories/profile.md"
         assert result["level"] == "full"
         assert result["content"] == "full text"
         assert provider._client.calls == [(
             "/api/v1/content/read",
-            {"uri": "viking://user/hermes/memories/profile.md"},
+            {"uri": "viking://user/lycus/memories/profile.md"},
         )]
 
     def test_overview_file_uri_routes_straight_to_content_read_via_stat_probe(self):
         """Pre-check via fs/stat: file URIs skip the directory-only endpoint entirely."""
         provider = OpenVikingMemoryProvider()
-        file_uri = "viking://user/hermes/memories/entities/mem_abc.md"
+        file_uri = "viking://user/lycus/memories/entities/mem_abc.md"
         provider._client = FakeVikingClient(
             {
                 (
@@ -107,23 +107,23 @@ class TestOpenVikingRead:
             {
                 (
                     "/api/v1/content/overview",
-                    (("uri", "viking://user/hermes"),),
+                    (("uri", "viking://user/lycus"),),
                 ): {"result": "overview"},
             }
         )
 
-        result = json.loads(provider._tool_read({"uri": "viking://user/hermes/.overview.md", "level": "overview"}))
+        result = json.loads(provider._tool_read({"uri": "viking://user/lycus/.overview.md", "level": "overview"}))
 
         assert result["content"] == "overview"
         # No fs/stat call — normalization already determined it's a directory.
         assert provider._client.calls == [
-            ("/api/v1/content/overview", {"uri": "viking://user/hermes"}),
+            ("/api/v1/content/overview", {"uri": "viking://user/lycus"}),
         ]
 
     def test_overview_directory_uri_uses_stat_probe_then_overview(self):
         """Non-pseudo directory URI: stat → isDir=True → summary endpoint."""
         provider = OpenVikingMemoryProvider()
-        dir_uri = "viking://user/hermes/memories"
+        dir_uri = "viking://user/lycus/memories"
         provider._client = FakeVikingClient(
             {
                 (
@@ -149,7 +149,7 @@ class TestOpenVikingRead:
     def test_overview_file_uri_falls_back_via_exception_when_stat_indeterminate(self):
         """If fs/stat raises or returns unknown shape, legacy exception fallback still kicks in."""
         provider = OpenVikingMemoryProvider()
-        file_uri = "viking://user/hermes/memories/entities/mem_abc.md"
+        file_uri = "viking://user/lycus/memories/entities/mem_abc.md"
         provider._client = FakeVikingClient(
             {
                 (
@@ -185,19 +185,19 @@ class TestOpenVikingRead:
             {
                 (
                     "/api/v1/content/overview",
-                    (("uri", "viking://user/hermes"),),
+                    (("uri", "viking://user/lycus"),),
                 ): RuntimeError("500 Internal Server Error"),
             }
         )
 
         try:
-            provider._tool_read({"uri": "viking://user/hermes/.overview.md", "level": "overview"})
+            provider._tool_read({"uri": "viking://user/lycus/.overview.md", "level": "overview"})
             assert False, "Expected summary endpoint error to be raised"
         except RuntimeError:
             pass
 
         assert provider._client.calls == [
-            ("/api/v1/content/overview", {"uri": "viking://user/hermes"}),
+            ("/api/v1/content/overview", {"uri": "viking://user/lycus"}),
         ]
 
 
@@ -208,28 +208,28 @@ class TestOpenVikingBrowse:
             {
                 (
                     "/api/v1/fs/ls",
-                    (("uri", "viking://user/hermes"),),
+                    (("uri", "viking://user/lycus"),),
                 ): {
                     "result": {
                         "entries": [
-                            {"name": "memories", "uri": "viking://user/hermes/memories", "type": "dir"},
-                            {"rel_path": "profile.md", "uri": "viking://user/hermes/memories/profile.md", "isDir": False, "abstract": "Profile"},
+                            {"name": "memories", "uri": "viking://user/lycus/memories", "type": "dir"},
+                            {"rel_path": "profile.md", "uri": "viking://user/lycus/memories/profile.md", "isDir": False, "abstract": "Profile"},
                         ]
                     }
                 },
             }
         )
 
-        result = json.loads(provider._tool_browse({"action": "list", "path": "viking://user/hermes"}))
+        result = json.loads(provider._tool_browse({"action": "list", "path": "viking://user/lycus"}))
 
-        assert result["path"] == "viking://user/hermes"
+        assert result["path"] == "viking://user/lycus"
         assert result["entries"] == [
-            {"name": "memories", "uri": "viking://user/hermes/memories", "type": "dir", "abstract": ""},
-            {"name": "profile.md", "uri": "viking://user/hermes/memories/profile.md", "type": "file", "abstract": "Profile"},
+            {"name": "memories", "uri": "viking://user/lycus/memories", "type": "dir", "abstract": ""},
+            {"name": "profile.md", "uri": "viking://user/lycus/memories/profile.md", "type": "file", "abstract": "Profile"},
         ]
         assert provider._client.calls == [(
             "/api/v1/fs/ls",
-            {"uri": "viking://user/hermes"},
+            {"uri": "viking://user/lycus"},
         )]
 
 
@@ -254,11 +254,11 @@ class TestOpenVikingMemoryUriBuilder:
         assert uri.endswith(".md")
 
     def test_uri_uses_configured_agent_not_default(self):
-        """_agent value must be interpolated — not hardcoded to 'hermes'."""
+        """_agent value must be interpolated — not hardcoded to 'lycus'."""
         p = self._make_provider(user="alice", agent="research-bot")
         uri = p._build_memory_uri("entities")
         assert "/agent/research-bot/" in uri
-        assert "/agent/hermes/" not in uri
+        assert "/agent/lycus/" not in uri
 
     def test_uri_slug_is_twelve_hex_chars_and_unique(self):
         """Slug must be 12 hex chars and differ between calls."""

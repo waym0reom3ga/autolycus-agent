@@ -23,30 +23,30 @@ def analyze_runtime_dependencies(conn, codebase_path):
     
     print("Analyzing runtime dependencies...")
     
-    # 1. Plugins directory - loaded by hermes_cli/plugins.py via get_bundled_plugins_dir()
-    add_directory_dependency(cursor, "plugins/", "hermes_cli/plugins.py", 
+    # 1. Plugins directory - loaded by lycus_cli/plugins.py via get_bundled_plugins_dir()
+    add_directory_dependency(cursor, "plugins/", "lycus_cli/plugins.py", 
                            "plugin_discovery", "Loaded by discover_plugins() at runtime", 1.0)
-    add_directory_dependency(cursor, "plugins/", "hermes_cli/main.py",
+    add_directory_dependency(cursor, "plugins/", "lycus_cli/main.py",
                            "plugin_discovery", "Plugin CLI commands registered at startup", 1.0)
     
     # 2. Skills directory - synced by tools/skills_sync.py
     add_directory_dependency(cursor, "skills/", "tools/skills_sync.py",
-                           "skill_sync", "Bundled skills synced to ~/.hermes/skills/ on every launch", 1.0)
-    add_directory_dependency(cursor, "skills/", "hermes_cli/main.py",
+                           "skill_sync", "Bundled skills synced to ~/.autolycus/skills/ on every launch", 1.0)
+    add_directory_dependency(cursor, "skills/", "lycus_cli/main.py",
                            "skill_sync", "sync_skills() called on CLI startup", 1.0)
     
     # 3. Optional skills - scanned by gateway/run.py
     add_directory_dependency(cursor, "optional-skills/", "gateway/run.py",
                            "optional_skill_scan", "Scanned when skill requested but not installed", 1.0)
-    add_directory_dependency(cursor, "optional-skills/", "hermes_cli/claw.py",
+    add_directory_dependency(cursor, "optional-skills/", "lycus_cli/claw.py",
                            "optional_skill_scan", "OpenClaw migration script location", 0.9)
-    add_directory_dependency(cursor, "optional-skills/", "hermes_cli/setup.py",
+    add_directory_dependency(cursor, "optional-skills/", "lycus_cli/setup.py",
                            "optional_skill_scan", "OpenClaw migration script location", 0.9)
-    add_directory_dependency(cursor, "optional-skills/", "hermes_cli/skills_hub.py",
+    add_directory_dependency(cursor, "optional-skills/", "lycus_cli/skills_hub.py",
                            "skill_hub_source", "Official skills listed in Skills Hub", 0.9)
     
     # 4. Locales - loaded by i18n system
-    add_directory_dependency(cursor, "locales/", "hermes_cli/stdio.py",
+    add_directory_dependency(cursor, "locales/", "lycus_cli/stdio.py",
                            "i18n_locale", "Locale configuration for stdio encoding", 0.8)
     add_directory_dependency(cursor, "locales/", "ui-tui/src/i18n/",
                            "i18n_locale", "TUI internationalization translations", 0.8)
@@ -65,12 +65,12 @@ def analyze_runtime_dependencies(conn, codebase_path):
     add_directory_dependency(cursor, "website/", "website/docusaurus.config.ts",
                            "docs_site", "Docusaurus documentation site", 0.7)
     
-    # 7. UI-TUI - Hermes TUI components
-    add_directory_dependency(cursor, "ui-tui/", "hermes_cli/main.py",
+    # 7. UI-TUI - Lycus TUI components
+    add_directory_dependency(cursor, "ui-tui/", "lycus_cli/main.py",
                            "tui_components", "TUI JavaScript components built at install", 0.8)
     
     # 8. Web dashboard
-    add_directory_dependency(cursor, "web/", "hermes_cli/main.py",
+    add_directory_dependency(cursor, "web/", "lycus_cli/main.py",
                            "web_dashboard", "Web dashboard built at install time", 0.8)
     
     # 9. Tests - test suite
@@ -78,11 +78,11 @@ def analyze_runtime_dependencies(conn, codebase_path):
                            "test_suite", "Test suite referenced in project config", 0.7)
     
     # 10. Tools - utility scripts
-    add_directory_dependency(cursor, "tools/", "hermes_cli/main.py",
+    add_directory_dependency(cursor, "tools/", "lycus_cli/main.py",
                            "utility_tools", "Utility tools loaded as needed", 0.7)
     
     # 11. Scripts - setup/automation
-    add_directory_dependency(cursor, "scripts/", "hermes_cli/setup.py",
+    add_directory_dependency(cursor, "scripts/", "lycus_cli/setup.py",
                            "setup_scripts", "Setup and automation scripts", 0.7)
     
     conn.commit()

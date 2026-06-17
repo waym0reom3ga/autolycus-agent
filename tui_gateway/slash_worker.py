@@ -1,4 +1,4 @@
-"""Persistent slash-command worker — one HermesCLI per TUI session.
+"""Persistent slash-command worker — one LycusCLI per TUI session.
 
 Protocol: reads JSON lines from stdin {id, command}, writes {id, ok, output|error} to stdout.
 """
@@ -15,7 +15,7 @@ import time
 import psutil
 
 import cli as cli_mod
-from cli import HermesCLI
+from cli import LycusCLI
 from rich.console import Console
 
 # Env-overridable so the integration test can drive sub-second timing.
@@ -64,7 +64,7 @@ def _start_parent_death_watchdog(original_ppid, parent_create_time) -> None:
     threading.Thread(target=_loop, daemon=True).start()
 
 
-def _run(cli: HermesCLI, command: str) -> str:
+def _run(cli: LycusCLI, command: str) -> str:
     cmd = (command or "").strip()
     if not cmd:
         return ""
@@ -101,7 +101,7 @@ def main():
     os.environ["HERMES_SESSION_KEY"] = args.session_key
     os.environ["HERMES_INTERACTIVE"] = "1"
 
-    # Start before the (hundreds-of-ms) HermesCLI build — that window is itself
+    # Start before the (hundreds-of-ms) LycusCLI build — that window is itself
     # an orphan risk if the gateway dies mid-spawn.
     orig_ppid = os.getppid()
     try:
@@ -111,7 +111,7 @@ def main():
     _start_parent_death_watchdog(orig_ppid, parent_create_time)
 
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-        cli = HermesCLI(model=args.model or None, compact=True, resume=args.session_key, verbose=False)
+        cli = LycusCLI(model=args.model or None, compact=True, resume=args.session_key, verbose=False)
 
     for raw in sys.stdin:
         line = raw.strip()

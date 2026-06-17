@@ -43,7 +43,7 @@ Key contract points encoded here:
     middleware persists back to the HttpOnly cookie. On a dead/expired/
     reuse-detected refresh token Portal returns 400 → ``RefreshExpiredError``
     → middleware redirects to ``/auth/login``.
-  - audience claim is the bare ``client_id`` (no ``hermes-cli:`` prefix).
+  - audience claim is the bare ``client_id`` (no ``lycus-cli:`` prefix).
   - tolerant ``oauth_contract_version`` check: missing → warn + proceed;
     present and ``!= 1`` → refuse.
 
@@ -51,7 +51,7 @@ The cookie payload returned by ``start_login`` stashes the PKCE
 ``code_verifier`` and the OAuth ``state`` parameter for the
 ``/auth/callback`` handler to retrieve. The auth-route layer is the owner
 of cookie names; this provider just hands back ``{"code_verifier": …,
-"state": …}`` and the route serializes those into the ``hermes_session_pkce``
+"state": …}`` and the route serializes those into the ``lycus_session_pkce``
 cookie.
 
 Refresh-token rotation: Portal rotates the refresh token on every
@@ -79,7 +79,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-from hermes_cli.dashboard_auth import (
+from lycus_cli.dashboard_auth import (
     DashboardAuthProvider,
     InvalidCodeError,
     LoginStart,
@@ -195,12 +195,12 @@ class NousDashboardAuthProvider(DashboardAuthProvider):
             "code_challenge_method": "S256",
         }
         redirect_url = f"{self._authorize_url}?{urllib.parse.urlencode(params)}"
-        # The auth-route layer expects ``cookie_payload[\"hermes_session_pkce\"]``
+        # The auth-route layer expects ``cookie_payload[\"lycus_session_pkce\"]``
         # as a single semicolon-delimited string of ``key=value`` segments,
         # matching the stub provider's shape. The route handler prepends
         # ``provider=`` so the callback knows which plugin to dispatch to.
         cookie_payload = {
-            "hermes_session_pkce": f"state={state};verifier={code_verifier}",
+            "lycus_session_pkce": f"state={state};verifier={code_verifier}",
         }
         return LoginStart(redirect_url=redirect_url, cookie_payload=cookie_payload)
 
@@ -549,7 +549,7 @@ def _load_config_oauth_section() -> dict:
     through to ``{}`` so register() can rely on `.get(...)` access.
     """
     try:
-        from hermes_cli.config import cfg_get, load_config
+        from lycus_cli.config import cfg_get, load_config
 
         cfg = load_config()
     except Exception as exc:  # noqa: BLE001 — broad catch is intentional
@@ -616,7 +616,7 @@ def register(ctx) -> None:
 
     Operator-owned dashboards (loopback / ``--insecure``) leave both
     surfaces unset, so this plugin is a no-op for them. The gate-
-    engagement layer (``hermes_cli.web_server.should_require_auth`` +
+    engagement layer (``lycus_cli.web_server.should_require_auth`` +
     the fail-closed check in ``start_server``) handles the "public bind
     with zero providers" case independently.
     """
@@ -631,7 +631,7 @@ def register(ctx) -> None:
             "HERMES_DASHBOARD_OAUTH_CLIENT_ID is not set (and "
             "dashboard.oauth.client_id in config.yaml is empty). The "
             "Nous Portal provisions this env var (shape "
-            "'agent:{instance_id}') when it deploys a Hermes Agent "
+            "'agent:{instance_id}') when it deploys a Lycus Agent "
             "instance — set it to your provisioned client id (either "
             "as an env var or under dashboard.oauth.client_id in "
             "config.yaml), or pass --insecure to skip the OAuth gate "

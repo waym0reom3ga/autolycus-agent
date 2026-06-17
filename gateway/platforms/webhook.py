@@ -340,9 +340,9 @@ class WebhookAdapter(BasePlatformAdapter):
 
     def _reload_dynamic_routes(self) -> None:
         """Reload agent-created subscriptions from disk if the file changed."""
-        from hermes_constants import get_hermes_home
-        hermes_home = get_hermes_home()
-        subs_path = hermes_home / _DYNAMIC_ROUTES_FILENAME
+        from lycus_constants import get_lycus_home
+        lycus_home = get_lycus_home()
+        subs_path = lycus_home / _DYNAMIC_ROUTES_FILENAME
         if not subs_path.exists():
             if self._dynamic_routes:
                 self._dynamic_routes = {}

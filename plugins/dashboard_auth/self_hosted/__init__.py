@@ -1,6 +1,6 @@
 """SelfHostedOIDCProvider — generic self-hosted OpenID Connect dashboard auth.
 
-A standards-compliant OpenID Connect Relying Party for the ``hermes dashboard``
+A standards-compliant OpenID Connect Relying Party for the ``lycus dashboard``
 OAuth gate. Unlike the bundled ``nous`` provider (which encodes Nous Portal's
 bespoke contract — ``agent:{instance_id}`` client ids, a custom access-token
 JWT, the ``x-nous-refresh-token`` header, an ``oauth_contract_version`` claim),
@@ -10,10 +10,10 @@ self-hosted identity provider:
     Authentik · Keycloak · Zitadel · Authelia · Auth0 · Okta · Google · …
 
 It is a pure drop-in plugin: it implements the five
-:class:`~hermes_cli.dashboard_auth.DashboardAuthProvider` methods and touches
+:class:`~lycus_cli.dashboard_auth.DashboardAuthProvider` methods and touches
 nothing in core auth/runtime/login. The HTTP round trip, cookies, CSRF
 ``state`` check and ``redirect_uri`` reconstruction are all owned by
-``hermes_cli/dashboard_auth/routes.py``; this provider only:
+``lycus_cli/dashboard_auth/routes.py``; this provider only:
 
   1. discovers the IDP's endpoints from ``{issuer}/.well-known/openid-configuration``,
   2. builds the ``/authorize`` URL with PKCE (S256),
@@ -22,7 +22,7 @@ nothing in core auth/runtime/login. The HTTP round trip, cookies, CSRF
   4. verifies the **ID token** (RS256/ES256) against the discovered
      ``jwks_uri`` with ``iss`` / ``aud`` pinned to the configured issuer /
      client id, and maps standard OIDC claims (``sub``, ``email``, ``name``)
-     onto a :class:`~hermes_cli.dashboard_auth.Session`.
+     onto a :class:`~lycus_cli.dashboard_auth.Session`.
 
 Why the ID token (not the access token)? OIDC guarantees the ID token is a
 signed JWT carrying identity claims — that is its entire purpose. The access
@@ -47,8 +47,8 @@ same precedence convention as the ``nous`` plugin)::
       oauth:
         provider: self-hosted
         self_hosted:
-          issuer: https://auth.example.com/application/o/hermes/   # required
-          client_id: hermes-dashboard                              # required
+          issuer: https://auth.example.com/application/o/lycus/   # required
+          client_id: lycus-dashboard                              # required
           scopes: "openid profile email"                           # optional
 
     # Environment overrides (Docker/Fly secret injection)
@@ -76,7 +76,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-from hermes_cli.dashboard_auth import (
+from lycus_cli.dashboard_auth import (
     DashboardAuthProvider,
     InvalidCodeError,
     LoginStart,
@@ -222,7 +222,7 @@ class SelfHostedOIDCProvider(DashboardAuthProvider):
         # Same flat ``state=…;verifier=…`` cookie shape every provider uses;
         # the auth-route layer prepends ``provider=`` and parses it back out.
         cookie_payload = {
-            "hermes_session_pkce": f"state={state};verifier={code_verifier}",
+            "lycus_session_pkce": f"state={state};verifier={code_verifier}",
         }
         return LoginStart(redirect_url=redirect_url, cookie_payload=cookie_payload)
 
@@ -553,7 +553,7 @@ class SelfHostedOIDCProvider(DashboardAuthProvider):
 
         The verified ID token is stored in ``Session.access_token`` so the
         per-request ``verify_session`` re-verifies a real JWT. The opaque
-        OAuth access token is intentionally NOT stored — Hermes does not call
+        OAuth access token is intentionally NOT stored — Lycus does not call
         any resource API with it; the dashboard only needs identity.
         """
         user_id = str(claims.get("sub", ""))
@@ -639,7 +639,7 @@ def _load_config_oauth_section() -> dict:
     to ``{}`` so callers can rely on ``.get(...)``.
     """
     try:
-        from hermes_cli.config import cfg_get, load_config
+        from lycus_cli.config import cfg_get, load_config
 
         cfg = load_config()
     except Exception as exc:  # noqa: BLE001 — broad catch is intentional

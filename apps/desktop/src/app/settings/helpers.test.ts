@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { HermesConfigRecord } from '@/types/hermes'
+import type { LycusConfigRecord } from '@/types/lycus'
 
 import { defineFieldCopy, fieldCopyForSchemaKey, schemaKeyToFieldCopyKey } from './field-copy'
 import { enumOptionsFor, getNested, providerGroup, setNested, stripToolsetLabel, toolsetDisplayLabel } from './helpers'
@@ -77,7 +77,7 @@ describe('settings helpers', () => {
   })
 
   it('reads and writes nested config paths', () => {
-    const config: HermesConfigRecord = { display: { theme: 'mono' } }
+    const config: LycusConfigRecord = { display: { theme: 'mono' } }
     const next = setNested(config, 'display.theme', 'slate')
 
     expect(getNested(next, 'display.theme')).toBe('slate')
@@ -85,7 +85,7 @@ describe('settings helpers', () => {
   })
 
   it('rejects prototype-polluting config paths', () => {
-    const config: HermesConfigRecord = {}
+    const config: LycusConfigRecord = {}
 
     expect(() => setNested(config, '__proto__.polluted', true)).toThrow('Unsafe config path')
     expect(() => setNested(config, 'constructor.prototype.polluted', true)).toThrow('Unsafe config path')
@@ -137,7 +137,7 @@ describe('settings helpers', () => {
   })
 
   describe('enumOptionsFor — backend selector dropdowns', () => {
-    const config: HermesConfigRecord = {}
+    const config: LycusConfigRecord = {}
 
     it('renders a dropdown for the TTS provider including xAI (Grok)', () => {
       const opts = enumOptionsFor('tts.provider', 'edge', config)

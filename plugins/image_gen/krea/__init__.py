@@ -66,7 +66,7 @@ _MODELS: Dict[str, Dict[str, Any]] = {
 
 DEFAULT_MODEL = "krea-2-medium"
 
-# Hermes uses 3 abstract aspect ratios. Map to Krea's enum (which is wider).
+# Lycus uses 3 abstract aspect ratios. Map to Krea's enum (which is wider).
 # Krea accepts: 1:1, 4:3, 3:2, 16:9, 2.35:1, 4:5, 2:3, 9:16
 _ASPECT_MAP = {
     "landscape": "16:9",
@@ -105,7 +105,7 @@ _TERMINAL_STATES = {"completed", "failed", "cancelled"}
 def _load_krea_config() -> Dict[str, Any]:
     """Read ``image_gen.krea`` (with fallthrough to ``image_gen``) from config.yaml."""
     try:
-        from hermes_cli.config import load_config
+        from lycus_cli.config import load_config
 
         cfg = load_config()
         section = cfg.get("image_gen") if isinstance(cfg, dict) else None
@@ -227,7 +227,7 @@ class KreaImageGenProvider(ImageGenProvider):
         if not api_key:
             return error_response(
                 error=(
-                    "KREA_API_KEY not set. Run `hermes tools` → Image "
+                    "KREA_API_KEY not set. Run `lycus tools` → Image "
                     "Generation → Krea to configure, or get a key at "
                     "https://www.krea.ai/settings/api-tokens."
                 ),
@@ -269,7 +269,7 @@ class KreaImageGenProvider(ImageGenProvider):
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "User-Agent": "Hermes-Agent/1.0 (krea-image-gen)",
+            "User-Agent": "Lycus-Agent/1.0 (krea-image-gen)",
         }
 
         # 1. Submit job.
@@ -349,7 +349,7 @@ class KreaImageGenProvider(ImageGenProvider):
         job_url = f"{BASE_URL}/jobs/{job_id}"
         poll_headers = {
             "Authorization": f"Bearer {api_key}",
-            "User-Agent": "Hermes-Agent/1.0 (krea-image-gen)",
+            "User-Agent": "Lycus-Agent/1.0 (krea-image-gen)",
         }
         interval = _POLL_INITIAL_INTERVAL
         deadline = time.monotonic() + _POLL_TIMEOUT_SECONDS

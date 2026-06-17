@@ -34,7 +34,7 @@ function previewSelectionLabel(): string {
   return source.split(/[\\/]/).filter(Boolean).pop() || target?.label?.trim() || ''
 }
 
-const HERMES_PATHS_MIME = 'application/x-hermes-paths'
+const HERMES_PATHS_MIME = 'application/x-lycus-paths'
 
 function readEscapeSequence(data: string, index: number) {
   if (data.charCodeAt(index) !== 0x1b || index + 1 >= data.length) {
@@ -189,7 +189,7 @@ function collectDroppedPaths(t: DataTransfer): string[] {
     // Malformed in-app drag payload — fall through to OS files.
   }
 
-  const getPath = window.hermesDesktop?.getPathForFile
+  const getPath = window.autolycusDesktop?.getPathForFile
 
   const addFile = (file: File | null) => {
     if (!file || !getPath) {
@@ -316,7 +316,7 @@ export function useTerminalSession({ cwd, onAddSelectionToChat }: UseTerminalSes
 
   useEffect(() => {
     const host = hostRef.current
-    const terminalApi = window.hermesDesktop?.terminal
+    const terminalApi = window.autolycusDesktop?.terminal
 
     if (!host || !terminalApi) {
       setStatus('closed')
@@ -345,7 +345,7 @@ export function useTerminalSession({ cwd, onAddSelectionToChat }: UseTerminalSes
       fontWeightBold: 'bold',
       letterSpacing: 0,
       lineHeight: 1.12,
-      // Full-screen TUIs (hermes --tui, vim) grab the mouse, so a plain drag
+      // Full-screen TUIs (lycus --tui, vim) grab the mouse, so a plain drag
       // can't select — ⌥-drag (macOS) / Shift-drag (else) forces a native
       // selection over mouse-mode apps, which ⌘/Ctrl+L then sends to chat.
       macOptionClickForcesSelection: true,
@@ -618,7 +618,7 @@ export function useTerminalSession({ cwd, onAddSelectionToChat }: UseTerminalSes
         term.loadAddon(webgl)
         webglRef.current = webgl
       } catch (err) {
-        console.warn('[hermes-terminal] WebGL unavailable; falling back to DOM', err)
+        console.warn('[lycus-terminal] WebGL unavailable; falling back to DOM', err)
       }
 
       fitAndResize()
@@ -693,7 +693,7 @@ export function useTerminalSession({ cwd, onAddSelectionToChat }: UseTerminalSes
         return
       }
 
-      void window.hermesDesktop?.terminal?.write(id, `${command}\r`)
+      void window.autolycusDesktop?.terminal?.write(id, `${command}\r`)
       $terminalInjection.set(null)
       termRef.current?.focus()
     })

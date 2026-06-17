@@ -89,7 +89,7 @@ const HOVER_REVEAL_EDGE_GUTTER = 'calc(0.5rem + 2px)'
 
 // Fired (window CustomEvent<{ id }>) to toggle a force-collapsed pane's reveal
 // from the keyboard, since its store-open toggle is a no-op while collapsed.
-export const PANE_TOGGLE_REVEAL_EVENT = 'hermes:pane-toggle-reveal'
+export const PANE_TOGGLE_REVEAL_EVENT = 'lycus:pane-toggle-reveal'
 
 const widthToCss = (value: WidthValue | undefined, fallback: string) =>
   value === undefined ? fallback : typeof value === 'number' ? `${value}px` : value

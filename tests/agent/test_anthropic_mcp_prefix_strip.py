@@ -1,7 +1,7 @@
 """Tests for GH-25255: Anthropic OAuth mcp_ prefix stripping.
 
 When strip_tool_prefix=True (Anthropic OAuth path), the transport must only
-strip the ``mcp_`` prefix from OAuth-injected tools, NOT from Hermes-native
+strip the ``mcp_`` prefix from OAuth-injected tools, NOT from Lycus-native
 MCP server tools that are registered under their full ``mcp_<server>_<tool>``
 name in the tool registry.
 """
@@ -64,7 +64,7 @@ class TestAnthropicMcpPrefixStrip:
         """OAuth tools: mcp_read_file -> read_file (stripped).
 
         The tool was registered as 'read_file' in the registry.
-        Anthropic sees 'mcp_read_file' because Hermes adds the prefix.
+        Anthropic sees 'mcp_read_file' because Lycus adds the prefix.
         On response, we must strip it back to 'read_file'.
         """
         transport = self._get_transport()

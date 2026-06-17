@@ -27,7 +27,7 @@ The database tracks three types of dependencies:
 1. **Static imports** (confidence: 1.0) - Python AST analysis of import statements
 2. **File references** (confidence: 0.6-0.9) - Regex-based detection of file paths in configs, shell scripts, etc.
 3. **Runtime discovery** (confidence: 0.7-1.0) - Files loaded at runtime by discovery mechanisms:
-   - `plugins/` - Loaded by `hermes_cli/plugins.py` via `discover_plugins()`
+   - `plugins/` - Loaded by `lycus_cli/plugins.py` via `discover_plugins()`
    - `skills/` - Synced by `tools/skills_sync.py` on every CLI launch
    - `optional-skills/` - Scanned by `gateway/run.py` when skills are requested
    - `locales/` - Loaded by i18n system for TUI and web dashboard
@@ -66,16 +66,16 @@ python3 build_db.py --path /path/to/codebase
 cd tracking
 
 # Find files affected by changes to a specific file
-python3 query.py --affects "hermes/core.py"
+python3 query.py --affects "lycus/core.py"
 
 # Find dependencies of a specific file
-python3 query.py --uses "hermes/core.py"
+python3 query.py --uses "lycus/core.py"
 
 # Find orphan files (no dependencies)
 python3 query.py --orphans
 
 # Get detailed file information
-python3 query.py --info "hermes/core.py"
+python3 query.py --info "lycus/core.py"
 
 # Search for files by name or content
 python3 query.py --search "docker"
@@ -112,7 +112,7 @@ python3 query.py --affects "config/settings.yaml"
 ### Dependency Chain
 Find what a specific module depends on:
 ```bash
-python3 query.py --uses "hermes/agent.py"
+python3 query.py --uses "lycus/agent.py"
 ```
 
 ### Cleanup Candidates

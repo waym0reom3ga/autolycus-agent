@@ -11,7 +11,7 @@ the gateway down until something starts it.
 
 An orchestrator that wants the gateway running from first boot sets
 HERMES_GATEWAY_BOOTSTRAP_STATE=running; stage2-hook.sh (installed as
-/etc/cont-init.d/01-hermes-setup, which runs lexicographically BEFORE
+/etc/cont-init.d/01-lycus-setup, which runs lexicographically BEFORE
 02-reconcile-profiles) seeds the state file so the reconciler sees
 prior_state=running and brings the slot up on the very first boot.
 
@@ -43,10 +43,10 @@ def stage2_text() -> str:
 
 
 def _seed_block(text: str) -> str:
-    """Extract the ``if [ ! -f "$HERMES_HOME/gateway_state.json" ] && … fi``
+    """Extract the ``if [ ! -f "$AUTOLYCUS_HOME/gateway_state.json" ] && … fi``
     block that seeds the gateway state file from the bootstrap env var."""
     m = re.search(
-        r'(if \[ ! -f "\$HERMES_HOME/gateway_state\.json" \] && \\\n'
+        r'(if \[ ! -f "\$AUTOLYCUS_HOME/gateway_state\.json" \] && \\\n'
         r"(?:.*\n)*?fi)",
         text,
     )
@@ -60,7 +60,7 @@ def _seed_block(text: str) -> str:
 def test_seed_block_present_and_guarded(stage2_text: str) -> None:
     block = _seed_block(stage2_text)
     # Must be a first-boot-only seed (the [ ! -f ] guard) keyed on the env var.
-    assert '[ ! -f "$HERMES_HOME/gateway_state.json" ]' in block, (
+    assert '[ ! -f "$AUTOLYCUS_HOME/gateway_state.json" ]' in block, (
         "seed must be guarded by [ ! -f ] so persisted state wins on restart"
     )
     assert "HERMES_GATEWAY_BOOTSTRAP_STATE" in block
@@ -70,7 +70,7 @@ def test_seed_block_present_and_guarded(stage2_text: str) -> None:
 def _run_seed(
     text: str, *, env_value: str | None, preexisting: str | None
 ) -> str | None:
-    """Run the extracted seed block in a sandbox $HERMES_HOME.
+    """Run the extracted seed block in a sandbox $AUTOLYCUS_HOME.
 
     ``env_value`` is the HERMES_GATEWAY_BOOTSTRAP_STATE value (None = unset).
     ``preexisting`` is the contents of a gateway_state.json placed before the
@@ -98,7 +98,7 @@ def _run_seed(
         )
         script = (
             "set -e\n"
-            f'HERMES_HOME="{home}"\n'
+            f'AUTOLYCUS_HOME="{home}"\n'
             # Stub privilege ops — the sandbox isn't root.
             "chown() { :; }\n"
             "chmod() { :; }\n"

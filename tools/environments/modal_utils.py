@@ -1,6 +1,6 @@
-"""Shared Hermes-side execution flow for Modal transports.
+"""Shared Lycus-side execution flow for Modal transports.
 
-This module deliberately stops at the Hermes boundary:
+This module deliberately stops at the Lycus boundary:
 - command preparation
 - cwd/timeout normalization
 - stdin/sudo shell wrapping

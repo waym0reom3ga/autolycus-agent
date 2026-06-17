@@ -50,7 +50,7 @@ export interface FilePreviewTab {
   target: PreviewTarget
 }
 
-const REGISTRY_STORAGE_KEY = 'hermes.desktop.sessionPreviews.v1'
+const REGISTRY_STORAGE_KEY = 'lycus.desktop.sessionPreviews.v1'
 const MAX_RECORDS_PER_SESSION = 1
 const MAX_SESSIONS = 120
 

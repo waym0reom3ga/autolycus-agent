@@ -134,7 +134,7 @@ class AnthropicTransport(ProviderTransport):
                 if strip_tool_prefix and name.startswith(_MCP_PREFIX):
                     stripped = name[len(_MCP_PREFIX):]
                     # Only strip the mcp_ prefix for OAuth-injected tools
-                    # (where Hermes adds the prefix when sending to Anthropic
+                    # (where Lycus adds the prefix when sending to Anthropic
                     # and must remove it on the way back).  Native MCP server
                     # tools (from mcp_servers: in config.yaml) are registered
                     # in the tool registry under their FULL mcp_<server>_<tool>

@@ -1487,7 +1487,7 @@ class TestGrok43StaleCacheGuard:
         assert not _model_name_suggests_grok_4_3("grok-4.20")
 
     def test_stale_grok_4_3_dropped_and_reresolves_to_1m(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         import importlib
         import agent.model_metadata as mm
         importlib.reload(mm)
@@ -1499,7 +1499,7 @@ class TestGrok43StaleCacheGuard:
         assert ctx == 1_000_000
 
     def test_correct_grok_4_3_cache_preserved(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         import importlib
         import agent.model_metadata as mm
         importlib.reload(mm)
@@ -1511,7 +1511,7 @@ class TestGrok43StaleCacheGuard:
         assert ctx == 1_000_000
 
     def test_grok_4_not_clobbered(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         import importlib
         import agent.model_metadata as mm
         importlib.reload(mm)

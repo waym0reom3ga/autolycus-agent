@@ -2,8 +2,8 @@
   "version": 1,
   "updated_at": "2026-06-13T08:41:46Z",
   "metadata": {
-    "source": "hermes-agent repo",
-    "docs": "https://hermes-agent.nousresearch.com/docs/reference/model-catalog"
+    "source": "lycus-agent repo",
+    "docs": "https://lycus-agent.nousresearch.com/docs/reference/model-catalog"
   },
   "providers": {
     "openrouter": {

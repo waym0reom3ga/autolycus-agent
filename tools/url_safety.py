@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 def normalize_url_for_request(url: str) -> str:
-    """Return an ASCII-safe HTTP URL for Hermes-owned URL tools.
+    """Return an ASCII-safe HTTP URL for Lycus-owned URL tools.
 
     Browsers and HTTP clients expect URIs, but users and models often provide
     IRIs such as ``https://wttr.in/Köln``.  Preserve URL syntax and existing
@@ -158,7 +158,7 @@ def _global_allow_private_urls() -> bool:
 
     # 2. Config file
     try:
-        from hermes_cli.config import read_raw_config
+        from lycus_cli.config import read_raw_config
         cfg = read_raw_config()
         # security.allow_private_urls (preferred)
         sec = cfg.get("security", {})

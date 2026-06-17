@@ -16,7 +16,7 @@ Built-in TTS providers:
 
 Custom command providers:
 - Users can declare any number of named providers with ``type: command``
-  under ``tts.providers.<name>`` in ``~/.hermes/config.yaml``. Hermes
+  under ``tts.providers.<name>`` in ``~/.autolycus/config.yaml``. Lycus
   writes the input text to a temp file and runs the configured shell
   command, which must produce the audio file at the expected path.
   See the Local Command section of ``website/docs/user-guide/features/tts.md``.
@@ -25,7 +25,7 @@ Output formats:
 - Opus (.ogg) for Telegram voice bubbles (requires ffmpeg for Edge TTS)
 - MP3 (.mp3) for everything else (CLI, Discord, WhatsApp)
 
-Configuration is loaded from ~/.hermes/config.yaml under the 'tts:' key.
+Configuration is loaded from ~/.autolycus/config.yaml under the 'tts:' key.
 The user chooses the provider and voice; the model just sends text.
 
 Usage:
@@ -52,18 +52,18 @@ from pathlib import Path
 from typing import Callable, Dict, Any, Optional
 from urllib.parse import urljoin
 
-from hermes_constants import display_hermes_home
+from lycus_constants import display_lycus_home
 
 logger = logging.getLogger(__name__)
 def get_env_value(name, default=None):
     """Read env values through the live config module.
 
-    Tests may monkeypatch and later restore ``hermes_cli.config.get_env_value``
+    Tests may monkeypatch and later restore ``lycus_cli.config.get_env_value``
     before this module is imported. Resolve the helper at call time so TTS does
     not keep a stale imported function for the rest of the test process.
     """
     try:
-        from hermes_cli.config import get_env_value as _get_env_value
+        from lycus_cli.config import get_env_value as _get_env_value
     except ImportError:
         return os.getenv(name, default)
     value = _get_env_value(name)
@@ -75,24 +75,12 @@ from tools.tool_backend_helpers import (
     prefers_gateway,
     resolve_openai_audio_api_key,
 )
-from tools.xai_http import hermes_xai_user_agent
+from tools.xai_http import lycus_xai_user_agent
 
 # ---------------------------------------------------------------------------
 # Lazy imports -- providers are imported only when actually used to avoid
 # crashing in headless environments (SSH, Docker, WSL, no PortAudio).
 # ---------------------------------------------------------------------------
-
-def _import_edge_tts():
-    """Lazy import edge_tts. Returns the module or raises ImportError."""
-    try:
-        from tools.lazy_deps import ensure as _lazy_ensure
-        _lazy_ensure("tts.edge", prompt=False)
-    except ImportError:
-        pass
-    except Exception as e:
-        raise ImportError(str(e))
-    import edge_tts
-    return edge_tts
 
 def _import_elevenlabs():
     """Lazy import ElevenLabs client. Returns the class or raises ImportError.
@@ -165,7 +153,7 @@ def _import_piper():
 # ===========================================================================
 # Defaults
 # ===========================================================================
-DEFAULT_PROVIDER = "edge"
+DEFAULT_PROVIDER = "chatterbox"
 DEFAULT_EDGE_VOICE = "en-US-AriaNeural"
 DEFAULT_ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"  # Adam
 DEFAULT_ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
@@ -198,8 +186,8 @@ GEMINI_TTS_CHANNELS = 1
 GEMINI_TTS_SAMPLE_WIDTH = 2  # 16-bit PCM (L16)
 
 def _get_default_output_dir() -> str:
-    from hermes_constants import get_hermes_dir
-    return str(get_hermes_dir("cache/audio", "audio_cache"))
+    from lycus_constants import get_lycus_dir
+    return str(get_lycus_dir("cache/audio", "audio_cache"))
 
 DEFAULT_OUTPUT_DIR = _get_default_output_dir()
 
@@ -211,7 +199,7 @@ DEFAULT_OUTPUT_DIR = _get_default_output_dir()
 # ``tts.<provider>.max_text_length`` in config.yaml.
 # ---------------------------------------------------------------------------
 PROVIDER_MAX_TEXT_LENGTH: Dict[str, int] = {
-    "edge": 5000,         # edge-tts practical sync limit
+
     "openai": 4096,       # https://platform.openai.com/docs/guides/text-to-speech
     "xai": 15000,         # https://docs.x.ai/developers/model-capabilities/audio/text-to-speech
     "minimax": 10000,     # https://platform.minimax.io/docs/api-reference/speech-t2a-http (sync)
@@ -316,21 +304,21 @@ def _resolve_max_text_length(
 
 
 # ===========================================================================
-# Config loader -- reads tts: section from ~/.hermes/config.yaml
+# Config loader -- reads tts: section from ~/.autolycus/config.yaml
 # ===========================================================================
 def _load_tts_config() -> Dict[str, Any]:
     """
-    Load TTS configuration from ~/.hermes/config.yaml.
+    Load TTS configuration from ~/.autolycus/config.yaml.
 
     Returns a dict with provider settings. Falls back to defaults
     for any missing fields.
     """
     try:
-        from hermes_cli.config import load_config
+        from lycus_cli.config import load_config
         config = load_config()
         return config.get("tts", {})
     except ImportError:
-        logger.debug("hermes_cli.config not available, using default TTS config")
+        logger.debug("lycus_cli.config not available, using default TTS config")
         return {}
     except Exception as e:
         logger.warning("Failed to load TTS config: %s", e, exc_info=True)
@@ -348,7 +336,7 @@ def _get_provider(tts_config: Dict[str, Any]) -> str:
 #
 # Users can declare any number of command-type providers alongside the
 # built-ins so they can plug any local CLI (Piper, VoxCPM, Kokoro CLIs,
-# custom voice-cloning scripts, etc.) into Hermes without any Python code
+# custom voice-cloning scripts, etc.) into Lycus without any Python code
 # changes. The config shape is::
 #
 #     tts:
@@ -359,14 +347,14 @@ def _get_provider(tts_config: Dict[str, Any]) -> str:
 #           command: "piper -m ~/model.onnx -f {output_path} < {input_path}"
 #           output_format: wav
 #
-# Hermes writes the input text to a temp UTF-8 file, runs the command with
+# Lycus writes the input text to a temp UTF-8 file, runs the command with
 # placeholder substitution, and reads the audio file the command wrote to
 # ``{output_path}``. Supported placeholders: ``{input_path}``,
 # ``{text_path}`` (alias for input_path), ``{output_path}``, ``{format}``,
 # ``{voice}``, ``{model}``, ``{speed}``. Use ``{{`` / ``}}`` for literal braces.
 #
 # Built-in provider names always win over an entry with the same name under
-# ``tts.providers``, so user config can't silently shadow ``edge`` etc.
+# ``tts.providers``, so user config can't silently shadow ``chatterbox`` etc.
 #
 # Placeholder values are shell-quoted for their surrounding context
 # (bare / single / double quote), so paths with spaces work transparently.
@@ -374,7 +362,7 @@ def _get_provider(tts_config: Dict[str, Any]) -> str:
 # Built-in provider names. Any ``tts.provider`` value NOT in this set is
 # interpreted as a reference to ``tts.providers.<name>``.
 BUILTIN_TTS_PROVIDERS = frozenset({
-    "edge",
+    "chatterbox",
     "elevenlabs",
     "openai",
     "minimax",
@@ -472,7 +460,7 @@ def _dispatch_to_plugin_provider(
 
     1. Built-in provider names short-circuit — never reach the plugin
        registry. The caller is responsible for the elif chain that
-       handles ``edge``/``openai``/etc.; this function explicitly
+       handles ``chatterbox``/``openai``/etc.; this function explicitly
        rejects those names defensively.
     2. Command-type providers declared under
        ``tts.providers.<name>: type: command`` (PR #17843) win over a
@@ -499,7 +487,7 @@ def _dispatch_to_plugin_provider(
         return None
     try:
         from agent.tts_registry import get_provider
-        from hermes_cli.plugins import _ensure_plugins_discovered
+        from lycus_cli.plugins import _ensure_plugins_discovered
 
         _ensure_plugins_discovered()
         plugin_provider = get_provider(key)
@@ -919,34 +907,55 @@ def _convert_to_opus(mp3_path: str) -> Optional[str]:
     return None
 
 
+
 # ===========================================================================
-# Provider: Edge TTS (free)
+# Provider: Chatterbox (local zero-shot voice cloning)
 # ===========================================================================
-async def _generate_edge_tts(text: str, output_path: str, tts_config: Dict[str, Any]) -> str:
+def _generate_chatterbox_tts(text: str, output_path: str, tts_config: Dict[str, Any]) -> str:
     """
-    Generate audio using Edge TTS.
+    Generate audio using Chatterbox local TTS with zero-shot voice cloning.
 
     Args:
         text: Text to convert.
-        output_path: Where to save the MP3 file.
+        output_path: Where to save the audio file.
         tts_config: TTS config dict.
 
     Returns:
         Path to the saved audio file.
     """
-    _edge_tts = _import_edge_tts()
-    edge_config = tts_config.get("edge", {})
-    voice = edge_config.get("voice", DEFAULT_EDGE_VOICE)
-    speed = float(edge_config.get("speed", tts_config.get("speed", 1.0)))
+    try:
+        from chatterbox.tts import ChatterboxTTS
+        import torchaudio as ta
+        import torch
 
-    kwargs = {"voice": voice}
-    if speed != 1.0:
-        pct = round((speed - 1.0) * 100)
-        kwargs["rate"] = f"{pct:+d}%"
+        # Detect device
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            device = "mps"
 
-    communicate = _edge_tts.Communicate(text, **kwargs)
-    await communicate.save(output_path)
-    return output_path
+        # Load model
+        model = ChatterboxTTS.from_pretrained(device=device)
+
+        # Get voice reference path from config
+        chat_config = tts_config.get("chatterbox", {})
+        audio_prompt_path = chat_config.get("audio_prompt_path")
+
+        # Generate with optional voice reference
+        kwargs = {}
+        if audio_prompt_path and Path(audio_prompt_path).expanduser().exists():
+            kwargs["audio_prompt_path"] = str(Path(audio_prompt_path).expanduser())
+
+        wav = model.generate(text, **kwargs)
+
+        # Save output
+        output = Path(output_path).expanduser()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        ta.save(str(output), wav, model.sr)
+
+        return str(output)
+    except Exception as e:
+        logger.error("Chatterbox TTS generation failed: %s", e)
+        raise
 
 
 # ===========================================================================
@@ -1124,7 +1133,7 @@ def _generate_xai_tts(text: str, output_path: str, tts_config: Dict[str, Any]) -
     creds = resolve_xai_http_credentials()
     api_key = str(creds.get("api_key") or "").strip()
     if not api_key:
-        raise ValueError("No xAI credentials found. Configure xAI OAuth in `hermes model` or set XAI_API_KEY.")
+        raise ValueError("No xAI credentials found. Configure xAI OAuth in `lycus model` or set XAI_API_KEY.")
 
     xai_config = tts_config.get("xai", {})
     voice_id = str(xai_config.get("voice_id", DEFAULT_XAI_VOICE_ID)).strip() or DEFAULT_XAI_VOICE_ID
@@ -1145,7 +1154,7 @@ def _generate_xai_tts(text: str, output_path: str, tts_config: Dict[str, Any]) -
     ).strip().rstrip("/")
 
     # Match the documented minimal POST /v1/tts shape by default. Only send
-    # output_format when Hermes actually needs a non-default format/override.
+    # output_format when Lycus actually needs a non-default format/override.
     codec = "wav" if output_path.endswith(".wav") else "mp3"
     payload: Dict[str, Any] = {
         "text": text,
@@ -1169,7 +1178,7 @@ def _generate_xai_tts(text: str, output_path: str, tts_config: Dict[str, Any]) -
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "User-Agent": hermes_xai_user_agent(),
+            "User-Agent": lycus_xai_user_agent(),
         },
         json=payload,
         timeout=60,
@@ -1410,8 +1419,8 @@ def _resolve_gemini_persona_prompt_path(gemini_config: Dict[str, Any]) -> Option
     path = Path(expanded).expanduser()
     if not path.is_absolute():
         try:
-            from hermes_constants import get_hermes_home
-            path = get_hermes_home() / path
+            from lycus_constants import get_lycus_home
+            path = get_lycus_home() / path
         except Exception:
             path = Path.cwd() / path
     return path
@@ -1807,13 +1816,13 @@ def _check_piper_available() -> bool:
 
 
 def _get_piper_voices_dir() -> Path:
-    """Return the directory where Hermes caches Piper voice models.
+    """Return the directory where Lycus caches Piper voice models.
 
-    Resolves to ``~/.hermes/cache/piper-voices/`` under the active
-    HERMES_HOME so voice downloads follow profile boundaries.
+    Resolves to ``~/.autolycus/cache/piper-voices/`` under the active
+    AUTOLYCUS_HOME so voice downloads follow profile boundaries.
     """
-    from hermes_constants import get_hermes_dir
-    root = Path(get_hermes_dir("cache/piper-voices", "piper_voices_cache"))
+    from lycus_constants import get_lycus_dir
+    root = Path(get_lycus_dir("cache/piper-voices", "piper_voices_cache"))
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -2022,7 +2031,7 @@ def text_to_speech_tool(
     """
     Convert text to speech audio.
 
-    Reads provider/voice config from ~/.hermes/config.yaml (tts: section).
+    Reads provider/voice config from ~/.autolycus/config.yaml (tts: section).
     The model sends text; the user configures voice and provider.
 
     On messaging platforms, the returned MEDIA:<path> tag is intercepted
@@ -2174,7 +2183,7 @@ def text_to_speech_tool(
                 return json.dumps({
                     "success": False,
                     "error": "Mistral provider selected but 'mistralai' package not installed. "
-                             "Run: pip install 'hermes-agent[mistral]'"
+                             "Run: pip install 'lycus-agent[mistral]'"
                 }, ensure_ascii=False)
             logger.info("Generating speech with Mistral Voxtral TTS...")
             _generate_mistral_tts(text, file_str, tts_config)
@@ -2188,7 +2197,7 @@ def text_to_speech_tool(
                 return json.dumps({
                     "success": False,
                     "error": "NeuTTS provider selected but neutts is not installed. "
-                             "Run hermes setup and choose NeuTTS, or install espeak-ng and run python -m pip install -U neutts[all]."
+                             "Run lycus setup and choose NeuTTS, or install espeak-ng and run python -m pip install -U neutts[all]."
                 }, ensure_ascii=False)
             logger.info("Generating speech with NeuTTS (local)...")
             _generate_neutts(text, file_str, tts_config)
@@ -2200,11 +2209,24 @@ def text_to_speech_tool(
                 return json.dumps({
                     "success": False,
                     "error": "KittenTTS provider selected but 'kittentts' package not installed. "
-                             "Run 'hermes setup tts' and choose KittenTTS, or install manually: "
+                             "Run 'lycus setup tts' and choose KittenTTS, or install manually: "
                              "pip install https://github.com/KittenML/KittenTTS/releases/download/0.8.1/kittentts-0.8.1-py3-none-any.whl"
                 }, ensure_ascii=False)
             logger.info("Generating speech with KittenTTS (local, ~25MB)...")
             _generate_kittentts(text, file_str, tts_config)
+
+        elif provider == "chatterbox":
+            try:
+                from chatterbox.tts import ChatterboxTTS
+            except ImportError:
+                return json.dumps({
+                    "success": False,
+                    "error": "Chatterbox provider selected but 'chatterbox-tts' package not installed. "
+                             "Run 'lycus tools' and select Chatterbox under TTS, or install manually: "
+                             "pip install chatterbox-tts",
+                }, ensure_ascii=False)
+            logger.info("Generating speech with Chatterbox (local zero-shot voice cloning)...")
+            _generate_chatterbox_tts(text, file_str, tts_config)
 
         elif provider == "piper":
             try:
@@ -2213,39 +2235,31 @@ def text_to_speech_tool(
                 return json.dumps({
                     "success": False,
                     "error": "Piper provider selected but 'piper-tts' package not installed. "
-                             "Run 'hermes tools' and select Piper under TTS, or install manually: "
+                             "Run 'lycus tools' and select Piper under TTS, or install manually: "
                              "pip install piper-tts",
                 }, ensure_ascii=False)
             logger.info("Generating speech with Piper (local)...")
             _generate_piper_tts(text, file_str, tts_config)
 
         else:
-            # Default: Edge TTS (free), with NeuTTS as local fallback
-            edge_available = True
+            # Default: Chatterbox (local zero-shot voice cloning)
+            chatterbox_available = True
             try:
-                _import_edge_tts()
+                from chatterbox.tts import ChatterboxTTS
             except ImportError:
-                edge_available = False
+                chatterbox_available = False
 
-            if edge_available:
-                logger.info("Generating speech with Edge TTS...")
-                try:
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                        pool.submit(
-                            lambda: asyncio.run(_generate_edge_tts(text, file_str, tts_config))
-                        ).result(timeout=60)
-                except RuntimeError:
-                    asyncio.run(_generate_edge_tts(text, file_str, tts_config))
+            if chatterbox_available:
+                logger.info("Generating speech with Chatterbox (local)...")
+                _generate_chatterbox_tts(text, file_str, tts_config)
             elif _check_neutts_available():
-                logger.info("Edge TTS not available, falling back to NeuTTS (local)...")
+                logger.info("Chatterbox not available, falling back to NeuTTS (local)...")
                 provider = "neutts"
                 _generate_neutts(text, file_str, tts_config)
             else:
                 return json.dumps({
                     "success": False,
-                    "error": "No TTS provider available. Install edge-tts (pip install edge-tts) "
-                             "or set up NeuTTS for local synthesis."
+                    "error": "No TTS provider available. Install chatterbox-tts or set up NeuTTS for local synthesis."
                 }, ensure_ascii=False)
 
         # Check the file was actually created
@@ -2284,7 +2298,7 @@ def text_to_speech_tool(
                 voice_compatible = file_str.endswith(".ogg")
         elif (
             want_opus
-            and provider in {"edge", "neutts", "minimax", "xai", "kittentts", "piper"}
+            and provider in {"neutts", "minimax", "xai", "kittentts", "piper"}
             and not file_str.endswith(".ogg")
         ):
             opus_path = _convert_to_opus(file_str)
@@ -2344,11 +2358,7 @@ def check_tts_requirements() -> bool:
     # Any configured command provider counts as available.
     if _has_any_command_tts_provider():
         return True
-    try:
-        _import_edge_tts()
-        return True
-    except ImportError:
-        pass
+
     try:
         _import_elevenlabs()
         if get_env_value("ELEVENLABS_API_KEY"):
@@ -2677,7 +2687,7 @@ if __name__ == "__main__":
             return False
 
     print("\nProvider availability:")
-    print(f"  Edge TTS:   {'installed' if _check(_import_edge_tts, 'edge') else 'not installed (pip install edge-tts)'}")
+
     print(f"  ElevenLabs: {'installed' if _check(_import_elevenlabs, 'el') else 'not installed (pip install elevenlabs)'}")
     print(f"    API Key:  {'set' if get_env_value('ELEVENLABS_API_KEY') else 'not set'}")
     print(f"  OpenAI:     {'installed' if _check(_import_openai_client, 'oai') else 'not installed'}")
@@ -2702,7 +2712,7 @@ from tools.registry import registry, tool_error
 
 TTS_SCHEMA = {
     "name": "text_to_speech",
-    "description": "Convert text to speech audio. Returns a MEDIA: path that the platform delivers as native audio. Compatible providers render as a voice bubble on Telegram; otherwise audio is sent as a regular attachment. In CLI mode, saves to ~/voice-memos/. Voice and provider are user-configured (built-in providers like edge/openai or custom command providers under tts.providers.<name>), not model-selected.",
+    "description": "Convert text to speech audio. Returns a MEDIA: path that the platform delivers as native audio. Compatible providers render as a voice bubble on Telegram; otherwise audio is sent as a regular attachment. In CLI mode, saves to ~/voice-memos/. Voice and provider are user-configured (built-in providers like chatterbox/openai or custom command providers under tts.providers.<name>), not model-selected.",
     "parameters": {
         "type": "object",
         "properties": {
@@ -2712,7 +2722,7 @@ TTS_SCHEMA = {
             },
             "output_path": {
                 "type": "string",
-                "description": f"Optional custom file path to save the audio. Defaults to {display_hermes_home()}/audio_cache/<timestamp>.mp3"
+                "description": f"Optional custom file path to save the audio. Defaults to {display_lycus_home()}/audio_cache/<timestamp>.mp3"
             }
         },
         "required": ["text"]

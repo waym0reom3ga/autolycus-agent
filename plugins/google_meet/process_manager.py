@@ -1,7 +1,7 @@
 """Subprocess lifecycle manager for the google_meet bot.
 
 Single active meeting at a time. Stores the running pid + out_dir in a
-session-scoped state file under ``$HERMES_HOME/workspace/meetings/.active.json``
+session-scoped state file under ``$AUTOLYCUS_HOME/workspace/meetings/.active.json``
 so tool calls across turns can find the bot, and ``on_session_end`` can clean
 it up.
 
@@ -20,9 +20,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from hermes_constants import get_hermes_home
+from lycus_constants import get_lycus_home
 
-# File + directory layout (under $HERMES_HOME):
+# File + directory layout (under $AUTOLYCUS_HOME):
 #
 #   workspace/meetings/
 #       .active.json                # pointer to current session's bot
@@ -37,7 +37,7 @@ from hermes_constants import get_hermes_home
 
 
 def _root() -> Path:
-    return Path(get_hermes_home()) / "workspace" / "meetings"
+    return Path(get_lycus_home()) / "workspace" / "meetings"
 
 
 def _active_file() -> Path:
@@ -87,7 +87,7 @@ def start(
     out_dir: Optional[Path] = None,
     headed: bool = False,
     auth_state: Optional[str] = None,
-    guest_name: str = "Hermes Agent",
+    guest_name: str = "Lycus Agent",
     duration: Optional[str] = None,
     session_id: Optional[str] = None,
     mode: str = "transcribe",
@@ -98,7 +98,7 @@ def start(
 ) -> Dict[str, Any]:
     """Spawn the meet_bot subprocess for *url*.
 
-    If a bot is already running for this hermes install, leave it first —
+    If a bot is already running for this lycus install, leave it first —
     we enforce single-active-meeting semantics.
 
     Returns a dict summarizing the started bot.

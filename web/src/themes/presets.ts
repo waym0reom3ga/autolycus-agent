@@ -8,7 +8,7 @@ import type { DashboardTheme, ThemeTypography, ThemeLayout } from "./types";
  * corner-radius all shift to match the theme's personality.
  *
  * Theme names must stay in sync with the backend's
- * `_BUILTIN_DASHBOARD_THEMES` list in `hermes_cli/web_server.py`.
+ * `_BUILTIN_DASHBOARD_THEMES` list in `lycus_cli/web_server.py`.
  */
 
 // ---------------------------------------------------------------------------
@@ -40,8 +40,8 @@ const DEFAULT_LAYOUT: ThemeLayout = {
 
 export const defaultTheme: DashboardTheme = {
   name: "default",
-  label: "Hermes Teal",
-  description: "Classic dark teal — the canonical Hermes look",
+  label: "Lycus Teal",
+  description: "Classic dark teal — the canonical Lycus look",
   palette: {
     background: { hex: "#041c1c", alpha: 1 },
     midground: { hex: "#ffe6cb", alpha: 1 },
@@ -185,7 +185,7 @@ export const roseTheme: DashboardTheme = {
 };
 
 /**
- * Nous Blue — the inverted "light mode" Hermes look, ported from the
+ * Nous Blue — the inverted "light mode" Lycus look, ported from the
  * LENS_5I overlay preset in `@nous-research/ui`.
  *
  * Unlike the other built-ins (which paint dark color directly on the
@@ -198,7 +198,7 @@ export const roseTheme: DashboardTheme = {
  * cream `#E8F2FD` canvas.
  *
  * Note on bg blend mode: the DS Lens uses `multiply` for LENS_5I because
- * nousnet-web's <body> is white; hermes-agent's App root is `bg-black`,
+ * nousnet-web's <body> is white; lycus-agent's App root is `bg-black`,
  * so we leave the bg layer's blend mode at the `difference` default —
  * `difference(#170d02, #000)` passes the bg through unchanged, and the
  * subsequent FG-difference layer then inverts it to cream. Using
@@ -285,8 +285,8 @@ export const nousBlueTheme: DashboardTheme = {
  */
 export const defaultLargeTheme: DashboardTheme = {
   name: "default-large",
-  label: "Hermes Teal (Large)",
-  description: "Hermes Teal with bigger fonts and roomier spacing",
+  label: "Lycus Teal (Large)",
+  description: "Lycus Teal with bigger fonts and roomier spacing",
   palette: defaultTheme.palette,
   typography: {
     ...DEFAULT_TYPOGRAPHY,

@@ -63,7 +63,7 @@ def test_uid_gid_validator_rejects_root_invalid_and_out_of_range(
 
 def _targeted_chown_subdirs(text: str) -> list[str]:
     m = re.search(
-        r"for sub in (?P<items>.*?); do\n\s*if \[ -e \"\$HERMES_HOME/\$sub\" \]",
+        r"for sub in (?P<items>.*?); do\n\s*if \[ -e \"\$AUTOLYCUS_HOME/\$sub\" \]",
         text,
         re.DOTALL,
     )
@@ -78,9 +78,9 @@ def test_targeted_chown_covers_legacy_and_new_pairing_dirs(stage2_text: str) -> 
 
 
 def test_seeded_directory_list_covers_legacy_and_new_pairing_dirs(stage2_text: str) -> None:
-    seed_block = stage2_text.split("as_hermes mkdir -p \\", 1)[1].split(
+    seed_block = stage2_text.split("as_lycus mkdir -p \\", 1)[1].split(
         "# --- Install-method stamp",
         1,
     )[0]
-    assert '"$HERMES_HOME/pairing"' in seed_block
-    assert '"$HERMES_HOME/platforms/pairing"' in seed_block
+    assert '"$AUTOLYCUS_HOME/pairing"' in seed_block
+    assert '"$AUTOLYCUS_HOME/platforms/pairing"' in seed_block

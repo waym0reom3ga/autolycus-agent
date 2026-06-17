@@ -59,7 +59,7 @@ def load_config() -> Dict[str, Any]:
     missing = [f for f in required if not config[f]]
     if missing:
         print(f"ERROR: Missing required config: {', '.join(missing)}")
-        print("Set via environment variables or ~/.hermes/.env")
+        print("Set via environment variables or ~/.autolycus/.env")
         sys.exit(2)
 
     return config

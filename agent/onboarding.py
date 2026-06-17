@@ -98,19 +98,19 @@ def tool_progress_hint_cli() -> str:
 
 
 def openclaw_residue_hint_cli() -> str:
-    """Banner shown the first time Hermes starts and finds ``~/.openclaw/``.
+    """Banner shown the first time Lycus starts and finds ``~/.openclaw/``.
 
-    Points users at ``hermes claw migrate`` (non-destructive port of config,
-    memory, and skills) first. ``hermes claw cleanup`` is mentioned as the
+    Points users at ``lycus claw migrate`` (non-destructive port of config,
+    memory, and skills) first. ``lycus claw cleanup`` is mentioned as the
     follow-up step for users who have already migrated and want to archive
     the old directory — with a warning that archiving breaks OpenClaw.
     """
     return (
         "A legacy OpenClaw directory was detected at ~/.openclaw/.\n"
-        "To port your config, memory, and skills over to Hermes, run "
-        "`hermes claw migrate`.\n"
+        "To port your config, memory, and skills over to Lycus, run "
+        "`lycus claw migrate`.\n"
         "If you've already migrated and want to archive the old directory, "
-        "run `hermes claw cleanup` (renames it to ~/.openclaw.pre-migration — "
+        "run `lycus claw cleanup` (renames it to ~/.openclaw.pre-migration — "
         "OpenClaw will stop working after this).\n"
         "This tip only shows once."
     )
@@ -172,7 +172,7 @@ def get_dynamic_greeting() -> tuple:
 
     # Get user's temperature unit preference (default: Celsius)
     try:
-        from hermes_cli.config import load_config
+        from lycus_cli.config import load_config
         cfg = load_config()
         temp_unit = (cfg.get("onboarding") or {}).get("temperature_unit", "celsius")
     except Exception:
@@ -241,7 +241,7 @@ def get_dynamic_greeting() -> tuple:
     try:
         import yaml
         from pathlib import Path
-        personality_file = Path.home() / '.hermes' / 'lycus_personality.yaml'
+        personality_file = Path.home() / '.autolycus' / 'lycus_personality.yaml'
         if personality_file.exists():
             with open(personality_file, encoding="utf-8") as f:
                 personality = yaml.safe_load(f)

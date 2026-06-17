@@ -19,7 +19,7 @@ This toolset provides six LLM-callable tools for agent-to-agent email communicat
 
 ### Environment Variables (Required)
 
-Add to `~/.hermes/.env`:
+Add to `~/.autolycus/.env`:
 
 ```bash
 AGENT_MAIL_ADDRESS=agent@domain.local
@@ -32,7 +32,7 @@ AGENT_MAIL_SMTP_PORT=587
 
 ### Agent Registry (Optional)
 
-Configure agent aliases in `~/.hermes/config.yaml`:
+Configure agent aliases in `~/.autolycus/config.yaml`:
 
 ```yaml
 agent_mail:

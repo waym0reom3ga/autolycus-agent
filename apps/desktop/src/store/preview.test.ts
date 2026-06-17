@@ -70,7 +70,7 @@ describe('preview store', () => {
 
     expect($previewTarget.get()).toEqual(withRenderMode(target, 'preview'))
     expect(getSessionPreviewRecord('session-1')?.normalized).toEqual(withRenderMode(target, 'preview'))
-    expect(window.localStorage.getItem('hermes.desktop.sessionPreviews.v1')).toContain('/work/demo.html')
+    expect(window.localStorage.getItem('lycus.desktop.sessionPreviews.v1')).toContain('/work/demo.html')
 
     dismissPreviewTarget()
 

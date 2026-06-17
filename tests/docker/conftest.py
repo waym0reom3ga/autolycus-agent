@@ -21,7 +21,7 @@ from collections.abc import Iterator
 
 import pytest
 
-IMAGE_TAG = os.environ.get("HERMES_TEST_IMAGE", "hermes-agent-harness:latest")
+IMAGE_TAG = os.environ.get("HERMES_TEST_IMAGE", "lycus-agent-harness:latest")
 
 
 def _docker_available() -> bool:
@@ -78,7 +78,7 @@ def built_image() -> str:
 def container_name(request) -> Iterator[str]:
     """Generate a unique container name and ensure cleanup on test exit."""
     safe = request.node.name.replace("[", "_").replace("]", "_")
-    name = f"hermes-test-{safe}"
+    name = f"lycus-test-{safe}"
     yield name
     subprocess.run(
         ["docker", "rm", "-f", name],
@@ -87,19 +87,19 @@ def container_name(request) -> Iterator[str]:
 
 
 # ---------------------------------------------------------------------------
-# docker_exec — default to the unprivileged hermes user
+# docker_exec — default to the unprivileged lycus user
 # ---------------------------------------------------------------------------
 #
-# Background: every Hermes runtime path inside the container drops to UID
-# 10000 (the ``hermes`` user) via ``s6-setuidgid hermes``. ``docker exec``
+# Background: every Lycus runtime path inside the container drops to UID
+# 10000 (the ``lycus`` user) via ``s6-setuidgid lycus``. ``docker exec``
 # without ``-u`` runs as root, which is **not** representative of how
 # production code executes. PR #30136 review caught a real regression
 # this way — ``Path('/proc/1/exe').resolve()`` works as root and silently
-# fails (PermissionError swallowed) for hermes, so a test that ran as root
+# fails (PermissionError swallowed) for lycus, so a test that ran as root
 # couldn't catch a feature that was inert for the actual runtime user.
 #
 # Tests in this directory MUST exercise the realistic user context. The
-# helpers below run every probe under ``-u hermes`` unless a specific
+# helpers below run every probe under ``-u lycus`` unless a specific
 # test explicitly opts into ``user="root"`` (rare — e.g. inspecting
 # /proc/1/exe itself, chowning a volume).
 # ---------------------------------------------------------------------------
@@ -108,11 +108,11 @@ def container_name(request) -> Iterator[str]:
 def docker_exec(
     container: str,
     *args: str,
-    user: str = "hermes",
+    user: str = "lycus",
     timeout: int = 30,
     extra_docker_args: tuple[str, ...] = (),
 ) -> subprocess.CompletedProcess[str]:
-    """Run a command inside ``container`` as ``user`` (default: hermes).
+    """Run a command inside ``container`` as ``user`` (default: lycus).
 
     Returns the CompletedProcess with text=True, capture_output=True.
 
@@ -130,7 +130,7 @@ def docker_exec_sh(
     container: str,
     command: str,
     *,
-    user: str = "hermes",
+    user: str = "lycus",
     timeout: int = 30,
 ) -> subprocess.CompletedProcess[str]:
     """Run ``sh -c <command>`` inside the container as ``user``."""

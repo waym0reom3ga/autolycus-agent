@@ -38,7 +38,7 @@ from typing import Any, Awaitable, Dict, Optional
 from urllib.parse import urlparse
 import httpx
 from agent.auxiliary_client import async_call_llm, extract_content_or_reasoning
-from hermes_constants import get_hermes_dir
+from lycus_constants import get_lycus_dir
 from tools.debug_helpers import DebugSession
 from tools.website_policy import check_website_access
 import sys
@@ -58,7 +58,7 @@ def _resolve_download_timeout() -> float:
         except ValueError:
             pass
     try:
-        from hermes_cli.config import cfg_get, load_config
+        from lycus_cli.config import cfg_get, load_config
         cfg = load_config()
         val = cfg_get(cfg, "auxiliary", "vision", "download_timeout")
         if val is not None:
@@ -614,7 +614,7 @@ def _should_use_native_vision_fast_path() -> bool:
     try:
         from agent.auxiliary_client import _read_main_provider, _read_main_model
         from agent.image_routing import decide_image_input_mode, _lookup_supports_vision
-        from hermes_cli.config import load_config
+        from lycus_cli.config import load_config
 
         provider = _read_main_provider()
         model = _read_main_model()
@@ -725,7 +725,7 @@ async def _vision_analyze_native(
             blocked = check_website_access(image_url)
             if blocked:
                 return tool_error(blocked["message"], success=False)
-            temp_dir = get_hermes_dir("cache/vision", "temp_vision_images")
+            temp_dir = get_lycus_dir("cache/vision", "temp_vision_images")
             temp_image_path = temp_dir / f"temp_image_{uuid.uuid4()}.jpg"
             await _download_image(image_url, temp_image_path)
             should_cleanup = True
@@ -831,7 +831,7 @@ async def vision_analyze_tool(
         Exception: If download fails, analysis fails, or API key is not set
         
     Note:
-        - For URLs, temporary images are stored under $HERMES_HOME/cache/vision/ and cleaned up
+        - For URLs, temporary images are stored under $AUTOLYCUS_HOME/cache/vision/ and cleaned up
         - For local file paths, the file is used directly and NOT deleted
         - Supports common image formats (JPEG, PNG, GIF, WebP, etc.)
     """
@@ -881,7 +881,7 @@ async def vision_analyze_tool(
             if blocked:
                 raise PermissionError(blocked["message"])
             logger.info("Downloading image from URL...")
-            temp_dir = get_hermes_dir("cache/vision", "temp_vision_images")
+            temp_dir = get_lycus_dir("cache/vision", "temp_vision_images")
             temp_image_path = temp_dir / f"temp_image_{uuid.uuid4()}.jpg"
             await _download_image(image_url, temp_image_path)
             should_cleanup = True
@@ -953,7 +953,7 @@ async def vision_analyze_tool(
         vision_timeout = 120.0
         vision_temperature = 0.1
         try:
-            from hermes_cli.config import cfg_get, load_config
+            from lycus_cli.config import cfg_get, load_config
             _cfg = load_config()
             _vision_cfg = cfg_get(_cfg, "auxiliary", "vision", default={})
             _vt = _vision_cfg.get("timeout")
@@ -1381,7 +1381,7 @@ async def video_analyze_tool(
             blocked = check_website_access(video_url)
             if blocked:
                 raise PermissionError(blocked["message"])
-            temp_dir = get_hermes_dir("cache/video", "temp_video_files")
+            temp_dir = get_lycus_dir("cache/video", "temp_video_files")
             temp_video_path = temp_dir / f"temp_video_{uuid.uuid4()}.mp4"
             await _download_video(video_url, temp_video_path)
             should_cleanup = True
@@ -1437,7 +1437,7 @@ async def video_analyze_tool(
         vision_timeout = 180.0
         vision_temperature = 0.1
         try:
-            from hermes_cli.config import cfg_get, load_config
+            from lycus_cli.config import cfg_get, load_config
             _cfg = load_config()
             _vision_cfg = cfg_get(_cfg, "auxiliary", "vision", default={})
             _vt = _vision_cfg.get("timeout")

@@ -18,8 +18,8 @@ from pathlib import Path
 
 import pytest
 
-import hermes_state
-from hermes_state import (
+import lycus_state
+from lycus_state import (
     SessionDB,
     is_malformed_db_error,
     repair_state_db_schema,
@@ -109,7 +109,7 @@ def test_sessiondb_auto_heals_on_open(tmp_path, monkeypatch):
     _corrupt_duplicate_fts(db_path)
 
     # Fresh process-global guard so the attempt isn't pre-claimed.
-    monkeypatch.setattr(hermes_state, "_repair_attempted_paths", set())
+    monkeypatch.setattr(lycus_state, "_repair_attempted_paths", set())
 
     db = SessionDB(db_path=db_path)
     try:
@@ -126,17 +126,17 @@ def test_auto_heal_attempted_once_per_process(tmp_path, monkeypatch):
     db_path = tmp_path / "state.db"
     _build_healthy_db(db_path)
     _corrupt_duplicate_fts(db_path)
-    monkeypatch.setattr(hermes_state, "_repair_attempted_paths", set())
+    monkeypatch.setattr(lycus_state, "_repair_attempted_paths", set())
 
     calls = {"n": 0}
-    real_repair = hermes_state.repair_state_db_schema
+    real_repair = lycus_state.repair_state_db_schema
 
     def fake_repair(path, **kw):
         calls["n"] += 1
         # Pretend repair failed so the guard's one-shot behavior is exercised.
         return {"repaired": False, "strategy": None, "backup_path": None, "error": "x"}
 
-    monkeypatch.setattr(hermes_state, "repair_state_db_schema", fake_repair)
+    monkeypatch.setattr(lycus_state, "repair_state_db_schema", fake_repair)
 
     with pytest.raises(sqlite3.DatabaseError):
         SessionDB(db_path=db_path)
@@ -144,7 +144,7 @@ def test_auto_heal_attempted_once_per_process(tmp_path, monkeypatch):
         SessionDB(db_path=db_path)
     assert calls["n"] == 1  # repair attempted only once across both opens
 
-    monkeypatch.setattr(hermes_state, "repair_state_db_schema", real_repair)
+    monkeypatch.setattr(lycus_state, "repair_state_db_schema", real_repair)
 
 
 def test_is_malformed_db_error_discriminates():
@@ -170,7 +170,7 @@ def test_strategy_b_rebuild_when_dedup_insufficient(tmp_path, monkeypatch):
     # so the routine escalates to strat 2 (drop FTS + VACUUM) and runs its
     # real SQL against the file; the strat-2 verification then uses the real
     # check and passes.
-    real_check = hermes_state._db_opens_cleanly
+    real_check = lycus_state._db_opens_cleanly
     calls = {"n": 0}
 
     def flaky_check(path):
@@ -179,7 +179,7 @@ def test_strategy_b_rebuild_when_dedup_insufficient(tmp_path, monkeypatch):
             return "pretend strat 1 was insufficient"
         return real_check(path)
 
-    monkeypatch.setattr(hermes_state, "_db_opens_cleanly", flaky_check)
+    monkeypatch.setattr(lycus_state, "_db_opens_cleanly", flaky_check)
     report = repair_state_db_schema(db_path)
     monkeypatch.undo()
 
@@ -215,16 +215,16 @@ def test_non_malformed_error_is_not_auto_repaired(tmp_path, monkeypatch):
     e.g. 'file is not a database' — those raise unchanged."""
     db_path = tmp_path / "state.db"
     db_path.write_bytes(b"this is definitely not a sqlite database")
-    monkeypatch.setattr(hermes_state, "_repair_attempted_paths", set())
+    monkeypatch.setattr(lycus_state, "_repair_attempted_paths", set())
 
     called = {"n": 0}
-    orig = hermes_state.repair_state_db_schema
+    orig = lycus_state.repair_state_db_schema
 
     def spy(*a, **kw):
         called["n"] += 1
         return orig(*a, **kw)
 
-    monkeypatch.setattr(hermes_state, "repair_state_db_schema", spy)
+    monkeypatch.setattr(lycus_state, "repair_state_db_schema", spy)
     with pytest.raises(sqlite3.DatabaseError):
         SessionDB(db_path=db_path)
     assert called["n"] == 0  # never attempted repair for a non-malformed error

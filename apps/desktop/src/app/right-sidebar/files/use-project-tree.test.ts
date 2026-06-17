@@ -2,28 +2,28 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { $connection } from '@/store/session'
-import type { HermesReadDirResult } from '@/global'
+import type { LycusReadDirResult } from '@/global'
 
 import { clearProjectDirCache, readProjectDir } from './ipc'
 import { resetProjectTreeState, useProjectTree } from './use-project-tree'
 
-const readDir = vi.fn<(path: string) => Promise<HermesReadDirResult>>()
+const readDir = vi.fn<(path: string) => Promise<LycusReadDirResult>>()
 
 beforeEach(() => {
   $connection.set(null)
   resetProjectTreeState()
   readDir.mockReset()
-  ;(window as unknown as { hermesDesktop: { readDir: typeof readDir } }).hermesDesktop = { readDir }
+  ;(window as unknown as { lycusDesktop: { readDir: typeof readDir } }).autolycusDesktop = { readDir }
 })
 
 afterEach(() => {
   cleanup()
   $connection.set(null)
   resetProjectTreeState()
-  delete (window as unknown as { hermesDesktop?: unknown }).hermesDesktop
+  delete (window as unknown as { lycusDesktop?: unknown }).autolycusDesktop
 })
 
-function ok(entries: { name: string; path: string; isDirectory: boolean }[]): HermesReadDirResult {
+function ok(entries: { name: string; path: string; isDirectory: boolean }[]): LycusReadDirResult {
   return { entries }
 }
 
@@ -124,7 +124,7 @@ describe('useProjectTree', () => {
       }
       throw new Error(`unexpected path ${path}`)
     })
-    ;(window as unknown as { hermesDesktop: unknown }).hermesDesktop = { gitRoot, readDir, readFileDataUrl }
+    ;(window as unknown as { lycusDesktop: unknown }).autolycusDesktop = { gitRoot, readDir, readFileDataUrl }
 
     $connection.set({ baseUrl: 'local-a', mode: 'local' } as never)
     await expect(readProjectDir('/repo/src', '/repo')).resolves.toMatchObject({
@@ -167,10 +167,10 @@ describe('useProjectTree', () => {
   it('dedupes concurrent loadChildren calls for the same id', async () => {
     readDir.mockResolvedValueOnce(ok([{ name: 'src', path: '/p/src', isDirectory: true }]))
 
-    let resolveChildren: ((value: HermesReadDirResult) => void) | undefined
+    let resolveChildren: ((value: LycusReadDirResult) => void) | undefined
     readDir.mockImplementationOnce(
       () =>
-        new Promise<HermesReadDirResult>(resolve => {
+        new Promise<LycusReadDirResult>(resolve => {
           resolveChildren = resolve
         })
     )
@@ -228,7 +228,7 @@ describe('useProjectTree', () => {
       if (path === '/home/me/projects') return ok([{ name: 'repo', path: '/home/me/projects/repo', isDirectory: true }])
       throw new Error(`unexpected path ${path}`)
     })
-    ;(window as unknown as { hermesDesktop: unknown }).hermesDesktop = { readDir, sanitizeWorkspaceCwd }
+    ;(window as unknown as { lycusDesktop: unknown }).autolycusDesktop = { readDir, sanitizeWorkspaceCwd }
 
     const { result } = renderHook(() => useProjectTree('/deleted/worktree'))
 
@@ -243,7 +243,7 @@ describe('useProjectTree', () => {
   it('keeps the root error when sanitize offers no usable fallback', async () => {
     const sanitizeWorkspaceCwd = vi.fn(async () => ({ cwd: '/deleted/worktree', sanitized: false }))
     readDir.mockResolvedValue({ entries: [], error: 'ENOENT' })
-    ;(window as unknown as { hermesDesktop: unknown }).hermesDesktop = { readDir, sanitizeWorkspaceCwd }
+    ;(window as unknown as { lycusDesktop: unknown }).autolycusDesktop = { readDir, sanitizeWorkspaceCwd }
 
     const { result } = renderHook(() => useProjectTree('/deleted/worktree'))
 
@@ -251,8 +251,8 @@ describe('useProjectTree', () => {
     expect(result.current.effectiveCwd).toBe('/deleted/worktree')
   })
 
-  it('returns no-bridge gracefully when window.hermesDesktop is missing', async () => {
-    delete (window as unknown as { hermesDesktop?: unknown }).hermesDesktop
+  it('returns no-bridge gracefully when window.autolycusDesktop is missing', async () => {
+    delete (window as unknown as { lycusDesktop?: unknown }).autolycusDesktop
 
     const { result } = renderHook(() => useProjectTree('/p'))
 

@@ -105,28 +105,28 @@ async function mediaSrc(path: string): Promise<string> {
 
   // Stream audio/video through the custom protocol: data URLs are capped and
   // load the whole file into memory, which broke playback for larger videos.
-  if (window.hermesDesktop && ['audio', 'video'].includes(mediaKind(path))) {
+  if (window.autolycusDesktop && ['audio', 'video'].includes(mediaKind(path))) {
     return mediaStreamUrl(path)
   }
 
   // Remote gateway: the image lives on the gateway machine, so read it over the
   // authenticated API rather than this machine's disk.
-  if (window.hermesDesktop && isRemoteGateway()) {
+  if (window.autolycusDesktop && isRemoteGateway()) {
     return gatewayMediaDataUrl(path)
   }
 
-  if (!window.hermesDesktop?.readFileDataUrl) {
+  if (!window.autolycusDesktop?.readFileDataUrl) {
     return mediaExternalUrl(path)
   }
 
-  return window.hermesDesktop.readFileDataUrl(filePathFromMediaPath(path))
+  return window.autolycusDesktop.readFileDataUrl(filePathFromMediaPath(path))
 }
 
 function OpenMediaButton({ kind, path }: { kind: 'audio' | 'video'; path: string }) {
   return (
     <button
       className="mt-2 bg-transparent text-xs font-medium text-muted-foreground underline underline-offset-4 decoration-current/20 hover:text-foreground"
-      onClick={() => void window.hermesDesktop?.openExternal(mediaExternalUrl(path))}
+      onClick={() => void window.autolycusDesktop?.openExternal(mediaExternalUrl(path))}
       type="button"
     >
       Open {kind} file

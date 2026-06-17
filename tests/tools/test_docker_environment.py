@@ -204,7 +204,7 @@ def test_auto_mount_replaces_persistent_workspace_bind(monkeypatch, tmp_path):
 
 def test_non_persistent_cleanup_removes_container(monkeypatch):
     """When persist_across_processes=false, cleanup() must docker stop AND
-    docker rm so containers don't leak across hermes processes.
+    docker rm so containers don't leak across lycus processes.
 
     Updated for issue #20561: the previous implementation used fire-and-forget
     ``subprocess.Popen("... &", shell=True)`` which raced with parent exit;
@@ -266,8 +266,8 @@ def _make_execute_only_env(forward_env=None):
     env._docker_exe = "/usr/bin/docker"
     # Base class attributes needed by unified execute()
     env._session_id = "test123"
-    env._snapshot_path = "/tmp/hermes-snap-test123.sh"
-    env._cwd_file = "/tmp/hermes-cwd-test123.txt"
+    env._snapshot_path = "/tmp/lycus-snap-test123.sh"
+    env._cwd_file = "/tmp/lycus-cwd-test123.txt"
     env._cwd_marker = "__HERMES_CWD_test123__"
     env._snapshot_ready = True
     env._last_sync_time = None
@@ -275,14 +275,14 @@ def _make_execute_only_env(forward_env=None):
     return env
 
 
-def test_init_env_args_uses_hermes_dotenv_for_allowlisted_env(monkeypatch):
+def test_init_env_args_uses_lycus_dotenv_for_allowlisted_env(monkeypatch):
     """_build_init_env_args picks up forwarded env vars from .env file at init time."""
     # Use a var that is NOT in _HERMES_PROVIDER_ENV_BLOCKLIST (GITHUB_TOKEN
     # is in the copilot provider's api_key_env_vars and gets stripped).
     env = _make_execute_only_env(["DATABASE_URL"])
 
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.setattr(docker_env, "_load_hermes_env_vars", lambda: {"DATABASE_URL": "value_from_dotenv"})
+    monkeypatch.setattr(docker_env, "_load_lycus_env_vars", lambda: {"DATABASE_URL": "value_from_dotenv"})
 
     args = env._build_init_env_args()
     args_str = " ".join(args)
@@ -290,12 +290,12 @@ def test_init_env_args_uses_hermes_dotenv_for_allowlisted_env(monkeypatch):
     assert "DATABASE_URL=value_from_dotenv" in args_str
 
 
-def test_init_env_args_prefers_shell_env_over_hermes_dotenv(monkeypatch):
+def test_init_env_args_prefers_shell_env_over_lycus_dotenv(monkeypatch):
     """Shell env vars take priority over .env file values in init env args."""
     env = _make_execute_only_env(["DATABASE_URL"])
 
     monkeypatch.setenv("DATABASE_URL", "value_from_shell")
-    monkeypatch.setattr(docker_env, "_load_hermes_env_vars", lambda: {"DATABASE_URL": "value_from_dotenv"})
+    monkeypatch.setattr(docker_env, "_load_lycus_env_vars", lambda: {"DATABASE_URL": "value_from_dotenv"})
 
     args = env._build_init_env_args()
     args_str = " ".join(args)
@@ -304,17 +304,17 @@ def test_init_env_args_prefers_shell_env_over_hermes_dotenv(monkeypatch):
     assert "value_from_dotenv" not in args_str
 
 
-def test_init_env_args_uses_hermes_dotenv_for_empty_shell_env(monkeypatch):
+def test_init_env_args_uses_lycus_dotenv_for_empty_shell_env(monkeypatch):
     """A transient empty-string in the live env must fall back to .env, not win.
 
     Regression: the disk fallback used to fire only on `value is None`, so a
     present-but-empty `MY_SECRET=""` skipped it and was forwarded as `-e
-    MY_SECRET=`, clobbering the correct value sitting in ~/.hermes/.env.
+    MY_SECRET=`, clobbering the correct value sitting in ~/.autolycus/.env.
     """
     env = _make_execute_only_env(["MY_SECRET"])
 
     monkeypatch.setenv("MY_SECRET", "")
-    monkeypatch.setattr(docker_env, "_load_hermes_env_vars", lambda: {"MY_SECRET": "value_from_dotenv"})
+    monkeypatch.setattr(docker_env, "_load_lycus_env_vars", lambda: {"MY_SECRET": "value_from_dotenv"})
 
     args = env._build_init_env_args()
 
@@ -329,7 +329,7 @@ def test_init_env_args_never_forwards_blank_secret(monkeypatch):
     env = _make_execute_only_env(["MY_SECRET"])
 
     monkeypatch.setenv("MY_SECRET", "")
-    monkeypatch.setattr(docker_env, "_load_hermes_env_vars", lambda: {})
+    monkeypatch.setattr(docker_env, "_load_lycus_env_vars", lambda: {})
 
     args = env._build_init_env_args()
 
@@ -373,7 +373,7 @@ def test_forward_env_overrides_docker_env_in_init_args(monkeypatch):
     env._env = {"MY_KEY": "static_value"}
 
     monkeypatch.setenv("MY_KEY", "dynamic_value")
-    monkeypatch.setattr(docker_env, "_load_hermes_env_vars", lambda: {})
+    monkeypatch.setattr(docker_env, "_load_lycus_env_vars", lambda: {})
 
     args = env._build_init_env_args()
     args_str = " ".join(args)
@@ -388,7 +388,7 @@ def test_docker_env_and_forward_env_merge_in_init_args(monkeypatch):
     env._env = {"SSH_AUTH_SOCK": "/run/user/1000/agent.sock"}
 
     monkeypatch.setenv("TOKEN", "secret123")
-    monkeypatch.setattr(docker_env, "_load_hermes_env_vars", lambda: {})
+    monkeypatch.setattr(docker_env, "_load_lycus_env_vars", lambda: {})
 
     args = env._build_init_env_args()
     args_str = " ".join(args)
@@ -440,7 +440,7 @@ def test_normalize_env_dict_rejects_complex_values():
 def test_security_args_include_setuid_setgid_for_privdrop(monkeypatch):
     """The default (run_as_host_user=False) invocation must include SETUID and
     SETGID caps so the image's init can drop from root to a non-root user
-    (e.g. via ``s6-setuidgid`` in the bundled Hermes image, or ``gosu``/``su``
+    (e.g. via ``s6-setuidgid`` in the bundled Lycus image, or ``gosu``/``su``
     in user-provided images).
 
     Without these caps the privilege-drop helper fails with
@@ -590,10 +590,10 @@ def _labels_in_run_args(run_args):
     }
 
 
-def test_run_command_tags_hermes_agent_label(monkeypatch):
-    """Every container hermes-agent starts must carry the hermes-agent=1 label
+def test_run_command_tags_lycus_agent_label(monkeypatch):
+    """Every container lycus-agent starts must carry the lycus-agent=1 label
     so the orphan reaper (and external operators) can identify them with a
-    single ``docker ps --filter label=hermes-agent=1`` call. Regression test
+    single ``docker ps --filter label=lycus-agent=1`` call. Regression test
     for issue #20561 — without the label there is no global sweep target."""
     monkeypatch.setattr(docker_env, "find_docker", lambda: "/usr/bin/docker")
     calls = _mock_subprocess_run(monkeypatch)
@@ -601,8 +601,8 @@ def test_run_command_tags_hermes_agent_label(monkeypatch):
     _make_dummy_env(task_id="my-task")
 
     labels = _labels_in_run_args(_run_args_from_calls(calls))
-    assert "hermes-agent=1" in labels, (
-        f"hermes-agent=1 label missing; got labels: {sorted(labels)}"
+    assert "lycus-agent=1" in labels, (
+        f"lycus-agent=1 label missing; got labels: {sorted(labels)}"
     )
 
 
@@ -610,7 +610,7 @@ def test_run_command_tags_task_and_profile_labels(monkeypatch):
     """task_id and the active profile name are surfaced as labels so future
     cross-process reuse logic can filter to a specific (task, profile) pair
     without parsing container names. Profile resolution uses the helper that
-    returns ``"default"`` for the root Hermes home."""
+    returns ``"default"`` for the root Lycus home."""
     monkeypatch.setattr(docker_env, "find_docker", lambda: "/usr/bin/docker")
     monkeypatch.setattr(docker_env, "_get_active_profile_name", lambda: "research-bot")
     calls = _mock_subprocess_run(monkeypatch)
@@ -618,11 +618,11 @@ def test_run_command_tags_task_and_profile_labels(monkeypatch):
     _make_dummy_env(task_id="kanban-42")
 
     labels = _labels_in_run_args(_run_args_from_calls(calls))
-    assert "hermes-task-id=kanban-42" in labels, (
-        f"hermes-task-id=kanban-42 missing; got: {sorted(labels)}"
+    assert "lycus-task-id=kanban-42" in labels, (
+        f"lycus-task-id=kanban-42 missing; got: {sorted(labels)}"
     )
-    assert "hermes-profile=research-bot" in labels, (
-        f"hermes-profile=research-bot missing; got: {sorted(labels)}"
+    assert "lycus-profile=research-bot" in labels, (
+        f"lycus-profile=research-bot missing; got: {sorted(labels)}"
     )
 
 
@@ -654,7 +654,7 @@ def test_run_command_sanitizes_unsafe_task_id(monkeypatch):
 
     labels = _labels_in_run_args(_run_args_from_calls(calls))
     # Each non-OK character becomes an underscore; the safe chars survive.
-    assert "hermes-task-id=task_with_weird_chars" in labels, (
+    assert "lycus-task-id=task_with_weird_chars" in labels, (
         f"sanitized task-id label missing; got: {sorted(labels)}"
     )
 
@@ -670,9 +670,9 @@ def test_labels_attribute_populated_after_init(monkeypatch):
     env = _make_dummy_env(task_id="abc")
 
     assert env._labels == {
-        "hermes-agent": "1",
-        "hermes-task-id": "abc",
-        "hermes-profile": "default",
+        "lycus-agent": "1",
+        "lycus-task-id": "abc",
+        "lycus-profile": "default",
     }
 
 
@@ -724,7 +724,7 @@ def _mock_subprocess_run_with_reuse(monkeypatch, ps_state: str | None,
 def test_reuse_attaches_to_running_container_without_docker_run(monkeypatch):
     """When a labeled container is already ``running``, the reuse probe
     must pick it up and skip ``docker run`` entirely. Regression for the
-    issue #20561 root cause: every Hermes process spawning a new container
+    issue #20561 root cause: every Lycus process spawning a new container
     despite docs claiming "ONE long-lived container shared across sessions"."""
     monkeypatch.setattr(docker_env, "find_docker", lambda: "/usr/bin/docker")
     monkeypatch.setattr(docker_env, "_get_active_profile_name", lambda: "default")
@@ -750,7 +750,7 @@ def test_reuse_attaches_to_running_container_without_docker_run(monkeypatch):
 
 def test_reuse_starts_stopped_container_before_attaching(monkeypatch):
     """A labeled container in ``exited`` state must be restarted via
-    ``docker start`` before the new Hermes process uses it. Without this
+    ``docker start`` before the new Lycus process uses it. Without this
     step, ``docker exec`` against a stopped container errors out and the
     first agent command fails opaquely."""
     monkeypatch.setattr(docker_env, "find_docker", lambda: "/usr/bin/docker")
@@ -828,7 +828,7 @@ def test_failed_docker_run_cleans_up_orphaned_container(monkeypatch):
     assert len(cleanup_calls) == 1, "docker rm should be called once for the orphaned container"
     rm_cmd = cleanup_calls[0]
     assert rm_cmd[1] == "rm" and rm_cmd[2] == "-f"
-    assert rm_cmd[3].startswith("hermes-"), "should remove the container by its generated name"
+    assert rm_cmd[3].startswith("lycus-"), "should remove the container by its generated name"
 
 
 def test_docker_run_timeout_cleans_up_orphaned_container(monkeypatch):
@@ -863,7 +863,7 @@ def test_docker_run_timeout_cleans_up_orphaned_container(monkeypatch):
     assert len(cleanup_calls) == 1, "docker rm should be called once for the orphaned container"
     rm_cmd = cleanup_calls[0]
     assert rm_cmd[1] == "rm" and rm_cmd[2] == "-f"
-    assert rm_cmd[3].startswith("hermes-"), "should remove the container by its generated name"
+    assert rm_cmd[3].startswith("lycus-"), "should remove the container by its generated name"
 
 
 def test_no_reuse_when_persist_across_processes_disabled(monkeypatch):
@@ -956,7 +956,7 @@ def test_cleanup_with_persist_is_noop_for_container(monkeypatch):
     processes inside the container (npm watchers, pytest watchers, etc.).
 
     Resource reclamation in this mode happens via the orphan reaper on next
-    Hermes startup, not on graceful exit. Issue #20561 — the first iteration
+    Lycus startup, not on graceful exit. Issue #20561 — the first iteration
     of this PR did docker stop here, which Ben caught as contradicting the
     "ONE long-lived container" semantics."""
     monkeypatch.setattr(docker_env, "find_docker", lambda: "/usr/bin/docker")
@@ -1298,7 +1298,7 @@ def test_reap_orphan_returns_zero_when_no_matches(monkeypatch):
 def test_reap_orphan_removes_stale_exited_container(monkeypatch):
     """An Exited container older than max_age_seconds must be removed.
     This is the core repair path for issue #20561 — without the reaper,
-    SIGKILL'd Hermes processes leak containers permanently."""
+    SIGKILL'd Lycus processes leak containers permanently."""
     old = _now_iso(offset_seconds=900)  # 15 minutes ago
     calls = _reaper_run_mock(
         monkeypatch, ps_ids=["old-cid"], inspect_responses={"old-cid": old},
@@ -1316,7 +1316,7 @@ def test_reap_orphan_removes_stale_exited_container(monkeypatch):
 
 def test_reap_orphan_spares_recently_exited_container(monkeypatch):
     """A container exited within max_age_seconds must NOT be reaped — that
-    container belongs to a Hermes process that just finished and may be
+    container belongs to a Lycus process that just finished and may be
     about to be replaced. Conservative window prevents racing sibling
     processes."""
     recent = _now_iso(offset_seconds=60)  # 1 minute ago
@@ -1334,7 +1334,7 @@ def test_reap_orphan_spares_recently_exited_container(monkeypatch):
 
 
 def test_reap_orphan_scopes_to_profile_filter_via_label(monkeypatch):
-    """The reaper must pass ``--filter label=hermes-profile=<profile>`` to
+    """The reaper must pass ``--filter label=lycus-profile=<profile>`` to
     docker ps so it never sweeps another profile's containers. A research
     profile must not tear down the default profile's stragglers."""
     calls = _reaper_run_mock(monkeypatch, ps_ids=[], inspect_responses={})
@@ -1346,15 +1346,15 @@ def test_reap_orphan_scopes_to_profile_filter_via_label(monkeypatch):
     ps_calls = [c for c in calls if isinstance(c[0], list) and c[0][1:2] == ["ps"]]
     assert ps_calls, "expected at least one docker ps call"
     flat = " ".join(ps_calls[0][0])
-    assert "label=hermes-profile=research-bot" in flat, (
+    assert "label=lycus-profile=research-bot" in flat, (
         f"profile filter not applied to docker ps; got args: {ps_calls[0][0]}"
     )
-    assert "label=hermes-agent=1" in flat, (
-        f"hermes-agent label filter must also be applied; got: {ps_calls[0][0]}"
+    assert "label=lycus-agent=1" in flat, (
+        f"lycus-agent label filter must also be applied; got: {ps_calls[0][0]}"
     )
     assert "status=exited" in flat, (
         "must filter to exited containers only — running containers may "
-        "belong to a sibling Hermes process and must NEVER be reaped"
+        "belong to a sibling Lycus process and must NEVER be reaped"
     )
 
 
@@ -1498,7 +1498,7 @@ def test_credential_mount_skipped_when_source_is_directory(monkeypatch, tmp_path
 
     # Mock get_credential_file_mounts to return the corrupted entry
     fake_mounts = [
-        {"host_path": str(corrupted_dir), "container_path": "/root/.hermes/google_token.json"},
+        {"host_path": str(corrupted_dir), "container_path": "/root/.autolycus/google_token.json"},
     ]
     monkeypatch.setattr(
         "tools.credential_files.get_credential_file_mounts",
@@ -1538,7 +1538,7 @@ def test_credential_mount_skipped_when_source_missing(monkeypatch, tmp_path, cap
     calls = _mock_subprocess_run(monkeypatch)
 
     fake_mounts = [
-        {"host_path": str(missing_path), "container_path": "/root/.hermes/deleted_token.json"},
+        {"host_path": str(missing_path), "container_path": "/root/.autolycus/deleted_token.json"},
     ]
     monkeypatch.setattr(
         "tools.credential_files.get_credential_file_mounts",
@@ -1576,7 +1576,7 @@ def test_credential_mount_works_when_source_is_valid_file(monkeypatch, tmp_path)
     calls = _mock_subprocess_run(monkeypatch)
 
     fake_mounts = [
-        {"host_path": str(valid_file), "container_path": "/root/.hermes/token.json"},
+        {"host_path": str(valid_file), "container_path": "/root/.autolycus/token.json"},
     ]
     monkeypatch.setattr(
         "tools.credential_files.get_credential_file_mounts",
@@ -1629,7 +1629,7 @@ def test_image_uses_init_entrypoint_detects_s6_init(monkeypatch):
         return subprocess.CompletedProcess(cmd, 0, stdout='["/init"]', stderr="")
 
     monkeypatch.setattr(docker_env.subprocess, "run", _run)
-    assert docker_env._image_uses_init_entrypoint("/usr/bin/docker", "hermes-agent:latest") is True
+    assert docker_env._image_uses_init_entrypoint("/usr/bin/docker", "lycus-agent:latest") is True
 
 
 def test_image_uses_init_entrypoint_false_for_plain_image(monkeypatch):
@@ -1674,7 +1674,7 @@ def test_s6_image_skips_docker_init_and_mounts_run_exec(monkeypatch):
     monkeypatch.setattr(docker_env, "find_docker", lambda: "/usr/bin/docker")
     calls = _mock_subprocess_run_with_entrypoint(monkeypatch, '["/init"]')
 
-    _make_dummy_env(image="hermes-agent:latest")
+    _make_dummy_env(image="lycus-agent:latest")
 
     run_calls = [c for c in calls if isinstance(c[0], list) and len(c[0]) >= 2 and c[0][1] == "run"]
     assert run_calls, "docker run should have been called"
@@ -1726,7 +1726,7 @@ def test_is_container_gone_matches_removal_errors(monkeypatch):
 
     # Positive: the daemon's "container gone" phrasings.
     assert env._is_container_gone(
-        "Error response from daemon: No such container: hermes-abc123"
+        "Error response from daemon: No such container: lycus-abc123"
     )
     assert env._is_container_gone("Error: No such container: deadbeef")
     assert env._is_container_gone(
@@ -1756,7 +1756,7 @@ def test_execute_recovers_from_out_of_band_removal(monkeypatch):
 
     # First execute() sees a dead container; second (post-recovery) succeeds.
     outputs = iter([
-        {"output": "Error response from daemon: No such container: hermes-x", "returncode": 1},
+        {"output": "Error response from daemon: No such container: lycus-x", "returncode": 1},
         {"output": "ok", "returncode": 0},
     ])
 

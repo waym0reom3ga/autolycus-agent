@@ -2,7 +2,7 @@
 
 Prompt-only / resource-only MCP servers do not implement the ``tools/*``
 request family. Per the MCP spec, ``InitializeResult.capabilities.tools``
-is non-None iff the server supports it. Before this fix, Hermes always
+is non-None iff the server supports it. Before this fix, Lycus always
 called ``tools/list`` during discovery and as the keepalive probe — both
 raised ``McpError(-32601 Method not found)`` against such servers, so a
 prompt-only server could never stay connected.

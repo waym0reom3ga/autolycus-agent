@@ -10,8 +10,8 @@ import {
   getRecommendedDefaultModel,
   setEnvVar,
   setModelAssignment
-} from '@/hermes'
-import type { AuxiliaryModelsResponse, ModelOptionProvider, StaleAuxAssignment } from '@/hermes'
+} from '@/lycus'
+import type { AuxiliaryModelsResponse, ModelOptionProvider, StaleAuxAssignment } from '@/lycus'
 import { useI18n } from '@/i18n'
 import { AlertTriangle, Cpu, Loader2 } from '@/lib/icons'
 import { cn } from '@/lib/utils'
@@ -21,14 +21,14 @@ import { CONTROL_TEXT } from './constants'
 import { ListRow, LoadingState, Pill, SectionHeading } from './primitives'
 
 // A provider row is "ready" to pick a model from when it reports models. The
-// backend now surfaces the full `hermes model` universe (every canonical
+// backend now surfaces the full `lycus model` universe (every canonical
 // provider), so unconfigured providers come back with `authenticated:false`
 // and an empty `models` list — those need a setup step before a model exists.
 function isProviderReady(p?: ModelOptionProvider): boolean {
   return !!p && (p.authenticated !== false || (p.models?.length ?? 0) > 0)
 }
 
-// Mirrors `_AUX_TASK_SLOTS` in hermes_cli/web_server.py. Friendly labels and
+// Mirrors `_AUX_TASK_SLOTS` in lycus_cli/web_server.py. Friendly labels and
 // hints make the assignments readable; raw task keys (vision, mcp, …) are
 // opaque to most users.
 interface AuxTaskMeta {
@@ -200,7 +200,7 @@ export function ModelSettings({ onMainModelChanged }: ModelSettingsProps) {
       setApiKeyDraft('')
 
       // Pick a sensible default for the freshly-activated provider (mirrors
-      // `hermes model` curation). Best-effort — fall through to the refreshed
+      // `lycus model` curation). Best-effort — fall through to the refreshed
       // model list if it fails.
       let nextModel = ''
 
@@ -430,7 +430,7 @@ export function ModelSettings({ onMainModelChanged }: ModelSettingsProps) {
           <p className="mt-2 text-xs text-muted-foreground">
             {selectedProviderRow?.auth_type === 'api_key'
               ? `${selectedProviderRow?.name} needs an API key — set it up to choose a model.`
-              : `${selectedProviderRow?.name} signs in through your browser — Hermes runs the flow for you.`}
+              : `${selectedProviderRow?.name} signs in through your browser — Lycus runs the flow for you.`}
           </p>
         )}
         {error && <div className="mt-2 text-xs text-destructive">{error}</div>}

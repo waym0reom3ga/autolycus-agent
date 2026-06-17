@@ -44,7 +44,7 @@ The installer automates the entire setup process:
    - Linux/macOS: includes voice tools
 6. **CLI Setup** — Creates symlink in `~/.local/bin` and appends PATH to shell config
 7. **Config Templates** — Creates `AGENTS.md` and `persona.md` from templates
-8. **Skill Sync** — Runs `hermes skills sync` to install bundled skills
+8. **Skill Sync** — Runs `lycus skills sync` to install bundled skills
 9. **FreeBSD Warnings** — Reminds FreeBSD users about `python-sqlite` and voice limitations
 
 **Usage:**
@@ -120,8 +120,8 @@ git clone https://github.com/waym0reom3ga/autolycus-agent.git
 cd autolycus-agent
 ./scripts/install-autolycus.sh
 source ~/.bashrc
-hermes setup
-hermes
+lycus setup
+lycus
 ```
 
 That's it. The installer handles everything else.
@@ -151,7 +151,7 @@ uv pip install -e ".[modal,daytona,messaging,cron,cli,dev,tts-premium,slack,honc
 
 ### Credits
 
-Built on the [Hermes Agent](https://github.com/NousResearch/hermes-agent) architecture by Nous Research.  
+Built on the [Lycus Agent](https://github.com/NousResearch/lycus-agent) architecture by Nous Research.  
 An independent project by **Technetia Inc**.
 
 Special thanks to:

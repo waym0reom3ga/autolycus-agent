@@ -32,7 +32,7 @@ from agent.image_gen_provider import (
     save_url_image,
     success_response,
 )
-from tools.xai_http import hermes_xai_user_agent, resolve_xai_http_credentials
+from tools.xai_http import lycus_xai_user_agent, resolve_xai_http_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ DEFAULT_RESOLUTION = "1k"
 def _load_xai_config() -> Dict[str, Any]:
     """Read ``image_gen.xai`` from config.yaml."""
     try:
-        from hermes_cli.config import load_config
+        from lycus_cli.config import load_config
 
         cfg = load_config()
         section = cfg.get("image_gen") if isinstance(cfg, dict) else None
@@ -147,7 +147,7 @@ class XAIImageGenProvider(ImageGenProvider):
 
     def get_setup_schema(self) -> Dict[str, Any]:
         # Auth resolution is delegated to the shared ``xai_grok`` post_setup
-        # hook (``hermes_cli/tools_config.py``); identical to the TTS / video
+        # hook (``lycus_cli/tools_config.py``); identical to the TTS / video
         # gen entries so users see the same OAuth-or-API-key choice for every
         # xAI service.
         return {
@@ -170,7 +170,7 @@ class XAIImageGenProvider(ImageGenProvider):
         provider_name = str(creds.get("provider") or "xai").strip() or "xai"
         if not api_key:
             return error_response(
-                error="No xAI credentials found. Configure xAI OAuth in `hermes model` or set XAI_API_KEY.",
+                error="No xAI credentials found. Configure xAI OAuth in `lycus model` or set XAI_API_KEY.",
                 error_type="missing_api_key",
                 provider=provider_name,
                 aspect_ratio=aspect_ratio,
@@ -192,7 +192,7 @@ class XAIImageGenProvider(ImageGenProvider):
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "User-Agent": hermes_xai_user_agent(),
+            "User-Agent": lycus_xai_user_agent(),
         }
 
         base_url = str(creds.get("base_url") or "https://api.x.ai/v1").strip().rstrip("/")
