@@ -1253,7 +1253,7 @@ def build_skills_system_prompt(
     from gateway.session_context import get_session_env
     _platform_hint = (
         os.environ.get("HERMES_PLATFORM")
-        or get_session_env("HERMES_SESSION_PLATFORM")
+        or get_session_env("LYCUS_SESSION_PLATFORM")
         or ""
     )
     disabled = get_disabled_skill_names(_platform_hint or None)

@@ -53,7 +53,7 @@ def _resolve_skill_commands_platform() -> Optional[str]:
     for a different platform's ``skills.platform_disabled`` view (#14536).
 
     Resolves from (in order) ``HERMES_PLATFORM`` env var and
-    ``HERMES_SESSION_PLATFORM`` from the gateway session context. Returns
+    ``LYCUS_SESSION_PLATFORM`` from the gateway session context. Returns
     ``None`` when no platform scope is active (e.g. classic CLI, RL
     rollouts, standalone scripts).
     """
@@ -62,7 +62,7 @@ def _resolve_skill_commands_platform() -> Optional[str]:
 
         resolved_platform = (
             os.getenv("HERMES_PLATFORM")
-            or get_session_env("HERMES_SESSION_PLATFORM")
+            or get_session_env("LYCUS_SESSION_PLATFORM")
         )
     except Exception:
         resolved_platform = os.getenv("HERMES_PLATFORM")
