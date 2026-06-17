@@ -145,8 +145,8 @@ export interface Translations {
     starting: string;
     startedInBackground: string;
     stopped: string;
-    updateHermes: string;
-    updatingHermes: string;
+    updateLycus: string;
+    updatingLycus: string;
     waitingForOutput: string;
   };
 
@@ -559,7 +559,7 @@ export interface Translations {
     fontMono?: string;
   };
 
-  // ── Achievements plugin (plugins/hermes-achievements) ──
+  // ── Achievements plugin (plugins/lycus-achievements) ──
   achievements: {
     hero: {
       kicker: string;

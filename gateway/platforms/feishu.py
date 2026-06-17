@@ -37,7 +37,7 @@ For bots specifically:
                         puts in ``mentions[].id.open_id`` when someone
                         @-mentions the bot.  Used for mention gating only.
 
-In single-bot mode (what Hermes currently supports), open_id works as a
+In single-bot mode (what Lycus currently supports), open_id works as a
 de-facto unique user identifier since there is only one app context.
 
 Session-key participant isolation prefers ``union_id`` (via user_id_alt)
@@ -141,7 +141,7 @@ from gateway.platforms.base import (
     cache_image_from_bytes,
 )
 from gateway.status import acquire_scoped_lock, release_scoped_lock
-from hermes_constants import get_hermes_home
+from lycus_constants import get_lycus_home
 from utils import atomic_json_write
 
 logger = logging.getLogger(__name__)
@@ -1438,7 +1438,7 @@ class FeishuAdapter(BasePlatformAdapter):
         self._event_handler: Optional[Any] = None
         self._seen_message_ids: Dict[str, float] = {}  # message_id → seen_at (time.time())
         self._seen_message_order: List[str] = []
-        self._dedup_state_path = get_hermes_home() / "feishu_seen_message_ids.json"
+        self._dedup_state_path = get_lycus_home() / "feishu_seen_message_ids.json"
         self._dedup_lock = threading.Lock()
         self._sender_name_cache: Dict[str, tuple[str, float]] = {}  # sender_id → (name, expire_at)
         self._webhook_rate_counts: Dict[str, tuple[int, float]] = {}  # rate_key → (count, window_start)
@@ -1670,7 +1670,7 @@ class FeishuAdapter(BasePlatformAdapter):
             if not acquired:
                 owner_pid = existing.get("pid") if isinstance(existing, dict) else None
                 message = (
-                    "Another local Hermes gateway is already using this Feishu app_id"
+                    "Another local Lycus gateway is already using this Feishu app_id"
                     + (f" (PID {owner_pid})." if owner_pid else ".")
                     + " Stop the other gateway before starting a second Feishu websocket client."
                 )
@@ -1870,7 +1870,7 @@ class FeishuAdapter(BasePlatformAdapter):
     ) -> SendResult:
         """Send an interactive card with approval buttons.
 
-        The buttons carry ``hermes_action`` in their value dict so that
+        The buttons carry ``lycus_action`` in their value dict so that
         ``_handle_card_action_event`` can intercept them and call
         ``resolve_gateway_approval()`` to unblock the waiting agent thread.
         """
@@ -1886,7 +1886,7 @@ class FeishuAdapter(BasePlatformAdapter):
                     "tag": "button",
                     "text": {"tag": "plain_text", "content": label},
                     "type": btn_type,
-                    "value": {"hermes_action": action_name, "approval_id": approval_id},
+                    "value": {"lycus_action": action_name, "approval_id": approval_id},
                 }
 
             card = {
@@ -1943,7 +1943,7 @@ class FeishuAdapter(BasePlatformAdapter):
                 "text": {"tag": "plain_text", "content": label},
                 "type": btn_type,
                 "value": {
-                    "hermes_update_prompt_action": answer,
+                    "lycus_update_prompt_action": answer,
                     "update_prompt_id": prompt_id,
                 },
             }
@@ -2037,7 +2037,7 @@ class FeishuAdapter(BasePlatformAdapter):
 
     @staticmethod
     def _write_update_prompt_response(answer: str) -> None:
-        response_path = get_hermes_home() / ".update_response"
+        response_path = get_lycus_home() / ".update_response"
         tmp_path = response_path.with_suffix(".tmp")
         tmp_path.write_text(answer)
         tmp_path.replace(response_path)
@@ -2436,7 +2436,7 @@ class FeishuAdapter(BasePlatformAdapter):
         )
 
     def _on_message_read_event(self, data: P2ImMessageMessageReadV1) -> None:
-        """Ignore read-receipt events that Hermes does not act on."""
+        """Ignore read-receipt events that Lycus does not act on."""
         event = getattr(data, "event", None)
         message = getattr(event, "message", None)
         message_id = getattr(message, "message_id", None) or ""
@@ -2535,13 +2535,13 @@ class FeishuAdapter(BasePlatformAdapter):
         event = getattr(data, "event", None)
         action = getattr(event, "action", None)
         action_value = getattr(action, "value", {}) or {}
-        hermes_action = action_value.get("hermes_action") if isinstance(action_value, dict) else None
+        lycus_action = action_value.get("lycus_action") if isinstance(action_value, dict) else None
         update_prompt_action = (
-            action_value.get("hermes_update_prompt_action")
+            action_value.get("lycus_update_prompt_action")
             if isinstance(action_value, dict) else None
         )
 
-        if hermes_action:
+        if lycus_action:
             return self._handle_approval_card_action(event=event, action_value=action_value, loop=loop)
         if update_prompt_action:
             return self._handle_update_prompt_card_action(
@@ -2594,7 +2594,7 @@ class FeishuAdapter(BasePlatformAdapter):
         if not state:
             logger.debug("[Feishu] Approval %s already resolved or unknown", approval_id)
             return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
-        choice = _APPROVAL_CHOICE_MAP.get(action_value.get("hermes_action"), "deny")
+        choice = _APPROVAL_CHOICE_MAP.get(action_value.get("lycus_action"), "deny")
 
         operator = getattr(event, "operator", None)
         open_id = str(getattr(operator, "open_id", "") or "")
@@ -2651,7 +2651,7 @@ class FeishuAdapter(BasePlatformAdapter):
             logger.debug("[Feishu] Update prompt %s already resolved or unknown", prompt_id)
             return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
 
-        answer = str(action_value.get("hermes_update_prompt_action", "") or "").strip().lower()
+        answer = str(action_value.get("lycus_update_prompt_action", "") or "").strip().lower()
         if answer not in {"y", "n"}:
             logger.debug("[Feishu] Card action has invalid update prompt answer=%r", answer)
             return P2CardActionTriggerResponse() if P2CardActionTriggerResponse else None
@@ -3284,7 +3284,7 @@ class FeishuAdapter(BasePlatformAdapter):
             response = await client.get(
                 file_url,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (compatible; HermesAgent/1.0)",
+                    "User-Agent": "Mozilla/5.0 (compatible; LycusAgent/1.0)",
                     "Accept": "*/*",
                 },
             )
@@ -3397,7 +3397,7 @@ class FeishuAdapter(BasePlatformAdapter):
             return web.Response(status=401, text="Invalid signature")
 
         if payload.get("encrypt"):
-            logger.error("[Feishu] Encrypted webhook payloads are not supported by Hermes webhook mode")
+            logger.error("[Feishu] Encrypted webhook payloads are not supported by Lycus webhook mode")
             self._record_webhook_anomaly(remote_ip, "400-encrypted")
             return web.json_response({"code": 400, "msg": "encrypted webhook payloads are not supported"}, status=400)
 
@@ -3898,7 +3898,7 @@ class FeishuAdapter(BasePlatformAdapter):
         *,
         is_bot: bool = False,
     ) -> Dict[str, Optional[str]]:
-        """Map Feishu's three-tier user IDs onto Hermes' SessionSource fields.
+        """Map Feishu's three-tier user IDs onto Lycus' SessionSource fields.
 
         Preference order for the primary ``user_id`` field:
           1. user_id  (tenant-scoped, most stable — requires permission scope)
@@ -4885,7 +4885,7 @@ class FeishuAdapter(BasePlatformAdapter):
 #
 # Device-code flow: user scans a QR code with Feishu/Lark mobile app and the
 # platform creates a fully configured bot application automatically.
-# Called by `hermes gateway setup` via _setup_feishu() in hermes_cli/gateway.py.
+# Called by `lycus gateway setup` via _setup_feishu() in lycus_cli/gateway.py.
 # =============================================================================
 
 
@@ -4949,9 +4949,9 @@ def _begin_registration(domain: str = "feishu") -> dict:
         raise RuntimeError("Feishu / Lark registration did not return a device_code")
     qr_url = res.get("verification_uri_complete", "")
     if "?" in qr_url:
-        qr_url += "&from=hermes&tp=hermes"
+        qr_url += "&from=lycus&tp=lycus"
     else:
-        qr_url += "?from=hermes&tp=hermes"
+        qr_url += "?from=lycus&tp=lycus"
     return {
         "device_code": device_code,
         "qr_url": qr_url,

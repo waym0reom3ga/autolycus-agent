@@ -21,7 +21,7 @@ class TestSecretCaptureGuidance:
     def test_gateway_secret_capture_message_points_to_local_setup(self):
         message = GATEWAY_SECRET_CAPTURE_UNSUPPORTED_MESSAGE
         assert "local cli" in message.lower()
-        assert "~/.hermes/.env" in message
+        assert "~/.autolycus/.env" in message
 
 
 class TestSafeUrlForLog:
@@ -489,7 +489,7 @@ class TestMediaInsideSerializedJson:
     def test_media_in_embedded_serialized_reply_not_extracted(self):
         """A serialized tool result that embeds a prior reply's MEDIA: tag."""
         content = (
-            '{"content":"previous reply MEDIA:/Users/ex/.hermes/media/'
+            '{"content":"previous reply MEDIA:/Users/ex/.autolycus/media/'
             'generated/stale.png and more text"}'
         )
         media, _ = BasePlatformAdapter.extract_media(content)
@@ -744,7 +744,7 @@ class TestMediaDeliveryPathValidation:
         """The motivating case: agent produces a PDF in a project directory.
 
         Reproduces the Discord-PDF-not-delivered bug. Before recency trust,
-        files outside ~/.hermes/cache/* were silently dropped, leaving the
+        files outside ~/.autolycus/cache/* were silently dropped, leaving the
         user with a raw filepath in chat instead of an attachment.
         """
         self._patch_roots(monkeypatch)
@@ -853,61 +853,61 @@ class TestMediaDeliveryDefaultMode:
 
         assert BasePlatformAdapter.validate_media_delivery_path(str(secret)) is None
 
-    def test_denylist_blocks_hermes_credentials(self, tmp_path, monkeypatch):
-        """~/.hermes/.env and ~/.hermes/auth.json stay blocked even in
+    def test_denylist_blocks_lycus_credentials(self, tmp_path, monkeypatch):
+        """~/.autolycus/.env and ~/.autolycus/auth.json stay blocked even in
         default mode. They live under $HOME (not the system prefix list)
         so this exercises the home-relative denied paths.
         """
         self._patch_roots(monkeypatch)
 
         fake_home = tmp_path / "home"
-        hermes_dir = fake_home / ".hermes"
-        hermes_dir.mkdir(parents=True)
-        env_file = hermes_dir / ".env"
+        lycus_dir = fake_home / ".autolycus"
+        lycus_dir.mkdir(parents=True)
+        env_file = lycus_dir / ".env"
         env_file.write_text("OPENAI_API_KEY=sk-...")
         monkeypatch.setenv("HOME", str(fake_home))
         monkeypatch.setattr(
-            "gateway.platforms.base._HERMES_HOME",
-            hermes_dir,
+            "gateway.platforms.base._AUTOLYCUS_HOME",
+            lycus_dir,
         )
 
         assert BasePlatformAdapter.validate_media_delivery_path(str(env_file)) is None
 
-    def test_denylist_blocks_hermes_config_in_active_profile(self, tmp_path, monkeypatch):
+    def test_denylist_blocks_lycus_config_in_active_profile(self, tmp_path, monkeypatch):
         """The active profile config stays blocked in default mode."""
         self._patch_roots(monkeypatch)
 
         fake_home = tmp_path / "home"
-        hermes_dir = fake_home / ".hermes"
-        hermes_dir.mkdir(parents=True)
-        config_file = hermes_dir / "config.yaml"
+        lycus_dir = fake_home / ".autolycus"
+        lycus_dir.mkdir(parents=True)
+        config_file = lycus_dir / "config.yaml"
         config_file.write_text("model:\n  provider: openai\n")
         monkeypatch.setenv("HOME", str(fake_home))
         monkeypatch.setattr(
-            "gateway.platforms.base._HERMES_HOME",
-            hermes_dir,
+            "gateway.platforms.base._AUTOLYCUS_HOME",
+            lycus_dir,
         )
 
         assert BasePlatformAdapter.validate_media_delivery_path(str(config_file)) is None
 
-    def test_denylist_blocks_shared_hermes_root_config_for_profiles(self, tmp_path, monkeypatch):
-        """Profile-mode gateways must still block the shared Hermes root config."""
+    def test_denylist_blocks_shared_lycus_root_config_for_profiles(self, tmp_path, monkeypatch):
+        """Profile-mode gateways must still block the shared Lycus root config."""
         self._patch_roots(monkeypatch)
 
         fake_home = tmp_path / "home"
-        profile_home = fake_home / ".hermes" / "profiles" / "work"
+        profile_home = fake_home / ".autolycus" / "profiles" / "work"
         profile_home.mkdir(parents=True)
-        hermes_root = fake_home / ".hermes"
-        config_file = hermes_root / "config.yaml"
+        lycus_root = fake_home / ".autolycus"
+        config_file = lycus_root / "config.yaml"
         config_file.write_text("profiles:\n  active: work\n")
         monkeypatch.setenv("HOME", str(fake_home))
         monkeypatch.setattr(
-            "gateway.platforms.base._HERMES_HOME",
+            "gateway.platforms.base._AUTOLYCUS_HOME",
             profile_home,
         )
         monkeypatch.setattr(
             "gateway.platforms.base._HERMES_ROOT",
-            hermes_root,
+            lycus_root,
         )
 
         assert BasePlatformAdapter.validate_media_delivery_path(str(config_file)) is None
@@ -1000,23 +1000,23 @@ class TestMediaDeliveryDefaultMode:
 
         assert BasePlatformAdapter.validate_media_delivery_path(str(key)) is None
 
-    def test_root_home_hermes_env_still_blocked(self, tmp_path, monkeypatch):
-        """``~/.hermes/.env`` stays blocked under the $HOME exception — it is a
+    def test_root_home_lycus_env_still_blocked(self, tmp_path, monkeypatch):
+        """``~/.autolycus/.env`` stays blocked under the $HOME exception — it is a
         more-specific denied path, not reachable just because home is allowed.
         """
         self._patch_roots(monkeypatch)
 
         fake_home = tmp_path / "root"
-        hermes_dir = fake_home / ".hermes"
-        hermes_dir.mkdir(parents=True)
-        env_file = hermes_dir / ".env"
+        lycus_dir = fake_home / ".autolycus"
+        lycus_dir.mkdir(parents=True)
+        env_file = lycus_dir / ".env"
         env_file.write_text("OPENROUTER_API_KEY=sk-...")
         monkeypatch.setenv("HOME", str(fake_home))
         monkeypatch.setattr(
             "gateway.platforms.base._MEDIA_DELIVERY_DENIED_PREFIXES",
             (str(fake_home),),
         )
-        monkeypatch.setattr("gateway.platforms.base._HERMES_HOME", hermes_dir)
+        monkeypatch.setattr("gateway.platforms.base._AUTOLYCUS_HOME", lycus_dir)
 
         assert BasePlatformAdapter.validate_media_delivery_path(str(env_file)) is None
 

@@ -23,13 +23,13 @@ _install_detect_dirs() {
     _INSTALL_SCRIPT_DIR="$(cd "$(dirname "${1:-$0}" 2>/dev/null || echo .)" 2>/dev/null && pwd)" || _INSTALL_SCRIPT_DIR="."
 
     if [ ! -f "$_INSTALL_SCRIPT_DIR/../pyproject.toml" ] && [ ! -f "$_INSTALL_SCRIPT_DIR/pyproject.toml" ]; then
-        _INSTALL_SCRIPT_DIR="${LYCUS_HOME:-$HOME/compiled}/autolycus-agent"
+        _INSTALL_SCRIPT_DIR="${AUTOLYCUS_HOME:-$HOME/compiled}/autolycus-agent"
     fi
 
     _INSTALL_REPO_DIR="$(cd "$_INSTALL_SCRIPT_DIR/.." 2>/dev/null && pwd)" || _INSTALL_REPO_DIR="$_INSTALL_SCRIPT_DIR"
 
     if [ ! -f "$_INSTALL_REPO_DIR/pyproject.toml" ]; then
-        _INSTALL_REPO_DIR="${LYCUS_HOME:-$HOME/compiled}/autolycus-agent"
+        _INSTALL_REPO_DIR="${AUTOLYCUS_HOME:-$HOME/compiled}/autolycus-agent"
     fi
 
     cd "$_INSTALL_REPO_DIR"
@@ -41,34 +41,34 @@ _install_detect_dirs() {
 _install_setup_config() {
     printf '%b\n' "${CYAN}→${NC} Setting up configuration files..."
 
-    HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-    mkdir -p "$HERMES_HOME"/{cron,sessions,logs,memories,skills}
+    AUTOLYCUS_HOME="${AUTOLYCUS_HOME:-$HOME/.autolycus}"
+    mkdir -p "$AUTOLYCUS_HOME"/{cron,sessions,logs,memories,skills}
 
     # .env file
-    if [ ! -f "$HERMES_HOME/.env" ]; then
+    if [ ! -f "$AUTOLYCUS_HOME/.env" ]; then
         if [ -f ".env.example" ]; then
-            cp .env.example "$HERMES_HOME/.env"
-            printf '%b\n' "${GREEN}✓${NC} Created ~/.hermes/.env from template"
+            cp .env.example "$AUTOLYCUS_HOME/.env"
+            printf '%b\n' "${GREEN}✓${NC} Created ~/.autolycus/.env from template"
         else
-            touch "$HERMES_HOME/.env"
-            printf '%b\n' "${GREEN}✓${NC} Created ~/.hermes/.env"
+            touch "$AUTOLYCUS_HOME/.env"
+            printf '%b\n' "${GREEN}✓${NC} Created ~/.autolycus/.env"
         fi
     else
-        printf '%b\n' "${GREEN}✓${NC} ~/.hermes/.env already exists"
+        printf '%b\n' "${GREEN}✓${NC} ~/.autolycus/.env already exists"
     fi
 
     # config.yaml
-    if [ ! -f "$HERMES_HOME/config.yaml" ]; then
+    if [ ! -f "$AUTOLYCUS_HOME/config.yaml" ]; then
         if [ -f "cli-config.yaml.example" ]; then
-            cp cli-config.yaml.example "$HERMES_HOME/config.yaml"
-            printf '%b\n' "${GREEN}✓${NC} Created ~/.hermes/config.yaml from template"
+            cp cli-config.yaml.example "$AUTOLYCUS_HOME/config.yaml"
+            printf '%b\n' "${GREEN}✓${NC} Created ~/.autolycus/config.yaml from template"
         fi
     else
-        printf '%b\n' "${GREEN}✓${NC} ~/.hermes/config.yaml already exists"
+        printf '%b\n' "${GREEN}✓${NC} ~/.autolycus/config.yaml already exists"
     fi
 
     # Agent identity — assign a random name on first install
-    if [ ! -f "$HERMES_HOME/.hermes_agent_name" ]; then
+    if [ ! -f "$AUTOLYCUS_HOME/.autolycus_agent_name" ]; then
         AGENT_NAMES="Atlas Bastion Cipher Drift Echo Flux Glint Haven Ion Jinx Kairo Lumen Nexus Orbit Prism Quill Rift Spark Talus Vex Warden Zephyr Axiom Blaze Coda Dusk Ember Frost Grail Haze Inferno Jade Kite Lance Mist Nova Onyx Pulse Quasar Rune Sage Titan Umber Volt Wrath Xenon Yucca Zenith Apex Bolt Crux Dune Eclipse Forge Gale Horizon Ignis Jolt Kinetic Lynx Magma Nimbus Opal Phoenix Quantum Radar Solar Terra Ultra Vector Wraith Yield Zen Arc"
         if [ -n "${RANDOM:-}" ]; then
             IDX=$((RANDOM % 78))
@@ -78,16 +78,16 @@ _install_setup_config() {
         fi
         AGENT_NAME=$(echo "$AGENT_NAMES" | tr ' ' '\n' | sed -n "$((IDX + 1))p")
         [ -z "$AGENT_NAME" ] && AGENT_NAME="Terra"
-        echo "$AGENT_NAME" > "$HERMES_HOME/.hermes_agent_name"
+        echo "$AGENT_NAME" > "$AUTOLYCUS_HOME/.autolycus_agent_name"
         printf '%b\n' "${GREEN}✓${NC} Agent identity assigned: $AGENT_NAME"
     else
-        EXISTING_NAME=$(cat "$HERMES_HOME/.hermes_agent_name")
+        EXISTING_NAME=$(cat "$AUTOLYCUS_HOME/.autolycus_agent_name")
         printf '%b\n' "${GREEN}✓${NC} Agent identity: $EXISTING_NAME"
     fi
 
     # SOUL.md
-    if [ ! -f "$HERMES_HOME/SOUL.md" ]; then
-        cat > "$HERMES_HOME/SOUL.md" << 'SOUL_EOF'
+    if [ ! -f "$AUTOLYCUS_HOME/SOUL.md" ]; then
+        cat > "$AUTOLYCUS_HOME/SOUL.md" << 'SOUL_EOF'
 # Autolycus Agent Persona
 
 <!--
@@ -99,7 +99,7 @@ This file is loaded fresh each message -- no restart needed.
 Delete the contents (or this file) to use the default personality.
 -->
 SOUL_EOF
-        printf '%b\n' "${GREEN}✓${NC} Created ~/.hermes/SOUL.md"
+        printf '%b\n' "${GREEN}✓${NC} Created ~/.autolycus/SOUL.md"
     fi
 }
 
@@ -113,7 +113,7 @@ _install_sync_skills() {
         printf '%b\n' "${GREEN}✓${NC} Skills synced"
     else
         if [ -d "skills" ]; then
-            cp -rn "skills/"* "$HOME/.hermes/skills/" 2>/dev/null || true
+            cp -rn "skills/"* "$HOME/.autolycus/skills/" 2>/dev/null || true
             printf '%b\n' "${GREEN}✓${NC} Skills copied (fallback)"
         fi
     fi

@@ -13,11 +13,11 @@ through a thin wrapper that mirrors the real dispatch shape.
 
 from unittest.mock import patch
 
-from cli import HermesCLI
+from cli import LycusCLI
 
 
 def _make_cli():
-    cli = HermesCLI.__new__(HermesCLI)
+    cli = LycusCLI.__new__(LycusCLI)
     cli._should_exit = False
     cli.conversation_history = []
     cli.agent = None

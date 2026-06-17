@@ -12,7 +12,7 @@ import pytest
 import asyncio
 
 from tools.mcp_oauth import (
-    HermesTokenStorage,
+    LycusTokenStorage,
     OAuthNonInteractiveError,
     build_oauth_auth,
     remove_oauth_tokens,
@@ -33,13 +33,13 @@ def _set_interactive_stdin(monkeypatch, *, is_tty: bool = True) -> None:
 
 
 # ---------------------------------------------------------------------------
-# HermesTokenStorage
+# LycusTokenStorage
 # ---------------------------------------------------------------------------
 
-class TestHermesTokenStorage:
+class TestLycusTokenStorage:
     def test_roundtrip_tokens(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("test-server")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("test-server")
 
         import asyncio
 
@@ -70,8 +70,8 @@ class TestHermesTokenStorage:
         0o644 = world-readable) before tightening to owner-only. Mirrors
         the fix shipped for ``agent/google_oauth.py`` in #19673.
         """
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("perm-test-server")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("perm-test-server")
 
         import asyncio
         mock_token = MagicMock()
@@ -93,15 +93,15 @@ class TestHermesTokenStorage:
         )
 
     def test_roundtrip_client_info(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("test-server")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("test-server")
         import asyncio
 
         assert asyncio.run(storage.get_client_info()) is None
 
         mock_client = MagicMock()
         mock_client.model_dump.return_value = {
-            "client_id": "hermes-123",
+            "client_id": "lycus-123",
             "client_secret": "secret",
         }
         asyncio.run(storage.set_client_info(mock_client))
@@ -110,8 +110,8 @@ class TestHermesTokenStorage:
         assert client_path.exists()
 
     def test_remove_cleans_up(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("test-server")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("test-server")
 
         # Create files
         d = tmp_path / "mcp-tokens"
@@ -124,8 +124,8 @@ class TestHermesTokenStorage:
         assert not (d / "test-server.client.json").exists()
 
     def test_has_cached_tokens(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("my-server")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("my-server")
 
         assert not storage.has_cached_tokens()
 
@@ -136,8 +136,8 @@ class TestHermesTokenStorage:
         assert storage.has_cached_tokens()
 
     def test_corrupt_tokens_returns_none(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("bad-server")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("bad-server")
 
         d = tmp_path / "mcp-tokens"
         d.mkdir(parents=True)
@@ -147,8 +147,8 @@ class TestHermesTokenStorage:
         assert asyncio.run(storage.get_tokens()) is None
 
     def test_corrupt_client_info_returns_none(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("bad-server")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("bad-server")
 
         d = tmp_path / "mcp-tokens"
         d.mkdir(parents=True)
@@ -169,7 +169,7 @@ class TestBuildOAuthAuth:
         except ImportError:
             pytest.skip("MCP SDK auth not available")
 
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         _set_interactive_stdin(monkeypatch)
         auth = build_oauth_auth("test", "https://example.com/mcp")
         assert isinstance(auth, OAuthClientProvider)
@@ -186,7 +186,7 @@ class TestBuildOAuthAuth:
         except ImportError:
             pytest.skip("MCP SDK auth not available")
 
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         _set_interactive_stdin(monkeypatch)
         build_oauth_auth("slack", "https://slack.example.com/mcp", {
             "client_id": "my-app-id",
@@ -206,7 +206,7 @@ class TestBuildOAuthAuth:
         except ImportError:
             pytest.skip("MCP SDK auth not available")
 
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         _set_interactive_stdin(monkeypatch)
         provider = build_oauth_auth("scoped", "https://example.com/mcp", {
             "scope": "read write admin",
@@ -319,28 +319,28 @@ class TestPathTraversal:
     """Verify server_name is sanitized to prevent path traversal."""
 
     def test_path_traversal_blocked(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("../../.ssh/config")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("../../.ssh/config")
         path = storage._tokens_path()
         # Should stay within mcp-tokens directory
         assert "mcp-tokens" in str(path)
         assert ".ssh" not in str(path.resolve())
 
     def test_dots_and_slashes_sanitized(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("../../../etc/passwd")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("../../../etc/passwd")
         path = storage._tokens_path()
         resolved = path.resolve()
         assert resolved.is_relative_to((tmp_path / "mcp-tokens").resolve())
 
     def test_normal_name_unchanged(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("my-mcp-server")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("my-mcp-server")
         assert "my-mcp-server.json" in str(storage._tokens_path())
 
     def test_special_chars_sanitized(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-        storage = HermesTokenStorage("server@host:8080/path")
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
+        storage = LycusTokenStorage("server@host:8080/path")
         path = storage._tokens_path()
         assert "@" not in path.name
         assert ":" not in path.name
@@ -411,7 +411,7 @@ class TestOAuthPortSharing:
         except ImportError:
             pytest.skip("MCP SDK auth not available")
 
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         _set_interactive_stdin(monkeypatch)
         build_oauth_auth("test-port", "https://example.com/mcp")
         assert mod._oauth_port is not None
@@ -425,7 +425,7 @@ class TestOAuthPortSharing:
 
 class TestRemoveOAuthTokens:
     def test_removes_files(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         d = tmp_path / "mcp-tokens"
         d.mkdir()
         (d / "myserver.json").write_text("{}")
@@ -437,7 +437,7 @@ class TestRemoveOAuthTokens:
         assert not (d / "myserver.client.json").exists()
 
     def test_no_error_when_files_missing(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         remove_oauth_tokens("nonexistent")  # should not raise
 
 
@@ -493,7 +493,7 @@ class TestBuildOAuthAuthNonInteractive:
         """Without cached tokens, non-interactive mode skips browser auth."""
         pytest.importorskip("mcp.client.auth")
 
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         mock_stdin = MagicMock()
         mock_stdin.isatty.return_value = False
         monkeypatch.setattr("tools.mcp_oauth.sys.stdin", mock_stdin)
@@ -505,7 +505,7 @@ class TestBuildOAuthAuthNonInteractive:
         """With cached tokens, non-interactive mode logs no 'no cached tokens' warning."""
         pytest.importorskip("mcp.client.auth")
 
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
         mock_stdin = MagicMock()
         mock_stdin.isatty.return_value = False
         monkeypatch.setattr("tools.mcp_oauth.sys.stdin", mock_stdin)
@@ -595,7 +595,7 @@ def test_build_oauth_auth_preserves_server_url_path():
     breaking RFC 9728 protected-resource validation against servers whose PRM
     advertises a path-scoped resource (Notion). The MCP SDK strips the path
     itself for authorization-server discovery via
-    ``OAuthContext.get_authorization_base_url``; Hermes must not pre-strip.
+    ``OAuthContext.get_authorization_base_url``; Lycus must not pre-strip.
     """
     from tools import mcp_oauth
 
@@ -609,7 +609,7 @@ def test_build_oauth_auth_preserves_server_url_path():
          patch.object(mcp_oauth, "OAuthClientProvider", _FakeProvider), \
          patch.object(mcp_oauth, "_is_interactive", return_value=True), \
          patch.object(mcp_oauth, "_maybe_preregister_client"), \
-         patch.object(mcp_oauth, "HermesTokenStorage") as mock_storage_cls:
+         patch.object(mcp_oauth, "LycusTokenStorage") as mock_storage_cls:
         mock_storage_cls.return_value = MagicMock(has_cached_tokens=lambda: True)
         build_oauth_auth(
             server_name="notion",
@@ -775,7 +775,7 @@ class TestPasteCallbackSkipToken:
         _paste_callback_reader(result)
         err = capsys.readouterr().err
         assert "OAuth skipped" in err
-        assert "hermes mcp login" in err
+        assert "lycus mcp login" in err
 
     def test_skip_does_not_overwrite_http_winner(self, monkeypatch):
         """If HTTP listener already wrote a code, `skip` must not stomp it."""

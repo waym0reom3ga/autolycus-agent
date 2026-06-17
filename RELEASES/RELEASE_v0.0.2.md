@@ -41,7 +41,7 @@ The core issue blocking all command execution has been resolved:
 Before this release, every command timed out with exit code 124. Now they work as expected:
 
 ```bash
-$ hermes
+$ lycus
 > What's my current directory?
 🔧 Using tool: terminal_tool
 $ pwd
@@ -102,11 +102,11 @@ export PATH="$HOME/.cargo/bin:$PATH"
 uv venv venv --python 3.11
 . venv/bin/activate
 uv pip install -e ".[modal,daytona,messaging,cron,cli,dev,tts-premium,slack,honcho,mcp]"
-mkdir -p ~/.local/bin && ln -sf $(pwd)/venv/bin/hermes ~/.local/bin/hermes
+mkdir -p ~/.local/bin && ln -sf $(pwd)/venv/bin/lycus ~/.local/bin/lycus
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ```
 
-Then run `hermes setup` to configure your model provider and API keys.
+Then run `lycus setup` to configure your model provider and API keys.
 
 ---
 
@@ -127,7 +127,7 @@ The ptyprocess package will be installed automatically as part of the core depen
 
 ### Credits
 
-Built on the [Hermes Agent](https://github.com/NousResearch/hermes-agent) architecture by Nous Research.  
+Built on the [Lycus Agent](https://github.com/NousResearch/lycus-agent) architecture by Nous Research.  
 An independent project by **Technetia Inc**.
 
 Special thanks to the FreeBSD community for maintaining a world-class Unix operating system.

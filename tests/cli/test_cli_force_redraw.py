@@ -14,13 +14,13 @@ from unittest.mock import MagicMock
 import pytest
 
 import cli as cli_mod
-from cli import HermesCLI
+from cli import LycusCLI
 
 
 @pytest.fixture
 def bare_cli():
-    """A HermesCLI with no __init__ — we only exercise the redraw helper."""
-    cli = object.__new__(HermesCLI)
+    """A LycusCLI with no __init__ — we only exercise the redraw helper."""
+    cli = object.__new__(LycusCLI)
     return cli
 
 
@@ -31,7 +31,7 @@ class TestForceFullRedraw:
         bare_cli._force_full_redraw()  # must not raise
 
     def test_missing_app_attr_is_safe(self, bare_cli):
-        # Simulate HermesCLI before the TUI has ever been constructed.
+        # Simulate LycusCLI before the TUI has ever been constructed.
         bare_cli._force_full_redraw()  # must not raise
 
     def test_sends_full_clear_replays_then_invalidates(self, bare_cli, monkeypatch):
@@ -77,7 +77,7 @@ class TestForceFullRedraw:
         prompt_toolkit's built-in Application._on_resize() starts with
         renderer.erase(leave_alternate_screen=False), which uses the renderer's
         cached cursor position to move back to the live prompt origin before
-        erase_down(). If Hermes resets the renderer first, that cursor position
+        erase_down(). If Lycus resets the renderer first, that cursor position
         is lost and stale prompt glyphs can remain after a narrow resize.
         """
         app = MagicMock()

@@ -94,10 +94,10 @@ you can do a comparison diff in Chrome DevTools Memory tab.
 
 ```bash
 node apps/desktop/scripts/profile-typing.mjs \
-  --chars=400 --cps=30 --out=/tmp/hermes-typing
-# → /tmp/hermes-typing.cpuprofile  (open in Chrome DevTools Performance)
-# → /tmp/hermes-typing.before.heapsnapshot
-# → /tmp/hermes-typing.after.heapsnapshot
+  --chars=400 --cps=30 --out=/tmp/lycus-typing
+# → /tmp/lycus-typing.cpuprofile  (open in Chrome DevTools Performance)
+# → /tmp/lycus-typing.before.heapsnapshot
+# → /tmp/lycus-typing.after.heapsnapshot
 ```
 
 Loading the cpuprofile: Chrome DevTools → Performance tab → drag the file

@@ -12,7 +12,7 @@ Uses Python standard library imaplib + smtplib with SSL/TLS.
 Supports both implicit SSL (IMAP4_SSL/SMTP_SSL) and STARTTLS upgrade.
 Auto-detects TLS mode from port numbers (993/465 = SSL, 143/587 = STARTTLS).
 
-Configuration via ~/.hermes/.env:
+Configuration via ~/.autolycus/.env:
     AGENT_MAIL_ADDRESS     -- Email address (e.g. agent@domain.local)
     AGENT_MAIL_PASSWORD    -- Email password
     AGENT_MAIL_IMAP_HOST   -- IMAP server host
@@ -56,7 +56,7 @@ def _load_agent_registry() -> Dict[str, str]:
     
     # Try to load from config.yaml
     try:
-        from hermes_cli.config import load_config
+        from lycus_cli.config import load_config
         config = load_config()
         agent_mail_config = config.get("agent_mail", {})
         agents.update(agent_mail_config.get("agents", {}))
@@ -416,7 +416,7 @@ def _send_email(
 def _handle_agent_mail_send(args: Dict[str, Any]) -> str:
     """Handle agent_mail_send tool call."""
     if not _check_mail_available():
-        return "Agent mail is not configured. Set AGENT_MAIL_ADDRESS, AGENT_MAIL_PASSWORD, AGENT_MAIL_IMAP_HOST, and AGENT_MAIL_SMTP_HOST in ~/.hermes/.env"
+        return "Agent mail is not configured. Set AGENT_MAIL_ADDRESS, AGENT_MAIL_PASSWORD, AGENT_MAIL_IMAP_HOST, and AGENT_MAIL_SMTP_HOST in ~/.autolycus/.env"
 
     to = args.get("to", "")
     subject = args.get("subject", "")
@@ -494,7 +494,7 @@ def _handle_agent_mail_settings(args: Dict[str, Any]) -> str:
 
     if not cfg["address"]:
         lines.append("")
-        lines.append("NOTE: Agent mail is not configured. Set the following in ~/.hermes/.env:")
+        lines.append("NOTE: Agent mail is not configured. Set the following in ~/.autolycus/.env:")
         lines.append("  AGENT_MAIL_ADDRESS=agent@domain.local")
         lines.append("  AGENT_MAIL_PASSWORD=***")
         lines.append("  AGENT_MAIL_IMAP_HOST=mail.domain.local")

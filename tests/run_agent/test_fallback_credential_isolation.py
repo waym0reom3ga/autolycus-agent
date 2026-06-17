@@ -82,7 +82,7 @@ class TestFallbackCredentialIsolation:
     def test_fallback_clears_primary_pool(self):
         """When switching from openai-codex to openrouter, the codex pool is cleared."""
         # Import the real method
-        sys.path.insert(0, "/mnt/g/knowledge/project/hermes-agent")
+        sys.path.insert(0, "/mnt/g/knowledge/project/lycus-agent")
         # We test the isolation logic directly, not the full _try_activate_fallback
         # which has many dependencies. Instead we verify the pool-clearing guard.
 

@@ -162,8 +162,8 @@ function circularDistance(a: number, b: number): number {
   return Math.min(distance, 1 - distance)
 }
 
-// Mirrors @hermes/ink's colorize.ts. Keep local: app code compiles from
-// ui-tui/src, while @hermes/ink is bundled separately from packages/.
+// Mirrors @lycus/ink's colorize.ts. Keep local: app code compiles from
+// ui-tui/src, while @lycus/ink is bundled separately from packages/.
 function richEightBitColorNumber(red: number, green: number, blue: number): number {
   const [, saturation, lightness] = rgbToHsl(red, green, blue)
 
@@ -410,7 +410,7 @@ function backgroundLuminance(raw: string): null | number {
 //      allow-list below cannot override an explicit dark profile.
 //   5. `TERM_PROGRAM` light-default allow-list.
 //
-// Anything we can't decide stays dark — the default Hermes palette
+// Anything we can't decide stays dark — the default Lycus palette
 // is the dark one.
 export function detectLightMode(
   env: NodeJS.ProcessEnv = process.env,

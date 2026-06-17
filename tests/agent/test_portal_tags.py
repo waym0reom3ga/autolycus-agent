@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 
-def test_hermes_client_tag_includes_current_version():
-    """The client tag must reflect hermes_cli.__version__ verbatim."""
-    from hermes_cli import __version__
-    from agent.portal_tags import hermes_client_tag
+def test_lycus_client_tag_includes_current_version():
+    """The client tag must reflect lycus_cli.__version__ verbatim."""
+    from lycus_cli import __version__
+    from agent.portal_tags import lycus_client_tag
 
-    assert hermes_client_tag() == f"client=hermes-client-v{__version__}"
+    assert lycus_client_tag() == f"client=lycus-client-v{__version__}"
 
 
-def test_hermes_client_tag_format():
+def test_lycus_client_tag_format():
     """The client tag has the exact shape Nous Portal expects."""
-    from agent.portal_tags import hermes_client_tag
+    from agent.portal_tags import lycus_client_tag
 
-    tag = hermes_client_tag()
-    assert tag.startswith("client=hermes-client-v")
+    tag = lycus_client_tag()
+    assert tag.startswith("client=lycus-client-v")
     # No spaces, no commas — single tag value
     assert " " not in tag
     assert "," not in tag
@@ -24,11 +24,11 @@ def test_hermes_client_tag_format():
 
 def test_nous_portal_tags_contains_product_and_client():
     """Every Nous Portal request gets BOTH the product tag and the version tag."""
-    from agent.portal_tags import hermes_client_tag, nous_portal_tags
+    from agent.portal_tags import lycus_client_tag, nous_portal_tags
 
     tags = nous_portal_tags()
-    assert "product=hermes-agent" in tags
-    assert hermes_client_tag() in tags
+    assert "product=lycus-agent" in tags
+    assert lycus_client_tag() in tags
     assert len(tags) == 2
 
 

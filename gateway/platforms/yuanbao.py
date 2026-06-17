@@ -103,7 +103,7 @@ logger = logging.getLogger(__name__)
 # Version / platform constants (used in AUTH_BIND and sign-token headers)
 # ---------------------------------------------------------------------------
 try:
-    from hermes_cli import __version__ as _HERMES_VERSION
+    from lycus_cli import __version__ as _HERMES_VERSION
 except ImportError:
     _HERMES_VERSION = "0.0.0"
 
@@ -1617,11 +1617,11 @@ class AutoSetHomeMiddleware(InboundMiddleware):
                 adapter._auto_sethome_done = True  # DM seen — no further upgrades needed
             if _should_set:
                 try:
-                    from hermes_constants import get_hermes_home
+                    from lycus_constants import get_lycus_home
                     from utils import atomic_yaml_write
                     import yaml
 
-                    _home = get_hermes_home()
+                    _home = get_lycus_home()
                     config_path = _home / "config.yaml"
                     user_config: dict = {}
                     if config_path.exists():

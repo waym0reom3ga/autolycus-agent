@@ -1,7 +1,7 @@
 """Regression test: set_runtime_main() must pass base_url/api_key/api_mode
 so that _resolve_auto() can route custom: providers in Step 1.
 
-Fixes https://github.com/NousResearch/hermes-agent/issues/34777
+Fixes https://github.com/NousResearch/lycus-agent/issues/34777
 """
 import pytest
 from unittest.mock import patch, MagicMock
@@ -159,15 +159,15 @@ class TestResolveAutoCustomEndToEnd:
         for var in ("OPENROUTER_API_KEY", "NOUS_API_KEY", "OPENAI_API_KEY",
                     "OPENAI_BASE_URL"):
             monkeypatch.delenv(var, raising=False)
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        (hermes_home / "config.yaml").write_text(
+        lycus_home = tmp_path / ".autolycus"
+        lycus_home.mkdir()
+        (lycus_home / "config.yaml").write_text(
             "model:\n"
             "  default: glm-5.1\n"
             "  provider: 'custom:ephemeral'\n"
             "  base_url: ''\n"
         )
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(lycus_home))
 
         mod.clear_runtime_main()
         try:
@@ -198,9 +198,9 @@ class TestResolveAutoCustomEndToEnd:
         for var in ("OPENROUTER_API_KEY", "NOUS_API_KEY", "OPENAI_API_KEY",
                     "OPENAI_BASE_URL"):
             monkeypatch.delenv(var, raising=False)
-        hermes_home = tmp_path / ".hermes"
-        hermes_home.mkdir()
-        (hermes_home / "config.yaml").write_text(
+        lycus_home = tmp_path / ".autolycus"
+        lycus_home.mkdir()
+        (lycus_home / "config.yaml").write_text(
             "model:\n"
             "  default: glm-5.1\n"
             "  provider: 'custom:openclaw'\n"
@@ -211,7 +211,7 @@ class TestResolveAutoCustomEndToEnd:
             "    model: glm-5.1\n"
             "    api_key: cfg-key\n"
         )
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(lycus_home))
 
         # No live base_url carried — resolution must come from config alone,
         # via the named-custom branch in resolve_provider_client.

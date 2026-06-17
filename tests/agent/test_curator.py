@@ -15,11 +15,11 @@ import pytest
 
 @pytest.fixture
 def curator_env(tmp_path, monkeypatch):
-    """Isolated HERMES_HOME + freshly reloaded curator + skill_usage modules."""
-    home = tmp_path / ".hermes"
+    """Isolated AUTOLYCUS_HOME + freshly reloaded curator + skill_usage modules."""
+    home = tmp_path / ".autolycus"
     (home / "skills").mkdir(parents=True)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
 
     import tools.skill_usage as usage
     importlib.reload(usage)
@@ -476,7 +476,7 @@ def test_run_review_records_state(curator_env):
 def test_dry_run_does_not_advance_state(curator_env, monkeypatch):
     """Dry-run previews must not bump last_run_at or run_count. A preview
     shouldn't defer the next scheduled real pass or look like a real run in
-    `hermes curator status`. Fixes #18373.
+    `lycus curator status`. Fixes #18373.
     """
     c = curator_env["curator"]
     u = curator_env["usage"]
@@ -790,8 +790,8 @@ def test_curator_review_prompt_offers_support_file_actions():
 
 
 def test_cli_unpin_refuses_bundled_skill(curator_env, capsys):
-    """hermes curator unpin must refuse bundled/hub skills too (matches pin)."""
-    from hermes_cli import curator as cli
+    """lycus curator unpin must refuse bundled/hub skills too (matches pin)."""
+    from lycus_cli import curator as cli
     skills_dir = curator_env["home"] / "skills"
     _write_skill(skills_dir, "ship-skill")
     (skills_dir / ".bundled_manifest").write_text(
@@ -808,7 +808,7 @@ def test_cli_unpin_refuses_bundled_skill(curator_env, capsys):
 
 
 def test_cli_pin_refuses_bundled_skill(curator_env, capsys):
-    from hermes_cli import curator as cli
+    from lycus_cli import curator as cli
     skills_dir = curator_env["home"] / "skills"
     _write_skill(skills_dir, "ship-skill")
     (skills_dir / ".bundled_manifest").write_text(
@@ -828,7 +828,7 @@ def test_cli_pin_refuses_bundled_skill(curator_env, capsys):
 # curator review-model resolution (canonical auxiliary.curator slot)
 #
 # Curator was unified with the rest of the aux task system in Apr 2026 so
-# `hermes model` → auxiliary picker, the dashboard Models tab, and the full
+# `lycus model` → auxiliary picker, the dashboard Models tab, and the full
 # per-task config (timeout, base_url, api_key, extra_body) all work for it.
 # Voscko report: curator.auxiliary.{provider,model} was advertised but never
 # read. Fix wires curator through auxiliary.curator with a legacy fallback.
@@ -1030,9 +1030,9 @@ def test_curator_slot_is_canonical_aux_task():
     (test_aux_config.py) for the main tasks — this test pins `curator`
     specifically so the unification doesn't silently regress.
     """
-    from hermes_cli.config import DEFAULT_CONFIG
-    from hermes_cli.main import _AUX_TASKS
-    from hermes_cli.web_server import _AUX_TASK_SLOTS
+    from lycus_cli.config import DEFAULT_CONFIG
+    from lycus_cli.main import _AUX_TASKS
+    from lycus_cli.web_server import _AUX_TASK_SLOTS
 
     # 1. DEFAULT_CONFIG.auxiliary — schema source
     assert "curator" in DEFAULT_CONFIG["auxiliary"], \
@@ -1042,11 +1042,11 @@ def test_curator_slot_is_canonical_aux_task():
     assert slot["model"] == ""
     assert slot["timeout"] > 0, "curator timeout should be set (reviews run long)"
 
-    # 2. hermes_cli/main.py _AUX_TASKS — CLI picker
+    # 2. lycus_cli/main.py _AUX_TASKS — CLI picker
     aux_keys = {k for k, _name, _desc in _AUX_TASKS}
     assert "curator" in aux_keys, "curator missing from _AUX_TASKS (CLI picker)"
 
-    # 3. hermes_cli/web_server.py _AUX_TASK_SLOTS — REST API allowlist
+    # 3. lycus_cli/web_server.py _AUX_TASK_SLOTS — REST API allowlist
     assert "curator" in _AUX_TASK_SLOTS, \
         "curator missing from _AUX_TASK_SLOTS (dashboard REST API)"
 

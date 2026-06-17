@@ -2,7 +2,7 @@
 
 Complements ``tests/tools/test_windows_compat.py`` (which does source-level
 pattern linting) with cross-platform-mocked tests that exercise the actual
-code paths Hermes takes on native Windows.
+code paths Lycus takes on native Windows.
 
 Runs on Linux CI — every test mocks ``sys.platform``, ``subprocess.run``,
 and ``os.kill`` as needed to simulate Windows behavior without requiring a
@@ -26,7 +26,7 @@ import pytest
 
 
 class TestConfigureWindowsStdio:
-    """``hermes_cli.stdio.configure_windows_stdio`` wiring.
+    """``lycus_cli.stdio.configure_windows_stdio`` wiring.
 
     The function must:
     - be a no-op on non-Windows
@@ -41,30 +41,30 @@ class TestConfigureWindowsStdio:
     def _reset_configured(self, monkeypatch):
         """Reload the module before each test so the _CONFIGURED flag resets."""
         # Remove from sys.modules so import triggers a fresh load
-        sys.modules.pop("hermes_cli.stdio", None)
-        # Fresh import now; tests import from hermes_cli.stdio themselves,
+        sys.modules.pop("lycus_cli.stdio", None)
+        # Fresh import now; tests import from lycus_cli.stdio themselves,
         # but this guarantees the module they get is a brand-new copy.
-        import hermes_cli.stdio as _s
+        import lycus_cli.stdio as _s
         _s._CONFIGURED = False
         yield
-        sys.modules.pop("hermes_cli.stdio", None)
+        sys.modules.pop("lycus_cli.stdio", None)
 
     def test_no_op_on_posix(self):
-        from hermes_cli import stdio
+        from lycus_cli import stdio
 
         assert stdio.is_windows() is False
         result = stdio.configure_windows_stdio()
         assert result is False
 
     def test_idempotent(self):
-        from hermes_cli import stdio
+        from lycus_cli import stdio
 
         stdio.configure_windows_stdio()
         # Second call returns False because _CONFIGURED is set
         assert stdio.configure_windows_stdio() is False
 
     def test_windows_path_sets_env_and_reconfigures_streams(self, monkeypatch):
-        from hermes_cli import stdio
+        from lycus_cli import stdio
 
         monkeypatch.setattr(stdio, "is_windows", lambda: True)
         # Pretend the user has no prior setting
@@ -103,7 +103,7 @@ class TestConfigureWindowsStdio:
 
     def test_respects_existing_editor_var(self, monkeypatch):
         """User's explicit EDITOR wins over our default."""
-        from hermes_cli import stdio
+        from lycus_cli import stdio
 
         monkeypatch.setattr(stdio, "is_windows", lambda: True)
         monkeypatch.setenv("EDITOR", "code --wait")
@@ -116,7 +116,7 @@ class TestConfigureWindowsStdio:
 
     def test_respects_existing_visual_var(self, monkeypatch):
         """VISUAL takes precedence over our EDITOR default too."""
-        from hermes_cli import stdio
+        from lycus_cli import stdio
 
         monkeypatch.setattr(stdio, "is_windows", lambda: True)
         monkeypatch.delenv("EDITOR", raising=False)
@@ -133,7 +133,7 @@ class TestConfigureWindowsStdio:
 
     def test_respects_existing_env_var(self, monkeypatch):
         """User's explicit PYTHONIOENCODING wins over our default."""
-        from hermes_cli import stdio
+        from lycus_cli import stdio
 
         monkeypatch.setattr(stdio, "is_windows", lambda: True)
         monkeypatch.setenv("PYTHONIOENCODING", "latin-1")
@@ -145,7 +145,7 @@ class TestConfigureWindowsStdio:
 
     @pytest.mark.parametrize("optout", ["1", "true", "True", "yes"])
     def test_disable_flag_short_circuits(self, monkeypatch, optout):
-        from hermes_cli import stdio
+        from lycus_cli import stdio
 
         monkeypatch.setattr(stdio, "is_windows", lambda: True)
         monkeypatch.setenv("HERMES_DISABLE_WINDOWS_UTF8", optout)
@@ -163,7 +163,7 @@ class TestConfigureWindowsStdio:
 
     def test_reconfigure_stream_handles_missing_method(self, monkeypatch):
         """StringIO-like objects without .reconfigure() must not blow up."""
-        from hermes_cli import stdio
+        from lycus_cli import stdio
         import io
 
         buf = io.StringIO()
@@ -292,7 +292,7 @@ class TestSigkillFallback:
     @pytest.mark.parametrize(
         "module_path, line_pattern",
         [
-            ("hermes_cli.kanban_db", 'getattr(signal, "SIGKILL", signal.SIGTERM)'),
+            ("lycus_cli.kanban_db", 'getattr(signal, "SIGKILL", signal.SIGTERM)'),
         ],
     )
     def test_module_uses_getattr_fallback(self, module_path, line_pattern):
@@ -470,7 +470,7 @@ class TestWebServerPtyBridgeGuard:
 
     def test_import_guard_present_in_source(self):
         root = Path(__file__).resolve().parents[2]
-        source = (root / "hermes_cli" / "web_server.py").read_text(encoding="utf-8")
+        source = (root / "lycus_cli" / "web_server.py").read_text(encoding="utf-8")
         assert "_PTY_BRIDGE_AVAILABLE" in source
         assert "except ImportError" in source, (
             "web_server.py must wrap the pty_bridge import in try/except ImportError"
@@ -479,7 +479,7 @@ class TestWebServerPtyBridgeGuard:
     def test_pty_handler_checks_availability_flag(self):
         """The /api/pty handler must short-circuit when the bridge is unavailable."""
         root = Path(__file__).resolve().parents[2]
-        source = (root / "hermes_cli" / "web_server.py").read_text(encoding="utf-8")
+        source = (root / "lycus_cli" / "web_server.py").read_text(encoding="utf-8")
         assert "if not _PTY_BRIDGE_AVAILABLE" in source, (
             "/api/pty handler must return a friendly error when PTY is unavailable"
         )
@@ -491,17 +491,17 @@ class TestWebServerPtyBridgeGuard:
 
 
 class TestEntryPointsConfigureStdio:
-    """cli.py, hermes_cli/main.py, gateway/run.py must call configure_windows_stdio."""
+    """cli.py, lycus_cli/main.py, gateway/run.py must call configure_windows_stdio."""
 
     @pytest.mark.parametrize(
         "relpath",
-        ["cli.py", "hermes_cli/main.py", "gateway/run.py"],
+        ["cli.py", "lycus_cli/main.py", "gateway/run.py"],
     )
     def test_entry_point_calls_configure_stdio(self, relpath):
         root = Path(__file__).resolve().parents[2]
         source = (root / relpath).read_text(encoding="utf-8")
         assert "configure_windows_stdio" in source, (
-            f"{relpath} must call hermes_cli.stdio.configure_windows_stdio() "
+            f"{relpath} must call lycus_cli.stdio.configure_windows_stdio() "
             "early in startup so Windows consoles render Unicode without crashing"
         )
 
@@ -512,15 +512,15 @@ class TestEntryPointsConfigureStdio:
 
 
 class TestSubprocessCompatHelpers:
-    """hermes_cli/_subprocess_compat.py POSIX + Windows behaviour."""
+    """lycus_cli/_subprocess_compat.py POSIX + Windows behaviour."""
 
     def test_is_windows_matches_sys_platform(self):
-        from hermes_cli import _subprocess_compat as sc
+        from lycus_cli import _subprocess_compat as sc
         assert sc.IS_WINDOWS == (sys.platform == "win32")
 
     def test_resolve_node_command_returns_absolute_on_posix(self):
         """On Linux, resolve_node_command('sh', ['-c','echo hi']) picks up /bin/sh."""
-        from hermes_cli._subprocess_compat import resolve_node_command
+        from lycus_cli._subprocess_compat import resolve_node_command
         # We can't assert "npm is on PATH" portably; use `sh` which is
         # guaranteed on POSIX.  On Windows the test only confirms the
         # no-crash fallback path.
@@ -530,7 +530,7 @@ class TestSubprocessCompatHelpers:
         # name (fallback) — both are acceptable behaviours.
 
     def test_resolve_node_command_fallback_when_absent(self):
-        from hermes_cli._subprocess_compat import resolve_node_command
+        from lycus_cli._subprocess_compat import resolve_node_command
         argv = resolve_node_command(
             "zzz-definitely-not-on-path-xyzzy", ["--help"]
         )
@@ -539,7 +539,7 @@ class TestSubprocessCompatHelpers:
         assert argv[1:] == ["--help"]
 
     def test_windows_flags_zero_on_posix(self):
-        from hermes_cli._subprocess_compat import (
+        from lycus_cli._subprocess_compat import (
             windows_detach_flags,
             windows_detach_flags_without_breakaway,
             windows_hide_flags,
@@ -550,7 +550,7 @@ class TestSubprocessCompatHelpers:
             assert windows_hide_flags() == 0
 
     def test_windows_detach_popen_kwargs_is_posix_equivalent_on_posix(self):
-        from hermes_cli._subprocess_compat import windows_detach_popen_kwargs
+        from lycus_cli._subprocess_compat import windows_detach_popen_kwargs
         kwargs = windows_detach_popen_kwargs()
         if sys.platform != "win32":
             # POSIX path MUST produce start_new_session=True, which maps to
@@ -568,7 +568,7 @@ class TestSubprocessCompatHelpers:
 
     def test_windows_detach_flags_has_expected_win32_bits(self, monkeypatch):
         """Simulate Windows to verify flag bundle."""
-        from hermes_cli import _subprocess_compat as sc
+        from lycus_cli import _subprocess_compat as sc
         monkeypatch.setattr(sc, "IS_WINDOWS", True)
         flags = sc.windows_detach_flags()
         # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS | CREATE_NO_WINDOW |
@@ -581,8 +581,8 @@ class TestSubprocessCompatHelpers:
     def test_windows_detach_flags_includes_breakaway_from_job(self, monkeypatch):
         """CREATE_BREAKAWAY_FROM_JOB is load-bearing for the GUI-driven update path.
 
-        Without it, the gateway-respawn watcher spawned by ``hermes update``
-        (which runs under hermes-setup.exe, itself a grandchild of the
+        Without it, the gateway-respawn watcher spawned by ``lycus update``
+        (which runs under lycus-setup.exe, itself a grandchild of the
         Electron Desktop app) gets reaped when Electron exits and its
         Win32 job object is torn down by the OS.  Result: gateway dies
         during update and never comes back.
@@ -592,7 +592,7 @@ class TestSubprocessCompatHelpers:
         ``fix/windows-gateway-reliability`` (PR #40909) and the bit must
         stay in the default bundle going forward.
         """
-        from hermes_cli import _subprocess_compat as sc
+        from lycus_cli import _subprocess_compat as sc
         monkeypatch.setattr(sc, "IS_WINDOWS", True)
         assert sc.windows_detach_flags() & 0x01000000, (
             "CREATE_BREAKAWAY_FROM_JOB (0x01000000) must remain in the "
@@ -612,7 +612,7 @@ class TestSubprocessCompatHelpers:
         It must drop ONLY the breakaway bit — DETACHED_PROCESS et al.
         are still required for the child to survive the parent's exit.
         """
-        from hermes_cli import _subprocess_compat as sc
+        from lycus_cli import _subprocess_compat as sc
         monkeypatch.setattr(sc, "IS_WINDOWS", True)
         full = sc.windows_detach_flags()
         fallback = sc.windows_detach_flags_without_breakaway()
@@ -660,7 +660,7 @@ class TestTuiGatewayEntrySignalGuards:
 
 
 # ---------------------------------------------------------------------------
-# hermes_cli/kanban_db.py waitpid guard
+# lycus_cli/kanban_db.py waitpid guard
 # ---------------------------------------------------------------------------
 
 
@@ -670,7 +670,7 @@ class TestKanbanWaitpidWindowsGuard:
 
     def test_source_gates_waitpid_loop(self):
         root = Path(__file__).resolve().parents[2]
-        source = (root / "hermes_cli" / "kanban_db.py").read_text(encoding="utf-8")
+        source = (root / "lycus_cli" / "kanban_db.py").read_text(encoding="utf-8")
         # Find the waitpid call and confirm it's inside a POSIX gate.
         idx = source.find("os.waitpid(-1, os.WNOHANG)")
         assert idx > 0, "waitpid call must exist"
@@ -758,14 +758,14 @@ class TestCronSchedulerBashResolution:
 
 class TestNpmBareSpawnsResolved:
     """Every spawn site that launches ``npm``/``npx`` must resolve via
-    shutil.which / hermes_cli._subprocess_compat.resolve_node_command
+    shutil.which / lycus_cli._subprocess_compat.resolve_node_command
     so Windows can execute the .cmd batch shims."""
 
     @pytest.mark.parametrize(
         "relpath",
         [
-            "hermes_cli/tools_config.py",
-            "hermes_cli/doctor.py",
+            "lycus_cli/tools_config.py",
+            "lycus_cli/doctor.py",
             "gateway/platforms/whatsapp.py",
             "tools/browser_tool.py",
         ],
@@ -832,12 +832,12 @@ class TestLocalEnvironmentWindowsTempDir:
                 f"POSIX temp dir must start with '/'; got {tmp_dir!r}"
             )
 
-    def test_source_has_windows_branch_using_hermes_home(self):
+    def test_source_has_windows_branch_using_lycus_home(self):
         root = Path(__file__).resolve().parents[2]
         source = (root / "tools" / "environments" / "local.py").read_text(encoding="utf-8")
         assert "if _IS_WINDOWS:" in source
-        assert "get_hermes_home" in source
-        assert 'cache_dir = get_hermes_home() / "cache" / "terminal"' in source
+        assert "get_lycus_home" in source
+        assert 'cache_dir = get_lycus_home() / "cache" / "terminal"' in source
 
 
 class TestLocalEnvironmentPathInjectionGated:
@@ -915,11 +915,11 @@ class TestGatewayDetachedWatcherWindowsFlags:
     launcher must use CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS on
     Windows, not silent start_new_session=True."""
 
-    def test_hermes_cli_gateway_uses_compat_kwargs(self):
+    def test_lycus_cli_gateway_uses_compat_kwargs(self):
         root = Path(__file__).resolve().parents[2]
-        source = (root / "hermes_cli" / "gateway.py").read_text(encoding="utf-8")
+        source = (root / "lycus_cli" / "gateway.py").read_text(encoding="utf-8")
         assert "windows_detach_popen_kwargs" in source, (
-            "hermes_cli/gateway.py must use the platform-aware detach helper"
+            "lycus_cli/gateway.py must use the platform-aware detach helper"
         )
         # The legacy start_new_session=True on the outer Popen should be
         # replaced by **windows_detach_popen_kwargs(). Inside the watcher
@@ -948,7 +948,7 @@ class TestGatewayDetachedWatcherWindowsFlags:
         ensures a future refactor of the dedent block doesn't silently drop it.
         """
         root = Path(__file__).resolve().parents[2]
-        text = (root / "hermes_cli" / "gateway.py").read_text(encoding="utf-8")
+        text = (root / "lycus_cli" / "gateway.py").read_text(encoding="utf-8")
         marker = "watcher = textwrap.dedent("
         idx = text.find(marker)
         assert idx != -1, "watcher block not found in gateway.py"
@@ -987,7 +987,7 @@ class TestGatewayDetachedWatcherWindowsFlags:
         is the regression guard.
         """
         root = Path(__file__).resolve().parents[2]
-        text = (root / "hermes_cli" / "gateway.py").read_text(encoding="utf-8")
+        text = (root / "lycus_cli" / "gateway.py").read_text(encoding="utf-8")
         assert "windows_detach_flags_without_breakaway" in text, (
             "launch_detached_profile_gateway_restart must import "
             "windows_detach_flags_without_breakaway so it can retry a "

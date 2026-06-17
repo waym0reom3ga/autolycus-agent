@@ -1,1 +1,1 @@
-# Hermes plugins package
+# Lycus plugins package

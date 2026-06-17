@@ -23,7 +23,7 @@ describe('PreviewPane console state', () => {
     $connection.set({ mode: 'remote' } as never)
     vi.stubGlobal('window', {
       ...window,
-      hermesDesktop: {
+      lycusDesktop: {
         onPreviewFileChanged,
         watchPreviewFile
       }

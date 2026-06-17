@@ -18,8 +18,8 @@ class TestBuildOrHeaders:
         from agent.auxiliary_client import build_or_headers
 
         headers = build_or_headers(or_config={"response_cache": False})
-        assert headers["HTTP-Referer"] == "https://hermes-agent.nousresearch.com"
-        assert headers["X-Title"] == "Hermes Agent"
+        assert headers["HTTP-Referer"] == "https://lycus-agent.nousresearch.com"
+        assert headers["X-Title"] == "Lycus Agent"
         assert headers["X-OpenRouter-Categories"] == "productivity,cli-agent"
 
     def test_cache_enabled(self):
@@ -119,7 +119,7 @@ class TestBuildOrHeaders:
         fake_cfg = {
             "openrouter": {"response_cache": True, "response_cache_ttl": 900},
         }
-        with patch("hermes_cli.config.load_config", return_value=fake_cfg):
+        with patch("lycus_cli.config.load_config", return_value=fake_cfg):
             headers = build_or_headers(or_config=None)
         assert headers["X-OpenRouter-Cache"] == "true"
         assert headers["X-OpenRouter-Cache-TTL"] == "900"
@@ -128,7 +128,7 @@ class TestBuildOrHeaders:
         """When load_config() fails, build_or_headers still returns base headers."""
         from agent.auxiliary_client import build_or_headers
 
-        with patch("hermes_cli.config.load_config", side_effect=RuntimeError("boom")):
+        with patch("lycus_cli.config.load_config", side_effect=RuntimeError("boom")):
             headers = build_or_headers(or_config=None)
         # Should have base attribution but no cache headers
         assert "HTTP-Referer" in headers
@@ -224,7 +224,7 @@ class TestDefaultConfig:
     """Verify the openrouter config section is in DEFAULT_CONFIG."""
 
     def test_openrouter_section_exists(self):
-        from hermes_cli.config import DEFAULT_CONFIG
+        from lycus_cli.config import DEFAULT_CONFIG
 
         assert "openrouter" in DEFAULT_CONFIG
         or_cfg = DEFAULT_CONFIG["openrouter"]

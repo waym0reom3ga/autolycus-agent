@@ -112,13 +112,13 @@ def test_registered_sudo_callback_is_used_without_interactive_env(monkeypatch):
     terminal_tool.set_sudo_password_callback(sudo_callback)
     try:
         transformed, sudo_stdin = terminal_tool._transform_sudo_command(
-            "echo ok | sudo tee /tmp/hermes-test"
+            "echo ok | sudo tee /tmp/lycus-test"
         )
     finally:
         terminal_tool.set_sudo_password_callback(None)
 
     assert calls == ["called"]
-    assert transformed == "echo ok | sudo -S -p '' tee /tmp/hermes-test"
+    assert transformed == "echo ok | sudo -S -p '' tee /tmp/lycus-test"
     assert sudo_stdin == "callback-pass\n"
 
 

@@ -7,7 +7,7 @@ path's ``git stash`` aborts with "could not write index" and the following
 first" -- surfacing to GUI/bootstrap users as ``git checkout main failed
 (exit 1)`` and failing the whole install at the repository stage.
 
-The ``hermes update`` Python path already clears the conflict with ``git reset``
+The ``lycus update`` Python path already clears the conflict with ``git reset``
 before stashing (#4735); both installer scripts must do the same.
 """
 
@@ -79,7 +79,7 @@ def _make_unmerged_repo(repo: Path) -> None:
 
 @pytest.mark.live_system_guard_bypass  # runs against a dedicated throwaway repo
 def test_install_sh_clears_unmerged_index_then_stashes(tmp_path: Path) -> None:
-    repo = tmp_path / "hermes-agent"
+    repo = tmp_path / "lycus-agent"
     repo.mkdir()
     _make_unmerged_repo(repo)
 

@@ -19,14 +19,14 @@ import pytest
 
 
 @pytest.fixture()
-def hermes_home(tmp_path, monkeypatch):
-    home = tmp_path / ".hermes"
+def lycus_home(tmp_path, monkeypatch):
+    home = tmp_path / ".autolycus"
     home.mkdir()
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
 
-    # Bust the goal-module DB cache so it re-resolves HERMES_HOME.
-    from hermes_cli import goals
+    # Bust the goal-module DB cache so it re-resolves AUTOLYCUS_HOME.
+    from lycus_cli import goals
 
     goals._DB_CACHE.clear()
     yield home
@@ -34,12 +34,12 @@ def hermes_home(tmp_path, monkeypatch):
 
 
 @pytest.fixture()
-def server(hermes_home):
+def server(lycus_home):
     with patch.dict(
         "sys.modules",
         {
-            "hermes_cli.env_loader": MagicMock(),
-            "hermes_cli.banner": MagicMock(),
+            "lycus_cli.env_loader": MagicMock(),
+            "lycus_cli.banner": MagicMock(),
         },
     ):
         mod = importlib.import_module("tui_gateway.server")
@@ -114,7 +114,7 @@ def test_goal_set_returns_send_with_notice(server, session):
     assert "20-turn budget" in result["notice"]
 
     # Persisted in SessionDB
-    from hermes_cli.goals import GoalManager
+    from lycus_cli.goals import GoalManager
 
     mgr = GoalManager(session_key)
     assert mgr.state is not None
@@ -129,7 +129,7 @@ def test_goal_pause_after_set(server, session):
     assert r["result"]["type"] == "exec"
     assert "paused" in r["result"]["output"].lower()
 
-    from hermes_cli.goals import GoalManager
+    from lycus_cli.goals import GoalManager
 
     assert GoalManager(session_key).state.status == "paused"
 
@@ -142,7 +142,7 @@ def test_goal_resume_reactivates(server, session):
     assert r["result"]["type"] == "exec"
     assert "resumed" in r["result"]["output"].lower()
 
-    from hermes_cli.goals import GoalManager
+    from lycus_cli.goals import GoalManager
 
     assert GoalManager(session_key).state.status == "active"
 
@@ -154,7 +154,7 @@ def test_goal_clear_removes_active_goal(server, session):
     assert r["result"]["type"] == "exec"
     assert "cleared" in r["result"]["output"].lower()
 
-    from hermes_cli.goals import GoalManager
+    from lycus_cli.goals import GoalManager
 
     # After clear the row is marked status=cleared (kept for audit);
     # ``has_goal()`` / ``is_active()`` return False so the goal loop
@@ -187,7 +187,7 @@ def test_goal_requires_session(server):
 
 def test_slash_exec_rejects_goal_routes_to_command_dispatch(server, session):
     """slash.exec must reject /goal with 4018 so the TUI client falls through
-    to command.dispatch. Without this, the HermesCLI slash-worker subprocess
+    to command.dispatch. Without this, the LycusCLI slash-worker subprocess
     would set the goal but silently drop the kickoff — the queue is in-proc."""
     sid, _, _ = session
     r = _call(server, "slash.exec", command="goal status", session_id=sid)

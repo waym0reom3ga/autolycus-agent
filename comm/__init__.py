@@ -179,7 +179,7 @@ async def main():
     
     # Load config from environment
     config = CommConfig(
-        homeserver_url=os.getenv("LYCUS_HOMESERVER", "http://localhost:8008"),
+        homeserver_url=os.getenv("AUTOLYCUS_HOMESERVER", "http://localhost:8008"),
         username=os.getenv("LYCUS_USERNAME", "lycus"),
         password=os.getenv("LYCUS_PASSWORD", ""),
     )

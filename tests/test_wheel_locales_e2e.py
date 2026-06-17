@@ -118,7 +118,7 @@ def test_built_sdist_ships_locale_catalogs(tmp_path):
 
     with tarfile.open(tarballs[0]) as tf:
         # Members are prefixed with the sdist root dir, e.g.
-        # hermes_agent-0.15.1/locales/en.yaml — match on the suffix.
+        # lycus_agent-0.15.1/locales/en.yaml — match on the suffix.
         catalogs = [m for m in tf.getnames() if "/locales/" in m and m.endswith(".yaml")]
 
     # Compare against the canonical language list rather than a hardcoded floor

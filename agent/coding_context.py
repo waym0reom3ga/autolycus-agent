@@ -1,7 +1,7 @@
-"""Coding-context awareness — base Hermes, every interactive surface.
+"""Coding-context awareness — base Lycus, every interactive surface.
 
-When the user runs Hermes inside a code workspace (CLI, TUI, desktop app, or an
-editor over ACP), Hermes shifts into a **coding posture**. This module is the
+When the user runs Lycus inside a code workspace (CLI, TUI, desktop app, or an
+editor over ACP), Lycus shifts into a **coding posture**. This module is the
 single place that decides whether we're in that posture and what it implies,
 so the rest of the codebase never re-derives "are we coding?" on its own.
 
@@ -60,7 +60,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-logger = logging.getLogger("hermes.coding_context")
+logger = logging.getLogger("lycus.coding_context")
 
 CODING_TOOLSET = "coding"
 
@@ -123,7 +123,7 @@ _EDIT_FORMAT_GUIDANCE: dict[str, tuple[tuple[str, ...], str]] = {
     "replace": (
         ("claude", "sonnet", "opus", "haiku",
          "gemini", "gemma", "deepseek", "qwen", "kimi", "glm", "grok",
-         "hermes", "llama", "mistral", "devstral", "minimax"),
+         "lycus", "llama", "mistral", "devstral", "minimax"),
         "- Edit format: author new files with `write_file`; for edits to "
         "existing code prefer `patch` in `mode='replace'` — match a unique "
         "snippet and swap it. Reach for `mode='patch'` (V4A) only when an edit "
@@ -282,7 +282,7 @@ def _coding_mode(config: Optional[dict[str, Any]]) -> str:
     """Return the normalized ``agent.coding_context`` mode (auto/focus/on/off)."""
     if config is None:
         try:
-            from hermes_cli.config import load_config
+            from lycus_cli.config import load_config
 
             config = load_config()
         except Exception:
@@ -508,7 +508,7 @@ def is_coding_context(
     cwd: Optional[str | Path] = None,
     config: Optional[dict[str, Any]] = None,
 ) -> bool:
-    """Whether Hermes should operate in its coding posture right now."""
+    """Whether Lycus should operate in its coding posture right now."""
     return resolve_runtime_mode(platform=platform, cwd=cwd, config=config).is_coding
 
 
@@ -570,8 +570,8 @@ def _enabled_mcp_servers(config: Optional[dict[str, Any]]) -> list[str]:
     of the coding workflow, not noise to strip.
     """
     try:
-        from hermes_cli.config import read_raw_config
-        from hermes_cli.tools_config import _parse_enabled_flag
+        from lycus_cli.config import read_raw_config
+        from lycus_cli.tools_config import _parse_enabled_flag
 
         servers = read_raw_config().get("mcp_servers") or {}
         return [

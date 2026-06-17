@@ -12,7 +12,7 @@ credentials, cached system prompt) so it hits the same prefix cache and
 uses the same auth.  It runs with a tool whitelist limited to memory and
 skill management tools; everything else is denied at runtime.
 
-See the ``hermes-agent-dev`` skill (``references/self-improvement-loop.md``)
+See the ``lycus-agent-dev`` skill (``references/self-improvement-loop.md``)
 for invariants and PR review criteria.
 """
 
@@ -113,9 +113,9 @@ _SKILL_REVIEW_PROMPT = (
     "If you notice two existing skills that overlap, note it in your "
     "reply — the background curator handles consolidation at scale.\n\n"
     "Protected skills (DO NOT edit these):\n"
-    "  • Bundled skills (shipped with Hermes, e.g. 'hermes-agent').\n"
-    "  • Hub-installed skills (installed via 'hermes skills install').\n"
-    "Pinned skills (marked via 'hermes curator pin') CAN be improved — "
+    "  • Bundled skills (shipped with Lycus, e.g. 'lycus-agent').\n"
+    "  • Hub-installed skills (installed via 'lycus skills install').\n"
+    "Pinned skills (marked via 'lycus curator pin') CAN be improved — "
     "pin only blocks deletion/archive/consolidation by the curator, not "
     "content updates. Patch them when a pitfall or missing step turns up, "
     "same as any other agent-created skill.\n"
@@ -199,9 +199,9 @@ _COMBINED_REVIEW_PROMPT = (
     "If you notice overlapping existing skills, mention it — the "
     "background curator handles consolidation.\n\n"
     "Protected skills (DO NOT edit these):\n"
-    "  • Bundled skills (shipped with Hermes, e.g. 'hermes-agent').\n"
-    "  • Hub-installed skills (installed via 'hermes skills install').\n"
-    "Pinned skills (marked via 'hermes curator pin') CAN be improved — "
+    "  • Bundled skills (shipped with Lycus, e.g. 'lycus-agent').\n"
+    "  • Hub-installed skills (installed via 'lycus skills install').\n"
+    "Pinned skills (marked via 'lycus curator pin') CAN be improved — "
     "pin only blocks deletion/archive/consolidation by the curator, not "
     "content updates. Patch them when a pitfall or missing step turns up, "
     "same as any other agent-created skill.\n"
@@ -473,12 +473,12 @@ def _run_review_in_thread(
             _parent_runtime = agent._current_main_runtime()
             _parent_api_mode = _parent_runtime.get("api_mode") or None
             # The review fork needs to call agent-loop tools (memory,
-            # skill_manage). Those tools require Hermes' own dispatch,
+            # skill_manage). Those tools require Lycus' own dispatch,
             # which the codex_app_server runtime bypasses entirely
             # (it runs the turn inside codex's subprocess). So when
             # the parent is on codex_app_server, downgrade the review
             # fork to codex_responses — same auth/credentials, but
-            # talks to the OpenAI Responses API directly so Hermes
+            # talks to the OpenAI Responses API directly so Lycus
             # owns the loop and the agent-loop tools dispatch.
             if _parent_api_mode == "codex_app_server":
                 _parent_api_mode = "codex_responses"
@@ -534,7 +534,7 @@ def _run_review_in_thread(
             # the review fork's outbound HTTP request hits the same
             # Anthropic/OpenRouter prefix cache the parent warmed.
             # Without this, the fork rebuilds the system prompt from
-            # scratch (fresh _hermes_now() timestamp, fresh
+            # scratch (fresh _lycus_now() timestamp, fresh
             # session_id, narrower toolset → different skills_prompt)
             # and the byte-exact prefix-cache key misses. See
             # issue #25322 and PR #17276 for the full analysis +
@@ -563,7 +563,7 @@ def _run_review_in_thread(
             review_agent.compression_enabled = False
 
             from model_tools import get_tool_definitions
-            from hermes_cli.plugins import (
+            from lycus_cli.plugins import (
                 set_thread_tool_whitelist,
                 clear_thread_tool_whitelist,
             )

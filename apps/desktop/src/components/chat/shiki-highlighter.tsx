@@ -25,7 +25,7 @@ import { codiconForLanguage, isLikelyProseCodeBlock, sanitizeLanguageTag } from 
  * `react-shiki` full bundle so all `bundledLanguages` work; theme switches
  * follow the document `color-scheme` via `defaultColor="light-dark()"`.
  */
-interface HermesSyntaxHighlighterProps extends SyntaxHighlighterProps {
+interface LycusSyntaxHighlighterProps extends SyntaxHighlighterProps {
   defer?: boolean
 }
 
@@ -43,7 +43,7 @@ const SHIKI_COLOR_REPLACEMENTS: Record<string, Record<string, string>> = {
   'github-light-default': { '#6e7781': '#57606a' }
 }
 
-export const SyntaxHighlighter: FC<HermesSyntaxHighlighterProps> = ({
+export const SyntaxHighlighter: FC<LycusSyntaxHighlighterProps> = ({
   components: { Pre },
   language,
   code,

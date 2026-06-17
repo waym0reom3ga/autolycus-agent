@@ -11,7 +11,7 @@ The Lycus communication module enables secure, reliable inter-agent communicatio
 │                    Lycus Agent (Node A)                      │
 │                                                               │
 │  ┌──────────┐    ┌──────────┐    ┌──────────────────────┐   │
-│  │ Matrix   │───▶│ Cron     │───▶│ Hermes Agent         │   │
+│  │ Matrix   │───▶│ Cron     │───▶│ Lycus Agent         │   │
 │  │ Client   │    │ Bridge   │    │ (Autolycus)          │   │
 │  │ (Python) │    │ (Unix)   │    │                      │   │
 │  └──────────┘    └──────────┘    └──────────────────────┘   │
@@ -86,8 +86,8 @@ class CommToolConfig:
 2. **Matrix homeserver** delivers the message to **Agent B**
 3. **Agent B's Python client** receives the message
 4. **Python bridge forwards** the message to the **cron scheduler** via Unix socket
-5. **Cron system creates a job** and sends it to the **Hermes agent**
-6. **Hermes agent processes** the message and responds
+5. **Cron system creates a job** and sends it to the **Lycus agent**
+6. **Lycus agent processes** the message and responds
 7. **Response is sent back** through the same path to Agent A
 
 ## Building
@@ -108,7 +108,7 @@ python3 -c "from comm.tools import LycusCommTools; print('OK')"
 python3 -m comm
 
 # Or start with custom config
-LYCUS_HOMESERVER=http://your-server:8008 \
+AUTOLYCUS_HOMESERVER=http://your-server:8008 \
 LYCUS_USERNAME=your-agent \
 python3 -m comm
 ```
@@ -137,7 +137,7 @@ python3 -m comm
 4. Test end-to-end communication between two agents
 5. Configure DNS for `matrix.technetia.org` at Ionos
 6. Set up TLS certificates via Let's Encrypt
-7. Create CLI commands (`hermes comm send`, etc.)
+7. Create CLI commands (`lycus comm send`, etc.)
 
 ## Files
 

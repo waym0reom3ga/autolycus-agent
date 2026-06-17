@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Autolycus Agent** - FreeBSD-compatible fork of Hermes Agent  
+**Autolycus Agent** - FreeBSD-compatible fork of Lycus Agent  
 Repository: `waym0reom3ga/autolycus-agent`  
 Status: Prototype / FreeBSD Only (not production-ready)
 
@@ -69,10 +69,10 @@ Since GitHub Issues are disabled in this repository, we use **PLANS/task-coordin
 
 ### Key Components
 - `run_agent.py` (477KB) - Core AIAgent class with conversation loop
-- `cli.py` (390KB) - HermesCLI interactive orchestrator  
+- `cli.py` (390KB) - LycusCLI interactive orchestrator  
 - `model_tools.py` - Tool orchestration and discovery
 - `toolsets.py` - Toolset definitions
-- `hermes_state.py` - SQLite session store with FTS5 search
+- `lycus_state.py` - SQLite session store with FTS5 search
 - `tools/` - 744 Python files implementing various tools
 - `gateway/` - Multi-platform messaging (Telegram, Discord, Slack, etc.)
 - `agent/` - Agent internals (prompt building, compression, caching)
@@ -110,24 +110,24 @@ Perform comprehensive audit of codebase to identify Linux-specific dependencies 
 **Assigned to**: Programming Assistant  
 
 **Description**:
-Hermes Agent runs natively on the host system using `LocalEnvironment`. Docker is NOT required for normal operation - it's only used as an optional isolated execution backend. Since Docker has no official FreeBSD support and won't be added, we need to safely remove/disable all Docker-related code paths while ensuring native execution works perfectly.
+Lycus Agent runs natively on the host system using `LocalEnvironment`. Docker is NOT required for normal operation - it's only used as an optional isolated execution backend. Since Docker has no official FreeBSD support and won't be added, we need to safely remove/disable all Docker-related code paths while ensuring native execution works perfectly.
 
 **Background**:
 - `tools/environments/local.py` (`LocalEnvironment`) already provides full terminal execution on the host
-- You (waym0re) confirmed running Hermes on Linux without Docker enabled
+- You (waym0re) confirmed running Lycus on Linux without Docker enabled
 - FreeBSD users should use native execution exclusively - no containerization needed
 
 **Deliverables**:
 1. **Audit all Docker usages** - Find every reference to `DockerEnvironment` and docker-related config
 2. **Make Docker backend optional/failable** - When user selects "docker" but it's unavailable, gracefully fall back to "local" with warning
 3. **Update setup wizard** - Remove Docker as an option on FreeBSD, default to local
-4. **Update documentation** - Clarify that Hermes runs natively; Docker is Linux-only optional feature
+4. **Update documentation** - Clarify that Lycus runs natively; Docker is Linux-only optional feature
 5. **Test native execution** - Ensure `LocalEnvironment` works without any container dependencies
 
 **Files to Modify**:
 - `tools/terminal_tool.py:618-628` - Add fallback from docker→local when unavailable
-- `hermes_cli/setup.py:1320-1400` - Skip Docker option on FreeBSD, default to local
-- `hermes_cli/status.py:261-263` - Don't show Docker status on FreeBSD
+- `lycus_cli/setup.py:1320-1400` - Skip Docker option on FreeBSD, default to local
+- `lycus_cli/status.py:261-263` - Don't show Docker status on FreeBSD
 - `README.md:26` - Update "Terminal backends" line to clarify native execution
 - `pyproject.toml` - Remove `[modal]` and `[daytona]` extras if they depend on Docker
 
@@ -135,7 +135,7 @@ Hermes Agent runs natively on the host system using `LocalEnvironment`. Docker i
 - On FreeBSD, setup wizard never offers Docker as an option
 - If config has `"terminal_backend": "docker"` on FreeBSD, it auto-falls back to local with warning
 - All core functionality works with `LocalEnvironment` alone (no containers)
-- Documentation clearly states: "Hermes runs natively; Docker is optional Linux-only isolation"
+- Documentation clearly states: "Lycus runs natively; Docker is optional Linux-only isolation"
 
 ---
 
@@ -172,14 +172,14 @@ Review `README.md` installation instructions and verify all FreeBSD package name
 Add graceful degradation for features that don't work on FreeBSD (voice/STT/TTS) with clear user messaging. The audit identified `faster-whisper` as unavailable due to missing `ctranslate2` wheels.
 
 **Changes Made**:
-- Added `_IS_FREEBSD` platform detection in `hermes_cli/config.py:29`
+- Added `_IS_FREEBSD` platform detection in `lycus_cli/config.py:29`
 - Created `print_platform_warnings()` function to warn about FreeBSD limitations:
   - Voice tools unavailable (faster-whisper has no FreeBSD wheels)
   - Clipboard support requires xclip/xsel installation
 - Integrated warnings into CLI startup (`cli.py:524`) and gateway (`gateway/run.py:204`)
 
 **Files Modified**:
-- `hermes_cli/config.py` - Added `_IS_FREEBSD` flag and `print_platform_warnings()` function
+- `lycus_cli/config.py` - Added `_IS_FREEBSD` flag and `print_platform_warnings()` function
 - `cli.py` - Added call to `print_platform_warnings()` at startup
 - `gateway/run.py` - Added call to `print_platform_warnings()` at gateway init
 

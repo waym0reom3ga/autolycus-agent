@@ -2,12 +2,12 @@
 
 from unittest.mock import patch
 
-from cli import HermesCLI
+from cli import LycusCLI
 
 
 class TestCLILoadingIndicator:
     def _make_cli(self):
-        cli_obj = HermesCLI.__new__(HermesCLI)
+        cli_obj = LycusCLI.__new__(LycusCLI)
         cli_obj._app = None
         cli_obj._last_invalidate = 0.0
         cli_obj._command_running = False

@@ -53,11 +53,11 @@ export interface DroppedFile {
 
 /** MIME emitted by in-app drag sources (project tree, gutter line numbers).
  * Payload is JSON `{ path; isDirectory?; line?; lineEnd? }[]`. */
-export const HERMES_PATHS_MIME = 'application/x-hermes-paths'
+export const HERMES_PATHS_MIME = 'application/x-lycus-paths'
 
 /**
  * Eagerly resolve files from a drop event into [File?, path, isDirectory?]
- * triples. Internal Hermes sources (e.g. the project tree) ride on a custom
+ * triples. Internal Lycus sources (e.g. the project tree) ride on a custom
  * MIME and produce path-only entries; OS drops produce File-bearing entries.
  *
  * Must be called synchronously from inside the drop handler — `DataTransfer`
@@ -68,7 +68,7 @@ export function extractDroppedFiles(transfer: DataTransfer): DroppedFile[] {
   const result: DroppedFile[] = []
   const seenPaths = new Set<string>()
   const seenFiles = new Set<File>()
-  const getPath = window.hermesDesktop?.getPathForFile
+  const getPath = window.autolycusDesktop?.getPathForFile
 
   // In-app drags first — they carry richer metadata (isDirectory) than the
   // File-based fallback can provide, and produce no overlapping native files.
@@ -261,7 +261,7 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
 
   const pickContextPaths = useCallback(
     async (kind: 'file' | 'folder') => {
-      const paths = await window.hermesDesktop?.selectPaths({
+      const paths = await window.autolycusDesktop?.selectPaths({
         title: kind === 'file' ? 'Add files as context' : 'Add folders as context',
         defaultPath: currentCwd || undefined,
         directories: kind === 'folder'
@@ -345,7 +345,7 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
     attachToMain(baseAttachment)
 
     try {
-      const previewUrl = await window.hermesDesktop?.readFileDataUrl(filePath)
+      const previewUrl = await window.autolycusDesktop?.readFileDataUrl(filePath)
 
       if (previewUrl) {
         addComposerAttachment({ ...baseAttachment, previewUrl })
@@ -372,7 +372,7 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
       try {
         const buffer = await blob.arrayBuffer()
         const data = new Uint8Array(buffer)
-        const savedPath = await window.hermesDesktop?.saveImageBuffer(data, blobExtension(blob))
+        const savedPath = await window.autolycusDesktop?.saveImageBuffer(data, blobExtension(blob))
 
         if (!savedPath) {
           notify({ kind: 'error', title: copy.imageAttach, message: copy.imageWriteFailed })
@@ -391,7 +391,7 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
   )
 
   const pickImages = useCallback(async () => {
-    const paths = await window.hermesDesktop?.selectPaths({
+    const paths = await window.autolycusDesktop?.selectPaths({
       title: copy.attachImages,
       defaultPath: currentCwd || undefined,
       filters: [
@@ -413,7 +413,7 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
 
   const pasteClipboardImage = useCallback(async () => {
     try {
-      const path = await window.hermesDesktop?.saveClipboardImage()
+      const path = await window.autolycusDesktop?.saveClipboardImage()
 
       if (!path) {
         notify({
@@ -503,7 +503,7 @@ export function useComposerActions({ activeSessionId, currentCwd, requestGateway
         }
 
         const fallbackPath =
-          !knownPath && window.hermesDesktop?.getPathForFile ? window.hermesDesktop.getPathForFile(file) : ''
+          !knownPath && window.autolycusDesktop?.getPathForFile ? window.autolycusDesktop.getPathForFile(file) : ''
 
         const filePath = knownPath || fallbackPath || ''
         const isImage = file.type.startsWith('image/') || isImagePath(file.name) || (filePath && isImagePath(filePath))

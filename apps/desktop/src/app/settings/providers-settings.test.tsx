@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { atom } from 'nanostores'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { OAuthProvider } from '@/types/hermes'
+import type { OAuthProvider } from '@/types/lycus'
 
 const listOAuthProviders = vi.fn()
 const disconnectOAuthProvider = vi.fn()
@@ -10,7 +10,7 @@ const getEnvVars = vi.fn()
 const startManualProviderOAuth = vi.fn()
 const onboarding = atom({ manual: false })
 
-vi.mock('@/hermes', () => ({
+vi.mock('@/lycus', () => ({
   disconnectOAuthProvider: (providerId: string) => disconnectOAuthProvider(providerId),
   getEnvVars: () => getEnvVars(),
   listOAuthProviders: () => listOAuthProviders()
@@ -23,7 +23,7 @@ vi.mock('@/store/onboarding', () => ({
 
 function provider(id: string, loggedIn: boolean, patch: Partial<OAuthProvider> = {}): OAuthProvider {
   return {
-    cli_command: `hermes auth add ${id}`,
+    cli_command: `lycus auth add ${id}`,
     disconnectable: true,
     docs_url: '',
     flow: 'device_code',
@@ -82,8 +82,8 @@ describe('ProvidersSettings', () => {
     listOAuthProviders.mockResolvedValue({
       providers: [
         provider('qwen-oauth', true, {
-          cli_command: 'hermes auth add qwen-oauth',
-          disconnect_hint: 'Use `hermes auth add qwen-oauth` or that provider\'s CLI to remove it.',
+          cli_command: 'lycus auth add qwen-oauth',
+          disconnect_hint: 'Use `lycus auth add qwen-oauth` or that provider\'s CLI to remove it.',
           disconnectable: false,
           flow: 'external',
           name: 'Qwen (via Qwen CLI)'

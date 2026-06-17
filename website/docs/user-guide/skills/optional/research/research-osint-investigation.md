@@ -14,10 +14,10 @@ Public-records OSINT investigation framework — SEC EDGAR filings, USAspending 
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/research/osint-investigation` |
+| Source | Optional — install with `lycus skills install official/research/osint-investigation` |
 | Path | `optional-skills/research/osint-investigation` |
 | Version | `0.1.0` |
-| Author | Hermes Agent (adapted from ShinMegamiBoson/OpenPlanter, MIT) |
+| Author | Lycus Agent (adapted from ShinMegamiBoson/OpenPlanter, MIT) |
 | Platforms | linux, macos, windows |
 | Tags | `osint`, `investigation`, `public-records`, `sec`, `sanctions`, `corporate-registry`, `property`, `courts`, `due-diligence`, `journalism` |
 | Related skills | [`domain-intel`](/docs/user-guide/skills/optional/research/research-domain-intel), [`arxiv`](/docs/user-guide/skills/bundled/research/research-arxiv) |
@@ -25,7 +25,7 @@ Public-records OSINT investigation framework — SEC EDGAR filings, USAspending 
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that Lycus loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
 # OSINT Investigation — Public Records Cross-Reference
@@ -132,7 +132,7 @@ python3 SKILL_DIR/scripts/fetch_ofac_sdn.py --out data/ofac_sdn.csv
 
 # ICIJ Offshore Leaks — downloads ~70 MB bulk CSV on first use,
 # then searches it locally. Cached for 30 days under
-# $HERMES_OSINT_CACHE/icij/ (default: ~/.cache/hermes-osint/icij/).
+# $HERMES_OSINT_CACHE/icij/ (default: ~/.cache/lycus-osint/icij/).
 python3 SKILL_DIR/scripts/fetch_icij_offshore.py --entity "EXAMPLE CORP" \
     --out data/icij.csv
 ```

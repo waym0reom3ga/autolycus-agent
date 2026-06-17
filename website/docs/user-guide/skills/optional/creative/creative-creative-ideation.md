@@ -14,7 +14,7 @@ Generate project ideas via creative constraints.
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/creative/creative-ideation` |
+| Source | Optional — install with `lycus skills install official/creative/creative-ideation` |
 | Path | `optional-skills/creative/creative-ideation` |
 | Version | `1.0.0` |
 | Author | SHL0MS |
@@ -25,7 +25,7 @@ Generate project ideas via creative constraints.
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that Lycus loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
 # Creative Ideation

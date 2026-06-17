@@ -171,7 +171,7 @@ export function useMicRecorder(copy: MicRecorderErrorCopy): { handle: MicRecorde
       throw new Error(copy.microphoneUnsupported)
     }
 
-    const permitted = await window.hermesDesktop?.requestMicrophoneAccess?.()
+    const permitted = await window.autolycusDesktop?.requestMicrophoneAccess?.()
 
     if (permitted === false) {
       throw new Error(copy.microphoneAccessDenied)

@@ -59,9 +59,9 @@ class TestParseFrontmatterQuick:
         assert fm == {}
 
     def test_nested_yaml(self):
-        content = "---\nname: test\nmetadata:\n  hermes:\n    tags: [a, b]\n---\n\nBody.\n"
+        content = "---\nname: test\nmetadata:\n  lycus:\n    tags: [a, b]\n---\n\nBody.\n"
         fm = GitHubSource._parse_frontmatter_quick(content)
-        assert fm["metadata"]["hermes"]["tags"] == ["a", "b"]
+        assert fm["metadata"]["lycus"]["tags"] == ["a", "b"]
 
     def test_invalid_yaml_returns_empty(self):
         content = "---\n: : : invalid{{\n---\n\nBody.\n"
@@ -245,7 +245,7 @@ class TestTrustLevelFor:
 
     def test_nvidia_skills_tap_is_registered_and_trusted(self):
         # Invariant: every trusted repo in TRUSTED_REPOS that we want
-        # browseable/searchable through `hermes skills browse` must also
+        # browseable/searchable through `lycus skills browse` must also
         # appear as a default tap on GitHubSource. Without the tap, the
         # repo's skills don't show up in search results or the docs-site
         # Skills Hub page even though the trust level is correct.
@@ -270,7 +270,7 @@ class TestTrustLevelFor:
             assert repo in tap_repos, (
                 f"Trusted repo {repo!r} is in TRUSTED_REPOS but missing "
                 "from GitHubSource.DEFAULT_TAPS — its skills will not be "
-                "browsable via `hermes skills browse`."
+                "browsable via `lycus skills browse`."
             )
 
 
@@ -963,7 +963,7 @@ class TestUrlSource:
                 "name: sharethis-chat\n"
                 "description: Share agent conversations.\n"
                 "metadata:\n"
-                "  hermes:\n"
+                "  lycus:\n"
                 "    tags: [sharing, chat]\n"
                 "---\n\n# Body\n"
             ),

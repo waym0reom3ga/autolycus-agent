@@ -12,8 +12,8 @@ import urllib.parse
 import urllib.request
 
 DEFAULT_UA = (
-    "hermes-osint-investigation/0.2 "
-    "(+https://github.com/NousResearch/hermes-agent; "
+    "lycus-osint-investigation/0.2 "
+    "(+https://github.com/NousResearch/lycus-agent; "
     "set HERMES_OSINT_UA env var to identify yourself per "
     "Wikimedia / SEC fair-use guidance)"
 )

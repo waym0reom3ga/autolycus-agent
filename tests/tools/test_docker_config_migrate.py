@@ -7,17 +7,17 @@ from pathlib import Path
 
 import yaml
 
-from hermes_cli.config import DEFAULT_CONFIG
+from lycus_cli.config import DEFAULT_CONFIG
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "docker_config_migrate.py"
 
 
-def _run_migration(hermes_home: Path, **env_overrides: str) -> subprocess.CompletedProcess[str]:
+def _run_migration(lycus_home: Path, **env_overrides: str) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.update(
         {
-            "HERMES_HOME": str(hermes_home),
+            "AUTOLYCUS_HOME": str(lycus_home),
             "HERMES_SKIP_CHMOD": "1",
             "PYTHONPATH": str(REPO_ROOT),
         }
@@ -116,7 +116,7 @@ def test_docker_config_migrate_does_not_rewrite_invalid_yaml(tmp_path: Path) -> 
 
     assert proc.returncode == 0, proc.stderr
     assert "Migrating config schema" not in proc.stdout
-    assert "hermes config:" in proc.stderr
+    assert "lycus config:" in proc.stderr
     assert config_path.read_text(encoding="utf-8") == original
     assert not list(tmp_path.glob("*.bak-*"))
 

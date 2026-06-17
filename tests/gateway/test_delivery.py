@@ -161,7 +161,7 @@ class StaleTopicAdapter:
 
 @pytest.mark.asyncio
 async def test_explicit_telegram_private_thread_requires_reply_anchor(tmp_path, monkeypatch):
-    monkeypatch.setattr("gateway.delivery.get_hermes_home", lambda: tmp_path)
+    monkeypatch.setattr("gateway.delivery.get_lycus_home", lambda: tmp_path)
     adapter = RecordingAdapter()
     router = DeliveryRouter(GatewayConfig(), adapters={Platform.TELEGRAM: adapter})
     target = DeliveryTarget.parse("telegram:722341991:32344")
@@ -174,15 +174,15 @@ async def test_explicit_telegram_private_thread_requires_reply_anchor(tmp_path, 
 
 @pytest.mark.asyncio
 async def test_named_telegram_private_topic_is_created_before_delivery(tmp_path, monkeypatch):
-    monkeypatch.setattr("gateway.delivery.get_hermes_home", lambda: tmp_path)
+    monkeypatch.setattr("gateway.delivery.get_lycus_home", lambda: tmp_path)
     adapter = RecordingAdapter()
     router = DeliveryRouter(GatewayConfig(), adapters={Platform.TELEGRAM: adapter})
-    target = DeliveryTarget.parse("telegram:722341991:Hermes API Test")
+    target = DeliveryTarget.parse("telegram:722341991:Lycus API Test")
 
     await router._deliver_to_platform(target, "hello", metadata=None)
 
     assert adapter.ensure_dm_topic_calls == [
-        {"chat_id": "722341991", "topic_name": "Hermes API Test", "force_create": False}
+        {"chat_id": "722341991", "topic_name": "Lycus API Test", "force_create": False}
     ]
     assert adapter.calls == [
         {
@@ -198,7 +198,7 @@ async def test_named_telegram_private_topic_is_created_before_delivery(tmp_path,
 
 @pytest.mark.asyncio
 async def test_named_telegram_private_topic_refreshes_stale_thread_id(tmp_path, monkeypatch):
-    monkeypatch.setattr("gateway.delivery.get_hermes_home", lambda: tmp_path)
+    monkeypatch.setattr("gateway.delivery.get_lycus_home", lambda: tmp_path)
     adapter = StaleTopicAdapter()
     router = DeliveryRouter(GatewayConfig(), adapters={Platform.TELEGRAM: adapter})
     target = DeliveryTarget.parse("telegram:722341991:Personal")
@@ -216,7 +216,7 @@ async def test_named_telegram_private_topic_refreshes_stale_thread_id(tmp_path, 
 
 @pytest.mark.asyncio
 async def test_explicit_telegram_private_thread_uses_reply_fallback_with_anchor(tmp_path, monkeypatch):
-    monkeypatch.setattr("gateway.delivery.get_hermes_home", lambda: tmp_path)
+    monkeypatch.setattr("gateway.delivery.get_lycus_home", lambda: tmp_path)
     adapter = RecordingAdapter()
     router = DeliveryRouter(GatewayConfig(), adapters={Platform.TELEGRAM: adapter})
     target = DeliveryTarget.parse("telegram:722341991:32344")
@@ -242,7 +242,7 @@ async def test_explicit_telegram_private_thread_uses_reply_fallback_with_anchor(
 
 @pytest.mark.asyncio
 async def test_explicit_telegram_direct_messages_topic_metadata_is_respected(tmp_path, monkeypatch):
-    monkeypatch.setattr("gateway.delivery.get_hermes_home", lambda: tmp_path)
+    monkeypatch.setattr("gateway.delivery.get_lycus_home", lambda: tmp_path)
     adapter = RecordingAdapter()
     router = DeliveryRouter(GatewayConfig(), adapters={Platform.TELEGRAM: adapter})
     target = DeliveryTarget.parse("telegram:722341991:32344")
@@ -258,7 +258,7 @@ async def test_explicit_telegram_direct_messages_topic_metadata_is_respected(tmp
 
 @pytest.mark.asyncio
 async def test_explicit_telegram_group_thread_does_not_mark_dm_fallback(tmp_path, monkeypatch):
-    monkeypatch.setattr("gateway.delivery.get_hermes_home", lambda: tmp_path)
+    monkeypatch.setattr("gateway.delivery.get_lycus_home", lambda: tmp_path)
     adapter = RecordingAdapter()
     router = DeliveryRouter(GatewayConfig(), adapters={Platform.TELEGRAM: adapter})
     target = DeliveryTarget.parse("telegram:-100123:42")
@@ -275,7 +275,7 @@ class FailingAdapter:
 
 @pytest.mark.asyncio
 async def test_platform_send_failure_raises_for_delivery_result(tmp_path, monkeypatch):
-    monkeypatch.setattr("gateway.delivery.get_hermes_home", lambda: tmp_path)
+    monkeypatch.setattr("gateway.delivery.get_lycus_home", lambda: tmp_path)
     router = DeliveryRouter(GatewayConfig(), adapters={Platform.TELEGRAM: FailingAdapter()})
     target = DeliveryTarget.parse("telegram:722341991:32344")
 

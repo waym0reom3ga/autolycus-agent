@@ -7,7 +7,7 @@ author: SHL0MS
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
-  hermes:
+  lycus:
     tags: [Creative, Ideation, Projects, Brainstorming, Inspiration]
     category: creative
     requires_toolsets: []

@@ -502,7 +502,7 @@ class TestSyncSkills:
 
         captured = capsys.readouterr().out
         assert "new-skill" in captured
-        assert "hermes skills reset new-skill" in captured
+        assert "lycus skills reset new-skill" in captured
 
     def test_backfills_official_optional_provenance_for_existing_identical_skill(self, tmp_path):
         bundled = self._setup_bundled(tmp_path)
@@ -953,9 +953,9 @@ class TestResetBundledSkill:
 class TestNoBundledSkillsOptOut:
     """The .no-bundled-skills marker makes sync_skills() a no-op.
 
-    This is what `hermes profile create --no-skills` (named profiles) and the
-    installer's `--no-skills` flag (default ~/.hermes) rely on so bundled
-    skills are never seeded at install time NOR re-injected by `hermes update`.
+    This is what `lycus profile create --no-skills` (named profiles) and the
+    installer's `--no-skills` flag (default ~/.autolycus) rely on so bundled
+    skills are never seeded at install time NOR re-injected by `lycus update`.
     """
 
     def _setup_bundled(self, tmp_path):
@@ -969,14 +969,14 @@ class TestNoBundledSkillsOptOut:
         bundled = self._setup_bundled(tmp_path)
         skills_dir = tmp_path / "user_skills"
         manifest_file = skills_dir / ".bundled_manifest"
-        hermes_home = tmp_path / "home"
-        hermes_home.mkdir()
-        (hermes_home / ".no-bundled-skills").write_text("opted out\n")
+        lycus_home = tmp_path / "home"
+        lycus_home.mkdir()
+        (lycus_home / ".no-bundled-skills").write_text("opted out\n")
 
         with patch("tools.skills_sync._get_bundled_dir", return_value=bundled), \
              patch("tools.skills_sync.SKILLS_DIR", skills_dir), \
              patch("tools.skills_sync.MANIFEST_FILE", manifest_file), \
-             patch("tools.skills_sync.HERMES_HOME", hermes_home):
+             patch("tools.skills_sync.AUTOLYCUS_HOME", lycus_home):
             result = sync_skills(quiet=True)
 
         # Opt-out signalled, nothing copied, nothing written to disk.
@@ -989,15 +989,15 @@ class TestNoBundledSkillsOptOut:
         bundled = self._setup_bundled(tmp_path)
         skills_dir = tmp_path / "user_skills"
         manifest_file = skills_dir / ".bundled_manifest"
-        hermes_home = tmp_path / "home"
-        hermes_home.mkdir()
+        lycus_home = tmp_path / "home"
+        lycus_home.mkdir()
         # No marker written.
 
         with patch("tools.skills_sync._get_bundled_dir", return_value=bundled), \
              patch("tools.skills_sync._get_optional_dir", return_value=bundled.parent / "optional-skills"), \
              patch("tools.skills_sync.SKILLS_DIR", skills_dir), \
              patch("tools.skills_sync.MANIFEST_FILE", manifest_file), \
-             patch("tools.skills_sync.HERMES_HOME", hermes_home):
+             patch("tools.skills_sync.AUTOLYCUS_HOME", lycus_home):
             result = sync_skills(quiet=True)
 
         assert result.get("skipped_opt_out") is not True
@@ -1006,7 +1006,7 @@ class TestNoBundledSkillsOptOut:
 
 
 class TestOptOutToggleAndRemove:
-    """`hermes skills opt-out/opt-in` core: marker toggle + safe removal."""
+    """`lycus skills opt-out/opt-in` core: marker toggle + safe removal."""
 
     def _setup_bundled(self, tmp_path):
         bundled = tmp_path / "bundled"
@@ -1022,7 +1022,7 @@ class TestOptOutToggleAndRemove:
         )
         home = tmp_path / "home"
         home.mkdir()
-        with patch("tools.skills_sync.HERMES_HOME", home):
+        with patch("tools.skills_sync.AUTOLYCUS_HOME", home):
             assert is_bundled_skills_opt_out() is False
             r = set_bundled_skills_opt_out(True)
             assert r["ok"] and r["changed"]
@@ -1048,7 +1048,7 @@ class TestOptOutToggleAndRemove:
              patch("tools.skills_sync._get_optional_dir", return_value=bundled.parent / "optional-skills"), \
              patch("tools.skills_sync.SKILLS_DIR", skills_dir), \
              patch("tools.skills_sync.MANIFEST_FILE", manifest_file), \
-             patch("tools.skills_sync.HERMES_HOME", home):
+             patch("tools.skills_sync.AUTOLYCUS_HOME", home):
             sync_skills(quiet=True)
             # User edits 'beta'
             (skills_dir / "beta" / "SKILL.md").write_text("---\nname: beta\n---\nEDITED\n")

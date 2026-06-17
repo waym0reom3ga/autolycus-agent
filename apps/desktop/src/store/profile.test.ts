@@ -1,7 +1,7 @@
 import { atom } from 'nanostores'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { HermesConnection } from '@/global'
+import type { LycusConnection } from '@/global'
 
 // Keep profile.ts's side-effecting imports inert: the gateway socket layer and
 // the REST query client must not run for real in a unit test.
@@ -9,7 +9,7 @@ const ensureGatewayForProfile = vi.fn(async () => undefined)
 const $gateway = atom<unknown>({ id: 'live-socket' })
 
 vi.mock('@/store/gateway', () => ({ $gateway, ensureGatewayForProfile }))
-vi.mock('@/hermes', () => ({
+vi.mock('@/lycus', () => ({
   getProfiles: vi.fn(async () => ({ profiles: [] })),
   setApiRequestProfile: vi.fn()
 }))
@@ -18,13 +18,13 @@ vi.mock('@/lib/query-client', () => ({ queryClient: { invalidateQueries: vi.fn()
 const { $activeGatewayProfile, ensureGatewayProfile } = await import('./profile')
 const { $connection } = await import('./session')
 
-const remoteConn = (over: Partial<HermesConnection> = {}): HermesConnection =>
-  ({ baseUrl: 'https://hermes-roy.tail.ts.net', mode: 'remote', profile: 'vps-remote', ...over }) as HermesConnection
+const remoteConn = (over: Partial<LycusConnection> = {}): LycusConnection =>
+  ({ baseUrl: 'https://lycus-roy.tail.ts.net', mode: 'remote', profile: 'vps-remote', ...over }) as LycusConnection
 
-const localConn = (over: Partial<HermesConnection> = {}): HermesConnection =>
-  ({ baseUrl: '', mode: 'local', profile: 'default', ...over }) as HermesConnection
+const localConn = (over: Partial<LycusConnection> = {}): LycusConnection =>
+  ({ baseUrl: '', mode: 'local', profile: 'default', ...over }) as LycusConnection
 
-const getConnection = vi.fn<(profile?: string | null) => Promise<HermesConnection>>()
+const getConnection = vi.fn<(profile?: string | null) => Promise<LycusConnection>>()
 
 beforeEach(() => {
   getConnection.mockReset()
@@ -32,7 +32,7 @@ beforeEach(() => {
   $gateway.set({ id: 'live-socket' })
   $activeGatewayProfile.set('default')
   $connection.set(localConn())
-  vi.stubGlobal('window', { hermesDesktop: { getConnection } })
+  vi.stubGlobal('window', { lycusDesktop: { getConnection } })
 })
 
 afterEach(() => {

@@ -22,10 +22,10 @@ def _restore_stdout():
 @pytest.fixture()
 def server():
     with patch.dict("sys.modules", {
-        "hermes_constants": MagicMock(get_hermes_home=MagicMock(return_value="/tmp/hermes_test")),
-        "hermes_cli.env_loader": MagicMock(),
-        "hermes_cli.banner": MagicMock(),
-        "hermes_state": MagicMock(),
+        "lycus_constants": MagicMock(get_lycus_home=MagicMock(return_value="/tmp/lycus_test")),
+        "lycus_cli.env_loader": MagicMock(),
+        "lycus_cli.banner": MagicMock(),
+        "lycus_state": MagicMock(),
     }):
         import importlib
         mod = importlib.import_module("tui_gateway.server")
@@ -842,7 +842,7 @@ def test_make_agent_accepts_list_system_prompt(server, monkeypatch):
     monkeypatch.setitem(sys.modules, "run_agent", types.SimpleNamespace(AIAgent=_Agent))
     monkeypatch.setitem(
         sys.modules,
-        "hermes_cli.runtime_provider",
+        "lycus_cli.runtime_provider",
         types.SimpleNamespace(
             resolve_runtime_provider=lambda **_kwargs: {
                 "provider": "test",
@@ -865,12 +865,12 @@ def test_make_agent_accepts_list_system_prompt(server, monkeypatch):
 
 
 def test_config_load_missing(server, tmp_path):
-    server._hermes_home = tmp_path
+    server._lycus_home = tmp_path
     assert server._load_cfg() == {}
 
 
 def test_config_roundtrip(server, tmp_path):
-    server._hermes_home = tmp_path
+    server._lycus_home = tmp_path
     server._save_cfg({"model": "test/model"})
     assert server._load_cfg()["model"] == "test/model"
 
@@ -907,13 +907,13 @@ def test_slash_exec_rejects_skill_commands(server):
     server._sessions[sid] = {"session_key": sid, "agent": None}
 
     # Mock scan_skill_commands to return a known skill
-    fake_skills = {"/hermes-agent-dev": {"name": "hermes-agent-dev", "description": "Dev workflow"}}
+    fake_skills = {"/lycus-agent-dev": {"name": "lycus-agent-dev", "description": "Dev workflow"}}
 
     with patch("agent.skill_commands.get_skill_commands", return_value=fake_skills):
         resp = server.handle_request({
             "id": "r1",
             "method": "slash.exec",
-            "params": {"command": "hermes-agent-dev", "session_id": sid},
+            "params": {"command": "lycus-agent-dev", "session_id": sid},
         })
 
     # Should return an error so the TUI's .catch() fires command.dispatch
@@ -938,7 +938,7 @@ def test_slash_exec_handles_plugin_commands_in_live_gateway(server):
     server._sessions[sid] = {"session_key": sid, "agent": None, "slash_worker": worker}
 
     with patch(
-        "hermes_cli.plugins.get_plugin_command_handler",
+        "lycus_cli.plugins.get_plugin_command_handler",
         lambda name: (lambda arg: f"plugin:{arg}") if name == "plugin-cmd" else None,
     ):
         resp = server.handle_request({
@@ -968,7 +968,7 @@ def test_slash_exec_plugin_lookup_failure_falls_back_to_worker(server):
     server._sessions[sid] = {"session_key": sid, "agent": None, "slash_worker": worker}
 
     with patch(
-        "hermes_cli.plugins.get_plugin_command_handler",
+        "lycus_cli.plugins.get_plugin_command_handler",
         side_effect=RuntimeError("discovery boom"),
     ):
         resp = server.handle_request({
@@ -1001,7 +1001,7 @@ def test_slash_exec_plugin_handler_error_returns_output(server):
     server._sessions[sid] = {"session_key": sid, "agent": None, "slash_worker": worker}
 
     with patch(
-        "hermes_cli.plugins.get_plugin_command_handler",
+        "lycus_cli.plugins.get_plugin_command_handler",
         lambda name: handler if name == "plugin-cmd" else None,
     ):
         resp = server.handle_request({
@@ -1200,7 +1200,7 @@ def test_command_dispatch_returns_skill_payload(server):
     sid = "test-session"
     server._sessions[sid] = {"session_key": sid}
 
-    fake_skills = {"/hermes-agent-dev": {"name": "hermes-agent-dev", "description": "Dev workflow"}}
+    fake_skills = {"/lycus-agent-dev": {"name": "lycus-agent-dev", "description": "Dev workflow"}}
     fake_msg = "Loaded skill content here"
 
     with patch("agent.skill_commands.scan_skill_commands", return_value=fake_skills), \
@@ -1208,14 +1208,14 @@ def test_command_dispatch_returns_skill_payload(server):
         resp = server.handle_request({
             "id": "r2",
             "method": "command.dispatch",
-            "params": {"name": "hermes-agent-dev", "session_id": sid},
+            "params": {"name": "lycus-agent-dev", "session_id": sid},
         })
 
     assert "error" not in resp
     result = resp["result"]
     assert result["type"] == "skill"
     assert result["message"] == fake_msg
-    assert result["name"] == "hermes-agent-dev"
+    assert result["name"] == "lycus-agent-dev"
 
 
 def test_command_dispatch_awaits_async_plugin_handler(server):
@@ -1223,7 +1223,7 @@ def test_command_dispatch_awaits_async_plugin_handler(server):
         return f"async:{arg}"
 
     with patch(
-        "hermes_cli.plugins.get_plugin_command_handler",
+        "lycus_cli.plugins.get_plugin_command_handler",
         lambda name: _handler if name == "async-cmd" else None,
     ):
         resp = server.handle_request({

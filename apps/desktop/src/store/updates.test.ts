@@ -31,13 +31,13 @@ vi.mock('@/store/notifications', () => ({
   dismissNotification: (...args: unknown[]) => dismissSpy(...args)
 }))
 
-const checkHermesUpdateSpy = vi.fn()
-const updateHermesSpy = vi.fn()
+const checkLycusUpdateSpy = vi.fn()
+const updateLycusSpy = vi.fn()
 const getActionStatusSpy = vi.fn()
 
-vi.mock('@/hermes', () => ({
-  checkHermesUpdate: (...args: unknown[]) => checkHermesUpdateSpy(...args),
-  updateHermes: (...args: unknown[]) => updateHermesSpy(...args),
+vi.mock('@/lycus', () => ({
+  checkLycusUpdate: (...args: unknown[]) => checkLycusUpdateSpy(...args),
+  updateLycus: (...args: unknown[]) => updateLycusSpy(...args),
   getActionStatus: (...args: unknown[]) => getActionStatusSpy(...args)
 }))
 
@@ -99,7 +99,7 @@ describe('checkBackendUpdates', () => {
   beforeEach(() => {
     storage.clear()
     notifySpy.mockClear()
-    checkHermesUpdateSpy.mockReset()
+    checkLycusUpdateSpy.mockReset()
     $backendUpdateStatus.set(null)
     vi.useRealTimers()
   })
@@ -118,20 +118,20 @@ describe('checkBackendUpdates', () => {
 
   it('maps the backend /update/check onto the backend status, including commits', async () => {
     setRemote(true)
-    checkHermesUpdateSpy.mockResolvedValue({
+    checkLycusUpdateSpy.mockResolvedValue({
       install_method: 'git',
       current_version: '0.16.0',
       behind: 2,
       update_available: true,
       can_apply: true,
-      update_command: 'hermes update',
+      update_command: 'lycus update',
       message: null,
       commits: [{ sha: 'abc1234', summary: 'feat: x', author: 'a', at: 1 }]
     })
 
     const result = await checkBackendUpdates()
 
-    expect(checkHermesUpdateSpy).toHaveBeenCalled()
+    expect(checkLycusUpdateSpy).toHaveBeenCalled()
     expect(result?.behind).toBe(2)
     expect(result?.commits?.[0]?.sha).toBe('abc1234')
     expect(result?.supported).toBe(true)
@@ -140,7 +140,7 @@ describe('checkBackendUpdates', () => {
 
   it('honours can_apply=false (docker/nix): not supported, carries message', async () => {
     setRemote(true)
-    checkHermesUpdateSpy.mockResolvedValue({
+    checkLycusUpdateSpy.mockResolvedValue({
       install_method: 'docker',
       current_version: '0.16.0',
       behind: null,
@@ -159,15 +159,15 @@ describe('checkBackendUpdates', () => {
   it('is a no-op in local mode (backend check only runs when remote)', async () => {
     setRemote(false)
     await checkBackendUpdates()
-    expect(checkHermesUpdateSpy).not.toHaveBeenCalled()
+    expect(checkLycusUpdateSpy).not.toHaveBeenCalled()
   })
 })
 
 describe('applyBackendUpdate recovery', () => {
   beforeEach(() => {
     storage.clear()
-    checkHermesUpdateSpy.mockReset()
-    updateHermesSpy.mockReset()
+    checkLycusUpdateSpy.mockReset()
+    updateLycusSpy.mockReset()
     getActionStatusSpy.mockReset()
     $backendUpdateApply.set({ applying: false, stage: 'idle', message: '', percent: null, error: null, command: null, log: [] })
     vi.useFakeTimers()
@@ -178,9 +178,9 @@ describe('applyBackendUpdate recovery', () => {
   })
 
   it('waits for the backend to return after the restart drops the connection, then clears the overlay', async () => {
-    updateHermesSpy.mockResolvedValue({ ok: true, name: 'update', pid: 1 })
+    updateLycusSpy.mockResolvedValue({ ok: true, name: 'update', pid: 1 })
     getActionStatusSpy.mockRejectedValue(new Error('ECONNREFUSED'))
-    checkHermesUpdateSpy.mockResolvedValue({ install_method: 'git', current_version: '0.16.0', behind: 0, update_available: false, can_apply: true, update_command: 'hermes update', message: null })
+    checkLycusUpdateSpy.mockResolvedValue({ install_method: 'git', current_version: '0.16.0', behind: 0, update_available: false, can_apply: true, update_command: 'lycus update', message: null })
 
     const promise = applyBackendUpdate()
     await vi.advanceTimersByTimeAsync(5000)
@@ -192,9 +192,9 @@ describe('applyBackendUpdate recovery', () => {
   })
 
   it('surfaces an error when the backend never comes back after the restart', async () => {
-    updateHermesSpy.mockResolvedValue({ ok: true, name: 'update', pid: 1 })
+    updateLycusSpy.mockResolvedValue({ ok: true, name: 'update', pid: 1 })
     getActionStatusSpy.mockRejectedValue(new Error('ECONNREFUSED'))
-    checkHermesUpdateSpy.mockRejectedValue(new Error('ECONNREFUSED'))
+    checkLycusUpdateSpy.mockRejectedValue(new Error('ECONNREFUSED'))
 
     const promise = applyBackendUpdate()
     await vi.advanceTimersByTimeAsync(70000)

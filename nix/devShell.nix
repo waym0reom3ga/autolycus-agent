@@ -19,7 +19,7 @@
         map (p: p.passthru.packageJsonPath or null) packages
       );
 
-      # Non-npm packages may have their own devShellHook (e.g. hermes-agent
+      # Non-npm packages may have their own devShellHook (e.g. lycus-agent
       # stamps pyproject.toml + uv.lock for Python venv setup).
       nonNpmHooks = map (p: p.passthru.devShellHook or "") packages;
       combinedNonNpm = pkgs.lib.concatStringsSep "\n" (builtins.filter (h: h != "") nonNpmHooks);
@@ -31,7 +31,7 @@
           uv
         ];
         shellHook = ''
-          echo "Hermes Agent dev shell"
+          echo "Lycus Agent dev shell"
           ${combinedNonNpm}
           ${hermesNpmLib.mkNpmDevShellHook npmPackageJsonPaths fixLockfilesExe}
           echo "Ready. Run 'hermes' to start."

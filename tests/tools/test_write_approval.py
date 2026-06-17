@@ -1,5 +1,5 @@
 """Tests for the memory/skill write-approval gate (tools/write_approval.py)
-and the shared slash-command handlers (hermes_cli/write_approval_commands.py).
+and the shared slash-command handlers (lycus_cli/write_approval_commands.py).
 
 Covers the boolean write_approval gate (off by default = write freely; on =
 require approval) for both subsystems, the foreground-vs-background staging
@@ -16,17 +16,17 @@ import pytest
 
 
 @pytest.fixture
-def hermes_home(monkeypatch):
-    d = tempfile.mkdtemp(prefix="hermes_wa_test_")
-    home = os.path.join(d, ".hermes")
+def lycus_home(monkeypatch):
+    d = tempfile.mkdtemp(prefix="lycus_wa_test_")
+    home = os.path.join(d, ".autolycus")
     os.makedirs(home)
-    monkeypatch.setenv("HERMES_HOME", home)
+    monkeypatch.setenv("AUTOLYCUS_HOME", home)
     yield home
     shutil.rmtree(d, ignore_errors=True)
 
 
 def _set_approval(subsystem, enabled):
-    import hermes_cli.config as cfg
+    import lycus_cli.config as cfg
     c = cfg.load_config()
     c.setdefault(subsystem, {})["write_approval"] = enabled
     cfg.save_config(c)
@@ -36,14 +36,14 @@ def _set_approval(subsystem, enabled):
 # Config resolution
 # ---------------------------------------------------------------------------
 
-def test_default_gate_is_off(hermes_home):
+def test_default_gate_is_off(lycus_home):
     from tools import write_approval as wa
     # Default: gate off → writes flow freely.
     assert wa.write_approval_enabled("memory") is False
     assert wa.write_approval_enabled("skills") is False
 
 
-def test_invalid_subsystem_is_off(hermes_home):
+def test_invalid_subsystem_is_off(lycus_home):
     from tools import write_approval as wa
     assert wa.write_approval_enabled("bogus") is False
 
@@ -67,7 +67,7 @@ def test_normalize_enabled_coerces_values():
 # Memory gate
 # ---------------------------------------------------------------------------
 
-def test_memory_gate_off_allows_write(hermes_home):
+def test_memory_gate_off_allows_write(lycus_home):
     # Default (gate off) → write straight through, no staging.
     from tools.memory_tool import memory_tool, MemoryStore
     from tools import write_approval as wa
@@ -78,7 +78,7 @@ def test_memory_gate_off_allows_write(hermes_home):
     assert wa.pending_count("memory") == 0
 
 
-def test_memory_gate_on_no_interactive_stages(hermes_home):
+def test_memory_gate_on_no_interactive_stages(lycus_home):
     # Gate on, no approval callback / not a gateway context → stage.
     from tools.memory_tool import memory_tool, MemoryStore
     from tools import write_approval as wa
@@ -94,7 +94,7 @@ def test_memory_gate_on_no_interactive_stages(hermes_home):
     assert pend[0]["id"] == r["pending_id"]
 
 
-def test_memory_gate_on_then_apply(hermes_home):
+def test_memory_gate_on_then_apply(lycus_home):
     from tools.memory_tool import memory_tool, MemoryStore, apply_memory_pending
     from tools import write_approval as wa
     _set_approval("memory", True)
@@ -117,7 +117,7 @@ _SKILL = (
 )
 
 
-def test_skill_gate_off_allows_create(hermes_home):
+def test_skill_gate_off_allows_create(lycus_home):
     # Default (gate off) → skill is created normally, not staged.
     import importlib
     import tools.skill_manager_tool as smt
@@ -128,7 +128,7 @@ def test_skill_gate_off_allows_create(hermes_home):
     assert wa.pending_count("skills") == 0
 
 
-def test_skill_gate_on_always_stages(hermes_home):
+def test_skill_gate_on_always_stages(lycus_home):
     # Skills stage even in the foreground (too big to review inline).
     from tools.skill_manager_tool import skill_manage
     from tools import write_approval as wa
@@ -139,9 +139,9 @@ def test_skill_gate_on_always_stages(hermes_home):
     assert wa.pending_count("skills") == 1
 
 
-def test_skill_gate_on_then_apply_writes_file(hermes_home):
+def test_skill_gate_on_then_apply_writes_file(lycus_home):
     # SKILLS_DIR is resolved at import time, so reload the skill module under
-    # this test's HERMES_HOME to exercise the real on-disk write path.
+    # this test's AUTOLYCUS_HOME to exercise the real on-disk write path.
     import importlib
     import tools.skill_manager_tool as smt
     importlib.reload(smt)
@@ -154,7 +154,7 @@ def test_skill_gate_on_then_apply_writes_file(hermes_home):
     assert smt._find_skill("applied-skill") is not None
 
 
-def test_skill_create_diff_is_full_content(hermes_home):
+def test_skill_create_diff_is_full_content(lycus_home):
     from tools.skill_manager_tool import skill_manage
     from tools import write_approval as wa
     _set_approval("skills", True)
@@ -168,7 +168,7 @@ def test_skill_create_diff_is_full_content(hermes_home):
 # Pending store CRUD
 # ---------------------------------------------------------------------------
 
-def test_pending_store_roundtrip(hermes_home):
+def test_pending_store_roundtrip(lycus_home):
     from tools import write_approval as wa
     rec = wa.stage_write("memory", {"action": "add", "target": "user", "content": "x"},
                          summary="add x", origin="foreground")
@@ -184,15 +184,15 @@ def test_pending_store_roundtrip(hermes_home):
 # Shared command handler
 # ---------------------------------------------------------------------------
 
-def test_handle_pending_list_empty(hermes_home):
-    from hermes_cli.write_approval_commands import handle_pending_subcommand
+def test_handle_pending_list_empty(lycus_home):
+    from lycus_cli.write_approval_commands import handle_pending_subcommand
     from tools import write_approval as wa
     out = handle_pending_subcommand(wa.MEMORY, ["pending"])
     assert "No pending memory" in out
 
 
-def test_handle_approve_all(hermes_home):
-    from hermes_cli.write_approval_commands import handle_pending_subcommand
+def test_handle_approve_all(lycus_home):
+    from lycus_cli.write_approval_commands import handle_pending_subcommand
     from tools.memory_tool import MemoryStore
     from tools import write_approval as wa
     store = MemoryStore(); store.load_from_disk()
@@ -206,8 +206,8 @@ def test_handle_approve_all(hermes_home):
     assert len(store.user_entries) == 2
 
 
-def test_handle_reject(hermes_home):
-    from hermes_cli.write_approval_commands import handle_pending_subcommand
+def test_handle_reject(lycus_home):
+    from lycus_cli.write_approval_commands import handle_pending_subcommand
     from tools import write_approval as wa
     rec = wa.stage_write("skills", {"action": "create", "name": "s"},
                          summary="create s", origin="background_review")
@@ -216,8 +216,8 @@ def test_handle_reject(hermes_home):
     assert wa.pending_count("skills") == 0
 
 
-def test_handle_approval_on(hermes_home):
-    from hermes_cli.write_approval_commands import handle_pending_subcommand
+def test_handle_approval_on(lycus_home):
+    from lycus_cli.write_approval_commands import handle_pending_subcommand
     from tools import write_approval as wa
     captured = {}
     out = handle_pending_subcommand(
@@ -228,8 +228,8 @@ def test_handle_approval_on(hermes_home):
     assert "on" in out
 
 
-def test_handle_approval_off(hermes_home):
-    from hermes_cli.write_approval_commands import handle_pending_subcommand
+def test_handle_approval_off(lycus_home):
+    from lycus_cli.write_approval_commands import handle_pending_subcommand
     from tools import write_approval as wa
     captured = {}
     out = handle_pending_subcommand(
@@ -240,9 +240,9 @@ def test_handle_approval_off(hermes_home):
     assert "off" in out
 
 
-def test_handle_mode_alias_still_works(hermes_home):
+def test_handle_mode_alias_still_works(lycus_home):
     # 'mode' is kept as a back-compat alias for 'approval'.
-    from hermes_cli.write_approval_commands import handle_pending_subcommand
+    from lycus_cli.write_approval_commands import handle_pending_subcommand
     from tools import write_approval as wa
     captured = {}
     out = handle_pending_subcommand(
@@ -253,16 +253,16 @@ def test_handle_mode_alias_still_works(hermes_home):
     assert "on" in out
 
 
-def test_handle_approval_invalid(hermes_home):
-    from hermes_cli.write_approval_commands import handle_pending_subcommand
+def test_handle_approval_invalid(lycus_home):
+    from lycus_cli.write_approval_commands import handle_pending_subcommand
     from tools import write_approval as wa
     out = handle_pending_subcommand(wa.MEMORY, ["approval", "bogus"],
                                     set_mode_fn=lambda enabled: None)
     assert "Invalid value" in out
 
 
-def test_handle_unknown_subcommand_returns_none(hermes_home):
-    from hermes_cli.write_approval_commands import handle_pending_subcommand
+def test_handle_unknown_subcommand_returns_none(lycus_home):
+    from lycus_cli.write_approval_commands import handle_pending_subcommand
     from tools import write_approval as wa
     # An unrecognized /skills subcommand (e.g. 'search') must return None so
     # the CLI falls through to the skills hub.
@@ -283,7 +283,7 @@ def approval_callback_cleanup():
     set_approval_callback(None)
 
 
-def test_memory_inline_approve_writes(hermes_home, approval_callback_cleanup):
+def test_memory_inline_approve_writes(lycus_home, approval_callback_cleanup):
     from tools.memory_tool import memory_tool, MemoryStore
     from tools.terminal_tool import set_approval_callback
     from tools import write_approval as wa
@@ -306,7 +306,7 @@ def test_memory_inline_approve_writes(hermes_home, approval_callback_cleanup):
     assert "approved fact" in calls[0][0]
 
 
-def test_memory_inline_deny_blocks(hermes_home, approval_callback_cleanup):
+def test_memory_inline_deny_blocks(lycus_home, approval_callback_cleanup):
     from tools.memory_tool import memory_tool, MemoryStore
     from tools.terminal_tool import set_approval_callback
     from tools import write_approval as wa
@@ -321,7 +321,7 @@ def test_memory_inline_deny_blocks(hermes_home, approval_callback_cleanup):
     assert wa.pending_count("memory") == 0  # denied, not staged
 
 
-def test_memory_inline_callback_error_stages(hermes_home, approval_callback_cleanup):
+def test_memory_inline_callback_error_stages(lycus_home, approval_callback_cleanup):
     # If the prompt machinery fails, fall back to staging — never drop silently.
     from tools.memory_tool import memory_tool, MemoryStore
     from tools.terminal_tool import set_approval_callback
@@ -337,7 +337,7 @@ def test_memory_inline_callback_error_stages(hermes_home, approval_callback_clea
     assert wa.pending_count("memory") == 1
 
 
-def test_gateway_context_stages_not_prompts(hermes_home, monkeypatch):
+def test_gateway_context_stages_not_prompts(lycus_home, monkeypatch):
     # A gateway session has no per-thread CLI callback; the dangerous-command
     # /approve round-trip lives in the pending-queue machinery which the gate
     # does not use. The gate must stage, never attempt an inline prompt
@@ -354,7 +354,7 @@ def test_gateway_context_stages_not_prompts(hermes_home, monkeypatch):
     assert wa.pending_count("memory") == 1
 
 
-def test_skills_never_prompt_inline_even_with_callback(hermes_home, approval_callback_cleanup):
+def test_skills_never_prompt_inline_even_with_callback(lycus_home, approval_callback_cleanup):
     # Skills always stage — even when an interactive callback is registered.
     from tools.skill_manager_tool import skill_manage
     from tools.terminal_tool import set_approval_callback
@@ -372,7 +372,7 @@ def test_skills_never_prompt_inline_even_with_callback(hermes_home, approval_cal
     assert wa.pending_count("skills") == 1
 
 
-def test_memory_invalid_params_rejected_before_staging(hermes_home):
+def test_memory_invalid_params_rejected_before_staging(lycus_home):
     # Param validation must run BEFORE the gate so a broken write is rejected
     # immediately instead of staged and failing at approve time.
     from tools.memory_tool import memory_tool, MemoryStore

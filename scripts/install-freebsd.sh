@@ -328,16 +328,16 @@ install_deps
 # ============================================================================
 
 setup_path() {
-    printf '%b\n' "${CYAN}→${NC} Setting up hermes and lycus commands..."
+    printf '%b\n' "${CYAN}→${NC} Setting up lycus and lycus commands..."
 
-    HERMES_BIN="$_INSTALL_REPO_DIR/venv/bin/hermes"
+    HERMES_BIN="$_INSTALL_REPO_DIR/venv/bin/lycus"
     LYCUS_BIN="$_INSTALL_REPO_DIR/venv/bin/lycus"
 
     mkdir -p "$HOME/.local/bin"
 
     # Use absolute symlinks to avoid broken links when running from different directories
-    ln -sf "$HERMES_BIN" "$HOME/.local/bin/hermes"
-    printf '%b\n' "${GREEN}✓${NC} Symlinked hermes → ~/.local/bin/hermes"
+    ln -sf "$HERMES_BIN" "$HOME/.local/bin/lycus"
+    printf '%b\n' "${GREEN}✓${NC} Symlinked lycus → ~/.local/bin/lycus"
 
     ln -sf "$LYCUS_BIN" "$HOME/.local/bin/lycus"
     printf '%b\n' "${GREEN}✓${NC} Symlinked lycus → ~/.local/bin/lycus"
@@ -384,10 +384,10 @@ esac
 
 echo ""
 echo "  2. Configure API keys:"
-echo "     hermes setup"
+echo "     lycus setup"
 echo ""
 echo "  3. Start chatting:"
-echo "     hermes"
+echo "     lycus"
 echo ""
 
 # FreeBSD-specific notes
@@ -395,5 +395,5 @@ printf '%b\n' "${YELLOW}⚠ Note:${NC} For long-term memory support, install pyt
 echo "     pkg install py311-sqlite"
 echo ""
 printf '%b\n' "${YELLOW}⚠ Note:${NC} Voice transcription (faster-whisper) is unavailable on FreeBSD."
-echo "     Use cloud STT instead: set GROQ_API_KEY or VOICE_TOOLS_OPENAI_KEY in ~/.hermes/.env"
+echo "     Use cloud STT instead: set GROQ_API_KEY or VOICE_TOOLS_OPENAI_KEY in ~/.autolycus/.env"
 echo ""

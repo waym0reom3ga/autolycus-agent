@@ -30,37 +30,37 @@ class TestWriteDenyExactPaths:
         assert _is_write_denied(path) is True
 
 
-    def test_hermes_env(self):
-        # ``.env`` under the active HERMES_HOME (profile-aware, not just
-        # ``~/.hermes``) must be write-denied. The hermetic test conftest
-        # points HERMES_HOME at a tempdir — resolve via get_hermes_home()
+    def test_lycus_env(self):
+        # ``.env`` under the active AUTOLYCUS_HOME (profile-aware, not just
+        # ``~/.autolycus``) must be write-denied. The hermetic test conftest
+        # points AUTOLYCUS_HOME at a tempdir — resolve via get_lycus_home()
         # to match the denylist.
-        from hermes_constants import get_hermes_home
-        path = str(get_hermes_home() / ".env")
+        from lycus_constants import get_lycus_home
+        path = str(get_lycus_home() / ".env")
         assert _is_write_denied(path) is True
 
-    def test_hermes_root_env_when_running_under_profile(self, tmp_path, monkeypatch):
+    def test_lycus_root_env_when_running_under_profile(self, tmp_path, monkeypatch):
         """Top-level ``<root>/.env`` stays write-denied even when running under
         a profile (#15981).
 
         Before the fix, ``build_write_denied_paths`` only added
         ``<active_profile>/.env`` to the deny list, so the global
-        ``~/.hermes/.env`` (whose credentials are inherited by every profile)
+        ``~/.autolycus/.env`` (whose credentials are inherited by every profile)
         could be silently overwritten by ``write_file`` while a profile was
         active.
         """
-        root = tmp_path / "hermes_root"
+        root = tmp_path / "lycus_root"
         profile_home = root / "profiles" / "coder"
         profile_home.mkdir(parents=True)
         global_env = root / ".env"
         global_env.write_text("OPENAI_API_KEY=sk-real\n")
 
-        monkeypatch.setenv("HERMES_HOME", str(profile_home))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(profile_home))
 
-        # Sanity check: HERMES_HOME does point to the profile dir, not the root.
-        from hermes_constants import get_hermes_home, get_default_hermes_root
-        assert get_hermes_home() == profile_home
-        assert get_default_hermes_root() == root
+        # Sanity check: AUTOLYCUS_HOME does point to the profile dir, not the root.
+        from lycus_constants import get_lycus_home, get_default_lycus_root
+        assert get_lycus_home() == profile_home
+        assert get_default_lycus_root() == root
 
         assert _is_write_denied(str(global_env)) is True
 
@@ -120,9 +120,9 @@ class TestWriteAllowed:
     def test_project_file(self):
         assert _is_write_denied("/home/user/project/main.py") is False
 
-    def test_hermes_control_files_requested_writable(self):
-        from hermes_constants import get_hermes_home
+    def test_lycus_control_files_requested_writable(self):
+        from lycus_constants import get_lycus_home
 
-        home = get_hermes_home()
+        home = get_lycus_home()
         for name in ["auth.json", "config.yaml", "webhook_subscriptions.json"]:
             assert _is_write_denied(str(home / name)) is False, f"{name} should be writable"

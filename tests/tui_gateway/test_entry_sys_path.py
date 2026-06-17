@@ -52,10 +52,10 @@ def test_empty_string_and_dot_removed_from_sys_path():
         sys.path = original
 
 
-def test_hermes_src_root_inserted_at_front():
+def test_lycus_src_root_inserted_at_front():
     original = sys.path[:]
     try:
-        fake_root = "/fake/hermes/src"
+        fake_root = "/fake/lycus/src"
         with patch.dict(os.environ, {"HERMES_PYTHON_SRC_ROOT": fake_root}):
             _src_root = os.environ.get("HERMES_PYTHON_SRC_ROOT", "")
             if _src_root and _src_root not in sys.path:

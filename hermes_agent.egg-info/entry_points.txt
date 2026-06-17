@@ -1,0 +1,5 @@
+[console_scripts]
+lycus = lycus_cli.main:main
+lycus-acp = acp_adapter.entry:main
+lycus-agent = run_agent:main
+lycus = lycus_cli.main:main

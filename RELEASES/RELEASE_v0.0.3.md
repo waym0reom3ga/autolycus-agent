@@ -38,7 +38,7 @@ This release transforms the visual experience while maintaining 100% functional 
 - **Bright Purple (#b163db)** - Model name display in status bar
 - **Sky Blue (#00BFFF)** - Tools/skills summary
 
-**Before (Hermes-inspired):** Gold, yellow, red palette  
+**Before (Lycus-inspired):** Gold, yellow, red palette  
 **After (Autolycus):** Teal, blue, navy palette
 
 #### ♿ Colorblind Accessibility Improvements
@@ -87,11 +87,11 @@ All three built-in skins rebranded with Autolycus identity:
 
 | File | Lines Changed | Description |
 |------|---------------|-------------|
-| `hermes_cli/banner.py` | +87/-87 | New ASCII logo, color scheme, version string |
+| `lycus_cli/banner.py` | +87/-87 | New ASCII logo, color scheme, version string |
 | `cli.py` | +58/-58 | Response box colors, fox emoji, status bar updates |
-| `hermes_cli/skin_engine.py` | +56/-56 | All built-in skins rebranded with Autolycus identity |
-| `hermes_cli/main.py` | +4/-2 | Version string update (v0.8.0 → v0.0.2) |
-| `hermes_cli/providers.py` | +36/-36 | Provider display colors updated |
+| `lycus_cli/skin_engine.py` | +56/-56 | All built-in skins rebranded with Autolycus identity |
+| `lycus_cli/main.py` | +4/-2 | Version string update (v0.8.0 → v0.0.2) |
+| `lycus_cli/providers.py` | +36/-36 | Provider display colors updated |
 | `agent/display.py` | +2/-1 | Fox emoji in execute_code output |
 
 #### Commit History
@@ -143,11 +143,11 @@ export PATH="$HOME/.cargo/bin:$PATH"
 uv venv venv --python 3.11
 . venv/bin/activate
 uv pip install -e ".[modal,daytona,messaging,cron,cli,dev,tts-premium,slack,honcho,mcp]"
-mkdir -p ~/.local/bin && ln -sf $(pwd)/venv/bin/hermes ~/.local/bin/hermes
+mkdir -p ~/.local/bin && ln -sf $(pwd)/venv/bin/lycus ~/.local/bin/lycus
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ```
 
-Then run `hermes setup` to configure your model provider and API keys.
+Then run `lycus setup` to configure your model provider and API keys.
 
 ---
 
@@ -168,7 +168,7 @@ The new color scheme and branding will be applied automatically on next startup!
 
 ### Visual Comparison
 
-#### Before (v_0.0.2 - Hermes-inspired):
+#### Before (v_0.0.2 - Lycus-inspired):
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║  🔱 HERMES - AI Agent Framework              ║
@@ -190,7 +190,7 @@ Colors: Teal (#00CED1), Blue (#4169E1)
 
 ### Credits
 
-Built on the [Hermes Agent](https://github.com/NousResearch/hermes-agent) architecture by Nous Research.  
+Built on the [Lycus Agent](https://github.com/NousResearch/lycus-agent) architecture by Nous Research.  
 An independent project by **Technetia Inc**.
 
 Special thanks to:
@@ -202,7 +202,7 @@ Special thanks to:
 ### What's Next?
 
 **v_0.0.4 and beyond:**
-- Hermes script compatibility test suite
+- Lycus script compatibility test suite
 - Automated cross-platform testing (FreeBSD/Linux)
 - Additional FreeBSD-specific optimizations
 - Community-contributed skins

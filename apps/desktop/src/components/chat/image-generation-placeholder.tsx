@@ -275,7 +275,7 @@ export const DiffusionCanvas: FC = () => {
     // Re-resolve when the theme repaints (`applyTheme` toggles `.dark` and
     // rewrites inline custom props on the root) instead of per animation frame.
     const observer = new MutationObserver(sync)
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-hermes-mode'] })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-lycus-mode'] })
 
     return () => {
       observer.disconnect()

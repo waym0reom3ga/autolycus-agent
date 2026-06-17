@@ -49,12 +49,12 @@ class TestManifest:
 class TestDiscovery:
     def test_plugin_is_discovered_as_standalone_opt_in(self, tmp_path, monkeypatch):
         """Scanner should find the plugin but NOT load it by default."""
-        from hermes_cli import plugins as plugins_mod
+        from lycus_cli import plugins as plugins_mod
 
-        # Isolated HERMES_HOME so we don't read the developer's config.yaml.
-        home = tmp_path / ".hermes"
+        # Isolated AUTOLYCUS_HOME so we don't read the developer's config.yaml.
+        home = tmp_path / ".autolycus"
         home.mkdir()
-        monkeypatch.setenv("HERMES_HOME", str(home))
+        monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
         manager = plugins_mod.PluginManager()
@@ -125,7 +125,7 @@ class TestRuntimeGate:
             "it should short-circuit via _INIT_FAILED"
         )
 
-    def test_get_langfuse_does_not_import_hermes_config(self, monkeypatch):
+    def test_get_langfuse_does_not_import_lycus_config(self, monkeypatch):
         """The plugin must not re-read config.yaml per hook."""
         for k in (
             "HERMES_LANGFUSE_PUBLIC_KEY", "HERMES_LANGFUSE_SECRET_KEY",
@@ -133,15 +133,15 @@ class TestRuntimeGate:
         ):
             monkeypatch.delenv(k, raising=False)
 
-        # Drop any cached import of hermes_cli.config.
-        sys.modules.pop("hermes_cli.config", None)
+        # Drop any cached import of lycus_cli.config.
+        sys.modules.pop("lycus_cli.config", None)
 
         langfuse_plugin = self._fresh_plugin()
         for _ in range(20):
             langfuse_plugin._get_langfuse()
 
-        assert "hermes_cli.config" not in sys.modules, (
-            "langfuse plugin imported hermes_cli.config — regression toward "
+        assert "lycus_cli.config" not in sys.modules, (
+            "langfuse plugin imported lycus_cli.config — regression toward "
             "the rejected per-hook load_config() design"
         )
 
@@ -213,7 +213,7 @@ class TestPayloadSanitization:
 # "placeholder", "test-key", or "your-langfuse-key", the SDK accepts the
 # credentials at construction time (it does no server-side validation
 # eagerly) but drops every trace at flush time, with no signal in the
-# Hermes logs.  The fix in `_get_langfuse()` validates the documented
+# Lycus logs.  The fix in `_get_langfuse()` validates the documented
 # `pk-lf-` / `sk-lf-` prefix Langfuse always issues, surfaces a one-shot
 # warning naming the offending env var(s), and short-circuits via the
 # same `_INIT_FAILED` path used for missing credentials so subsequent

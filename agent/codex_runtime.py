@@ -41,17 +41,17 @@ def _coerce_usage_int(value: Any) -> int:
 
 
 def _record_codex_app_server_usage(agent, turn) -> dict[str, Any]:
-    """Translate Codex app-server token usage into Hermes accounting.
+    """Translate Codex app-server token usage into Lycus accounting.
 
     Codex app-server reports usage via thread/tokenUsage/updated as:
     inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens,
     totalTokens.
 
-    Hermes' canonical prompt bucket includes uncached input + cached input.
+    Lycus' canonical prompt bucket includes uncached input + cached input.
     The Codex app-server protocol does not currently expose cache-write tokens,
     so that bucket remains zero on this runtime.
 
-    Even when Codex omits usage for a turn, Hermes should still count that turn
+    Even when Codex omits usage for a turn, Lycus should still count that turn
     as one API call for session/status accounting.
     """
     agent.session_api_calls += 1
@@ -183,7 +183,7 @@ def run_codex_app_server_turn(
     should_review_memory: bool = False,
 ) -> Dict[str, Any]:
     """Codex app-server runtime path. Hands the entire turn to a `codex
-    app-server` subprocess and projects its events back into Hermes'
+    app-server` subprocess and projects its events back into Lycus'
     messages list so memory/skill review keep working.
 
     Called from run_conversation() when agent.api_mode == "codex_app_server".
@@ -196,7 +196,7 @@ def run_codex_app_server_turn(
     # shutdown (see _cleanup hook).
     if not hasattr(agent, "_codex_session") or agent._codex_session is None:
         cwd = getattr(agent, "session_cwd", None) or os.getcwd()
-        # Approval callback: defer to Hermes' standard prompt flow if a
+        # Approval callback: defer to Lycus' standard prompt flow if a
         # CLI thread has installed one. Gateway / cron contexts get the
         # codex-side fail-closed default.
         try:

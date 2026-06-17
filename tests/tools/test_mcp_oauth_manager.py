@@ -34,7 +34,7 @@ def test_manager_is_singleton():
 
 def test_manager_get_or_build_provider_caches(tmp_path, monkeypatch):
     """Calling get_or_build_provider twice with same name returns same provider."""
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
     _set_interactive_stdin(monkeypatch)
     from tools.mcp_oauth_manager import MCPOAuthManager
 
@@ -46,7 +46,7 @@ def test_manager_get_or_build_provider_caches(tmp_path, monkeypatch):
 
 def test_manager_get_or_build_rebuilds_on_url_change(tmp_path, monkeypatch):
     """Changing the URL discards the cached provider."""
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
     _set_interactive_stdin(monkeypatch)
     from tools.mcp_oauth_manager import MCPOAuthManager
 
@@ -58,7 +58,7 @@ def test_manager_get_or_build_rebuilds_on_url_change(tmp_path, monkeypatch):
 
 def test_manager_remove_evicts_cache(tmp_path, monkeypatch):
     """remove(name) evicts the provider from cache AND deletes disk files."""
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
     _set_interactive_stdin(monkeypatch)
     from tools.mcp_oauth_manager import MCPOAuthManager
 
@@ -82,8 +82,8 @@ def test_manager_remove_evicts_cache(tmp_path, monkeypatch):
     assert p1 is not p2
 
 
-def test_hermes_provider_subclass_exists():
-    """HermesMCPOAuthProvider is defined and subclasses OAuthClientProvider."""
+def test_lycus_provider_subclass_exists():
+    """LycusMCPOAuthProvider is defined and subclasses OAuthClientProvider."""
     from tools.mcp_oauth_manager import _HERMES_PROVIDER_CLS
     from mcp.client.auth.oauth2 import OAuthClientProvider
 
@@ -99,7 +99,7 @@ async def test_disk_watch_invalidates_on_mtime_change(tmp_path, monkeypatch):
     invalidateOAuthCacheIfDiskChanged (CC-1096 / GH#24317) and is the core
     fix for Cthulhu's external-cron refresh workflow.
     """
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
     from tools.mcp_oauth_manager import MCPOAuthManager, reset_manager_for_tests
 
     reset_manager_for_tests()
@@ -134,13 +134,13 @@ async def test_disk_watch_invalidates_on_mtime_change(tmp_path, monkeypatch):
     assert provider._initialized is False
 
 
-def test_manager_builds_hermes_provider_subclass(tmp_path, monkeypatch):
-    """get_or_build_provider returns HermesMCPOAuthProvider, not plain OAuthClientProvider."""
+def test_manager_builds_lycus_provider_subclass(tmp_path, monkeypatch):
+    """get_or_build_provider returns LycusMCPOAuthProvider, not plain OAuthClientProvider."""
     from tools.mcp_oauth_manager import (
         MCPOAuthManager, _HERMES_PROVIDER_CLS, reset_manager_for_tests,
     )
     reset_manager_for_tests()
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
     _set_interactive_stdin(monkeypatch)
 
     mgr = MCPOAuthManager()
@@ -148,12 +148,12 @@ def test_manager_builds_hermes_provider_subclass(tmp_path, monkeypatch):
 
     assert _HERMES_PROVIDER_CLS is not None
     assert isinstance(provider, _HERMES_PROVIDER_CLS)
-    assert provider._hermes_server_name == "srv"
+    assert provider._lycus_server_name == "srv"
 
 
 def test_manager_fails_fast_noninteractive_without_cached_tokens(tmp_path, monkeypatch):
     """A daemon without cached MCP OAuth tokens must not enter browser auth."""
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path))
     _set_interactive_stdin(monkeypatch, is_tty=False)
     from tools.mcp_oauth import OAuthNonInteractiveError
     from tools.mcp_oauth_manager import MCPOAuthManager

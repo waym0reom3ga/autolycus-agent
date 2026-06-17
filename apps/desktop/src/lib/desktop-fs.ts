@@ -1,14 +1,14 @@
 import type {
-  HermesConnection,
-  HermesReadDirResult,
-  HermesReadFileTextResult,
-  HermesSelectPathsOptions,
-  HermesWorktreeInfo
+  LycusConnection,
+  LycusReadDirResult,
+  LycusReadFileTextResult,
+  LycusSelectPathsOptions,
+  LycusWorktreeInfo
 } from '@/global'
 import { $connection } from '@/store/session'
 
 export interface DesktopFsRemotePicker {
-  selectPaths: (options?: HermesSelectPathsOptions) => Promise<string[]>
+  selectPaths: (options?: LycusSelectPathsOptions) => Promise<string[]>
 }
 
 let remotePicker: DesktopFsRemotePicker | null = null
@@ -17,7 +17,7 @@ export function setDesktopFsRemotePicker(next: DesktopFsRemotePicker | null) {
   remotePicker = next
 }
 
-function connectionCacheKey(connection: HermesConnection | null) {
+function connectionCacheKey(connection: LycusConnection | null) {
   if (!connection) {
     return 'local:'
   }
@@ -37,27 +37,27 @@ function fsPath(endpoint: string, filePath: string) {
 }
 
 function bridge() {
-  const desktop = window.hermesDesktop
+  const desktop = window.autolycusDesktop
   if (!desktop) {
-    throw new Error('Hermes Desktop bridge is unavailable')
+    throw new Error('Lycus Desktop bridge is unavailable')
   }
   return desktop
 }
 
-export async function readDesktopDir(path: string): Promise<HermesReadDirResult> {
+export async function readDesktopDir(path: string): Promise<LycusReadDirResult> {
   const desktop = bridge()
   if (!isDesktopFsRemoteMode()) {
     return desktop.readDir(path)
   }
-  return desktop.api<HermesReadDirResult>({ path: fsPath('list', path) })
+  return desktop.api<LycusReadDirResult>({ path: fsPath('list', path) })
 }
 
-export async function readDesktopFileText(path: string): Promise<HermesReadFileTextResult> {
+export async function readDesktopFileText(path: string): Promise<LycusReadFileTextResult> {
   const desktop = bridge()
   if (!isDesktopFsRemoteMode()) {
     return desktop.readFileText(path)
   }
-  return desktop.api<HermesReadFileTextResult>({ path: fsPath('read-text', path) })
+  return desktop.api<LycusReadFileTextResult>({ path: fsPath('read-text', path) })
 }
 
 export async function readDesktopFileDataUrl(path: string): Promise<string> {
@@ -83,7 +83,7 @@ export async function desktopGitRoot(path: string): Promise<string | null> {
 // Worktree detection runs against the LOCAL filesystem (the electron main
 // process). For a remote backend the session cwds live on another machine, so
 // we can't resolve them here — callers fall back to the path-name heuristic.
-export async function desktopWorktrees(cwds: string[]): Promise<Record<string, HermesWorktreeInfo | null>> {
+export async function desktopWorktrees(cwds: string[]): Promise<Record<string, LycusWorktreeInfo | null>> {
   if (isDesktopFsRemoteMode()) {
     return {}
   }
@@ -101,7 +101,7 @@ export async function desktopDefaultCwd(): Promise<{ branch: string; cwd: string
   return bridge().api<{ branch: string; cwd: string }>({ path: '/api/fs/default-cwd' })
 }
 
-export async function selectDesktopPaths(options?: HermesSelectPathsOptions): Promise<string[]> {
+export async function selectDesktopPaths(options?: LycusSelectPathsOptions): Promise<string[]> {
   const desktop = bridge()
   if (!isDesktopFsRemoteMode()) {
     return desktop.selectPaths(options)

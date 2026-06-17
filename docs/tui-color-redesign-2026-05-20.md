@@ -19,7 +19,7 @@ a full-screen alternate screen. Colors flow from two sources:
 - Colors are referenced as `t.color.<role>` throughout all Ink components
 - The `ThemeColors` interface defines ~30 named color roles
 
-**Python CLI (`hermes_cli/skin_engine.py`):**
+**Python CLI (`lycus_cli/skin_engine.py`):**
 - Built-in skins (`default`, `ares`, `mono`, `slate`, `poseidon`, `sisyphus`, `charizard`)
 - Each skin defines hex colors for banner, UI, and status roles
 - The `default` skin is the active Autolycus skin
@@ -344,7 +344,7 @@ luminance-based escalation without changing hue.
 ### 6.1 Files to Modify
 
 1. **`ui-tui/src/theme.ts`** — Update `DARK_THEME.color` object with new hex values
-2. **`hermes_cli/skin_engine.py`** — Update `default` skin colors dict to match
+2. **`lycus_cli/skin_engine.py`** — Update `default` skin colors dict to match
 
 ### 6.2 Files NOT to Modify
 

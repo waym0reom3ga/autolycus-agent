@@ -1,10 +1,10 @@
 """
-Lazy dependency installer for opt-in Hermes Agent backends.
+Lazy dependency installer for opt-in Lycus Agent backends.
 
-Many Hermes features (Mistral TTS, ElevenLabs TTS, Honcho memory, Bedrock,
+Many Lycus features (Mistral TTS, ElevenLabs TTS, Honcho memory, Bedrock,
 Slack, Matrix, etc.) require Python packages that not every user needs. The
 historical approach was to bundle them all under ``pyproject.toml`` extras
-(``hermes-agent[all]``) and install them eagerly at setup time. That has
+(``lycus-agent[all]``) and install them eagerly at setup time. That has
 two problems:
 
 1. **Fragility.** When one extra's transitive dependency becomes
@@ -20,7 +20,7 @@ top of their first-import path. If the deps are missing, ``ensure`` checks
 the ``security.allow_lazy_installs`` config flag (default true) and runs
 a venv-scoped pip install. If the user has explicitly disabled lazy
 installs, ``ensure`` raises :class:`FeatureUnavailable` with a clear
-remediation hint pointing at ``hermes tools`` or the manual pip command.
+remediation hint pointing at ``lycus tools`` or the manual pip command.
 
 Security model:
 
@@ -102,7 +102,7 @@ LAZY_DEPS: dict[str, tuple[str, ...]] = {
     # 2.4.6 was removed and clean releases resumed (2.4.7, 2.4.8). Voxtral
     # STT + TTS share the same SDK.
     "tts.mistral": ("mistralai==2.4.8",),
-    "tts.edge": ("edge-tts==7.2.7",),
+    "tts.chatterbox": ("chatterbox-tts==0.1.7",),
     "tts.elevenlabs": ("elevenlabs==1.59.0",),
 
     # ─── Speech-to-text providers ──────────────────────────────────────────
@@ -173,7 +173,7 @@ LAZY_DEPS: dict[str, tuple[str, ...]] = {
     # ─── Tools ─────────────────────────────────────────────────────────────
     # ACP adapter (VS Code / Zed / JetBrains integration)
     "tool.acp": ("agent-client-protocol==0.9.0",),
-    # Dashboard (`hermes dashboard`)
+    # Dashboard (`lycus dashboard`)
     "tool.dashboard": (
         "fastapi==0.133.1",
         "uvicorn[standard]==0.41.0",
@@ -243,7 +243,7 @@ def _allow_lazy_installs() -> bool:
     if os.environ.get("HERMES_DISABLE_LAZY_INSTALLS") == "1":
         return False
     try:
-        from hermes_cli.config import load_config
+        from lycus_cli.config import load_config
         cfg = load_config()
     except Exception:
         return True
@@ -293,7 +293,7 @@ def _is_satisfied(spec: str) -> bool:
     Checks both presence AND version. If the package is installed at a
     version outside the spec's range, returns False so the caller will
     upgrade/downgrade to the pinned version. This is what makes
-    ``hermes update`` propagate pin bumps in :data:`LAZY_DEPS` to already-
+    ``lycus update`` propagate pin bumps in :data:`LAZY_DEPS` to already-
     installed backends instead of silently leaving stale versions in place.
 
     If ``packaging`` is unavailable for any reason (it's a transitive of
@@ -354,7 +354,7 @@ def _is_present(spec: str) -> bool:
 def _venv_pip_install(specs: tuple[str, ...], *, timeout: int = 300) -> _InstallResult:
     """Install ``specs`` into the active venv using uv → pip → ensurepip ladder.
 
-    Mirrors the strategy in ``hermes_cli.tools_config._pip_install`` but
+    Mirrors the strategy in ``lycus_cli.tools_config._pip_install`` but
     kept independent here so this module has no CLI dependency.
     """
     if not specs:
@@ -551,7 +551,7 @@ def active_features() -> list[str]:
     is currently installed in the venv (presence check, ignoring version).
     Features the user has never enabled stay quiet.
 
-    Used by ``hermes update`` to figure out which lazy backends need a
+    Used by ``lycus update`` to figure out which lazy backends need a
     refresh pass when pins move in :data:`LAZY_DEPS`.
     """
     active = []
@@ -571,7 +571,7 @@ def refresh_active_features(*, prompt: bool = False) -> dict[str, str]:
                                   whether to surface it (we don't raise)
         ``"skipped: <reason>"`` — gated off (config flag, user decline)
 
-    Intended for ``hermes update``. Never raises; lazy-install failures
+    Intended for ``lycus update``. Never raises; lazy-install failures
     here must not block the rest of the update flow.
     """
     results: dict[str, str] = {}

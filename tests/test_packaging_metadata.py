@@ -40,12 +40,12 @@ def test_every_on_disk_subpackage_is_covered_by_packages_find():
     """Regression test for #34701 (and the bug class behind #34034 / #28149).
 
     ``[tool.setuptools.packages.find]`` ``include`` is hand-maintained. Every
-    top-level package is listed twice — bare (``hermes_cli``) for the package
-    itself and ``hermes_cli.*`` for its subpackages — EXCEPT when someone
-    forgets the wildcard. v0.15.x listed ``hermes_cli`` without ``hermes_cli.*``,
-    so the wheel shipped ``hermes_cli/*.py`` but dropped the ``dashboard_auth``
+    top-level package is listed twice — bare (``lycus_cli``) for the package
+    itself and ``lycus_cli.*`` for its subpackages — EXCEPT when someone
+    forgets the wildcard. v0.15.x listed ``lycus_cli`` without ``lycus_cli.*``,
+    so the wheel shipped ``lycus_cli/*.py`` but dropped the ``dashboard_auth``
     and ``proxy`` subpackages. The dashboard then died on every install with
-    ``ModuleNotFoundError: No module named 'hermes_cli.dashboard_auth'``.
+    ``ModuleNotFoundError: No module named 'lycus_cli.dashboard_auth'``.
 
     This drives setuptools' own discovery against the live tree: every package
     that exists on disk and would be found by a permissive ``<name>.*`` scan
@@ -83,7 +83,7 @@ def test_packaging_declared_as_core_dependency():
 
     ``packaging`` is imported directly on three production paths
     (plugins/memory/hindsight/__init__.py, tools/lazy_deps.py,
-    hermes_cli/main.py) yet was undeclared, so it only reached users
+    lycus_cli/main.py) yet was undeclared, so it only reached users
     transitively. The slim Docker image shipped without it, silently
     disabling Hindsight append-mode and version-constraint checks. It must
     be a declared core dependency so it installs everywhere and the
@@ -119,7 +119,7 @@ def test_manifest_includes_bundled_skills():
 def test_bundled_plugin_manifests_ship_in_both_wheel_and_sdist():
     """Regression test for #34034 / #28149.
 
-    Plugin discovery (hermes_cli/plugins.py) registers each bundled plugin by
+    Plugin discovery (lycus_cli/plugins.py) registers each bundled plugin by
     reading its ``plugin.yaml`` / ``plugin.yml`` manifest. Those manifests are
     data files, not Python modules, so they only reach installed packages when
     declared explicitly:
@@ -269,12 +269,12 @@ def test_locale_catalogs_ship_in_both_wheel_and_sdist():
 def test_optional_mcps_manifests_ship_in_both_wheel_and_sdist():
     """Regression guard: the shipped MCP catalog must reach packaged installs.
 
-    hermes_cli/mcp_catalog.py resolves the catalog via get_optional_mcps_dir()
+    lycus_cli/mcp_catalog.py resolves the catalog via get_optional_mcps_dir()
     -> _get_packaged_data_dir("optional-mcps"), and list_catalog() returns []
     when that directory is absent. optional-mcps/ is a bare data directory (no
     __init__.py), invisible to packages.find and package-data. It must ship as
     setuptools data-files (wheel) AND be grafted in MANIFEST.in (sdist), or
-    `hermes mcp catalog` and the dashboard catalog screen come up empty on
+    `lycus mcp catalog` and the dashboard catalog screen come up empty on
     pip / Homebrew / Nix installs even though the manifests exist in the repo.
 
     data-files flattens every glob match into its single target dir, so each

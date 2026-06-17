@@ -19,19 +19,19 @@ import pytest
 # ---------------------------------------------------------------------------
 
 def test_kanban_tools_hidden_without_env_var(monkeypatch, tmp_path):
-    """Normal `hermes chat` sessions (no HERMES_KANBAN_TASK) must have
+    """Normal `lycus chat` sessions (no HERMES_KANBAN_TASK) must have
     zero kanban_* tools in their schema."""
     monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
 
     import tools.kanban_tools  # ensure registered
     from tools.registry import invalidate_check_fn_cache, registry
     from toolsets import resolve_toolset
 
     invalidate_check_fn_cache()
-    schema = registry.get_definitions(set(resolve_toolset("hermes-cli")), quiet=True)
+    schema = registry.get_definitions(set(resolve_toolset("lycus-cli")), quiet=True)
     names = {s["function"].get("name") for s in schema if "function" in s}
     kanban = {n for n in names if n and n.startswith("kanban_")}
     assert kanban == set(), (
@@ -42,16 +42,16 @@ def test_kanban_tools_hidden_without_env_var(monkeypatch, tmp_path):
 def test_kanban_tools_visible_with_env_var(monkeypatch, tmp_path):
     """Worker sessions get task lifecycle tools, not board-routing tools."""
     monkeypatch.setenv("HERMES_KANBAN_TASK", "t_fake")
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
 
     import tools.kanban_tools  # ensure registered
     from tools.registry import invalidate_check_fn_cache, registry
     from toolsets import resolve_toolset
 
     invalidate_check_fn_cache()
-    schema = registry.get_definitions(set(resolve_toolset("hermes-cli")), quiet=True)
+    schema = registry.get_definitions(set(resolve_toolset("lycus-cli")), quiet=True)
     names = {s["function"].get("name") for s in schema if "function" in s}
     kanban = {n for n in names if n and n.startswith("kanban_")}
     expected = {
@@ -66,9 +66,9 @@ def test_kanban_worker_env_overrides_profile_toolset_filter(monkeypatch, tmp_pat
     assignee profile restricts enabled toolsets and does not list kanban.
     """
     monkeypatch.setenv("HERMES_KANBAN_TASK", "t_fake")
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
 
     import tools.kanban_tools  # ensure registered
     from model_tools import _clear_tool_defs_cache, get_tool_definitions
@@ -95,17 +95,17 @@ def test_worker_with_kanban_toolset_still_hides_board_routing(monkeypatch, tmp_p
     worker and must not see kanban_list / kanban_unblock.
     """
     monkeypatch.setenv("HERMES_KANBAN_TASK", "t_fake")
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
     (home / "config.yaml").write_text("toolsets:\n  - kanban\n")
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
 
     import tools.kanban_tools  # ensure registered
     from tools.registry import invalidate_check_fn_cache, registry
     from toolsets import resolve_toolset
 
     invalidate_check_fn_cache()
-    schema = registry.get_definitions(set(resolve_toolset("hermes-cli")), quiet=True)
+    schema = registry.get_definitions(set(resolve_toolset("lycus-cli")), quiet=True)
     names = {s["function"].get("name") for s in schema if "function" in s}
     kanban = {n for n in names if n and n.startswith("kanban_")}
     assert {
@@ -120,17 +120,17 @@ def test_worker_with_kanban_toolset_still_hides_board_routing(monkeypatch, tmp_p
 def test_kanban_tools_visible_with_toolset_config(monkeypatch, tmp_path):
     """Orchestrator profiles with toolsets: [kanban] see all kanban tools."""
     monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
     (home / "config.yaml").write_text("toolsets:\n  - kanban\n")
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
 
     import tools.kanban_tools  # ensure registered
     from tools.registry import invalidate_check_fn_cache, registry
     from toolsets import resolve_toolset
 
     invalidate_check_fn_cache()
-    schema = registry.get_definitions(set(resolve_toolset("hermes-cli")), quiet=True)
+    schema = registry.get_definitions(set(resolve_toolset("lycus-cli")), quiet=True)
     names = {s["function"].get("name") for s in schema if "function" in s}
     kanban = {n for n in names if n and n.startswith("kanban_")}
     expected = {
@@ -148,17 +148,17 @@ def test_kanban_tools_visible_with_toolset_config(monkeypatch, tmp_path):
 
 @pytest.fixture
 def worker_env(monkeypatch, tmp_path):
-    """Simulate being a worker: HERMES_HOME isolated, HERMES_KANBAN_TASK set
+    """Simulate being a worker: AUTOLYCUS_HOME isolated, HERMES_KANBAN_TASK set
     after we've created the task."""
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
     monkeypatch.setenv("HERMES_PROFILE", "test-worker")
     monkeypatch.delenv("HERMES_SESSION_ID", raising=False)
     from pathlib import Path as _Path
     monkeypatch.setattr(_Path, "home", lambda: tmp_path)
 
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     kb._INITIALIZED_PATHS.clear()
     kb.init_db()
     conn = kb.connect()
@@ -184,7 +184,7 @@ def test_show_defaults_to_env_task_id(worker_env):
 
 def test_show_explicit_task_id(worker_env):
     """Peek at a different task than the one in env."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         other = kb.create_task(conn, title="other task", assignee="peer")
@@ -199,7 +199,7 @@ def test_show_explicit_task_id(worker_env):
 def test_list_filters_tasks(monkeypatch, worker_env):
     """kanban_list gives orchestrators filtered board discovery."""
     monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         a = kb.create_task(conn, title="alpha", assignee="factory", priority=5)
@@ -243,7 +243,7 @@ def test_list_rejects_bad_limit(monkeypatch, worker_env):
 
 def test_list_parses_include_archived_string_false(monkeypatch, worker_env):
     monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         live = kb.create_task(conn, title="live task", assignee="factory")
@@ -264,7 +264,7 @@ def test_list_parses_include_archived_string_false(monkeypatch, worker_env):
 
 def test_list_parses_include_archived_string_true(monkeypatch, worker_env):
     monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         live = kb.create_task(conn, title="live task", assignee="factory")
@@ -300,7 +300,7 @@ def test_complete_happy_path(worker_env):
     assert d["ok"] is True
     assert d["task_id"] == worker_env
     # Verify via kernel
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         run = kb.latest_run(conn, worker_env)
@@ -316,7 +316,7 @@ def test_complete_metadata_round_trips_through_show(worker_env):
     from tools import kanban_tools as kt
 
     handoff = {
-        "changed_files": ["hermes_cli/kanban.py"],
+        "changed_files": ["lycus_cli/kanban.py"],
         "verification": ["pytest tests/tools/test_kanban_tools.py -q"],
         "dependencies": [],
         "blocked_reason": None,
@@ -350,7 +350,7 @@ def test_complete_stamps_worker_session_id_from_env(monkeypatch, worker_env):
     assert json.loads(out)["ok"] is True
     assert metadata["worker_session_id"] == "user-spoof"
 
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         run = kb.latest_run(conn, worker_env)
@@ -377,7 +377,7 @@ def test_complete_does_not_stamp_worker_session_id_without_scoped_task(
     })
     assert json.loads(out)["ok"] is True
 
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         run = kb.latest_run(conn, worker_env)
@@ -401,7 +401,7 @@ def test_complete_with_artifacts_lands_in_event_payload(worker_env):
     """``artifacts=[...]`` rides into the completed event payload so the
     gateway notifier can upload them as native attachments. See the
     kanban notifier in gateway/run.py for the consumer side."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     out = kt._handle_complete({
@@ -433,7 +433,7 @@ def test_complete_with_artifacts_lands_in_event_payload(worker_env):
 
 def test_complete_artifacts_accepts_single_string(worker_env):
     """A bare string is auto-promoted to a single-element list for convenience."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     out = kt._handle_complete({
@@ -453,7 +453,7 @@ def test_complete_artifacts_accepts_single_string(worker_env):
 def test_complete_artifacts_merges_with_explicit_metadata_field(worker_env):
     """If the worker passes metadata.artifacts AND the top-level artifacts
     param, merge the two without duplicates."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     out = kt._handle_complete({
@@ -503,7 +503,7 @@ def test_complete_phantom_card_message_advertises_retry(worker_env):
     where the previous wording read like a terminal failure and workers
     routinely abandoned the run instead of trying again.
     """
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     out = kt._handle_complete({
@@ -535,7 +535,7 @@ def test_complete_retry_with_empty_created_cards_succeeds(worker_env):
     """After a phantom rejection, retrying kanban_complete with
     created_cards=[] (the documented escape hatch) must complete the
     task. Regression for #22923."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     # Hit the gate first.
@@ -563,7 +563,7 @@ def test_complete_retry_with_corrected_created_cards_succeeds(worker_env):
     """After a phantom rejection, retrying kanban_complete with a
     corrected created_cards list (phantom ids removed) must complete the
     task. Regression for #22923."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     # Create a real child via the tool so it gets the worker-profile
@@ -601,7 +601,7 @@ def test_block_happy_path(worker_env):
     out = kt._handle_block({"reason": "need clarification"})
     d = json.loads(out)
     assert d["ok"] is True
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         assert kb.get_task(conn, worker_env).status == "blocked"
@@ -642,7 +642,7 @@ def test_heartbeat_extends_claim_expires(worker_env):
     static while last_heartbeat_at advanced.
     """
     import time as _time
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     # Rewind claim_expires into the past so any forward movement is
@@ -695,7 +695,7 @@ def test_comment_happy_path(worker_env):
     d = json.loads(out)
     assert d["ok"] is True
     assert d["comment_id"]
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         comments = kb.list_comments(conn, worker_env)
@@ -716,22 +716,22 @@ def test_comment_rejects_empty_body(worker_env):
 def test_comment_ignores_caller_supplied_author(worker_env):
     """``args["author"]`` is no longer honored — the author is always
     derived from ``HERMES_PROFILE`` so a worker can't forge a comment
-    under an authoritative-looking name like ``hermes-system`` and
+    under an authoritative-looking name like ``lycus-system`` and
     poison the next worker's prompt context. Cross-task commenting
     itself remains unrestricted (see #19713); only the author override
     is removed.
     """
     from tools import kanban_tools as kt
     out = kt._handle_comment({
-        "task_id": worker_env, "body": "hi", "author": "hermes-system",
+        "task_id": worker_env, "body": "hi", "author": "lycus-system",
     })
     assert json.loads(out)["ok"]
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         comments = kb.list_comments(conn, worker_env)
         # Author comes from HERMES_PROFILE in the fixture, not the
-        # caller-supplied "hermes-system" override.
+        # caller-supplied "lycus-system" override.
         assert comments[0].author == "test-worker"
     finally:
         conn.close()
@@ -758,7 +758,7 @@ def test_create_happy_path(worker_env):
     assert d["ok"] is True
     assert d["task_id"]
     assert d["status"] == "todo"  # parent isn't done yet
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         child = kb.get_task(conn, d["task_id"])
@@ -773,7 +773,7 @@ def test_create_inherits_worker_dir_workspace(monkeypatch, worker_env):
     workspace arg inherits the dir, not scratch (so follow-up code-gen
     lands in the same project)."""
     from tools import kanban_tools as kt
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
 
     proj = "/home/teknium/myproject"
     conn = kb.connect()
@@ -801,7 +801,7 @@ def test_create_inherits_worker_dir_workspace(monkeypatch, worker_env):
 def test_create_explicit_workspace_beats_inheritance(monkeypatch, worker_env):
     """An explicit workspace arg overrides worker-task inheritance."""
     from tools import kanban_tools as kt
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
 
     conn = kb.connect()
     try:
@@ -831,7 +831,7 @@ def test_create_no_worker_task_stays_scratch(monkeypatch, worker_env):
     """Orchestrator/CLI callers (no HERMES_KANBAN_TASK) still default to
     scratch — inheritance only applies to task-scoped workers."""
     from tools import kanban_tools as kt
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
 
     monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
     d = json.loads(kt._handle_create({"title": "orch child", "assignee": "peer"}))
@@ -852,7 +852,7 @@ def test_create_stamps_session_id_from_env(monkeypatch, worker_env):
     board (issue: ACP session linkage on kanban tasks)."""
     monkeypatch.setenv("HERMES_SESSION_ID", "acp-sess-abc")
     from tools import kanban_tools as kt
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     out = kt._handle_create({
         "title": "from chat",
         "assignee": "peer",
@@ -875,7 +875,7 @@ def test_create_session_id_arg_overrides_env(monkeypatch, worker_env):
     arg should not be silently overwritten."""
     monkeypatch.setenv("HERMES_SESSION_ID", "from-env")
     from tools import kanban_tools as kt
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     out = kt._handle_create({
         "title": "explicit override",
         "assignee": "peer",
@@ -898,7 +898,7 @@ def test_create_session_id_absent_when_env_unset(monkeypatch, worker_env):
     not accidentally inherit a stale id."""
     monkeypatch.delenv("HERMES_SESSION_ID", raising=False)
     from tools import kanban_tools as kt
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     out = kt._handle_create({
         "title": "no session",
         "assignee": "peer",
@@ -933,7 +933,7 @@ def test_create_rejects_non_list_parents(worker_env):
 
 def test_create_parses_triage_string_false(worker_env):
     from tools import kanban_tools as kt
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     out = kt._handle_create({
         "title": "not triage",
         "assignee": "peer",
@@ -951,7 +951,7 @@ def test_create_parses_triage_string_false(worker_env):
 
 def test_create_parses_triage_string_true(worker_env):
     from tools import kanban_tools as kt
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     out = kt._handle_create({
         "title": "needs triage",
         "assignee": "peer",
@@ -989,7 +989,7 @@ def test_create_accepts_string_parent(worker_env):
 def test_create_accepts_skills_list(worker_env):
     """Tool writes the per-task skills through to the kernel."""
     from tools import kanban_tools as kt
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     out = kt._handle_create({
         "title": "skilled",
         "assignee": "linguist",
@@ -1005,7 +1005,7 @@ def test_create_accepts_skills_list(worker_env):
 def test_create_accepts_skills_string(worker_env):
     """Convenience: a single skill name as string is coerced to [name]."""
     from tools import kanban_tools as kt
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     out = kt._handle_create({
         "title": "one-skill",
         "assignee": "a",
@@ -1028,7 +1028,7 @@ def test_create_rejects_non_list_skills(worker_env):
 
 
 def test_link_happy_path(worker_env):
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         a = kb.create_task(conn, title="A", assignee="x")
@@ -1055,7 +1055,7 @@ def test_link_rejects_missing_args(worker_env):
 
 def test_link_rejects_cycle(worker_env):
     """A → B, then try to link B → A."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         a = kb.create_task(conn, title="A", assignee="x")
@@ -1069,7 +1069,7 @@ def test_link_rejects_cycle(worker_env):
 
 def test_unblock_happy_path(monkeypatch, worker_env):
     monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         tid = kb.create_task(conn, title="blocked", assignee="worker")
@@ -1132,7 +1132,7 @@ def test_worker_lifecycle_through_tools(worker_env):
     assert comp["ok"]
 
     # Verify final state
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         parent = kb.get_task(conn, worker_env)
@@ -1164,9 +1164,9 @@ def test_kanban_guidance_not_in_normal_prompt(monkeypatch, tmp_path):
     """A normal chat session (no HERMES_KANBAN_TASK) must NOT have
     KANBAN_GUIDANCE in its system prompt."""
     monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
     from pathlib import Path as _P
     monkeypatch.setattr(_P, "home", lambda: tmp_path)
 
@@ -1192,9 +1192,9 @@ def test_kanban_guidance_in_worker_prompt(monkeypatch, tmp_path):
     """A worker session (HERMES_KANBAN_TASK set) MUST have the full
     lifecycle guidance in its system prompt."""
     monkeypatch.setenv("HERMES_KANBAN_TASK", "t_fake")
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
     from pathlib import Path as _P
     monkeypatch.setattr(_P, "home", lambda: tmp_path)
 
@@ -1227,9 +1227,9 @@ def test_kanban_guidance_prompt_size_bounded(monkeypatch, tmp_path):
     """Sanity: the guidance block is under 4 KB so it doesn't blow
     up the cached prompt."""
     monkeypatch.setenv("HERMES_KANBAN_TASK", "t_fake")
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
     from pathlib import Path as _P
     monkeypatch.setattr(_P, "home", lambda: tmp_path)
 
@@ -1258,7 +1258,7 @@ def test_kanban_guidance_prompt_size_bounded(monkeypatch, tmp_path):
 
 def test_worker_complete_rejects_foreign_task_id(worker_env):
     """A worker cannot complete a task that isn't its own (#19534)."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         other = kb.create_task(conn, title="sibling")
@@ -1283,7 +1283,7 @@ def test_worker_complete_rejects_foreign_task_id(worker_env):
 
 def test_worker_block_rejects_foreign_task_id(worker_env):
     """A worker cannot block a task that isn't its own (#19534)."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         other = kb.create_task(conn, title="sibling")
@@ -1306,7 +1306,7 @@ def test_worker_block_rejects_foreign_task_id(worker_env):
 
 def test_worker_heartbeat_rejects_foreign_task_id(worker_env):
     """A worker cannot heartbeat a task that isn't its own (#19534)."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         other = kb.create_task(conn, title="sibling")
@@ -1331,7 +1331,7 @@ def test_worker_can_comment_on_foreign_task(worker_env):
     so a future change accidentally adding ``_enforce_worker_task_ownership``
     to ``_handle_comment`` would fail CI immediately.
     """
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         other = kb.create_task(conn, title="sibling")
@@ -1366,7 +1366,7 @@ def test_worker_unblock_rejects_foreign_task_id(worker_env):
     cross-task-ownership refusal. Either is fine — the property we're
     pinning is "worker cannot mutate foreign task via kanban_unblock".
     """
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     conn = kb.connect()
     try:
         other = kb.create_task(conn, title="blocked sibling", assignee="peer")
@@ -1400,8 +1400,8 @@ def test_worker_complete_own_task_still_works(worker_env):
 
 def test_worker_complete_rejects_stale_run_id(worker_env, monkeypatch):
     """A retried worker cannot complete the task using an old run token."""
-    from hermes_cli import kanban_db as kb
-    import hermes_cli.kanban_db as _kb
+    from lycus_cli import kanban_db as kb
+    import lycus_cli.kanban_db as _kb
 
     # detect_crashed_workers now gates each running task behind a
     # launch-window grace period (c002668ff) so a freshly-spawned worker
@@ -1449,13 +1449,13 @@ def test_orchestrator_complete_any_task_allowed(monkeypatch, tmp_path):
     """Orchestrator profiles (no HERMES_KANBAN_TASK) can still complete
     any task via explicit task_id. The check only applies to workers."""
     monkeypatch.delenv("HERMES_KANBAN_TASK", raising=False)
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
     from pathlib import Path as _P
     monkeypatch.setattr(_P, "home", lambda: tmp_path)
 
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     kb._INITIALIZED_PATHS.clear()
     kb.init_db()
     conn = kb.connect()
@@ -1479,23 +1479,23 @@ def test_orchestrator_complete_any_task_allowed(monkeypatch, tmp_path):
 # The dispatcher pins the active board via HERMES_KANBAN_BOARD env var,
 # but a Telegram-side orchestrator handling multiple boards needs to be
 # able to route a single tool call to a specific board's DB without
-# restarting Hermes. These tests pin that ``board=<slug>`` argument
+# restarting Lycus. These tests pin that ``board=<slug>`` argument
 # routes each handler to that board's sqlite file, and that omitting
 # ``board`` preserves the legacy env-driven resolution.
 
 
 @pytest.fixture
 def multi_board_env(monkeypatch, tmp_path):
-    """Isolated Hermes home with two distinct kanban boards seeded.
+    """Isolated Lycus home with two distinct kanban boards seeded.
 
     Returns ``("default", "alt")`` slugs. The default board has one
     pre-existing task ``seed_default``; ``alt`` has ``seed_alt``. No
     HERMES_KANBAN_TASK is pinned (orchestrator context) — workers test
     the env-task case via the existing ``worker_env`` fixture.
     """
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
     # Make sure neither HERMES_KANBAN_DB nor HERMES_KANBAN_BOARD pin a
     # board — the test is specifically about the per-call override.
     monkeypatch.delenv("HERMES_KANBAN_DB", raising=False)
@@ -1505,7 +1505,7 @@ def multi_board_env(monkeypatch, tmp_path):
     from pathlib import Path as _Path
     monkeypatch.setattr(_Path, "home", lambda: tmp_path)
 
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     kb._INITIALIZED_PATHS.clear()
     # Default board — implicit
     conn = kb.connect()
@@ -1534,7 +1534,7 @@ def multi_board_env(monkeypatch, tmp_path):
 def test_board_param_routes_create_to_alt_board(multi_board_env):
     """kanban_create with ``board="alt"`` must write into the alt board's DB,
     not the default one."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     out = kt._handle_create({
@@ -1595,7 +1595,7 @@ def test_board_param_routes_assign_via_create_to_alt(multi_board_env):
     """Workflow test for the 'assign' UX — create with assignee on a
     specific board. (The CLI has a separate ``kanban assign`` verb; the
     MCP surface assigns at task creation time.)"""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     out = kt._handle_create({
@@ -1613,7 +1613,7 @@ def test_board_param_routes_assign_via_create_to_alt(multi_board_env):
 
 def test_board_param_routes_comment_to_alt_board(multi_board_env):
     """kanban_comment routes the insert to the alt board's DB."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     alt_seed = multi_board_env["alt_seed"]
@@ -1637,7 +1637,7 @@ def test_board_param_routes_comment_to_alt_board(multi_board_env):
 def test_board_param_routes_complete_to_alt_board(multi_board_env):
     """kanban_complete on the alt board closes the alt task, leaving
     the default seed untouched."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     alt_seed = multi_board_env["alt_seed"]
@@ -1663,7 +1663,7 @@ def test_board_param_routes_complete_to_alt_board(multi_board_env):
 
 def test_board_param_routes_block_to_alt_board(multi_board_env):
     """kanban_block targets the alt board's DB."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     alt_seed = multi_board_env["alt_seed"]
@@ -1684,7 +1684,7 @@ def test_board_param_routes_block_to_alt_board(multi_board_env):
 
 def test_board_param_routes_unblock_to_alt_board(multi_board_env):
     """kanban_unblock targets the alt board's DB."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     alt_seed = multi_board_env["alt_seed"]
@@ -1705,16 +1705,16 @@ def test_board_param_routes_heartbeat_to_alt_board(monkeypatch, tmp_path):
     """kanban_heartbeat targets the alt board's DB. Worker-scoped, so we
     use the worker-env style fixture inline (pinning HERMES_KANBAN_TASK
     to a task that exists in the alt board)."""
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".autolycus"
     home.mkdir()
-    monkeypatch.setenv("HERMES_HOME", str(home))
+    monkeypatch.setenv("AUTOLYCUS_HOME", str(home))
     monkeypatch.setenv("HERMES_PROFILE", "alt-worker")
     monkeypatch.delenv("HERMES_KANBAN_DB", raising=False)
     monkeypatch.delenv("HERMES_KANBAN_BOARD", raising=False)
     from pathlib import Path as _Path
     monkeypatch.setattr(_Path, "home", lambda: tmp_path)
 
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     kb._INITIALIZED_PATHS.clear()
     # Seed the alt board with a claimed task.
     with kb.connect(board="alt") as conn:
@@ -1735,7 +1735,7 @@ def test_board_param_routes_heartbeat_to_alt_board(monkeypatch, tmp_path):
 
 def test_board_param_routes_link_to_alt_board(multi_board_env):
     """kanban_link operates on the alt board's DB."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     with kb.connect(board="alt") as conn:
@@ -1758,7 +1758,7 @@ def test_board_param_none_falls_back_to_env(worker_env):
     """When ``board`` is omitted or None, behaviour is unchanged from
     before this feature — calls land on whatever the env resolves to.
     Regression guard against accidentally rewiring default resolution."""
-    from hermes_cli import kanban_db as kb
+    from lycus_cli import kanban_db as kb
     from tools import kanban_tools as kt
 
     out = kt._handle_show({})  # no board, no task_id
