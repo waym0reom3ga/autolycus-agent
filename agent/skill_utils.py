@@ -322,7 +322,7 @@ def get_disabled_skill_names(platform: str | None = None) -> Set[str]:
     Args:
         platform: Explicit platform name (e.g. ``"telegram"``).  When
             *None*, resolves from ``HERMES_PLATFORM`` or
-            ``HERMES_SESSION_PLATFORM`` env vars.  Returns the global
+            ``LYCUS_SESSION_PLATFORM`` env vars.  Returns the global
             disabled list, unioned with the platform-specific list when a
             platform is resolved (a globally-disabled skill stays disabled
             on every platform).
@@ -342,7 +342,7 @@ def get_disabled_skill_names(platform: str | None = None) -> Set[str]:
     resolved_platform = (
         platform
         or os.getenv("HERMES_PLATFORM")
-        or get_session_env("HERMES_SESSION_PLATFORM")
+        or get_session_env("LYCUS_SESSION_PLATFORM")
     )
     global_disabled = _normalize_string_set(skills_cfg.get("disabled"))
     if resolved_platform:

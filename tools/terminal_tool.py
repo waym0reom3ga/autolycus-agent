@@ -205,9 +205,9 @@ def _get_sudo_password_cache_scope() -> str:
     try:
         from gateway.session_context import get_session_env
 
-        session_key = get_session_env("HERMES_SESSION_KEY", "")
+        session_key = get_session_env("LYCUS_SESSION_KEY", "")
     except Exception:
-        session_key = os.getenv("HERMES_SESSION_KEY", "")
+        session_key = os.getenv("LYCUS_SESSION_KEY", "")
     if session_key:
         return f"session:{session_key}"
 
@@ -2275,9 +2275,9 @@ def terminal_tool(
                 # routed back to the correct chat/thread.
                 if background and (notify_on_complete or watch_patterns):
                     from gateway.session_context import get_session_env as _gse
-                    _gw_platform = _gse("HERMES_SESSION_PLATFORM", "")
+                    _gw_platform = _gse("LYCUS_SESSION_PLATFORM", "")
                     if _gw_platform:
-                        _gw_chat_id = _gse("HERMES_SESSION_CHAT_ID", "")
+                        _gw_chat_id = _gse("LYCUS_SESSION_CHAT_ID", "")
                         _gw_thread_id = _gse("HERMES_SESSION_THREAD_ID", "")
                         _gw_user_id = _gse("HERMES_SESSION_USER_ID", "")
                         _gw_user_name = _gse("HERMES_SESSION_USER_NAME", "")

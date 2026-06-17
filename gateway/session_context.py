@@ -2,7 +2,7 @@
 Session-scoped context variables for the Lycus gateway.
 
 Replaces the previous ``os.environ``-based session state
-(``HERMES_SESSION_PLATFORM``, ``HERMES_SESSION_CHAT_ID``, etc.) with
+(``LYCUS_SESSION_PLATFORM``, ``LYCUS_SESSION_CHAT_ID``, etc.) with
 Python's ``contextvars.ContextVar``.
 
 **Why this matters**
@@ -29,11 +29,11 @@ needs to replace the import + call site:
 
     # before
     import os
-    platform = os.getenv("HERMES_SESSION_PLATFORM", "")
+    platform = os.getenv("LYCUS_SESSION_PLATFORM", "")
 
     # after
     from gateway.session_context import get_session_env
-    platform = get_session_env("HERMES_SESSION_PLATFORM", "")
+    platform = get_session_env("LYCUS_SESSION_PLATFORM", "")
 """
 
 from contextvars import ContextVar
@@ -48,13 +48,13 @@ _UNSET: Any = object()
 # Per-task session variables
 # ---------------------------------------------------------------------------
 
-_SESSION_PLATFORM: ContextVar = ContextVar("HERMES_SESSION_PLATFORM", default=_UNSET)
-_SESSION_CHAT_ID: ContextVar = ContextVar("HERMES_SESSION_CHAT_ID", default=_UNSET)
+_SESSION_PLATFORM: ContextVar = ContextVar("LYCUS_SESSION_PLATFORM", default=_UNSET)
+_SESSION_CHAT_ID: ContextVar = ContextVar("LYCUS_SESSION_CHAT_ID", default=_UNSET)
 _SESSION_CHAT_NAME: ContextVar = ContextVar("HERMES_SESSION_CHAT_NAME", default=_UNSET)
 _SESSION_THREAD_ID: ContextVar = ContextVar("HERMES_SESSION_THREAD_ID", default=_UNSET)
 _SESSION_USER_ID: ContextVar = ContextVar("HERMES_SESSION_USER_ID", default=_UNSET)
 _SESSION_USER_NAME: ContextVar = ContextVar("HERMES_SESSION_USER_NAME", default=_UNSET)
-_SESSION_KEY: ContextVar = ContextVar("HERMES_SESSION_KEY", default=_UNSET)
+_SESSION_KEY: ContextVar = ContextVar("LYCUS_SESSION_KEY", default=_UNSET)
 _SESSION_ID: ContextVar = ContextVar("HERMES_SESSION_ID", default=_UNSET)
 # ID of the message that triggered the current turn. Used as a reply anchor
 # so background-process notifications stay inside the originating Telegram
@@ -68,13 +68,13 @@ _CRON_AUTO_DELIVER_CHAT_ID: ContextVar = ContextVar("HERMES_CRON_AUTO_DELIVER_CH
 _CRON_AUTO_DELIVER_THREAD_ID: ContextVar = ContextVar("HERMES_CRON_AUTO_DELIVER_THREAD_ID", default=_UNSET)
 
 _VAR_MAP = {
-    "HERMES_SESSION_PLATFORM": _SESSION_PLATFORM,
-    "HERMES_SESSION_CHAT_ID": _SESSION_CHAT_ID,
+    "LYCUS_SESSION_PLATFORM": _SESSION_PLATFORM,
+    "LYCUS_SESSION_CHAT_ID": _SESSION_CHAT_ID,
     "HERMES_SESSION_CHAT_NAME": _SESSION_CHAT_NAME,
     "HERMES_SESSION_THREAD_ID": _SESSION_THREAD_ID,
     "HERMES_SESSION_USER_ID": _SESSION_USER_ID,
     "HERMES_SESSION_USER_NAME": _SESSION_USER_NAME,
-    "HERMES_SESSION_KEY": _SESSION_KEY,
+    "LYCUS_SESSION_KEY": _SESSION_KEY,
     "HERMES_SESSION_ID": _SESSION_ID,
     "HERMES_SESSION_MESSAGE_ID": _SESSION_MESSAGE_ID,
     "HERMES_CRON_AUTO_DELIVER_PLATFORM": _CRON_AUTO_DELIVER_PLATFORM,

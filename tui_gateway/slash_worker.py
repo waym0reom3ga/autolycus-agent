@@ -98,7 +98,7 @@ def main():
     p.add_argument("--model", default="")
     args = p.parse_args()
 
-    os.environ["HERMES_SESSION_KEY"] = args.session_key
+    os.environ["LYCUS_SESSION_KEY"] = args.session_key
     os.environ["HERMES_INTERACTIVE"] = "1"
 
     # Start before the (hundreds-of-ms) LycusCLI build — that window is itself

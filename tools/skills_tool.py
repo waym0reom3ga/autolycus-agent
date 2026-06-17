@@ -414,7 +414,7 @@ def _is_gateway_surface() -> bool:
     if env_var_enabled("HERMES_GATEWAY_SESSION"):
         return True
     from gateway.session_context import get_session_env
-    return bool(get_session_env("HERMES_SESSION_PLATFORM"))
+    return bool(get_session_env("LYCUS_SESSION_PLATFORM"))
 
 
 def _get_terminal_backend_name() -> str:
@@ -561,11 +561,11 @@ def _get_session_platform() -> str:
 
     Mirrors the platform-resolution logic in
     ``agent.skill_utils.get_disabled_skill_names`` so that
-    ``_is_skill_disabled`` respects ``HERMES_SESSION_PLATFORM``.
+    ``_is_skill_disabled`` respects ``LYCUS_SESSION_PLATFORM``.
     """
     try:
         from gateway.session_context import get_session_env
-        return get_session_env("HERMES_SESSION_PLATFORM") or ""
+        return get_session_env("LYCUS_SESSION_PLATFORM") or ""
     except Exception:
         return ""
 
@@ -576,7 +576,7 @@ def _is_skill_disabled(name: str, platform: str = None) -> bool:
     Resolves the active platform from (in order of precedence):
     1. Explicit ``platform`` argument
     2. ``HERMES_PLATFORM`` environment variable
-    3. ``HERMES_SESSION_PLATFORM`` from gateway session context
+    3. ``LYCUS_SESSION_PLATFORM`` from gateway session context
     """
     try:
         from lycus_cli.config import load_config
