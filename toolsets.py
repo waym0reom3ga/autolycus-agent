@@ -432,6 +432,13 @@ TOOLSETS = {
         "includes": []
     },
 
+    # Backward compatibility alias for pre-rebrand configs
+    "hermes-cli": {
+        "description": "Legacy alias for lycus-cli (pre-rebrand compatibility)",
+        "tools": _HERMES_CORE_TOOLS,
+        "includes": []
+    },
+
     "lycus-cron": {
         # Mirrors lycus-cli so cron's "default" toolset is the same set of
         # core tools users see interactively — then `lycus tools` filters
