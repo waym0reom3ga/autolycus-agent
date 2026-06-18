@@ -2091,6 +2091,19 @@ This compaction should PRIORITISE preserving all information related to the focu
         compress_start = 0
         compress_end = n_messages - 10
 
+        # CRITICAL: Ensure the tail includes at least one user message.
+        # The llama.cpp chat template (and other providers) require at least one
+        # user-role message. Without this, compression produces a message list
+        # with only system/assistant/tool roles and the API rejects it with
+        # "No user query found in messages".
+        _last_user_in_tail = self._find_last_user_message_idx(messages, compress_end)
+        if _last_user_in_tail == -1:
+            # No user message in the tail region — pull boundary back
+            # to include the last user message from the head.
+            _last_user_anywhere = self._find_last_user_message_idx(messages, 0)
+            if _last_user_anywhere != -1 and _last_user_anywhere < compress_end:
+                compress_end = _last_user_anywhere
+
         if compress_start >= compress_end:
             # No compressable window — transcript has 10 or fewer messages
             self._ineffective_compression_count += 1
@@ -2196,6 +2209,15 @@ This compaction should PRIORITISE preserving all information related to the focu
                 # Merge the summary into the first tail message instead
                 # of inserting a standalone message that breaks alternation.
                 _merge_summary_into_tail = True
+
+        # Safety net: ensure the compressed list has at least one user message.
+        # The llama.cpp chat template (and other providers) require at least one
+        # user-role message. If the tail has none, force the summary to be user
+        # and don't merge it into the tail (which would inherit the tail's role).
+        _tail_has_user = any(m.get("role") == "user" for m in messages[compress_end:])
+        if not _tail_has_user:
+            summary_role = "user"
+            _merge_summary_into_tail = False
 
         # When the summary lands as a standalone role="user" message,
         # weak models read the verbatim "## Active Task" quote of a past
