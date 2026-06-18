@@ -850,178 +850,6 @@ class ContextCompressor(ContextEngine):
     # Tool output pruning (cheap pre-pass, no LLM call)
     # ------------------------------------------------------------------
 
-    def _prune_old_tool_results(
-        self, messages: List[Dict[str, Any]], protect_tail_count: int,
-        protect_tail_tokens: int | None = None,
-    ) -> tuple[List[Dict[str, Any]], int]:
-        """Replace old tool result contents with informative 1-line summaries.
-
-        Instead of a generic placeholder, generates a summary like::
-
-            [terminal] ran `npm test` -> exit 0, 47 lines output
-            [read_file] read config.py from line 1 (3,400 chars)
-
-        Also deduplicates identical tool results (e.g. reading the same file
-        5x keeps only the newest full copy) and truncates large tool_call
-        arguments in assistant messages outside the protected tail.
-
-        Walks backward from the end, protecting the most recent messages that
-        fall within ``protect_tail_tokens`` (when provided) OR the last
-        ``protect_tail_count`` messages (backward-compatible default).
-        When both are given, the token budget takes priority and the message
-        count acts as a hard minimum floor.
-
-        Returns (pruned_messages, pruned_count).
-        """
-        if not messages:
-            return messages, 0
-
-        result = [m.copy() for m in messages]
-        pruned = 0
-
-        # Build index: tool_call_id -> (tool_name, arguments_json)
-        call_id_to_tool: Dict[str, tuple] = {}
-        for msg in result:
-            if msg.get("role") == "assistant":
-                for tc in msg.get("tool_calls") or []:
-                    if isinstance(tc, dict):
-                        cid = tc.get("id", "")
-                        fn = tc.get("function", {})
-                        call_id_to_tool[cid] = (fn.get("name", "unknown"), fn.get("arguments", ""))
-                    else:
-                        cid = getattr(tc, "id", "") or ""
-                        fn = getattr(tc, "function", None)
-                        name = getattr(fn, "name", "unknown") if fn else "unknown"
-                        args_str = getattr(fn, "arguments", "") if fn else ""
-                        call_id_to_tool[cid] = (name, args_str)
-
-        # Determine the prune boundary
-        if protect_tail_tokens is not None and protect_tail_tokens > 0:
-            # Token-budget approach: walk backward accumulating tokens
-            accumulated = 0
-            boundary = len(result)
-            min_protect = min(protect_tail_count, len(result))
-            for i in range(len(result) - 1, -1, -1):
-                msg = result[i]
-                raw_content = msg.get("content") or ""
-                content_len = _content_length_for_budget(raw_content)
-                msg_tokens = content_len // _CHARS_PER_TOKEN + 10
-                for tc in msg.get("tool_calls") or []:
-                    if isinstance(tc, dict):
-                        args = tc.get("function", {}).get("arguments", "")
-                        msg_tokens += len(args) // _CHARS_PER_TOKEN
-                if accumulated + msg_tokens > protect_tail_tokens and (len(result) - i) >= min_protect:
-                    boundary = i
-                    break
-                accumulated += msg_tokens
-                boundary = i
-            # Translate the budget walk into a "protected count", apply the
-            # floor in count-space (where `max` reads naturally: protect at
-            # least `min_protect` messages or whatever the budget reserved,
-            # whichever is more), then convert back to a prune boundary.
-            # Doing this in index-space with `max` would invert the direction
-            # (smaller index = MORE protected), so a generous budget would
-            # silently get truncated back down to `min_protect`.
-            budget_protect_count = len(result) - boundary
-            protected_count = max(budget_protect_count, min_protect)
-            prune_boundary = len(result) - protected_count
-        else:
-            prune_boundary = len(result) - protect_tail_count
-
-        # Pass 1: Deduplicate identical tool results.
-        # When the same file is read multiple times, keep only the most recent
-        # full copy and replace older duplicates with a back-reference.
-        content_hashes: dict = {}  # hash -> (index, tool_call_id)
-        for i in range(len(result) - 1, -1, -1):
-            msg = result[i]
-            if msg.get("role") != "tool":
-                continue
-            content = msg.get("content") or ""
-            # Multimodal content — dedupe by the text summary if available.
-            if isinstance(content, list):
-                continue
-            if not isinstance(content, str):
-                # Multimodal dict envelopes ({_multimodal: True, content: [...]}) and
-                # other non-string tool-result shapes can't be hashed/deduped by text.
-                continue
-            if len(content) < 200:
-                continue
-            h = hashlib.md5(content.encode("utf-8", errors="replace")).hexdigest()[:12]
-            if h in content_hashes:
-                # This is an older duplicate — replace with back-reference
-                result[i] = {**msg, "content": "[Duplicate tool output — same content as a more recent call]"}
-                pruned += 1
-            else:
-                content_hashes[h] = (i, msg.get("tool_call_id", "?"))
-
-        # Pass 2: Replace old tool results with informative summaries
-        for i in range(prune_boundary):
-            msg = result[i]
-            if msg.get("role") != "tool":
-                continue
-            content = msg.get("content", "")
-            # Multimodal content (base64 screenshots etc.): strip the image
-            # payload — keep a lightweight text placeholder in its place.
-            # Without this, an old computer_use screenshot (~1MB base64 +
-            # ~1500 real tokens) survives every compression pass forever.
-            if isinstance(content, list):
-                stripped = _strip_image_parts_from_parts(content)
-                if stripped is not None:
-                    result[i] = {**msg, "content": stripped}
-                    pruned += 1
-                continue
-            if isinstance(content, dict) and content.get("_multimodal"):
-                summary = content.get("text_summary") or "[screenshot removed to save context]"
-                result[i] = {**msg, "content": f"[screenshot removed] {summary[:200]}"}
-                pruned += 1
-                continue
-            if not isinstance(content, str):
-                continue
-            if not content or content == _PRUNED_TOOL_PLACEHOLDER:
-                continue
-            # Skip already-deduplicated or previously-summarized results
-            if content.startswith("[Duplicate tool output"):
-                continue
-            # Only prune if the content is substantial (>200 chars)
-            if len(content) > 200:
-                call_id = msg.get("tool_call_id", "")
-                tool_name, tool_args = call_id_to_tool.get(call_id, ("unknown", ""))
-                summary = _summarize_tool_result(tool_name, tool_args, content)
-                result[i] = {**msg, "content": summary}
-                pruned += 1
-
-        # Pass 3: Truncate large tool_call arguments in assistant messages
-        # outside the protected tail. write_file with 50KB content, for
-        # example, survives pruning entirely without this.
-        #
-        # The shrinking is done inside the parsed JSON structure so the
-        # result remains valid JSON — otherwise downstream providers 400
-        # on every subsequent turn until the broken call falls out of
-        # the window. See ``_truncate_tool_call_args_json`` docstring.
-        for i in range(prune_boundary):
-            msg = result[i]
-            if msg.get("role") != "assistant" or not msg.get("tool_calls"):
-                continue
-            new_tcs = []
-            modified = False
-            for tc in msg["tool_calls"]:
-                if isinstance(tc, dict):
-                    args = tc.get("function", {}).get("arguments", "")
-                    if len(args) > 500:
-                        new_args = _truncate_tool_call_args_json(args)
-                        if new_args != args:
-                            tc = {**tc, "function": {**tc["function"], "arguments": new_args}}
-                            modified = True
-                new_tcs.append(tc)
-            if modified:
-                result[i] = {**msg, "tool_calls": new_tcs}
-
-        return result, pruned
-
-    # ------------------------------------------------------------------
-    # Summarization
-    # ------------------------------------------------------------------
-
     def _compute_summary_budget(self, turns_to_summarize: List[Dict[str, Any]]) -> int:
         """Scale summary token budget with the amount of content being compressed.
 
@@ -2256,64 +2084,26 @@ This compaction should PRIORITISE preserving all information related to the focu
 
         display_tokens = current_tokens if current_tokens else self.last_prompt_tokens or estimate_messages_tokens_rough(messages)
 
-        # Phase 1: Prune old tool results (cheap, no LLM call)
-        messages, pruned_count = self._prune_old_tool_results(
-            messages, protect_tail_count=self.protect_last_n,
-            protect_tail_tokens=self.tail_token_budget,
-        )
-        if pruned_count and not self.quiet_mode:
-            logger.info("Pre-compression: pruned %d old tool result(s)", pruned_count)
+        # Phase 1 removed — no longer prune tool results before compression
 
         # Phase 2: Determine boundaries
-        compress_start = self._protect_head_size(messages)
-        compress_start = self._align_boundary_forward(messages, compress_start)
-
-        # Use token-budget tail protection instead of fixed message count
-        compress_end = self._find_tail_cut_by_tokens(messages, compress_start)
+        # No head protection. Tail is exactly the last 10 messages.
+        compress_start = 0
+        compress_end = n_messages - 10
 
         if compress_start >= compress_end:
-            # No compressable window — the entire transcript fits within
-            # the tail budget (soft_ceiling).  Without recording this as
-            # an ineffective compression the anti-thrashing guard in
-            # should_compress() never fires and every subsequent turn
-            # re-triggers a no-op compression loop.  (#40803)
+            # No compressable window — transcript has 10 or fewer messages
             self._ineffective_compression_count += 1
             self._last_compression_savings_pct = 0.0
             if not self.quiet_mode:
                 logger.warning(
-                    "Compression skipped: compress_start (%d) >= compress_end (%d) "
-                    "— transcript fits within tail budget, nothing to compress. "
-                    "ineffective_compression_count=%d",
-                    compress_start, compress_end,
-                    self._ineffective_compression_count,
+                    "Compression skipped: only %d messages, cannot compress with 10-message tail",
+                    n_messages,
                 )
             return messages
 
-        turns_to_summarize = messages[compress_start:compress_end]
-        # A persisted handoff summary can sit in the protected head after a
-        # resume (commonly immediately after the system prompt). Search from
-        # the first non-system message through the compression window so we can
-        # rehydrate iterative-summary state without serializing that handoff as
-        # a new turn. Protected messages after the handoff remain live context,
-        # so only summarize messages that are both after the handoff and inside
-        # the current compression window.
-        summary_search_start = 1 if messages and messages[0].get("role") == "system" else 0
-        summary_idx, summary_body = self._find_latest_context_summary(
-            messages,
-            summary_search_start,
-            compress_end,
-        )
-        if summary_idx is not None:
-            if summary_body and not self._previous_summary:
-                self._previous_summary = summary_body
-            turns_to_summarize = messages[max(compress_start, summary_idx + 1):compress_end]
-        elif self._previous_summary:
-            # No handoff summary found in the current messages, but
-            # _previous_summary is non-empty — it was set by a different
-            # (now-ended) session (e.g., a cron job, a prior /new).  Discard
-            # it so _generate_summary() does not inject cross-session content
-            # into the summarizer prompt via the iterative-update path.
-            self._previous_summary = None
+        # Phase 3: Pass ALL messages to LLM for summarization
+        turns_to_summarize = messages[:]
 
         if not self.quiet_mode:
             logger.info(
@@ -2368,18 +2158,8 @@ This compaction should PRIORITISE preserving all information related to the focu
             return messages
 
         # Phase 4: Assemble compressed message list
+        # New format: summary + tail (last 10 messages)
         compressed = []
-        for i in range(compress_start):
-            msg = messages[i].copy()
-            if i == 0 and msg.get("role") == "system":
-                existing = msg.get("content")
-                _compression_note = "[Note: Some earlier conversation turns have been compacted into a handoff summary to preserve context space. The current session state may still reflect earlier work, so build on that summary and state rather than re-doing work. Your persistent memory (MEMORY.md, USER.md) remains fully authoritative regardless of compaction.]"
-                if _compression_note not in _content_text_for_contains(existing):
-                    msg["content"] = _append_text_to_content(
-                        existing,
-                        "\n\n" + _compression_note if isinstance(existing, str) and existing else _compression_note,
-                    )
-            compressed.append(msg)
 
         # If LLM summary failed, insert a deterministic fallback so the model
         # gets at least locally recoverable continuity anchors instead of a
