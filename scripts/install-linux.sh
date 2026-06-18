@@ -163,7 +163,7 @@ install_uv() {
             exit 1
         fi
         local uv_version
-        uv_version=$(uv --version 2>/dev/null)
+        uv_version=$($UV_CMD --version 2>/dev/null)
         printf '%b\n' "${GREEN}✓${NC} uv installed (${uv_version})"
         return 0
     fi
@@ -189,7 +189,7 @@ install_uv() {
             exit 1
         fi
         local uv_version
-        uv_version=$(uv --version 2>/dev/null)
+        uv_version=$($UV_CMD --version 2>/dev/null)
         printf '%b\n' "${GREEN}✓${NC} uv installed (${uv_version})"
     else
         printf '%b\n' "${RED}✗${NC} Failed to install uv."
