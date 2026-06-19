@@ -1611,6 +1611,55 @@ class GatewaySlashCommandsMixin:
         available = "`none`, " + ", ".join(f"`{n}`" for n in personalities)
         return t("gateway.personality.unknown", name=args, available=available)
 
+    async def _handle_mode_command(self, event: MessageEvent) -> str:
+        """Handle /mode command - list or set persona mode (friendly/sentry)."""
+        from gateway.run import _lycus_home, _load_gateway_config
+        from gateway.utils import atomic_yaml_write
+
+        args = event.get_command_args().strip().lower()
+        config_path = _lycus_home / 'config.yaml'
+
+        try:
+            config = _load_gateway_config()
+        except Exception:
+            config = {}
+
+        # Get current mode
+        current_mode = (config.get("persona") or {}).get("mode", "friendly")
+
+        if not args:
+            lines = [
+                "Available persona modes:",
+                "  friendly  - Default mode with voice active, greetings enabled, personality enabled",
+                "  sentry    - Voice deactivated, no greetings, no personality (saves cycles)",
+                "",
+                f"Current mode: {current_mode}",
+                "",
+                "Usage: /mode <friendly|sentry>",
+            ]
+            return "\n".join(lines)
+
+        if args == "friendly":
+            try:
+                if "persona" not in config or not isinstance(config.get("persona"), dict):
+                    config["persona"] = {}
+                config["persona"]["mode"] = "friendly"
+                atomic_yaml_write(config_path, config)
+                return "Switched to friendly mode. Voice and greetings enabled."
+            except Exception as e:
+                return f"Failed to save mode: {e}"
+        elif args == "sentry":
+            try:
+                if "persona" not in config or not isinstance(config.get("persona"), dict):
+                    config["persona"] = {}
+                config["persona"]["mode"] = "sentry"
+                atomic_yaml_write(config_path, config)
+                return "Switched to sentry mode. Voice and greetings deactivated."
+            except Exception as e:
+                return f"Failed to save mode: {e}"
+        else:
+            return f"Unknown mode: {args}. Available: friendly, sentry"
+
     async def _handle_retry_command(self, event: MessageEvent) -> str:
         """Handle /retry command - re-send the last user message."""
         source = event.source

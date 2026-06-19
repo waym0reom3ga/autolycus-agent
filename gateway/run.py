@@ -2443,6 +2443,8 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
 
         # Per-chat voice reply mode: "off" | "voice_only" | "all"
         self._voice_mode: Dict[str, str] = self._load_voice_modes()
+        # Persona mode: "friendly" (default, voice on, greetings on) or "sentry" (voice off, no greetings)
+        self._persona_mode: str = self._load_persona_mode()
         # Recent voice transcripts per (guild,user) for duplicate suppression.
         # Protects against the same utterance being emitted twice by the voice
         # capture / STT pipeline, which otherwise produces a second delayed reply.
@@ -2575,6 +2577,17 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 continue
             result[key] = mode
         return result
+
+    def _load_persona_mode(self) -> str:
+        """Load persona mode from config (friendly/sentry)."""
+        try:
+            cfg = _load_gateway_config()
+            mode = (cfg.get("persona") or {}).get("mode", "friendly")
+            if mode not in {"friendly", "sentry"}:
+                return "friendly"
+            return mode
+        except Exception:
+            return "friendly"
 
     def _save_voice_modes(self) -> None:
         try:
@@ -7560,6 +7573,9 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         if canonical == "personality":
             return await self._handle_personality_command(event)
 
+        if canonical == "mode":
+            return await self._handle_mode_command(event)
+
         if canonical == "kanban":
             return await self._handle_kanban_command(event)
 
@@ -8843,6 +8859,17 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                     _pb_err,
                 )
                 context_prompt += _intro_note
+
+        # Dynamic Lycus greeting on first message -- weather, time, identity
+        # Fires on the very first interaction, introducing the agent by name
+        # with current time and weather context. Disabled in sentry mode.
+        try:
+            from agent.onboarding import get_dynamic_greeting, is_lycus_command
+            if is_lycus_command() and self._persona_mode == "friendly":
+                _greeting_prompt, _is_greeting = get_dynamic_greeting()
+                context_prompt += "\n\n" + _greeting_prompt
+        except Exception:
+            pass  # greeting is non-critical -- never break startup
         
         # One-time prompt if no home channel is set for this platform
         # Skip for webhooks - they deliver directly to configured targets (github_comment, etc.)

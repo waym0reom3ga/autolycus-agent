@@ -407,6 +407,27 @@ def finalize_turn(
     # handled by the CLI (atexit / /reset) and gateway (session expiry /
     # _reset_session).
 
+    # Lycus closing phrase -- "Task complete, is there anything else?"
+    # Fires at the end of every turn when voice summaries are enabled.
+    # Disabled in sentry mode.
+    try:
+        from gateway.run import _load_gateway_config as _tc_load_config
+        _tc_cfg = _tc_load_config()
+        _tc_summaries = (_tc_cfg.get("voice") or {}).get("summaries", False)
+        _tc_persona_mode = (_tc_cfg.get("persona") or {}).get("mode", "friendly")
+        if _tc_summaries and _tc_persona_mode == "friendly" and final_response and not interrupted:
+            try:
+                from agent.onboarding import is_lycus_command
+                if is_lycus_command():
+                    # Append closing phrase to the final response
+                    _closing = "\n\nTask complete. Is there anything else you'd like to work on?"
+                    if isinstance(final_response, str):
+                        final_response = final_response + _closing
+            except Exception:
+                pass  # Non-critical
+    except Exception:
+        pass  # Non-critical
+
     # Plugin hook: on_session_end
     # Fired at the very end of every run_conversation call.
     # Plugins can use this for cleanup, flushing buffers, etc.
