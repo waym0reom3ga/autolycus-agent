@@ -2115,8 +2115,17 @@ This compaction should PRIORITISE preserving all information related to the focu
                 )
             return messages
 
-        # Phase 3: Pass ALL messages to LLM for summarization
-        turns_to_summarize = messages[:]
+        # Phase 3: Build turns to summarize — exclude existing context summary
+        # messages. The iterative update path already has self._previous_summary,
+        # so re-serializing the old summary into turns_to_summarize only bloats
+        # the LLM input without adding information. Without this exclusion, each
+        # re-compression cycle feeds the previous summary back to itself, producing
+        # an output roughly the same size as the input -> savings < 10% -> anti-
+        # thrashing triggers -> compression stops working after 2 cycles.
+        turns_to_summarize = [
+            m for m in messages
+            if not self._is_context_summary_content(m.get("content"))
+        ]
 
         if not self.quiet_mode:
             logger.info(
