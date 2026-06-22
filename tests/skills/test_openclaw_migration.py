@@ -852,7 +852,7 @@ def test_skill_installs_cleanly_under_skills_guard():
         assert f.pattern_id in KNOWN_FALSE_POSITIVES, f"Unexpected finding: {f}"
 
 
-# ── rebrand_text tests ────────────────────────────────────────
+# ── rebrand_text tests (name normalization during OpenClaw → Lycus migration) ────────────────
 
 
 def test_rebrand_text_replaces_openclaw_variants():
@@ -863,7 +863,7 @@ def test_rebrand_text_replaces_openclaw_variants():
     assert mod.rebrand_text("Open-Claw config is great") == "Lycus config is great"
     assert mod.rebrand_text("OPENCLAW uses tools well") == "Lycus uses tools well"
     # All-lowercase matches → lowercase ``lycus``; this preserves the
-    # real filesystem path ``~/.autolycus`` (Lycus home) when rebranding
+    # real filesystem path ``~/.autolycus`` (Lycus home) when normalizing names in
     # memory entries that reference ``~/.openclaw`` or ``openclaw`` prose.
     assert mod.rebrand_text("openclaw should always respond concisely") == "lycus should always respond concisely"
 

@@ -47,7 +47,7 @@ const FONT_STORAGE_KEY = "lycus-dashboard-font";
  *  Keep entries here until enough release cycles have passed that we can
  *  reasonably assume nobody still has the old value persisted. */
 const THEME_NAME_ALIASES: Record<string, string> = {
-  // Renamed during the LENS_5I port + Nous-blue rebrand.
+  // Theme key renamed from "lens-5i" to "nous-blue" when migrating the LENS_5I theme to use the Nous color palette.
   "lens-5i": "nous-blue",
 };
 

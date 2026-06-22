@@ -74,7 +74,7 @@ const config: Config = {
         // do server-side redirects). Paths are relative to baseUrl (/docs/).
         redirects: [
           {
-            // Renamed in #44470 (Automation Blueprints terminology rebrand)
+            // Redirect from old URL after renaming "automation templates" to "automation blueprints" (#44470)
             from: '/guides/automation-templates',
             to: '/guides/automation-blueprints',
           },
