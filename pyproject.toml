@@ -257,6 +257,9 @@ all = [
   #   modal, daytona, messaging (telegram/discord/slack),
   #   matrix, slack, honcho, voice (faster-whisper),
   #   dingtalk, feishu, bedrock, tts-premium (elevenlabs)
+  # Removed from [all] on 2026-06-22:
+  #   chatterbox — hard conflict with starlette==1.0.1 (CVE-2026-48710).
+  #   chatterbox-tts pins gradio==6.8.0 which requires starlette<1.0.
   #
   # Why: the matrix extra in particular pulls `mautrix[encryption]`
   # which depends on `python-olm`. python-olm has Linux-only wheels and
@@ -274,7 +277,11 @@ all = [
   "lycus-agent[google]",
   "lycus-agent[web]",
   "lycus-agent[youtube]",
-  "lycus-agent[chatterbox]",
+  # chatterbox removed: chatterbox-tts==0.1.7 pins gradio==6.8.0 which requires
+  # starlette>=0.40.0,<1.0 — hard conflict with our starlette==1.0.1 pin (CVE-2026-48710).
+  # Gradio 6.19.0 supports starlette>=1.0.1 but chatterbox-tts hasn't been updated yet.
+  # Users who need chatterbox can install it separately in a dedicated venv, or use
+  # the lazy-install path (tts.chatterbox) which resolves at first-use.
 ]
 
 [project.scripts]
