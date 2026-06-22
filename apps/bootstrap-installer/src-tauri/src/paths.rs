@@ -1,6 +1,6 @@
 //! Filesystem paths + logging setup.
 //!
-//! Mirrors `hermes_constants.get_hermes_home()` from the Python CLI:
+//! Mirrors `lycus_constants.get_lycus_home()` from the Python CLI:
 //!   Windows: %LOCALAPPDATA%\hermes
 //!   macOS:   ~/.lycus
 //!   Linux:   ~/.lycus  (override via $LYCUS_HOME)

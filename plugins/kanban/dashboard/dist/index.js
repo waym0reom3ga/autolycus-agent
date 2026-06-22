@@ -196,8 +196,7 @@
   const MIME_TASK = "text/x-hermes-task";
 
   // Docs link — surfaced as a `?` icon next to the board switcher and as
-  // `title=` hints on unlabelled controls. Kept in one place so rebrands or
-  // path changes are a single edit.
+  // `title=` hints on unlabelled controls. Kept in one place so URL changes are a single edit.
   const DOCS_URL = "https://lycus-agent.nousresearch.com/docs/user-guide/features/kanban";
   const DOCS_TUTORIAL_URL = "https://lycus-agent.nousresearch.com/docs/user-guide/features/kanban-tutorial";
 

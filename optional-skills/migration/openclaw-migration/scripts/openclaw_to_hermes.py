@@ -395,7 +395,7 @@ def backup_existing(path: Path, backup_root: Path) -> Optional[Path]:
     return dest
 
 
-# ── Brand rewriting ─────────────────────────────────────────
+# ── Name normalization for migrated content ────────────────────────
 # Replace OpenClaw brand names with Lycus in migrated text so that
 # memory entries, user profiles, MASK.md, and workspace instructions
 # read as self-referential to the new agent identity.
@@ -428,9 +428,11 @@ def _case_preserving_replacement(replacement: str):
 
 
 def rebrand_text(text: str) -> str:
-    """Replace OpenClaw / ClawdBot / MoltBot brand names with Lycus.
+    """Replace OpenClaw / ClawdBot / MoltBot brand names with Lycus in migrated content.
 
-    Preserves case so filesystem-path matches (lowercase) don't become
+    Applied during migration to memory entries, MASK.md, and workspace instructions so that
+    references to the old agent identity (OpenClaw, ClawdBot, MoltBot) are rewritten as
+    Lycus. Preserves case so filesystem-path matches (lowercase) don't become
     capitalized directory names that don't exist.
     """
     for pattern, replacement in _REBRAND_PATTERNS:
@@ -747,7 +749,7 @@ class Migrator:
         self._config_apply_blocked: bool = False
 
         # Resolve the configured workspace directory from openclaw.json.
-        # Many users (especially those who started before the OpenClaw rebrand)
+        # Many users (especially those who started before OpenClaw was renamed from clawd/clawdbot)
         # have a custom workspace path (e.g. ~/clawd/) that differs from the
         # default ~/.openclaw/workspace/.  Reading agents.defaults.workspace
         # lets source_candidate() find files in the actual workspace.
@@ -857,8 +859,7 @@ class Migrator:
 
         # Final fallback: check the configured workspace directory from
         # agents.defaults.workspace in openclaw.json.  Users who started
-        # before the OpenClaw rebrand (when the project was named clawd /
-        # clawdbot) often have a custom workspace path outside ~/.openclaw/.
+        # before OpenClaw was renamed from clawd/clawdbot) often have a custom workspace path outside ~/.openclaw/.
         if self._custom_workspace:
             for rel in relative_paths:
                 # Strip the leading "workspace/" or "workspace.default/"

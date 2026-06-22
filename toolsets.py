@@ -432,9 +432,9 @@ TOOLSETS = {
         "includes": []
     },
 
-    # Backward compatibility alias for pre-rebrand configs
+    # Alias so existing config files that reference toolset "hermes-cli" continue to work after the rename to "lycus-cli".
     "hermes-cli": {
-        "description": "Legacy alias for lycus-cli (pre-rebrand compatibility)",
+        "description": "Legacy alias for lycus-cli — resolves when config still references 'hermes-cli' from before the Hermes→Lycus rename",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },

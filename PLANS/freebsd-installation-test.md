@@ -107,7 +107,7 @@ OpenAI SDK: 2.31.0
 Update available: 1 commit behind — run 'lycus update'
 ```
 
-**Observation:** Still shows "Lycus Agent" branding - rebranding to "Autolycus" only exists in README.md, not source code.
+**Observation:** CLI banner still reads "Lycus Agent" — the Autolycus name change was applied only to README.md and not propagated into the CLI startup display logic.
 
 ---
 
