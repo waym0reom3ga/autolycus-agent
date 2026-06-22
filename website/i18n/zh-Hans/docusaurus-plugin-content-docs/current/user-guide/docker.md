@@ -135,7 +135,7 @@ docker run -it --rm \
 |------|----------|
 | `.env` | API 密钥和机密 |
 | `config.yaml` | 所有 Lycus 配置 |
-| `SOUL.md` | Agent 个性/身份 |
+| `MASK.md` | Agent 个性/身份 |
 | `sessions/` | 对话历史 |
 | `memories/` | 持久化记忆存储 |
 | `skills/` | 已安装的技能 |
@@ -291,7 +291,7 @@ docker run -d \
 - **[`s6-overlay`](https://github.com/just-containers/s6-overlay) v3** 作为 PID 1（替代旧版 `tini`）——监管 dashboard 和各 profile gateway，崩溃后自动重启，回收僵尸子进程，并转发信号
 
 容器的 `ENTRYPOINT` 是 s6-overlay 的 `/init`。启动时：
-1. 以 root 身份运行 `/etc/cont-init.d/01-lycus-setup`（即 `docker/stage2-hook.sh`）：可选的 UID/GID 重映射、修复卷所有权、首次启动时初始化 `.env` / `config.yaml` / `SOUL.md`、同步内置技能。
+1. 以 root 身份运行 `/etc/cont-init.d/01-lycus-setup`（即 `docker/stage2-hook.sh`）：可选的 UID/GID 重映射、修复卷所有权、首次启动时初始化 `.env` / `config.yaml` / `MASK.md`、同步内置技能。
 2. 运行 `/etc/cont-init.d/02-reconcile-profiles`（即 `lycus_cli.container_boot`）：遍历 `$AUTOLYCUS_HOME/profiles/<name>/`，在 `/run/service/gateway-<profile>/` 下重建各 profile 的 gateway s6 服务槽，并仅自动启动上次记录状态为 `running` 的 profile（参见 [Per-profile gateway 监管](#per-profile-gateway-supervision)）。
 3. 启动静态的 `main-lycus` 和 `dashboard` s6-rc 服务。
 4. 将容器的 CMD 作为主程序 exec（`/opt/lycus/docker/main-wrapper.sh`），根据用户传给 `docker run` 的参数进行路由：

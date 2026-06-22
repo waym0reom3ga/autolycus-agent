@@ -706,7 +706,7 @@ class TestPerSessionMigrateGuard:
     """Verify migrate_memory_files is skipped under per-session strategy.
 
     per-session creates a fresh Honcho session every Lycus run. Uploading
-    MEMORY.md/USER.md/SOUL.md to each short-lived session floods the backend
+    MEMORY.md/USER.md/MASK.md to each short-lived session floods the backend
     with duplicate content. The guard was added to prevent orphan sessions
     containing only <prior_memory_file> wrappers.
     """

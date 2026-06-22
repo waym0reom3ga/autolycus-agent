@@ -3,12 +3,12 @@
 The guard fires when a tool tries to write into the per-task mirror
 directory created by a non-local terminal backend (Docker, Daytona, etc.).
 Those paths look like ``…/sandboxes/<backend>/<task>/home/.autolycus/…`` and
-they accumulate divergent copies of authoritative profile state (SOUL.md,
+they accumulate divergent copies of authoritative profile state (MASK.md,
 config.yaml, memories/*.md) because the host Lycus process never reads
 them. Soft guard — defense in depth, NOT a security boundary.
 
 Reference: #32049 — under ``terminal.backend: docker``, the agent's
-``write_file`` / ``patch`` calls landed on the sandbox mirror of SOUL.md
+``write_file`` / ``patch`` calls landed on the sandbox mirror of MASK.md
 while the host process kept loading the untouched authoritative file.
 The agent reported success; the rule never took effect.
 """
@@ -25,7 +25,7 @@ import pytest
 
 
 class TestClassifySandboxMirrorTarget:
-    def test_docker_mirror_soul_md_classified(self, tmp_path):
+    def test_docker_mirror_mask_md_classified(self, tmp_path):
         """The exact path shape reported in #32049."""
         from agent.file_safety import classify_sandbox_mirror_target
 
@@ -33,7 +33,7 @@ class TestClassifySandboxMirrorTarget:
             tmp_path
             / "profiles" / "group1"
             / "sandboxes" / "docker" / "default" / "home" / ".autolycus"
-            / "profiles" / "group1" / "SOUL.md"
+            / "profiles" / "group1" / "MASK.md"
         )
         target.parent.mkdir(parents=True)
         target.write_text("# mirror copy\n")
@@ -44,7 +44,7 @@ class TestClassifySandboxMirrorTarget:
         assert result["mirror_root"].endswith(
             "sandboxes/docker/default/home/.autolycus"
         )
-        assert result["inner_path"] == "profiles/group1/SOUL.md"
+        assert result["inner_path"] == "profiles/group1/MASK.md"
 
     @pytest.mark.parametrize(
         "backend,inner",
@@ -75,7 +75,7 @@ class TestClassifySandboxMirrorTarget:
         """A plain Lycus path is not a mirror."""
         from agent.file_safety import classify_sandbox_mirror_target
 
-        target = tmp_path / ".autolycus" / "profiles" / "group1" / "SOUL.md"
+        target = tmp_path / ".autolycus" / "profiles" / "group1" / "MASK.md"
         target.parent.mkdir(parents=True)
         target.write_text("# real SOUL\n")
 
@@ -126,7 +126,7 @@ class TestClassifySandboxMirrorTarget:
             tmp_path
             / "profiles" / "group1"
             / "sandboxes" / "docker" / "default" / "home" / ".autolycus"
-            / "profiles" / "group1" / "SOUL.md"
+            / "profiles" / "group1" / "MASK.md"
         )
         # Parent directory exists so .resolve() doesn't strip the tail
         # under strict mode, but the file itself does NOT exist.
@@ -135,7 +135,7 @@ class TestClassifySandboxMirrorTarget:
 
         result = classify_sandbox_mirror_target(str(target))
         assert result is not None
-        assert result["inner_path"] == "profiles/group1/SOUL.md"
+        assert result["inner_path"] == "profiles/group1/MASK.md"
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +147,7 @@ class TestGetSandboxMirrorWarning:
     def test_non_mirror_returns_none(self, tmp_path):
         from agent.file_safety import get_sandbox_mirror_warning
 
-        target = tmp_path / ".autolycus" / "profiles" / "group1" / "SOUL.md"
+        target = tmp_path / ".autolycus" / "profiles" / "group1" / "MASK.md"
         target.parent.mkdir(parents=True)
         target.write_text("# real SOUL\n")
 
@@ -160,7 +160,7 @@ class TestGetSandboxMirrorWarning:
             tmp_path
             / "profiles" / "group1"
             / "sandboxes" / "docker" / "default" / "home" / ".autolycus"
-            / "profiles" / "group1" / "SOUL.md"
+            / "profiles" / "group1" / "MASK.md"
         )
         target.parent.mkdir(parents=True)
         target.write_text("# mirror copy\n")
@@ -170,7 +170,7 @@ class TestGetSandboxMirrorWarning:
         # Must name the mirror root so the user can locate the sandbox.
         assert "sandboxes/docker/default/home/.autolycus" in warn
         # Must hint at what the agent likely meant.
-        assert "profiles/group1/SOUL.md" in warn
+        assert "profiles/group1/MASK.md" in warn
         # Must name the bypass kwarg shared with the cross-profile guard.
         assert "cross_profile=True" in warn
 
@@ -180,7 +180,7 @@ class TestGetSandboxMirrorWarning:
         target = (
             tmp_path
             / "sandboxes" / "docker" / "t" / "home" / ".autolycus"
-            / "profiles" / "g" / "SOUL.md"
+            / "profiles" / "g" / "MASK.md"
         )
         target.parent.mkdir(parents=True)
         target.write_text("x")
@@ -211,7 +211,7 @@ class TestSandboxMirrorIsOrthogonalToCrossProfile:
             tmp_path
             / "profiles" / "group1"
             / "sandboxes" / "docker" / "default" / "home" / ".autolycus"
-            / "profiles" / "group1" / "SOUL.md"
+            / "profiles" / "group1" / "MASK.md"
         )
         target.parent.mkdir(parents=True)
         target.write_text("x")

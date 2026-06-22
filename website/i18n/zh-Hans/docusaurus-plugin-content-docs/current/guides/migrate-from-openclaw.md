@@ -45,7 +45,7 @@ lycus claw migrate --preset full --migrate-secrets --yes
 
 | 内容 | OpenClaw 来源 | Lycus 目标 | 备注 |
 |------|----------------|-------------------|-------|
-| Persona | `workspace/SOUL.md` | `~/.autolycus/SOUL.md` | 直接复制 |
+| Persona | `workspace/MASK.md` | `~/.autolycus/MASK.md` | 直接复制 |
 | 工作区指令 | `workspace/AGENTS.md` | `--workspace-target` 中的 `AGENTS.md` | 需要 `--workspace-target` 标志 |
 | 长期记忆 | `workspace/MEMORY.md` | `~/.autolycus/memories/MEMORY.md` | 解析为条目，与现有内容合并并去重，使用 `§` 分隔符 |
 | 用户档案 | `workspace/USER.md` | `~/.autolycus/memories/USER.md` | 与记忆相同的条目合并逻辑 |
@@ -164,7 +164,7 @@ TTS 设置从 OpenClaw 配置的**两个**位置读取，优先级如下：
 
 | 内容 | 归档文件 | 在 Lycus 中的重建方式 |
 |------|-------------|--------------------------|
-| `IDENTITY.md` | `archive/workspace/IDENTITY.md` | 合并至 `SOUL.md` |
+| `IDENTITY.md` | `archive/workspace/IDENTITY.md` | 合并至 `MASK.md` |
 | `TOOLS.md` | `archive/workspace/TOOLS.md` | Lycus 内置工具说明 |
 | `HEARTBEAT.md` | `archive/workspace/HEARTBEAT.md` | 使用 cron 作业执行周期性任务 |
 | `BOOTSTRAP.md` | `archive/workspace/BOOTSTRAP.md` | 使用上下文文件或 skills |

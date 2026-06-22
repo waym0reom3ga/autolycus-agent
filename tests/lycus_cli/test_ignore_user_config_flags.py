@@ -6,7 +6,7 @@ files. In Lycus the equivalent isolation is:
 
 * ``--ignore-user-config`` → skip ``~/.autolycus/config.yaml`` in ``load_cli_config()``
   (credentials in ``.env`` are still loaded).
-* ``--ignore-rules`` → skip AGENTS.md / SOUL.md / .cursorrules auto-injection
+* ``--ignore-rules`` → skip AGENTS.md / MASK.md / .cursorrules auto-injection
   and persistent memory (maps to ``AIAgent(skip_context_files=True,
   skip_memory=True)``).
 

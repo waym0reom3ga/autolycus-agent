@@ -1,6 +1,6 @@
 ---
 name: openclaw-migration
-description: Migrate a user's OpenClaw customization footprint into Lycus Agent. Imports Lycus-compatible memories, SOUL.md, command allowlists, user skills, and selected workspace assets from ~/.openclaw, then reports exactly what could not be migrated and why.
+description: Migrate a user's OpenClaw customization footprint into Lycus Agent. Imports Lycus-compatible memories, MASK.md, command allowlists, user skills, and selected workspace assets from ~/.openclaw, then reports exactly what could not be migrated and why.
 version: 1.0.0
 author: Lycus Agent (Nous Research)
 license: MIT
@@ -35,7 +35,7 @@ The CLI command runs the same migration script described below. Use this skill (
 
 It uses `scripts/openclaw_to_lycus.py` to:
 
-- import `SOUL.md` into the Lycus home directory as `SOUL.md`
+- import `MASK.md` into the Lycus home directory as `MASK.md`
 - transform OpenClaw `MEMORY.md` and `USER.md` into Lycus memory entries
 - merge OpenClaw command approval patterns into Lycus `command_allowlist`
 - migrate Lycus-compatible messaging settings such as `TELEGRAM_ALLOWED_USERS`, and map OpenClaw workspace settings to Lycus working-directory configuration
@@ -124,7 +124,7 @@ In that case, you must ask about workspace instructions before execution. Do not
 
 Because of that limitation, use this simplified decision flow:
 
-1. For `SOUL.md` conflicts, use `clarify` with choices such as:
+1. For `MASK.md` conflicts, use `clarify` with choices such as:
    - `keep existing`
    - `overwrite with backup`
    - `review first`
@@ -158,7 +158,7 @@ Execution gate:
 
 Use these exact `clarify` payload shapes as the default pattern:
 
-- `{"question":"Your existing SOUL.md conflicts with the imported one. What should I do?","choices":["keep existing","overwrite with backup","review first"]}`
+- `{"question":"Your existing MASK.md conflicts with the imported one. What should I do?","choices":["keep existing","overwrite with backup","review first"]}`
 - `{"question":"One or more imported OpenClaw skills already exist in Lycus. How should I handle those skill conflicts?","choices":["keep existing skills","overwrite conflicting skills with backup","import conflicting skills under renamed folders"]}`
 - `{"question":"Choose migration mode: migrate only user data, or run the full compatible migration including allowlisted secrets?","choices":["user-data only","full compatible migration","cancel"]}`
 - `{"question":"Do you want to copy the OpenClaw workspace instructions file into a Lycus workspace?","choices":["skip workspace instructions","copy to a workspace path","decide later"]}`
@@ -168,7 +168,7 @@ Use these exact `clarify` payload shapes as the default pattern:
 
 Map user decisions to command flags exactly:
 
-- If the user chooses `keep existing` for `SOUL.md`, do **not** add `--overwrite`.
+- If the user chooses `keep existing` for `MASK.md`, do **not** add `--overwrite`.
 - If the user chooses `overwrite with backup`, add `--overwrite`.
 - If the user chooses `review first`, stop before execution and review the relevant files.
 - If the user chooses `keep existing skills`, add `--skill-conflict skip`.
@@ -188,7 +188,7 @@ After execution, treat the script's JSON output as the source of truth.
 1. Base all counts on `report.summary`.
 2. Only list an item under "Successfully Migrated" if its `status` is exactly `migrated`.
 3. Do not claim a conflict was resolved unless the report shows that item as `migrated`.
-4. Do not say `SOUL.md` was overwritten unless the report item for `kind="soul"` has `status="migrated"`.
+4. Do not say `MASK.md` was overwritten unless the report item for `kind="soul"` has `status="migrated"`.
 5. If `report.summary.conflict > 0`, include a conflict section instead of silently implying success.
 6. If counts and listed items disagree, fix the list to match the report before responding.
 7. Include the `output_dir` path from the report when available so the user can inspect `report.json`, `summary.md`, backups, and archived files.
@@ -272,7 +272,7 @@ Do not use `$PWD` or the home directory as the workspace target by default. Ask 
 4. Always give the user the skipped-items report. That report is part of the migration, not an optional extra.
 5. Prefer the primary OpenClaw workspace (`~/.openclaw/workspace/`) over `workspace.default/`. Only use the default workspace as fallback when the primary files are missing.
 6. Even in secret-migration mode, only migrate secrets with a clean Lycus destination. Unsupported auth blobs must still be reported as skipped.
-7. If the dry run shows a large asset copy, a conflicting `SOUL.md`, or overflowed memory entries, call those out separately before execution.
+7. If the dry run shows a large asset copy, a conflicting `MASK.md`, or overflowed memory entries, call those out separately before execution.
 8. Default to `user-data only` if the user is unsure.
 9. Only include `workspace-agents` when the user has explicitly provided a destination workspace path.
 10. Treat category-level `--include` / `--exclude` as an advanced escape hatch, not the normal flow.
@@ -280,7 +280,7 @@ Do not use `$PWD` or the home directory as the workspace target by default. Ask 
 12. Do not use an open-ended `clarify` prompt when a real choice prompt would work. Prefer selectable choices first, then free text only for absolute paths or file review requests.
 13. After a dry run, never stop after summarizing if there is still an unresolved decision. Use `clarify` immediately for the highest-priority blocking decision.
 14. Priority order for follow-up questions:
-    - `SOUL.md` conflict
+    - `MASK.md` conflict
     - imported skill conflicts
     - migration mode
     - workspace instructions destination

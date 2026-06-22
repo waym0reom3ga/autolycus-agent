@@ -264,10 +264,10 @@ def init_agent(
             output_config.format instead of a trailing-assistant prefill.
         platform (str): The interface platform the user is on (e.g. "cli", "telegram", "discord", "whatsapp").
             Used to inject platform-specific formatting hints into the system prompt.
-        skip_context_files (bool): If True, skip auto-injection of SOUL.md, AGENTS.md, and .cursorrules
+        skip_context_files (bool): If True, skip auto-injection of MASK.md, AGENTS.md, and .cursorrules
             into the system prompt. Use this for batch processing and data generation to avoid
             polluting trajectories with user-specific persona or project instructions.
-        load_soul_identity (bool): If True, still use ~/.autolycus/SOUL.md as the primary
+        load_soul_identity (bool): If True, still use ~/.autolycus/MASK.md as the primary
             identity even when skip_context_files=True. Project context files from the cwd
             remain skipped.
     """

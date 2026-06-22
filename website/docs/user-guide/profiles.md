@@ -8,7 +8,7 @@ Run multiple independent Lycus agents on the same machine — each with its own 
 
 ## What are profiles?
 
-A profile is a separate Lycus home directory. Each profile gets its own directory containing its own `config.yaml`, `.env`, `SOUL.md`, memories, sessions, skills, cron jobs, and state database. Profiles let you run separate agents for different purposes — a coding assistant, a personal bot, a research agent — without mixing up Lycus state.
+A profile is a separate Lycus home directory. Each profile gets its own directory containing its own `config.yaml`, `.env`, `MASK.md`, memories, sessions, skills, cron jobs, and state database. Profiles let you run separate agents for different purposes — a coding assistant, a personal bot, a research agent — without mixing up Lycus state.
 
 When you create a profile, it automatically becomes its own command. Create a profile called `coder` and you immediately have `coder chat`, `coder setup`, `coder gateway start`, etc.
 
@@ -50,7 +50,7 @@ You can also set or auto-generate the description later with `lycus profile desc
 lycus profile create work --clone
 ```
 
-Copies your current profile's `config.yaml`, `.env`, `SOUL.md`, and skills into the new profile. Same API keys, model, and capabilities, but fresh sessions and memory. Edit `~/.autolycus/profiles/work/.env` for different API keys, or `~/.autolycus/profiles/work/SOUL.md` for a different personality.
+Copies your current profile's `config.yaml`, `.env`, `MASK.md`, and skills into the new profile. Same API keys, model, and capabilities, but fresh sessions and memory. Edit `~/.autolycus/profiles/work/.env` for different API keys, or `~/.autolycus/profiles/work/MASK.md` for a different personality.
 
 ### Clone everything (`--clone-all`)
 
@@ -126,7 +126,7 @@ The CLI always shows which profile is active:
 
 Profiles are often confused with workspaces or sandboxes, but they are different things:
 
-- A **profile** gives Lycus its own state directory: `config.yaml`, `.env`, `SOUL.md`, sessions, memory, logs, cron jobs, and gateway state.
+- A **profile** gives Lycus its own state directory: `config.yaml`, `.env`, `MASK.md`, sessions, memory, logs, cron jobs, and gateway state.
 - A **workspace** or **working directory** is where terminal commands start. That is controlled separately by `terminal.cwd`.
 - A **sandbox** is what limits filesystem access. Profiles do **not** sandbox the agent.
 
@@ -144,8 +144,8 @@ Using `cwd: "."` on the local backend means "the directory Lycus was launched fr
 
 Also note:
 
-- `SOUL.md` can guide the model, but it does not enforce a workspace boundary.
-- Changes to `SOUL.md` take effect cleanly on a new session. Existing sessions may still be using the old prompt state.
+- `MASK.md` can guide the model, but it does not enforce a workspace boundary.
+- Changes to `MASK.md` take effect cleanly on a new session. Existing sessions may still be using the old prompt state.
 - Asking the model "what directory are you in?" is not a reliable isolation test. If you need a predictable starting directory for tools, set `terminal.cwd` explicitly.
 
 ## Running gateways
@@ -192,11 +192,11 @@ Each profile has its own:
 
 - **`config.yaml`** — model, provider, toolsets, all settings
 - **`.env`** — API keys, bot tokens
-- **`SOUL.md`** — personality and instructions
+- **`MASK.md`** — personality and instructions
 
 ```bash
 coder config set model.default anthropic/claude-sonnet-4
-echo "You are a focused coding assistant." > ~/.autolycus/profiles/coder/SOUL.md
+echo "You are a focused coding assistant." > ~/.autolycus/profiles/coder/MASK.md
 ```
 
 If you want this profile to work in a specific project by default, also set its own `terminal.cwd`:

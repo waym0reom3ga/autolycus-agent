@@ -1212,7 +1212,7 @@ def test_kanban_guidance_in_worker_prompt(monkeypatch, tmp_path):
         skip_memory=True,
     )
     prompt = a._build_system_prompt()
-    # Header phrase (identity-free — SOUL.md owns identity, layer 3 is protocol)
+    # Header phrase (identity-free — MASK.md owns identity, layer 3 is protocol)
     assert "Kanban task execution protocol" in prompt
     # Lifecycle signals
     assert "kanban_show()" in prompt

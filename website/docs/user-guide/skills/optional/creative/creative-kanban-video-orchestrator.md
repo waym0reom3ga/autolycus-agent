@@ -112,7 +112,7 @@ Generate a setup script (`setup.sh`) and run it. The script:
 1. Creates the project workspace (`~/projects/video-pipeline/<slug>/`)
 2. Copies any provided assets into `taste/`, `audio/`, `assets/`
 3. Creates each Lycus profile via `lycus profile create --clone`
-4. Writes per-profile `SOUL.md` (personality + role definition)
+4. Writes per-profile `MASK.md` (personality + role definition)
 5. Configures profile YAML (toolsets, always_load skills, cwd)
 6. Writes `brief.md`, `TEAM.md`, and `taste/` content
 7. Fires the initial `lycus kanban create` task assigned to the director
@@ -184,7 +184,7 @@ task graphs. See **[references/examples.md](https://github.com/NousResearch/lycu
    provides.
 
 6. **The director never executes.** Even with the full `kanban + terminal +
-   file` toolset, the director's `SOUL.md` rules forbid it from executing
+   file` toolset, the director's `MASK.md` rules forbid it from executing
    work itself. It decomposes and routes only — every concrete task becomes
    a `lycus kanban create` call to a specialist profile. The
    `kanban-orchestrator` skill spells this out further.

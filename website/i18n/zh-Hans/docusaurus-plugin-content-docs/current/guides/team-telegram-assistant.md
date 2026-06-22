@@ -287,11 +287,11 @@ display:
 
 用户也可以在聊天中使用 `/verbose` 命令按会话更改此设置。
 
-### 使用 SOUL.md 设置个性
+### 使用 MASK.md 设置个性
 
-通过编辑 `~/.autolycus/SOUL.md` 自定义机器人的沟通方式：
+通过编辑 `~/.autolycus/MASK.md` 自定义机器人的沟通方式：
 
-完整指南请参阅[在 Lycus 中使用 SOUL.md](/guides/use-soul-with-lycus)。
+完整指南请参阅[在 Lycus 中使用 MASK.md](/guides/use-soul-with-lycus)。
 
 ```markdown
 # Soul
@@ -432,7 +432,7 @@ lycus gateway stop && lycus gateway start
 - **[消息 Gateway](/user-guide/messaging)**——gateway 架构、会话管理和聊天命令的完整参考
 - **[Telegram 设置](/user-guide/messaging/telegram)**——平台专属详情，包括语音消息和 TTS
 - **[定时任务](/user-guide/features/cron)**——高级 cron 调度，含投递选项和 cron 表达式
-- **[上下文文件](/user-guide/features/context-files)**——用于项目知识的 AGENTS.md、SOUL.md 和 .cursorrules
+- **[上下文文件](/user-guide/features/context-files)**——用于项目知识的 AGENTS.md、MASK.md 和 .cursorrules
 - **[个性设置](/user-guide/features/personality)**——内置个性预设和自定义角色定义
 - **添加更多平台**——同一 gateway 可同时运行 [Discord](/user-guide/messaging/discord)、[Slack](/user-guide/messaging/slack) 和 [WhatsApp](/user-guide/messaging/whatsapp)
 

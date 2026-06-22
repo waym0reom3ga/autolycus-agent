@@ -30,7 +30,7 @@ class TestCredentialExclusion:
         (profile_dir / "config.yaml").write_text("model: gpt-4\n")
         (profile_dir / "auth.json").write_text('{"tokens": {"access": "sk-secret"}}')
         (profile_dir / ".env").write_text("OPENROUTER_API_KEY=sk-secret-key\n")
-        (profile_dir / "SOUL.md").write_text("I am helpful.\n")
+        (profile_dir / "MASK.md").write_text("I am helpful.\n")
         (profile_dir / "memories").mkdir()
         (profile_dir / "memories" / "MEMORY.md").write_text("# Memories\n")
 
@@ -46,6 +46,6 @@ class TestCredentialExclusion:
             names = tf.getnames()
 
         assert any("config.yaml" in n for n in names), "config.yaml should be in export"
-        assert any("SOUL.md" in n for n in names), "SOUL.md should be in export"
+        assert any("MASK.md" in n for n in names), "MASK.md should be in export"
         assert not any("auth.json" in n for n in names), "auth.json must NOT be in export"
         assert not any(".env" in n for n in names), ".env must NOT be in export"

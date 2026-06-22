@@ -34,7 +34,7 @@ If you're just running the Lycus Agent and want to use Docker, see `website/docs
 │   │   ├── UID/GID remap
 │   │   ├── chown /opt/data
 │   │   ├── chown /opt/data/profiles (every boot)
-│   │   ├── seed .env / config.yaml / SOUL.md
+│   │   ├── seed .env / config.yaml / MASK.md
 │   │   └── skills_sync.py
 │   └── 02-reconcile-profiles          ← lycus_cli.container_boot
 │       ├── chown /run/service (lycus-writable for runtime register)
@@ -150,7 +150,7 @@ The harness lives in `tests/docker/` and skips when Docker isn't available. The 
 
 ### Profile directory ownership
 
-The cont-init reconciler runs as lycus (`s6-setuidgid lycus` in `02-reconcile-profiles`). If a profile dir ends up root-owned (e.g. because `docker exec <c> lycus profile create …` ran as root by default), the reconciler can't read SOUL.md and fails with `PermissionError`. Mitigation: `stage2-hook.sh` chowns `$AUTOLYCUS_HOME/profiles` to lycus on **every** boot, idempotently. Don't remove that block.
+The cont-init reconciler runs as lycus (`s6-setuidgid lycus` in `02-reconcile-profiles`). If a profile dir ends up root-owned (e.g. because `docker exec <c> lycus profile create …` ran as root by default), the reconciler can't read MASK.md and fails with `PermissionError`. Mitigation: `stage2-hook.sh` chowns `$AUTOLYCUS_HOME/profiles` to lycus on **every** boot, idempotently. Don't remove that block.
 
 ### Files written by `docker exec` are root-owned
 
@@ -166,7 +166,7 @@ Most likely the profile has no model or auth configured. The service slot is cor
 
 ### Reconciler skipped a profile
 
-The reconciler keys on the **presence of `SOUL.md`** as the "real profile" marker. `lycus profile create` always seeds it. If a profile dir is missing SOUL.md (stray directory, partial restore, backup-in-progress), the reconciler skips it intentionally. Add a `SOUL.md` (even empty) to opt back in.
+The reconciler keys on the **presence of `MASK.md`** as the "real profile" marker. `lycus profile create` always seeds it. If a profile dir is missing MASK.md (stray directory, partial restore, backup-in-progress), the reconciler skips it intentionally. Add a `MASK.md` (even empty) to opt back in.
 
 ### "Help, the container exits 143!"
 

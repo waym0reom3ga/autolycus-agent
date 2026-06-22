@@ -32,7 +32,7 @@ Usage:
     lycus honcho tokens --context N       # Set session.context() token cap
     lycus honcho tokens --dialectic N     # Set dialectic result char cap
     lycus honcho identity                 # Show AI peer identity representation
-    lycus honcho identity <file>          # Seed AI peer identity from a file (SOUL.md etc.)
+    lycus honcho identity <file>          # Seed AI peer identity from a file (MASK.md etc.)
     lycus honcho migrate                  # Step-by-step migration guide: OpenClaw native → Lycus + Honcho
     lycus version             Show version
     lycus update              Update to latest version
@@ -2266,7 +2266,7 @@ def cmd_chat(args):
     if getattr(args, "ignore_user_config", False):
         os.environ["HERMES_IGNORE_USER_CONFIG"] = "1"
 
-    # --ignore-rules: skip auto-injection of AGENTS.md/SOUL.md/.cursorrules
+    # --ignore-rules: skip auto-injection of AGENTS.md/MASK.md/.cursorrules
     # (rules), memory entries, and any preloaded skills coming from user config.
     # Maps to AIAgent(skip_context_files=True, skip_memory=True).
     if getattr(args, "ignore_rules", False):
@@ -10174,7 +10174,7 @@ def cmd_profile(args):
                     )
                 else:
                     print(
-                        f"Cloned config, .env, SOUL.md, and skills from {source_label}."
+                        f"Cloned config, .env, MASK.md, and skills from {source_label}."
                     )
 
             # Auto-clone Honcho config for the new profile (only with clone operations)
@@ -10240,13 +10240,13 @@ def cmd_profile(args):
             print(f"  {name} gateway start      Start the messaging gateway")
             if clone or clone_all:
                 print(f"\n  Edit {profile_dir_display}/.env for different API keys")
-                print(f"  Edit {profile_dir_display}/SOUL.md for different personality")
+                print(f"  Edit {profile_dir_display}/MASK.md for different personality")
             else:
                 print(
                     f"\n  ⚠ This profile has no API keys yet. Run '{name} setup' first,"
                 )
                 print(f"    or it will inherit keys from your shell environment.")
-                print(f"  Edit {profile_dir_display}/SOUL.md to customize personality")
+                print(f"  Edit {profile_dir_display}/MASK.md to customize personality")
             print()
 
         except (ValueError, FileExistsError, FileNotFoundError) as e:
@@ -10396,7 +10396,7 @@ def cmd_profile(args):
             f".env:    {'exists' if (profile_dir / '.env').exists() else 'not configured'}"
         )
         print(
-            f"SOUL.md: {'exists' if (profile_dir / 'SOUL.md').exists() else 'not configured'}"
+            f"MASK.md: {'exists' if (profile_dir / 'MASK.md').exists() else 'not configured'}"
         )
         if dist_name:
             print(f"Distribution: {dist_name}@{dist_version or '?'}")
@@ -10650,7 +10650,7 @@ def _render_distribution_plan(plan) -> None:
         else:
             print(
                 "  ⚠ Profile exists but is NOT a distribution.  Installing here will\n"
-                "    overwrite its SOUL.md, skills/, cron/, and mcp.json.\n"
+                "    overwrite its MASK.md, skills/, cron/, and mcp.json.\n"
                 "    Your memories, sessions, auth.json, and .env will be preserved,\n"
                 "    but any hand-edits to distribution-owned files will be lost."
             )

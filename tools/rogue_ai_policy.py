@@ -8,10 +8,12 @@ Tables:
     command_logs  - every command attempt (persistent, queried per-session)
     session_log   - every line/chunk of session output (append-only audit trail)
 
-Guard queries:
-    Non-web: COUNT(*) > 2 for same command + session_id -> block
+Guard queries (all temporal — only entries within the time window count):
+    Non-web: COUNT(*) > 2 for same command + session_id within past 24h -> block
     Web:     COUNT(*) > 1 for same command + session_id within past hour -> block
-    Hard halt on 4th+ attempt of a blocked command.
+    Hard halt on 4th+ attempt of a blocked command within past 24h.
+
+Older entries remain in the archive for audit but never trigger a block.
 """
 
 import os
@@ -93,25 +95,32 @@ def _is_web_command(command: str) -> bool:
 def check_command_guard(session_id: str, command: str) -> Tuple[bool, Optional[str]]:
     """Run the two guard queries and return (blocked, message).
 
+    All counts are temporal — only entries within the past 24 hours are
+    considered.  Older entries remain in the archive for audit but never
+    trigger a block.
+
     Returns:
         (False, None) if allowed.
-        (True, "you've been looping...") for non-web repeat > 2.
+        (True, "you've been looping...") for non-web repeat > 2 within 24h.
         (True, "you're spamming the internet...") for web repeat > 1 within hour.
-        (True, "Operation halted: rogue AI detected") for hard halt on 4th+.
+        (True, "Operation halted: rogue AI detected") for hard halt on 4th+ within 24h.
     """
     with _lock:
         conn = _get_connection()
         try:
             is_web = _is_web_command(command)
 
-            # Count total attempts for this command in this session
+            # 24-hour cutoff for all non-web and hard-halt counts
+            day_cutoff = (datetime.utcnow() - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+
+            # Count recent attempts for this command in this session (past 24h)
             row = conn.execute(
-                "SELECT COUNT(*) FROM command_logs WHERE command = ? AND session_id = ?",
-                (command, session_id),
+                "SELECT COUNT(*) FROM command_logs WHERE command = ? AND session_id = ? AND timestamp >= ?",
+                (command, session_id, day_cutoff),
             ).fetchone()
             total_count = row[0] if row else 0
 
-            # Hard halt: 4+ attempts of the same command in this session
+            # Hard halt: 4+ attempts of the same command in this session within 24h
             if total_count >= 4:
                 # Write a hard halt marker file that the agent loop can detect
                 _write_hard_halt_marker(session_id)
@@ -129,7 +138,7 @@ def check_command_guard(session_id: str, command: str) -> Tuple[bool, Optional[s
                 if recent_count > 1:
                     return (True, "you're spamming the internet, stop it and reassess what you need from what you already did")
             else:
-                # Non-web commands: block after count > 2 in this session
+                # Non-web commands: block after count > 2 within past 24h
                 if total_count > 2:
                     return (True, "you've been looping, stop it now")
 

@@ -80,7 +80,7 @@ Creates a new profile.
 | Argument / Option | Description |
 |-------------------|-------------|
 | `<name>` | Name for the new profile. Must be a valid directory name (alphanumeric, hyphens, underscores). |
-| `--clone` | Copy `config.yaml`, `.env`, `SOUL.md`, and skills from the current profile. |
+| `--clone` | Copy `config.yaml`, `.env`, `MASK.md`, and skills from the current profile. |
 | `--clone-all` | Copy everything (config, memories, skills, cron, plugins) from the current profile. Excludes per-profile history: sessions, `state.db`, backups, state-snapshots, checkpoints. |
 | `--clone-from <profile>` | Clone config/skills/SOUL from a specific profile instead of the current one. Implies `--clone` unless paired with `--clone-all`. |
 | `--no-alias` | Skip wrapper script creation. |
@@ -190,7 +190,7 @@ Model:   anthropic/claude-sonnet-4 (anthropic)
 Gateway: stopped
 Skills:  12
 .env:    exists
-SOUL.md: exists
+MASK.md: exists
 Alias:   ~/.local/bin/work
 ```
 
@@ -354,7 +354,7 @@ lycus profile update <name> [--force-config] [--yes]
 ```
 
 Re-clones the distribution from its recorded source and applies updates.
-Distribution-owned files (SOUL.md, skills/, cron/, mcp.json) are
+Distribution-owned files (MASK.md, skills/, cron/, mcp.json) are
 overwritten; user data (memories, sessions, auth, .env) is never touched.
 
 `config.yaml` is preserved by default to keep your local overrides.
@@ -417,9 +417,9 @@ env_requires:
     description: "Memory graph URL"
     required: false
     default: "http://127.0.0.1:8000/sse"
-distribution_owned:   # optional; defaults to SOUL.md, config.yaml,
+distribution_owned:   # optional; defaults to MASK.md, config.yaml,
                       #   mcp.json, skills/, cron/, distribution.yaml
-  - SOUL.md
+  - MASK.md
   - skills/compliance/
   - cron/
 ```

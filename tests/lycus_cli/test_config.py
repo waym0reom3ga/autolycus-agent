@@ -47,16 +47,16 @@ class TestEnsureLycusHome:
             assert (tmp_path / "logs").is_dir()
             assert (tmp_path / "memories").is_dir()
 
-    def test_creates_default_soul_md_if_missing(self, tmp_path):
+    def test_creates_default_mask_md_if_missing(self, tmp_path):
         with patch.dict(os.environ, {"AUTOLYCUS_HOME": str(tmp_path)}):
             ensure_lycus_home()
-            soul_path = tmp_path / "SOUL.md"
+            soul_path = tmp_path / "MASK.md"
             assert soul_path.exists()
             assert soul_path.read_text(encoding="utf-8").strip() != ""
 
-    def test_does_not_overwrite_existing_soul_md(self, tmp_path):
+    def test_does_not_overwrite_existing_mask_md(self, tmp_path):
         with patch.dict(os.environ, {"AUTOLYCUS_HOME": str(tmp_path)}):
-            soul_path = tmp_path / "SOUL.md"
+            soul_path = tmp_path / "MASK.md"
             soul_path.write_text("custom soul", encoding="utf-8")
             ensure_lycus_home()
             assert soul_path.read_text(encoding="utf-8") == "custom soul"

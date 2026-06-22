@@ -8813,7 +8813,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                                 finally:
                                     # Evict the cached agent so the next turn
                                     # rebuilds its system prompt from current
-                                    # SOUL.md, memory, and skills.
+                                    # MASK.md, memory, and skills.
                                     self._evict_cached_agent(session_key)
                                     self._cleanup_agent_resources(_hyg_agent)
 

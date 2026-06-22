@@ -296,7 +296,7 @@ _EXTRA_ENV_KEYS = frozenset({
 import yaml
 
 from lycus_cli.colors import Colors, color
-from lycus_cli.default_soul import DEFAULT_SOUL_MD
+from lycus_cli.default_mask import DEFAULT_MASK_MD
 
 
 # =============================================================================
@@ -743,12 +743,12 @@ def _secure_file(path):
         pass
 
 
-def _ensure_default_soul_md(home: Path) -> None:
-    """Seed a default SOUL.md into AUTOLYCUS_HOME if the user doesn't have one yet."""
-    soul_path = home / "SOUL.md"
+def _ensure_default_mask_md(home: Path) -> None:
+    """Seed a default MASK.md into AUTOLYCUS_HOME if the user doesn't have one yet."""
+    soul_path = home / "MASK.md"
     if soul_path.exists():
         return
-    soul_path.write_text(DEFAULT_SOUL_MD, encoding="utf-8")
+    soul_path.write_text(DEFAULT_MASK_MD, encoding="utf-8")
     _secure_file(soul_path)
 
 
@@ -757,7 +757,7 @@ def ensure_lycus_home():
 
     In managed mode (NixOS), dirs are created by the activation script with
     setgid + group-writable (2770). We skip mkdir and set umask(0o007) so
-    any files created (e.g. SOUL.md) are group-writable (0660).
+    any files created (e.g. MASK.md) are group-writable (0660).
     """
     home = get_lycus_home()
     if is_managed():
@@ -776,11 +776,11 @@ def ensure_lycus_home():
             d = home / subdir
             d.mkdir(parents=True, exist_ok=True)
             _secure_dir(d)
-        _ensure_default_soul_md(home)
+        _ensure_default_mask_md(home)
 
 
 def _ensure_lycus_home_managed(home: Path):
-    """Managed-mode variant: verify dirs exist (activation creates them), seed SOUL.md."""
+    """Managed-mode variant: verify dirs exist (activation creates them), seed MASK.md."""
     if not home.is_dir():
         raise RuntimeError(
             f"AUTOLYCUS_HOME {home} does not exist. "
@@ -797,8 +797,8 @@ def _ensure_lycus_home_managed(home: Path):
     # In managed mode the activation script may not know about this subdir,
     # so we mkdir it ourselves (it's inside an already-secured logs/ dir).
     (home / "logs" / "curator").mkdir(parents=True, exist_ok=True)
-    # Inside umask(0o007) scope — SOUL.md will be created as 0660
-    _ensure_default_soul_md(home)
+    # Inside umask(0o007) scope — MASK.md will be created as 0660
+    _ensure_default_mask_md(home)
 
 
 # =============================================================================
@@ -865,7 +865,7 @@ DEFAULT_CONFIG = {
         # prompt's environment-hints block. Lets a host that wraps Lycus
         # (sandbox runner, managed platform) explain the runtime environment
         # — proxy, credential handling, mount layout — without editing the
-        # identity slot (SOUL.md). Empty by default. The HERMES_ENVIRONMENT_HINT
+        # identity slot (MASK.md). Empty by default. The HERMES_ENVIRONMENT_HINT
         # env var overrides this (build-time/container mechanism).
         "environment_hint": "",
         # Coding posture — on interactive coding surfaces (CLI, TUI, desktop

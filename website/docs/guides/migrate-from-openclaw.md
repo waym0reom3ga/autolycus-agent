@@ -49,7 +49,7 @@ Reads from `~/.openclaw/` by default. Legacy `~/.clawdbot/` or `~/.moltbot/` dir
 
 | What | OpenClaw source | Lycus destination | Notes |
 |------|----------------|-------------------|-------|
-| Persona | `workspace/SOUL.md` | `~/.autolycus/SOUL.md` | Direct copy |
+| Persona | `workspace/MASK.md` | `~/.autolycus/MASK.md` | Direct copy |
 | Workspace instructions | `workspace/AGENTS.md` | `AGENTS.md` in `--workspace-target` | Requires `--workspace-target` flag |
 | Long-term memory | `workspace/MEMORY.md` | `~/.autolycus/memories/MEMORY.md` | Parsed into entries, merged with existing, deduped. Uses `§` delimiter. |
 | User profile | `workspace/USER.md` | `~/.autolycus/memories/USER.md` | Same entry-merge logic as memory. |
@@ -168,7 +168,7 @@ These are saved to `~/.autolycus/migration/openclaw/<timestamp>/archive/` for ma
 
 | What | Archive file | How to recreate in Lycus |
 |------|-------------|--------------------------|
-| `IDENTITY.md` | `archive/workspace/IDENTITY.md` | Merge into `SOUL.md` |
+| `IDENTITY.md` | `archive/workspace/IDENTITY.md` | Merge into `MASK.md` |
 | `TOOLS.md` | `archive/workspace/TOOLS.md` | Lycus has built-in tool instructions |
 | `HEARTBEAT.md` | `archive/workspace/HEARTBEAT.md` | Use cron jobs for periodic tasks |
 | `BOOTSTRAP.md` | `archive/workspace/BOOTSTRAP.md` | Use context files or skills |

@@ -1052,7 +1052,7 @@ class TestBuildSystemPrompt:
             patch("run_agent.get_tool_definitions", return_value=_make_tool_defs("terminal")),
             patch("run_agent.check_toolset_requirements", return_value={}),
             patch("run_agent.OpenAI"),
-            patch("run_agent.load_soul_md", return_value="SOUL IDENTITY"),
+            patch("run_agent.load_mask_md", return_value="SOUL IDENTITY"),
         ):
             agent = AIAgent(
                 api_key="test-k...7890",

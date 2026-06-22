@@ -8739,7 +8739,7 @@ async def scan_skill_hub(identifier: str = ""):
 
 
 # ---------------------------------------------------------------------------
-# Profile management endpoints (minimal — list/create/rename/delete + SOUL.md)
+# Profile management endpoints (minimal — list/create/rename/delete + MASK.md)
 # ---------------------------------------------------------------------------
 
 
@@ -9266,23 +9266,23 @@ async def delete_profile_endpoint(name: str):
 
 @app.get("/api/profiles/{name}/soul")
 async def get_profile_soul(name: str):
-    soul_path = _resolve_profile_dir(name) / "SOUL.md"
+    soul_path = _resolve_profile_dir(name) / "MASK.md"
     if soul_path.exists():
         try:
             return {"content": soul_path.read_text(encoding="utf-8"), "exists": True}
         except OSError as e:
-            raise HTTPException(status_code=500, detail=f"Could not read SOUL.md: {e}")
+            raise HTTPException(status_code=500, detail=f"Could not read MASK.md: {e}")
     return {"content": "", "exists": False}
 
 
 @app.put("/api/profiles/{name}/soul")
 async def update_profile_soul(name: str, body: ProfileSoulUpdate):
-    soul_path = _resolve_profile_dir(name) / "SOUL.md"
+    soul_path = _resolve_profile_dir(name) / "MASK.md"
     try:
         soul_path.write_text(body.content, encoding="utf-8")
     except OSError as e:
         _log.exception("PUT /api/profiles/%s/soul failed", name)
-        raise HTTPException(status_code=500, detail=f"Could not write SOUL.md: {e}")
+        raise HTTPException(status_code=500, detail=f"Could not write MASK.md: {e}")
     return {"ok": True}
 
 

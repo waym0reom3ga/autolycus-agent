@@ -372,9 +372,9 @@ class TestRetainDBMemoryProvider:
         assert p._client.project == "lycus-coder"
         p.shutdown()
 
-    def test_initialize_seeds_soul_md(self, tmp_path, monkeypatch):
+    def test_initialize_seeds_mask_md(self, tmp_path, monkeypatch):
         p = self._make_provider(tmp_path, monkeypatch)
-        soul_path = tmp_path / ".autolycus" / "SOUL.md"
+        soul_path = tmp_path / ".autolycus" / "MASK.md"
         soul_path.write_text("I am a helpful agent.")
         with patch.object(RetainDBMemoryProvider, "_seed_soul") as mock_seed:
             p.initialize("test-session", lycus_home=str(tmp_path / ".autolycus"))

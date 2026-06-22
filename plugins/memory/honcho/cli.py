@@ -1412,7 +1412,7 @@ def cmd_identity(args) -> None:
         print(f"  AI peer:   {hcfg.ai_peer}")
         print()
         print("    lycus honcho identity --show        — show both peer representations")
-        print("    lycus honcho identity <file>        — seed AI peer from SOUL.md or any .md/.txt\n")
+        print("    lycus honcho identity <file>        — seed AI peer from MASK.md or any .md/.txt\n")
         return
 
     from pathlib import Path
@@ -1446,7 +1446,7 @@ def cmd_migrate(args) -> None:
     # User peer: facts about the user
     user_file_names = ["USER.md", "MEMORY.md"]
     # AI peer: agent identity / configuration
-    agent_file_names = ["SOUL.md", "IDENTITY.md", "AGENTS.md", "TOOLS.md", "BOOTSTRAP.md"]
+    agent_file_names = ["MASK.md", "IDENTITY.md", "AGENTS.md", "TOOLS.md", "BOOTSTRAP.md"]
 
     user_files: list[Path] = []
     agent_files: list[Path] = []
@@ -1467,7 +1467,7 @@ def cmd_migrate(args) -> None:
     print("\nHoncho migration: OpenClaw native memory → Lycus\n" + "─" * 50)
     print()
     print("  OpenClaw's native memory stores context in local markdown files")
-    print("  (USER.md, MEMORY.md, SOUL.md, ...) and injects them via QMD search.")
+    print("  (USER.md, MEMORY.md, MASK.md, ...) and injects them via QMD search.")
     print("  Honcho replaces that with a cloud-backed, LLM-observable memory layer:")
     print("  context is retrieved semantically, injected automatically each turn,")
     print("  and enriched by a dialectic reasoning layer that builds over time.")
@@ -1571,7 +1571,7 @@ def cmd_migrate(args) -> None:
     print()
     print("Step 4  Seed AI identity files → Honcho AI peer")
     print()
-    print("  SOUL.md, IDENTITY.md, AGENTS.md, TOOLS.md, BOOTSTRAP.md define the")
+    print("  MASK.md, IDENTITY.md, AGENTS.md, TOOLS.md, BOOTSTRAP.md define the")
     print("  agent's character, capabilities, and behavioral rules. In OpenClaw")
     print("  these are injected via file search at prompt-build time.")
     print()
@@ -1614,7 +1614,7 @@ def cmd_migrate(args) -> None:
                 print(f"    lycus honcho identity {f}")
     else:
         print("  No agent identity files detected.")
-        print("  To seed manually:  lycus honcho identity <path/to/SOUL.md>")
+        print("  To seed manually:  lycus honcho identity <path/to/MASK.md>")
 
     # ── Step 5: What changes ──────────────────────────────────────────────────
     print()
@@ -1792,7 +1792,7 @@ def register_cli(subparser) -> None:
     )
     identity_parser.add_argument(
         "file", nargs="?", default=None,
-        help="Path to file to seed from (e.g. SOUL.md). Omit to show usage.",
+        help="Path to file to seed from (e.g. MASK.md). Omit to show usage.",
     )
     identity_parser.add_argument(
         "--show", action="store_true",

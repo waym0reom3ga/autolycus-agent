@@ -790,7 +790,7 @@ lycus profile import ./work-backup.tar.gz work
 | :--- | :--- | :--- |
 | **使用场景** | **整机迁移** | **移植/共享特定 profile** |
 | **范围** | 全局（整个 `~/.autolycus` 目录） | 局部（单个 profile 目录） |
-| **包含内容** | 所有 profiles、全局配置、API key、会话 | 单个 profile：SOUL.md、记忆、会话、技能 |
+| **包含内容** | 所有 profiles、全局配置、API key、会话 | 单个 profile：MASK.md、记忆、会话、技能 |
 | **凭据** | **包含**（`.env` 和 `auth.json`） | **排除**（为安全共享而剥离） |
 | **格式** | `.zip` | `.tar.gz` |
 

@@ -6,7 +6,7 @@ Reads a plan.json describing the team + brief, expands templates from
 ../assets/, and writes a setup.sh that creates Lycus profiles and fires the
 initial kanban task.
 
-Profile-config patching, SOUL.md-per-profile, TEAM.md task-graph convention,
+Profile-config patching, MASK.md-per-profile, TEAM.md task-graph convention,
 and the `lycus kanban create --workspace dir:` initial-task pattern are
 adapted from alt-glitch's NousResearch/kanban-video-pipeline.
 
@@ -361,10 +361,10 @@ def render_setup_sh(plan: dict, brief_md: str, team_md: str) -> str:
     soul_writes = []
     for t in plan["team"]:
         soul_writes.append(
-            f'cat > "$HOME/.autolycus/profiles/{t["profile"]}/SOUL.md" <<\'SOUL_EOF\'\n'
-            f"{render_soul_md(t, plan)}\n"
+            f'cat > "$HOME/.autolycus/profiles/{t["profile"]}/MASK.md" <<\'SOUL_EOF\'\n'
+            f"{render_mask_md(t, plan)}\n"
             f"SOUL_EOF\n"
-            f'echo "  ✓ SOUL.md for {t["profile"]}"'
+            f'echo "  ✓ MASK.md for {t["profile"]}"'
         )
 
     # Taste writes (placeholder; real content optional)
@@ -400,8 +400,8 @@ def render_setup_sh(plan: dict, brief_md: str, team_md: str) -> str:
     return out
 
 
-def render_soul_md(team_member: dict, plan: dict) -> str:
-    """Render a profile's SOUL.md from a team member dict + plan context."""
+def render_mask_md(team_member: dict, plan: dict) -> str:
+    """Render a profile's MASK.md from a team member dict + plan context."""
     tmpl = load_template("soul.md.tmpl")
     role = team_member["role"]
 

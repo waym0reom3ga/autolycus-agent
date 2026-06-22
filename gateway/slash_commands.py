@@ -2670,7 +2670,7 @@ class GatewaySlashCommandsMixin:
                 _aux_fail_err = getattr(compressor, "_last_aux_model_failure_error", None)
             finally:
                 # Evict cached agent so next turn rebuilds system prompt
-                # from current files (SOUL.md, memory, etc.).
+                # from current files (MASK.md, memory, etc.).
                 self._evict_cached_agent(session_key)
                 self._cleanup_agent_resources(tmp_agent)
             lines = [f"🗜️ {summary['headline']}"]

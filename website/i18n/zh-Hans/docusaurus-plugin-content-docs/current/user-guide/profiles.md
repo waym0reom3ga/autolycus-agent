@@ -8,7 +8,7 @@ sidebar_position: 2
 
 ## 什么是 profile？
 
-profile 是一个独立的 Lycus 主目录。每个 profile 拥有自己的目录，其中包含各自的 `config.yaml`、`.env`、`SOUL.md`、记忆、会话、技能、cron 任务和状态数据库。profile 让你可以为不同用途运行独立的 agent——编程助手、个人机器人、研究 agent——而不会混淆 Lycus 状态。
+profile 是一个独立的 Lycus 主目录。每个 profile 拥有自己的目录，其中包含各自的 `config.yaml`、`.env`、`MASK.md`、记忆、会话、技能、cron 任务和状态数据库。profile 让你可以为不同用途运行独立的 agent——编程助手、个人机器人、研究 agent——而不会混淆 Lycus 状态。
 
 创建 profile 后，它会自动成为独立的命令。创建名为 `coder` 的 profile，你立即就拥有了 `coder chat`、`coder setup`、`coder gateway start` 等命令。
 
@@ -46,7 +46,7 @@ lycus profile create researcher --description "Reads source code and external do
 lycus profile create work --clone
 ```
 
-将当前 profile 的 `config.yaml`、`.env`、`SOUL.md` 和 skills 复制到新 profile。API 密钥、模型和能力相同，但会话和记忆是全新的。编辑 `~/.autolycus/profiles/work/.env` 可使用不同的 API 密钥，编辑 `~/.autolycus/profiles/work/SOUL.md` 可设置不同的人格。
+将当前 profile 的 `config.yaml`、`.env`、`MASK.md` 和 skills 复制到新 profile。API 密钥、模型和能力相同，但会话和记忆是全新的。编辑 `~/.autolycus/profiles/work/.env` 可使用不同的 API 密钥，编辑 `~/.autolycus/profiles/work/MASK.md` 可设置不同的人格。
 
 ### 克隆全部内容（`--clone-all`）
 
@@ -122,7 +122,7 @@ CLI 始终显示当前活跃的 profile：
 
 profile 常与工作区或沙箱混淆，但它们是不同的概念：
 
-- **profile** 为 Lycus 提供独立的状态目录：`config.yaml`、`.env`、`SOUL.md`、会话、记忆、日志、cron 任务和 gateway 状态。
+- **profile** 为 Lycus 提供独立的状态目录：`config.yaml`、`.env`、`MASK.md`、会话、记忆、日志、cron 任务和 gateway 状态。
 - **工作区**或**工作目录**是终端命令的起始位置，由 `terminal.cwd` 单独控制。
 - **沙箱**用于限制文件系统访问。profile **不**对 agent 进行沙箱隔离。
 
@@ -140,8 +140,8 @@ terminal:
 
 另请注意：
 
-- `SOUL.md` 可以引导模型，但不能强制限定工作区边界。
-- `SOUL.md` 的更改在新会话中会生效。现有会话可能仍在使用旧的 prompt（提示词）状态。
+- `MASK.md` 可以引导模型，但不能强制限定工作区边界。
+- `MASK.md` 的更改在新会话中会生效。现有会话可能仍在使用旧的 prompt（提示词）状态。
 - 询问模型"你在哪个目录？"并不是可靠的隔离测试。如果你需要工具有可预测的起始目录，请显式设置 `terminal.cwd`。
 
 ## 运行 gateway
@@ -188,11 +188,11 @@ assistant gateway install     # 创建 lycus-gateway-assistant 服务
 
 - **`config.yaml`** — 模型、提供商、工具集及所有设置
 - **`.env`** — API 密钥、bot token
-- **`SOUL.md`** — 人格与指令
+- **`MASK.md`** — 人格与指令
 
 ```bash
 coder config set model.default anthropic/claude-sonnet-4
-echo "You are a focused coding assistant." > ~/.autolycus/profiles/coder/SOUL.md
+echo "You are a focused coding assistant." > ~/.autolycus/profiles/coder/MASK.md
 ```
 
 如果你希望此 profile 默认在特定项目中工作，还需设置其 `terminal.cwd`：

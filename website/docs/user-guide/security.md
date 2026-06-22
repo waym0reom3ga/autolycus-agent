@@ -563,7 +563,7 @@ Tirith's verdict integrates with the approval flow: safe commands pass through, 
 
 ### Context File Injection Protection
 
-Context files (AGENTS.md, .cursorrules, SOUL.md) are scanned for prompt injection before being included in the system prompt. The scanner checks for:
+Context files (AGENTS.md, .cursorrules, MASK.md) are scanned for prompt injection before being included in the system prompt. The scanner checks for:
 
 - Instructions to ignore/disregard prior instructions
 - Hidden HTML comments with suspicious keywords

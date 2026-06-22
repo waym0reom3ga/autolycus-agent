@@ -1,69 +1,69 @@
 ---
 sidebar_position: 9
-title: "个性与 SOUL.md"
-description: "通过全局 SOUL.md、内置个性预设和自定义角色定义来自定义 Lycus Agent 的个性"
+title: "个性与 MASK.md"
+description: "通过全局 MASK.md、内置个性预设和自定义角色定义来自定义 Lycus Agent 的个性"
 ---
 
-# 个性与 SOUL.md
+# 个性与 MASK.md
 
-Lycus Agent 的个性完全可自定义。`SOUL.md` 是**主要身份标识**——它是系统提示词（prompt）中的第一项内容，定义了 Agent 是谁。
+Lycus Agent 的个性完全可自定义。`MASK.md` 是**主要身份标识**——它是系统提示词（prompt）中的第一项内容，定义了 Agent 是谁。
 
-- `SOUL.md` — 存放在 `AUTOLYCUS_HOME` 中的持久角色文件，作为 Agent 的身份标识（系统提示词中的第 1 个槽位）
+- `MASK.md` — 存放在 `AUTOLYCUS_HOME` 中的持久角色文件，作为 Agent 的身份标识（系统提示词中的第 1 个槽位）
 - 内置或自定义的 `/personality` 预设 — 会话级系统提示词覆盖层
 
-如果你想改变 Lycus 的身份，或将其替换为完全不同的 Agent 角色，请编辑 `SOUL.md`。
+如果你想改变 Lycus 的身份，或将其替换为完全不同的 Agent 角色，请编辑 `MASK.md`。
 
-## SOUL.md 的工作方式
+## MASK.md 的工作方式
 
-Lycus 现在会自动在以下位置生成默认的 `SOUL.md`：
+Lycus 现在会自动在以下位置生成默认的 `MASK.md`：
 
 ```text
-~/.autolycus/SOUL.md
+~/.autolycus/MASK.md
 ```
 
 更准确地说，它使用当前实例的 `AUTOLYCUS_HOME`，因此如果你以自定义主目录运行 Lycus，它将使用：
 
 ```text
-$AUTOLYCUS_HOME/SOUL.md
+$AUTOLYCUS_HOME/MASK.md
 ```
 
 ### 重要行为
 
-- **SOUL.md 是 Agent 的主要身份标识。** 它占据系统提示词的第 1 个槽位，替代硬编码的默认身份。
-- 如果 `SOUL.md` 尚不存在，Lycus 会自动创建一个初始文件
-- 已有的用户 `SOUL.md` 文件不会被覆盖
-- Lycus 仅从 `AUTOLYCUS_HOME` 加载 `SOUL.md`
-- Lycus 不会在当前工作目录中查找 `SOUL.md`
-- 如果 `SOUL.md` 存在但为空，或无法加载，Lycus 将回退到内置的默认身份
-- 如果 `SOUL.md` 有内容，该内容在经过安全扫描和截断处理后将原样注入
-- SOUL.md **不会**在上下文文件部分重复出现——它仅作为身份标识出现一次
+- **MASK.md 是 Agent 的主要身份标识。** 它占据系统提示词的第 1 个槽位，替代硬编码的默认身份。
+- 如果 `MASK.md` 尚不存在，Lycus 会自动创建一个初始文件
+- 已有的用户 `MASK.md` 文件不会被覆盖
+- Lycus 仅从 `AUTOLYCUS_HOME` 加载 `MASK.md`
+- Lycus 不会在当前工作目录中查找 `MASK.md`
+- 如果 `MASK.md` 存在但为空，或无法加载，Lycus 将回退到内置的默认身份
+- 如果 `MASK.md` 有内容，该内容在经过安全扫描和截断处理后将原样注入
+- MASK.md **不会**在上下文文件部分重复出现——它仅作为身份标识出现一次
 
-这使 `SOUL.md` 成为真正的每用户或每实例身份标识，而不仅仅是一个附加层。
+这使 `MASK.md` 成为真正的每用户或每实例身份标识，而不仅仅是一个附加层。
 
 ## 此设计的原因
 
 这样可以保持个性的可预测性。
 
-如果 Lycus 从你启动它的任意目录加载 `SOUL.md`，你的个性可能会在不同项目之间意外改变。通过仅从 `AUTOLYCUS_HOME` 加载，个性归属于 Lycus 实例本身。
+如果 Lycus 从你启动它的任意目录加载 `MASK.md`，你的个性可能会在不同项目之间意外改变。通过仅从 `AUTOLYCUS_HOME` 加载，个性归属于 Lycus 实例本身。
 
 这也让用户更容易理解：
-- "编辑 `~/.autolycus/SOUL.md` 来更改 Lycus 的默认个性。"
+- "编辑 `~/.autolycus/MASK.md` 来更改 Lycus 的默认个性。"
 
 ## 编辑位置
 
 对于大多数用户：
 
 ```bash
-~/.autolycus/SOUL.md
+~/.autolycus/MASK.md
 ```
 
 如果你使用自定义主目录：
 
 ```bash
-$AUTOLYCUS_HOME/SOUL.md
+$AUTOLYCUS_HOME/MASK.md
 ```
 
-## SOUL.md 应该写什么？
+## MASK.md 应该写什么？
 
 用于持久的语气和个性指导，例如：
 - 语气
@@ -79,9 +79,9 @@ $AUTOLYCUS_HOME/SOUL.md
 - 代码库规范
 - 临时工作流细节
 
-这些内容属于 `AGENTS.md`，而不是 `SOUL.md`。
+这些内容属于 `AGENTS.md`，而不是 `MASK.md`。
 
-## 优质 SOUL.md 内容
+## 优质 MASK.md 内容
 
 一个好的 SOUL 文件应该：
 - 在不同上下文中保持稳定
@@ -118,7 +118,7 @@ You optimize for truth, clarity, and usefulness over politeness theater.
 
 ## Lycus 注入提示词的内容
 
-`SOUL.md` 的内容直接进入系统提示词的第 1 个槽位——即 Agent 身份位置。不会在其周围添加任何包装语言。
+`MASK.md` 的内容直接进入系统提示词的第 1 个槽位——即 Agent 身份位置。不会在其周围添加任何包装语言。
 
 内容会经过以下处理：
 - 提示词注入扫描
@@ -128,15 +128,15 @@ You optimize for truth, clarity, and usefulness over politeness theater.
 
 ## 安全扫描
 
-`SOUL.md` 与其他携带上下文的文件一样，在被包含前会进行提示词注入模式扫描。
+`MASK.md` 与其他携带上下文的文件一样，在被包含前会进行提示词注入模式扫描。
 
 这意味着你仍应将其专注于角色/语气，而不是试图混入奇怪的元指令。
 
-## SOUL.md 与 AGENTS.md
+## MASK.md 与 AGENTS.md
 
 这是最重要的区别。
 
-### SOUL.md
+### MASK.md
 用于：
 - 身份
 - 语气
@@ -153,17 +153,17 @@ You optimize for truth, clarity, and usefulness over politeness theater.
 - 命令、端口、路径、部署说明
 
 一个实用的判断规则：
-- 如果它应该随你到处适用，属于 `SOUL.md`
+- 如果它应该随你到处适用，属于 `MASK.md`
 - 如果它属于某个项目，属于 `AGENTS.md`
 
-## SOUL.md 与 `/personality`
+## MASK.md 与 `/personality`
 
-`SOUL.md` 是你的持久默认个性。
+`MASK.md` 是你的持久默认个性。
 
 `/personality` 是会话级覆盖层，用于更改或补充当前系统提示词。
 
 因此：
-- `SOUL.md` = 基础语气
+- `MASK.md` = 基础语气
 - `/personality` = 临时模式切换
 
 示例：
@@ -207,7 +207,7 @@ Lycus 内置了多种个性，可通过 `/personality` 切换。
 /personality teacher
 ```
 
-这些是便捷的覆盖层，但你的全局 `SOUL.md` 仍然赋予 Lycus 持久的默认个性，除非覆盖层对其进行了实质性更改。
+这些是便捷的覆盖层，但你的全局 `MASK.md` 仍然赋予 Lycus 持久的默认个性，除非覆盖层对其进行了实质性更改。
 
 ## 在配置中定义自定义个性
 
@@ -231,7 +231,7 @@ agent:
 
 一个强健的默认配置：
 
-1. 在 `~/.autolycus/SOUL.md` 中维护一个经过深思熟虑的全局 `SOUL.md`
+1. 在 `~/.autolycus/MASK.md` 中维护一个经过深思熟虑的全局 `MASK.md`
 2. 将项目说明放在 `AGENTS.md` 中
 3. 仅在需要临时模式切换时使用 `/personality`
 
@@ -243,7 +243,7 @@ agent:
 ## 个性如何与完整提示词交互
 
 从高层次来看，提示词栈包含：
-1. **SOUL.md**（Agent 身份——如果 SOUL.md 不可用则使用内置回退）
+1. **MASK.md**（Agent 身份——如果 MASK.md 不可用则使用内置回退）
 2. 工具感知行为指导
 3. 记忆/用户上下文
 4. 技能指导
@@ -252,20 +252,20 @@ agent:
 7. 平台特定格式提示
 8. 可选的系统提示词覆盖层，如 `/personality`
 
-`SOUL.md` 是基础——其他所有内容都建立在它之上。
+`MASK.md` 是基础——其他所有内容都建立在它之上。
 
 ## 相关文档
 
 - [上下文文件](/user-guide/features/context-files)
 - [配置](/user-guide/configuration)
 - [技巧与最佳实践](/guides/tips)
-- [SOUL.md 指南](/guides/use-soul-with-lycus)
+- [MASK.md 指南](/guides/use-soul-with-lycus)
 
 ## CLI 外观与对话个性
 
 对话个性与 CLI 外观是相互独立的：
 
-- `SOUL.md`、`agent.system_prompt` 和 `/personality` 影响 Lycus 的说话方式
+- `MASK.md`、`agent.system_prompt` 和 `/personality` 影响 Lycus 的说话方式
 - `display.skin` 和 `/skin` 影响 Lycus 在终端中的显示外观
 
 关于终端外观，请参阅 [皮肤与主题](./skins.md)。

@@ -66,7 +66,7 @@ def atomic_replace(tmp_path: Union[str, Path], target: Union[str, Path]) -> str:
     ``os.replace(tmp, target)`` atomically swaps ``tmp`` into place at
     ``target``.  When ``target`` is a symlink, the symlink itself is
     replaced with a regular file — silently detaching managed deployments
-    that symlink ``config.yaml`` / ``SOUL.md`` / ``auth.json`` etc. from
+    that symlink ``config.yaml`` / ``MASK.md`` / ``auth.json`` etc. from
     ``~/.autolycus/`` to a git-tracked profile package or dotfiles repo
     (GitHub #16743).
 

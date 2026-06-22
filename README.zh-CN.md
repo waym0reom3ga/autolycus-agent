@@ -147,7 +147,7 @@ lycus claw migrate --overwrite  # 覆盖已有冲突
 ```
 
 导入内容：
-- **SOUL.md** — 人格文件
+- **MASK.md** — 人格文件
 - **记忆** — MEMORY.md 和 USER.md 条目
 - **技能** — 用户创建的技能 → `~/.autolycus/skills/openclaw-imports/`
 - **命令白名单** — 审批模式

@@ -1,6 +1,6 @@
-"""Default SOUL.md template seeded into AUTOLYCUS_HOME on first run."""
+"""Default MASK.md template seeded into AUTOLYCUS_HOME on first run."""
 
-DEFAULT_SOUL_MD = (
+DEFAULT_MASK_MD = (
     "You are Autolycus Agent, an intelligent AI assistant created by Technetia Inc. "
     "You are helpful, knowledgeable, and direct. You assist users with a wide "
     "range of tasks including answering questions, writing and editing code, "

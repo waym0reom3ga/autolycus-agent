@@ -24,7 +24,7 @@ graph, comments to steer creative direction, approves the final cut.
   and needs framing help.
 - **Personality:** Tied to the brand voice — see `assets/soul.md.tmpl`
 
-The director has the same toolset as everyone else, but its `SOUL.md` rules
+The director has the same toolset as everyone else, but its `MASK.md` rules
 **forbid** execution. The "decompose, don't execute" discipline is enforced
 by personality + the kanban-orchestrator skill, not by missing tools.
 

@@ -28,7 +28,7 @@ lycus [global-options] <command> [subcommand/options]
 | `--yolo` | 跳过危险命令的审批提示。 |
 | `--pass-session-id` | 在 agent 的 system prompt（系统提示词）中包含会话 ID。 |
 | `--ignore-user-config` | 忽略 `~/.autolycus/config.yaml`，回退到内置默认值。`.env` 中的凭据仍会加载。 |
-| `--ignore-rules` | 跳过 `AGENTS.md`、`SOUL.md`、`.cursorrules`、memory（记忆）和预加载 skill 的自动注入。 |
+| `--ignore-rules` | 跳过 `AGENTS.md`、`MASK.md`、`.cursorrules`、memory（记忆）和预加载 skill 的自动注入。 |
 | `--tui` | 启动 [TUI](../user-guide/tui.md) 而非经典 CLI。等同于 `HERMES_TUI=1`。 |
 | `--dev` | 与 `--tui` 配合使用：通过 `tsx` 直接运行 TypeScript 源码而非预构建包（供 TUI 贡献者使用）。 |
 
@@ -106,7 +106,7 @@ lycus chat [options]
 | `--yolo` | 跳过审批提示。 |
 | `--pass-session-id` | 将会话 ID 传入 system prompt。 |
 | `--ignore-user-config` | 忽略 `~/.autolycus/config.yaml`，使用内置默认值。`.env` 中的凭据仍会加载。适用于隔离的 CI 运行、可复现的 bug 报告和第三方集成。 |
-| `--ignore-rules` | 跳过 `AGENTS.md`、`SOUL.md`、`.cursorrules`、持久 memory 和预加载 skill 的自动注入。与 `--ignore-user-config` 组合可实现完全隔离的运行。 |
+| `--ignore-rules` | 跳过 `AGENTS.md`、`MASK.md`、`.cursorrules`、持久 memory 和预加载 skill 的自动注入。与 `--ignore-user-config` 组合可实现完全隔离的运行。 |
 | `--source <tag>` | 用于过滤的会话来源标签（默认：`cli`）。对于不应出现在用户会话列表中的第三方集成，使用 `tool`。 |
 | `--max-turns <N>` | 每个对话轮次的最大工具调用迭代次数（默认：90，或 config 中的 `agent.max_turns`）。 |
 
@@ -1111,7 +1111,7 @@ lycus claw migrate [options]
 
 迁移涵盖 30+ 个类别，包括 persona、memory、skill、模型 provider、消息平台、agent 行为、会话策略、MCP 服务器、TTS 等。条目要么**直接导入**到 Lycus 等效项，要么**归档**以供手动审查。
 
-**直接导入：** SOUL.md、MEMORY.md、USER.md、AGENTS.md、skill（4 个源目录）、默认模型、自定义 provider、MCP 服务器、消息平台 token 和许可名单（Telegram、Discord、Slack、WhatsApp、Signal、Matrix、Mattermost）、agent 默认值（推理努力程度、压缩、人工延迟、时区、沙箱）、会话重置策略、审批规则、TTS 配置、浏览器设置、工具设置、执行超时、命令许可名单、gateway 配置以及来自 3 个来源的 API 密钥。
+**直接导入：** MASK.md、MEMORY.md、USER.md、AGENTS.md、skill（4 个源目录）、默认模型、自定义 provider、MCP 服务器、消息平台 token 和许可名单（Telegram、Discord、Slack、WhatsApp、Signal、Matrix、Mattermost）、agent 默认值（推理努力程度、压缩、人工延迟、时区、沙箱）、会话重置策略、审批规则、TTS 配置、浏览器设置、工具设置、执行超时、命令许可名单、gateway 配置以及来自 3 个来源的 API 密钥。
 
 **归档以供手动审查：** Cron 任务、plugin、hook/webhook、memory 后端（QMD）、skill 注册表配置、UI/身份、日志、多 agent 设置、频道绑定、IDENTITY.md、TOOLS.md、HEARTBEAT.md、BOOTSTRAP.md。
 
@@ -1175,7 +1175,7 @@ lycus profile <subcommand>
 |------------|-------------|
 | `list` | 列出所有 profile。 |
 | `use <name>` | 设置粘性默认 profile。 |
-| `create <name> [--clone] [--clone-all] [--clone-from <source>] [--no-alias]` | 创建新 profile。`--clone` 从活跃 profile 复制 config、`.env`、`SOUL.md` 和 skills。`--clone-all` 复制所有状态。`--clone-from` 指定源 profile，除非与 `--clone-all` 配合使用，否则会隐含 config 克隆。 |
+| `create <name> [--clone] [--clone-all] [--clone-from <source>] [--no-alias]` | 创建新 profile。`--clone` 从活跃 profile 复制 config、`.env`、`MASK.md` 和 skills。`--clone-all` 复制所有状态。`--clone-from` 指定源 profile，除非与 `--clone-all` 配合使用，否则会隐含 config 克隆。 |
 | `delete <name> [-y]` | 删除 profile。 |
 | `show <name>` | 显示 profile 详情（主目录、config 等）。 |
 | `alias <name> [--remove] [--name NAME]` | 管理快速访问 profile 的包装脚本。 |

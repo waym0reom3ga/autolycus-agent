@@ -563,31 +563,31 @@ class TestBuildContextFilesPrompt:
         result = build_context_files_prompt(cwd=str(tmp_path))
         assert "type hints" in result
 
-    def test_loads_soul_md_from_lycus_home_only(self, tmp_path, monkeypatch):
+    def test_loads_mask_md_from_lycus_home_only(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path / "lycus_home"))
         lycus_home = tmp_path / "lycus_home"
         lycus_home.mkdir()
-        (lycus_home / "SOUL.md").write_text("Be concise and friendly.", encoding="utf-8")
-        (tmp_path / "SOUL.md").write_text("cwd soul should be ignored", encoding="utf-8")
+        (lycus_home / "MASK.md").write_text("Be concise and friendly.", encoding="utf-8")
+        (tmp_path / "MASK.md").write_text("cwd soul should be ignored", encoding="utf-8")
         result = build_context_files_prompt(cwd=str(tmp_path))
         assert "Be concise and friendly." in result
         assert "cwd soul should be ignored" not in result
 
-    def test_soul_md_has_no_wrapper_text(self, tmp_path, monkeypatch):
+    def test_mask_md_has_no_wrapper_text(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path / "lycus_home"))
         lycus_home = tmp_path / "lycus_home"
         lycus_home.mkdir()
-        (lycus_home / "SOUL.md").write_text("Be concise and friendly.", encoding="utf-8")
+        (lycus_home / "MASK.md").write_text("Be concise and friendly.", encoding="utf-8")
         result = build_context_files_prompt(cwd=str(tmp_path))
         assert "Be concise and friendly." in result
-        assert "If SOUL.md is present" not in result
-        assert "## SOUL.md" not in result
+        assert "If MASK.md is present" not in result
+        assert "## MASK.md" not in result
 
-    def test_empty_soul_md_adds_nothing(self, tmp_path, monkeypatch):
+    def test_empty_mask_md_adds_nothing(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AUTOLYCUS_HOME", str(tmp_path / "lycus_home"))
         lycus_home = tmp_path / "lycus_home"
         lycus_home.mkdir()
-        (lycus_home / "SOUL.md").write_text("\n\n", encoding="utf-8")
+        (lycus_home / "MASK.md").write_text("\n\n", encoding="utf-8")
         result = build_context_files_prompt(cwd=str(tmp_path))
         assert result == ""
 

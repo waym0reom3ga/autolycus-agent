@@ -1,12 +1,12 @@
 ---
 sidebar_position: 8
 title: "Context Files"
-description: "Project context files — .autolycus.md, AGENTS.md, CLAUDE.md, global SOUL.md, and .cursorrules — automatically injected into every conversation"
+description: "Project context files — .autolycus.md, AGENTS.md, CLAUDE.md, global MASK.md, and .cursorrules — automatically injected into every conversation"
 ---
 
 # Context Files
 
-Lycus Agent automatically discovers and loads context files that shape how it behaves. Some are project-local and discovered from your working directory. `SOUL.md` is now global to the Lycus instance and is loaded from `AUTOLYCUS_HOME` only.
+Lycus Agent automatically discovers and loads context files that shape how it behaves. Some are project-local and discovered from your working directory. `MASK.md` is now global to the Lycus instance and is loaded from `AUTOLYCUS_HOME` only.
 
 ## Supported Context Files
 
@@ -15,12 +15,12 @@ Lycus Agent automatically discovers and loads context files that shape how it be
 | **.autolycus.md** / **HERMES.md** | Project instructions (highest priority) | Walks to git root |
 | **AGENTS.md** | Project instructions, conventions, architecture | CWD at startup + subdirectories progressively |
 | **CLAUDE.md** | Claude Code context files (also detected) | CWD at startup + subdirectories progressively |
-| **SOUL.md** | Global personality and tone customization for this Lycus instance | `AUTOLYCUS_HOME/SOUL.md` only |
+| **MASK.md** | Global personality and tone customization for this Lycus instance | `AUTOLYCUS_HOME/MASK.md` only |
 | **.cursorrules** | Cursor IDE coding conventions | CWD only |
 | **.cursor/rules/*.mdc** | Cursor IDE rule modules | CWD only |
 
 :::info Priority system
-Only **one** project context type is loaded per session (first match wins): `.autolycus.md` → `AGENTS.md` → `CLAUDE.md` → `.cursorrules`. **SOUL.md** is always loaded independently as the agent identity (slot #1).
+Only **one** project context type is loaded per session (first match wins): `.autolycus.md` → `AGENTS.md` → `CLAUDE.md` → `.cursorrules`. **MASK.md** is always loaded independently as the agent identity (slot #1).
 :::
 
 ## AGENTS.md
@@ -77,21 +77,21 @@ This is a Next.js 14 web application with a Python FastAPI backend.
 - Frontend port is 3000, backend is 8000, DB is 5432
 ```
 
-## SOUL.md
+## MASK.md
 
-`SOUL.md` controls the agent's personality, tone, and communication style. See the [Personality](/user-guide/features/personality) page for full details.
+`MASK.md` controls the agent's personality, tone, and communication style. See the [Personality](/user-guide/features/personality) page for full details.
 
 **Location:**
 
-- `~/.autolycus/SOUL.md`
-- or `$AUTOLYCUS_HOME/SOUL.md` if you run Lycus with a custom home directory
+- `~/.autolycus/MASK.md`
+- or `$AUTOLYCUS_HOME/MASK.md` if you run Lycus with a custom home directory
 
 Important details:
 
-- Lycus seeds a default `SOUL.md` automatically if one does not exist yet
-- Lycus loads `SOUL.md` only from `AUTOLYCUS_HOME`
-- Lycus does not probe the working directory for `SOUL.md`
-- If the file is empty, nothing from `SOUL.md` is added to the prompt
+- Lycus seeds a default `MASK.md` automatically if one does not exist yet
+- Lycus loads `MASK.md` only from `AUTOLYCUS_HOME`
+- Lycus does not probe the working directory for `MASK.md`
+- If the file is empty, nothing from `MASK.md` is added to the prompt
 - If the file has content, the content is injected verbatim after scanning and truncation
 
 ## .cursorrules
@@ -139,7 +139,7 @@ The following project context files have been loaded and should be followed:
 
 [Your .cursorrules content here]
 
-[Your SOUL.md content here]
+[Your MASK.md content here]
 ```
 
 Notice that SOUL content is inserted directly, without extra wrapper text.

@@ -1,18 +1,18 @@
 ---
 sidebar_position: 7
-title: "Use SOUL.md with Lycus"
-description: "How to use SOUL.md to shape Lycus Agent's default voice, what belongs there, and how it differs from AGENTS.md and /personality"
+title: "Use MASK.md with Lycus"
+description: "How to use MASK.md to shape Lycus Agent's default voice, what belongs there, and how it differs from AGENTS.md and /personality"
 ---
 
-# Use SOUL.md with Lycus
+# Use MASK.md with Lycus
 
-`SOUL.md` is the **primary identity** for your Lycus instance. It's the first thing in the system prompt — it defines who the agent is, how it speaks, and what it avoids.
+`MASK.md` is the **primary identity** for your Lycus instance. It's the first thing in the system prompt — it defines who the agent is, how it speaks, and what it avoids.
 
 If you want Lycus to feel like the same assistant every time you talk to it — or if you want to replace the Lycus persona entirely with your own — this is the file to use.
 
-## What SOUL.md is for
+## What MASK.md is for
 
-Use `SOUL.md` for:
+Use `MASK.md` for:
 - tone
 - personality
 - communication style
@@ -21,9 +21,9 @@ Use `SOUL.md` for:
 - how Lycus should relate to uncertainty, disagreement, and ambiguity
 
 In short:
-- `SOUL.md` is about who Lycus is and how Lycus speaks
+- `MASK.md` is about who Lycus is and how Lycus speaks
 
-## What SOUL.md is not for
+## What MASK.md is not for
 
 Do not use it for:
 - repo-specific coding conventions
@@ -36,7 +36,7 @@ Do not use it for:
 Those belong in `AGENTS.md`.
 
 A good rule:
-- if it should apply everywhere, put it in `SOUL.md`
+- if it should apply everywhere, put it in `MASK.md`
 - if it only belongs to one project, put it in `AGENTS.md`
 
 ## Where it lives
@@ -44,30 +44,30 @@ A good rule:
 Lycus now uses only the global SOUL file for the current instance:
 
 ```text
-~/.autolycus/SOUL.md
+~/.autolycus/MASK.md
 ```
 
 If you run Lycus with a custom home directory, it becomes:
 
 ```text
-$AUTOLYCUS_HOME/SOUL.md
+$AUTOLYCUS_HOME/MASK.md
 ```
 
 ## First-run behavior
 
-Lycus automatically seeds a starter `SOUL.md` for you if one does not already exist.
+Lycus automatically seeds a starter `MASK.md` for you if one does not already exist.
 
 That means most users now begin with a real file they can read and edit immediately.
 
 Important:
-- if you already have a `SOUL.md`, Lycus does not overwrite it
+- if you already have a `MASK.md`, Lycus does not overwrite it
 - if the file exists but is empty, Lycus adds nothing from it to the prompt
 
 ## How Lycus uses it
 
-When Lycus starts a session, it reads `SOUL.md` from `AUTOLYCUS_HOME`, scans it for prompt-injection patterns, truncates it if needed, and uses it as the **agent identity** — slot #1 in the system prompt. This means SOUL.md completely replaces the built-in default identity text.
+When Lycus starts a session, it reads `MASK.md` from `AUTOLYCUS_HOME`, scans it for prompt-injection patterns, truncates it if needed, and uses it as the **agent identity** — slot #1 in the system prompt. This means MASK.md completely replaces the built-in default identity text.
 
-If SOUL.md is missing, empty, or cannot be loaded, Lycus falls back to a built-in default identity.
+If MASK.md is missing, empty, or cannot be loaded, Lycus falls back to a built-in default identity.
 
 No wrapper language is added around the file. The content itself matters — write the way you want your agent to think and speak.
 
@@ -145,21 +145,21 @@ You are fair, but you do not soften important criticism.
 - Prefer blunt clarity to vague diplomacy
 ```
 
-## What makes a strong SOUL.md?
+## What makes a strong MASK.md?
 
-A strong `SOUL.md` is:
+A strong `MASK.md` is:
 - stable
 - broadly applicable
 - specific in voice
 - not overloaded with temporary instructions
 
-A weak `SOUL.md` is:
+A weak `MASK.md` is:
 - full of project details
 - contradictory
 - trying to micro-manage every response shape
 - mostly generic filler like "be helpful" and "be clear"
 
-Lycus already tries to be helpful and clear. `SOUL.md` should add real personality and style, not restate obvious defaults.
+Lycus already tries to be helpful and clear. `MASK.md` should add real personality and style, not restate obvious defaults.
 
 ## Suggested structure
 
@@ -181,11 +181,11 @@ What Lycus should not do.
 How Lycus should behave when ambiguity appears.
 ```
 
-## SOUL.md vs /personality
+## MASK.md vs /personality
 
 These are complementary.
 
-Use `SOUL.md` for your durable baseline.
+Use `MASK.md` for your durable baseline.
 Use `/personality` for temporary mode switches.
 
 Examples:
@@ -193,11 +193,11 @@ Examples:
 - then for one session you use `/personality teacher`
 - later you switch back without changing your base voice file
 
-## SOUL.md vs AGENTS.md
+## MASK.md vs AGENTS.md
 
 This is the most common mistake.
 
-### Put this in SOUL.md
+### Put this in MASK.md
 - “Be direct.”
 - “Avoid hype language.”
 - “Prefer short answers unless depth helps.”
@@ -212,13 +212,13 @@ This is the most common mistake.
 ## How to edit it
 
 ```bash
-nano ~/.autolycus/SOUL.md
+nano ~/.autolycus/MASK.md
 ```
 
 or
 
 ```bash
-vim ~/.autolycus/SOUL.md
+vim ~/.autolycus/MASK.md
 ```
 
 Then restart Lycus or start a new session.
@@ -235,16 +235,16 @@ That iterative approach works better than trying to design the perfect personali
 
 ## Troubleshooting
 
-### I edited SOUL.md but Lycus still sounds the same
+### I edited MASK.md but Lycus still sounds the same
 
 Check:
-- you edited `~/.autolycus/SOUL.md` or `$AUTOLYCUS_HOME/SOUL.md`
-- not some repo-local `SOUL.md`
+- you edited `~/.autolycus/MASK.md` or `$AUTOLYCUS_HOME/MASK.md`
+- not some repo-local `MASK.md`
 - the file is not empty
 - your session was restarted after the edit
 - a `/personality` overlay is not dominating the result
 
-### Lycus is ignoring parts of my SOUL.md
+### Lycus is ignoring parts of my MASK.md
 
 Possible causes:
 - higher-priority instructions are overriding it
@@ -252,13 +252,13 @@ Possible causes:
 - the file is too long and got truncated
 - some of the text resembles prompt-injection content and may be blocked or altered by the scanner
 
-### My SOUL.md became too project-specific
+### My MASK.md became too project-specific
 
-Move project instructions into `AGENTS.md` and keep `SOUL.md` focused on identity and style.
+Move project instructions into `AGENTS.md` and keep `MASK.md` focused on identity and style.
 
 ## Related docs
 
-- [Personality & SOUL.md](/user-guide/features/personality)
+- [Personality & MASK.md](/user-guide/features/personality)
 - [Context Files](/user-guide/features/context-files)
 - [Configuration](/user-guide/configuration)
 - [Tips & Best Practices](/guides/tips)

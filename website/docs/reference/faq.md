@@ -799,7 +799,7 @@ The imported profile will have all config, memories, sessions, and skills from t
 | :--- | :--- | :--- |
 | **Use Case** | **Full machine migration** | **Porting/sharing a specific profile** |
 | **Scope** | Global (entire `~/.autolycus` directory) | Local (single profile directory) |
-| **Includes** | All profiles, global config, API keys, sessions | Single profile: SOUL.md, memories, sessions, skills |
+| **Includes** | All profiles, global config, API keys, sessions | Single profile: MASK.md, memories, sessions, skills |
 | **Credentials** | **Included** (`.env` and `auth.json`) | **Excluded** (stripped for safe sharing) |
 | **Format** | `.zip` | `.tar.gz` |
 

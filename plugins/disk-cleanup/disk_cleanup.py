@@ -556,7 +556,7 @@ def guess_category(path: Path) -> Optional[str]:
         top = rel.parts[0] if rel.parts else ""
         if top in {
             "disk-cleanup", "logs", "memories", "sessions", "config.yaml",
-            "skills", "plugins", ".env", "USER.md", "MEMORY.md", "SOUL.md",
+            "skills", "plugins", ".env", "USER.md", "MEMORY.md", "MASK.md",
             "auth.json", "lycus-agent",
         }:
             return None

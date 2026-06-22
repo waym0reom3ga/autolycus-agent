@@ -123,11 +123,11 @@ def reconcile_profile_gateways(
         for entry in sorted(profiles_root.iterdir()):
             if not entry.is_dir():
                 continue
-            # SOUL.md is always seeded by `lycus profile create` (config.yaml
+            # MASK.md is always seeded by `lycus profile create` (config.yaml
             # is not — that comes later via `lycus setup`). Use it as the
             # "real profile" marker so stray dirs (backups, manual mkdir)
             # aren't picked up.
-            if not (entry / "SOUL.md").exists():
+            if not (entry / "MASK.md").exists():
                 continue
             # The "default" service name is reserved for the root
             # profile (above) — if a user has somehow created a

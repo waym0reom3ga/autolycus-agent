@@ -7114,7 +7114,7 @@ def build_worker_context(conn: sqlite3.Connection, task_id: str) -> str:
     # Cross-task role history: what else has THIS assignee completed
     # recently? Gives the worker implicit continuity — "I'm the reviewer
     # and my last three reviews focused on security" — without forcing
-    # the user to wire anything into SOUL.md / MEMORY.md. Bounded to the
+    # the user to wire anything into MASK.md / MEMORY.md. Bounded to the
     # most recent 5 completed runs, excluding this task so the retry
     # section above isn't duplicated. Safe on assignee=None (skipped).
     if task.assignee:
