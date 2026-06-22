@@ -459,6 +459,10 @@ def _format_job(job: Dict[str, Any]) -> Dict[str, Any]:
         result["enabled_toolsets"] = job["enabled_toolsets"]
     if job.get("workdir"):
         result["workdir"] = job["workdir"]
+    if job.get("context_from"):
+        result["context_from"] = job["context_from"]
+    if job.get("on_success"):
+        result["on_success"] = job["on_success"]
     return result
 
 
@@ -479,6 +483,7 @@ def cronjob(
     reason: Optional[str] = None,
     script: Optional[str] = None,
     context_from: Optional[Union[str, List[str]]] = None,
+    on_success: Optional[Union[str, List[str]]] = None,
     enabled_toolsets: Optional[List[str]] = None,
     workdir: Optional[str] = None,
     no_agent: Optional[bool] = None,
@@ -532,6 +537,18 @@ def cronjob(
                             success=False,
                         )
 
+            # Validate on_success references existing jobs
+            if on_success:
+                from cron.jobs import get_job as _get_job
+                refs = [on_success] if isinstance(on_success, str) else on_success
+                for ref_id in refs:
+                    if not _get_job(ref_id):
+                        return tool_error(
+                            f"on_success job '{ref_id}' not found. "
+                            "Use cronjob(action='list') to see available jobs.",
+                            success=False,
+                        )
+
             job = create_job(
                 prompt=prompt or "",
                 schedule=schedule,
@@ -545,6 +562,7 @@ def cronjob(
                 base_url=_normalize_optional_job_value(base_url, strip_trailing_slash=True),
                 script=_normalize_optional_job_value(script),
                 context_from=context_from,
+                on_success=on_success,
                 enabled_toolsets=enabled_toolsets or None,
                 workdir=_normalize_optional_job_value(workdir),
                 no_agent=_no_agent,
@@ -675,6 +693,24 @@ def cronjob(
                                 success=False,
                             )
                 updates["context_from"] = refs or None
+            if on_success is not None:
+                # Empty string / empty list clears the field; otherwise validate
+                # each referenced job exists before storing. Normalized to a list
+                # (or []) to match the shape stored by create_job().
+                if isinstance(on_success, str):
+                    refs = [on_success.strip()] if on_success.strip() else []
+                else:
+                    refs = [str(j).strip() for j in on_success if str(j).strip()]
+                if refs:
+                    from cron.jobs import get_job as _get_job
+                    for ref_id in refs:
+                        if not _get_job(ref_id):
+                            return tool_error(
+                                f"on_success job '{ref_id}' not found. "
+                                "Use cronjob(action='list') to see available jobs.",
+                                success=False,
+                            )
+                updates["on_success"] = refs or []
             if enabled_toolsets is not None:
                 updates["enabled_toolsets"] = enabled_toolsets or None
             if workdir is not None:
@@ -825,6 +861,16 @@ Important safety rule: cron-run sessions should not recursively schedule more cr
                     "On update, pass an empty array to clear."
                 ),
             },
+            "on_success": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Optional job ID or list of job IDs to trigger when this job completes successfully. "
+                    "Use this to chain dependent jobs: job A runs first, and if successful, triggers job B automatically. "
+                    "Each entry must be a valid job ID (from cronjob action='list'). "
+                    "On update, pass an empty array to clear."
+                ),
+            },
             "enabled_toolsets": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -886,6 +932,7 @@ registry.register(
         reason=args.get("reason"),
         script=args.get("script"),
         context_from=args.get("context_from"),
+        on_success=args.get("on_success"),
         enabled_toolsets=args.get("enabled_toolsets"),
         workdir=args.get("workdir"),
         no_agent=args.get("no_agent"),
