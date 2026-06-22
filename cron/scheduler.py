@@ -149,7 +149,7 @@ _LEGACY_HOME_TARGET_ENV_VARS = {
     "QQBOT_HOME_CHANNEL": "QQ_HOME_CHANNEL",
 }
 
-from cron.jobs import get_due_jobs, mark_job_run, save_job_output, advance_next_run
+from cron.jobs import get_due_jobs, get_job, mark_job_run, save_job_output, advance_next_run
 
 # Sentinel: when a cron agent has nothing new to report, it can start its
 # response with this marker to suppress delivery.  Output is still saved
@@ -165,6 +165,9 @@ _parallel_pool: Optional[concurrent.futures.ThreadPoolExecutor] = None
 _parallel_pool_max_workers: Optional[int] = None
 _running_job_ids: set = set()
 _running_lock = threading.Lock()
+# Track jobs triggered via on_success within a single tick cycle to prevent
+# infinite loops (e.g., A triggers B, B has on_success=[A]).  Reset each tick.
+_triggered_this_tick: set = set()
 
 # Sequential (env-mutating) cron jobs — workdir jobs that touch
 # process-global runtime state — must run one at a time, but must NOT block the
@@ -1526,6 +1529,14 @@ def run_job(job: dict) -> tuple[bool, str, str, Optional[str]]:
         chat_id="",
         chat_name="",
     )
+
+    # Set approval session key for rogue AI policy tracking per job.
+    # Without this, get_current_session_key() returns empty and falls back to "unknown",
+    # causing all cron commands to accumulate in a single bucket (#rogue-ai-fix).
+    from tools.approval import set_current_session_key, reset_current_session_key
+    _cron_approval_key = f"cron-{job_id}"
+    _approval_token = set_current_session_key(_cron_approval_key)
+
     _cron_delivery_vars = (
         "HERMES_CRON_AUTO_DELIVER_PLATFORM",
         "HERMES_CRON_AUTO_DELIVER_CHAT_ID",
@@ -1744,7 +1755,7 @@ def run_job(job: dict) -> tuple[bool, str, str, Optional[str]]:
             enabled_toolsets=_resolve_cron_enabled_toolsets(job, _cfg),
             disabled_toolsets=_resolve_cron_disabled_toolsets(_cfg),
             quiet_mode=True,
-            # Cron jobs should always inherit the user's SOUL.md identity from
+            # Cron jobs should always inherit the user's MASK.md identity from
             # AUTOLYCUS_HOME. When a workdir is configured, also inject project
             # context files (AGENTS.md / CLAUDE.md / .cursorrules) from there.
             # Without a workdir, keep cwd context discovery disabled.
@@ -1922,6 +1933,11 @@ def run_job(job: dict) -> tuple[bool, str, str, Optional[str]]:
                 os.environ.pop("TERMINAL_CWD", None)
             else:
                 os.environ["TERMINAL_CWD"] = _prior_terminal_cwd
+        # Reset approval session key for this cron run.
+        try:
+            reset_current_session_key(_approval_token)
+        except Exception:
+            pass
         # Clean up ContextVar session/delivery state for this job.
         clear_session_vars(_ctx_tokens)
         for _var_name in _cron_delivery_vars:
@@ -2017,6 +2033,14 @@ def tick(verbose: bool = True, adapters=None, loop=None, sync: bool = True) -> i
         for job in due_jobs:
             advance_next_run(job["id"])
 
+        # Reset on_success trigger tracking for this tick cycle.
+        # _triggered_this_tick prevents infinite loops when A triggers B and
+        # B has on_success=[A].  due_job_ids_this_tick tracks originally-due
+        # jobs so we don't redundantly re-trigger them.
+        with _running_lock:
+            _triggered_this_tick.clear()
+        due_job_ids_this_tick = {j["id"] for j in due_jobs}
+
         # Resolve max parallel workers: env var > config.yaml > unbounded.
         # Set HERMES_CRON_MAX_PARALLEL=1 to restore old serial behaviour.
         _max_workers: Optional[int] = None
@@ -2081,6 +2105,12 @@ def tick(verbose: bool = True, adapters=None, loop=None, sync: bool = True) -> i
                     error = "Agent completed but produced empty response (model error, timeout, or misconfiguration)"
 
                 mark_job_run(job["id"], success, error, delivery_error=delivery_error)
+
+                # Fire on_success triggers: if this job succeeded and has
+                # dependent jobs listed in its 'on_success' field, trigger them.
+                if success:
+                    _trigger_job_on_success(job["id"], job.get("on_success", []) or [])
+
                 return True
 
             except Exception as e:
@@ -2097,6 +2127,72 @@ def tick(verbose: bool = True, adapters=None, loop=None, sync: bool = True) -> i
 
         _results: list = []
         _all_futures: list = []
+
+        def _trigger_job_on_success(source_id: str, on_success_list: list) -> None:
+            """Fire dependent jobs listed in on_success after a job completes successfully.
+
+            Uses _triggered_this_tick (protected by _running_lock) to prevent
+            infinite loops when A triggers B and B has on_success=[A].
+            Also skips jobs that were already due this tick or are currently running.
+            """
+            if not on_success_list:
+                return
+
+            for target_id in on_success_list:
+                # Prevent self-triggering
+                if target_id == source_id:
+                    continue
+
+                try:
+                    target_job = get_job(target_id)
+                    if target_job is None:
+                        logger.warning(
+                            "on_success trigger: job '%s' (target of '%s') not found — skipping",
+                            target_id, source_id,
+                        )
+                        continue
+
+                    # Skip paused or disabled target jobs
+                    if not target_job.get("enabled", True) or target_job.get("state") == "paused":
+                        logger.info(
+                            "on_success trigger: job '%s' is paused/disabled — skipping",
+                            target_id,
+                        )
+                        continue
+
+                    # Guard against re-triggering within the same tick cycle
+                    with _running_lock:
+                        if (
+                            target_id in _triggered_this_tick
+                            or target_id in due_job_ids_this_tick
+                            or target_id in _running_job_ids
+                        ):
+                            logger.info(
+                                "on_success trigger: job '%s' already triggered/running/due this tick — skipping",
+                                target_id,
+                            )
+                            continue
+                        _triggered_this_tick.add(target_id)
+
+                    # Advance next_run_at so the regular scheduler won't fire it again.
+                    # mark_job_run() will set the final next_run_at on completion.
+                    advance_next_run(target_id)
+
+                    # Submit to appropriate pool based on workdir constraints
+                    if (target_job.get("workdir") or "").strip():
+                        pool = _get_sequential_pool()
+                    else:
+                        pool = _get_parallel_pool(_max_workers)
+
+                    fut = _submit_with_guard(target_job, pool)
+                    if fut is not None:
+                        _all_futures.append(fut)
+                        logger.info(
+                            "on_success trigger: '%s' triggered dependent job '%s'",
+                            source_id, target_id,
+                        )
+                except Exception as e:
+                    logger.error("on_success trigger failed for '%s': %s", target_id, e)
 
         def _submit_with_guard(job: dict, pool: concurrent.futures.ThreadPoolExecutor):
             """Submit a job fire-and-forget with the in-flight dedup guard.

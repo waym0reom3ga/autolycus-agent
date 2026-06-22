@@ -233,6 +233,10 @@ def _normalize_job_record(job: Dict[str, Any]) -> Dict[str, Any]:
         state = "scheduled" if normalized.get("enabled", True) else "paused"
     normalized["state"] = state
 
+    # Ensure on_success is always a list (default empty for legacy jobs)
+    if "on_success" not in normalized or normalized["on_success"] is None:
+        normalized["on_success"] = []
+
     return normalized
 
 
@@ -623,6 +627,7 @@ def create_job(
     base_url: Optional[str] = None,
     script: Optional[str] = None,
     context_from: Optional[Union[str, List[str]]] = None,
+    on_success: Optional[Union[str, List[str]]] = None,
     enabled_toolsets: Optional[List[str]] = None,
     workdir: Optional[str] = None,
     no_agent: bool = False,
@@ -653,6 +658,9 @@ def create_job(
         context_from: Optional job ID (or list of job IDs) whose most recent output
                       is injected into the prompt as context before each run.
                       Useful for chaining cron jobs: job A finds data, job B processes it.
+        on_success: Optional job ID (or list of job IDs) to trigger when this job
+                    completes successfully. Use this to chain dependent jobs:
+                    job A runs first, and if successful, triggers job B automatically.
         enabled_toolsets: Optional list of toolset names to restrict the agent to.
                           When set, only tools from these toolsets are loaded, reducing
                           token overhead. When omitted, all default tools are loaded.
@@ -722,6 +730,14 @@ def create_job(
     else:
         context_from = None
 
+    # Normalize on_success: accept str or list of str, store as list or empty list
+    if isinstance(on_success, str):
+        on_success = [on_success.strip()] if on_success.strip() else []
+    elif isinstance(on_success, list):
+        on_success = [str(j).strip() for j in on_success if str(j).strip()]
+    else:
+        on_success = []
+
     prompt_text = _coerce_job_text(prompt)
     label_source = (prompt_text or (normalized_skills[0] if normalized_skills else None) or (normalized_script if normalized_no_agent else None)) or "cron job"
     job = {
@@ -736,6 +752,7 @@ def create_job(
         "script": normalized_script,
         "no_agent": normalized_no_agent,
         "context_from": context_from,
+        "on_success": on_success,
         "schedule": parsed_schedule,
         "schedule_display": parsed_schedule.get("display", schedule),
         "repeat": {
