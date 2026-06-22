@@ -35,7 +35,7 @@ def build_profile_parser(subparsers, *, cmd_profile: Callable) -> None:
     profile_create.add_argument(
         "--clone",
         action="store_true",
-        help="Copy config.yaml, .env, SOUL.md, and skills from active profile",
+        help="Copy config.yaml, .env, MASK.md, and skills from active profile",
     )
     profile_create.add_argument(
         "--clone-all",
@@ -179,7 +179,7 @@ def build_profile_parser(subparsers, *, cmd_profile: Callable) -> None:
         help="Re-pull a distribution and apply updates (user data preserved)",
         description=(
             "Fetch the distribution from its recorded source and overwrite "
-            "distribution-owned files (SOUL.md, skills/, cron/, mcp.json). "
+            "distribution-owned files (MASK.md, skills/, cron/, mcp.json). "
             "User data (memories, sessions, auth, .env) is never touched. "
             "config.yaml is preserved unless --force-config is passed."
         ),

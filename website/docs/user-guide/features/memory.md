@@ -116,7 +116,7 @@ The agent saves automatically — you don't need to ask. It saves when it learns
 - **Easily re-discovered facts:** "Python 3.12 supports f-string nesting" — can web search this
 - **Raw data dumps:** Large code blocks, log files, data tables — too big for memory
 - **Session-specific ephemera:** Temporary file paths, one-off debugging context
-- **Information already in context files:** SOUL.md and AGENTS.md content
+- **Information already in context files:** MASK.md and AGENTS.md content
 
 ## Capacity Management
 

@@ -9,7 +9,7 @@ This file documents the patterns. The companion script
 JSON.
 
 > **Credit:** the single-project-workspace layout, profile-config patching
-> approach, SOUL.md-per-profile convention, and `--workspace dir:<path>` rule
+> approach, MASK.md-per-profile convention, and `--workspace dir:<path>` rule
 > are adapted from alt-glitch's original multi-agent video pipeline:
 > [NousResearch/kanban-video-pipeline](https://github.com/NousResearch/kanban-video-pipeline).
 > This skill generalizes those patterns across video styles and replaces the
@@ -64,7 +64,7 @@ The setup script does six things in order:
 3. **Configure profiles** — patch each profile's
    `~/.autolycus/profiles/<name>/config.yaml` to set toolsets, always_load skills,
    and `cwd`
-4. **Write SOUL.md per profile** — the personality + role definition
+4. **Write MASK.md per profile** — the personality + role definition
 5. **Copy any provided assets + write `brief.md`, `TEAM.md`, and `taste/`**
 6. **Fire the initial kanban task** — `lycus kanban create` assigned to the director
 
@@ -122,14 +122,14 @@ installs). If absent: `pip install pyyaml`.
 The setup script should also **validate** the patch by re-reading the file
 and comparing — see `assets/setup.sh.tmpl` for the validation pattern.
 
-### SOUL.md per profile
+### MASK.md per profile
 
-Each profile gets a `SOUL.md` at `~/.autolycus/profiles/<name>/SOUL.md` that
+Each profile gets a `MASK.md` at `~/.autolycus/profiles/<name>/MASK.md` that
 defines its role, voice, and rules. See `assets/soul.md.tmpl` for the
 template. Customize per role and per project.
 
-The director's SOUL.md should be the most opinionated — its voice flavors
-the entire production. **Critical content for the director's SOUL.md:**
+The director's MASK.md should be the most opinionated — its voice flavors
+the entire production. **Critical content for the director's MASK.md:**
 
 - **Anti-temptation rules:** "Do not execute the work yourself. For every
   concrete task, create a kanban task and assign it. Decompose, route, comment,
@@ -139,7 +139,7 @@ the entire production. **Critical content for the director's SOUL.md:**
   graph in `TEAM.md` to fan out tasks.
 - **The workspace_path rule** (see below).
 
-Other profiles' SOUL.md is briefer; mostly mechanical: who you are, what you
+Other profiles' MASK.md is briefer; mostly mechanical: who you are, what you
 read, what you produce, what skills/tools to use, where to write outputs.
 Most non-director profiles should `always_load: kanban-worker` for the
 deeper-than-baseline kanban guidance.

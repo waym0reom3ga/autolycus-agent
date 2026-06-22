@@ -19,7 +19,7 @@ Run `lycus setup --portal` — one OAuth gets you a model provider and all four 
 ├── config.yaml     # Settings (model, terminal, TTS, compression, etc.)
 ├── .env            # API keys and secrets
 ├── auth.json       # OAuth provider credentials (Nous Portal, etc.)
-├── SOUL.md         # Primary agent identity (slot #1 in system prompt)
+├── MASK.md         # Primary agent identity (slot #1 in system prompt)
 ├── memories/       # Persistent memory (MEMORY.md, USER.md)
 ├── skills/         # Agent-created skills (managed via skill_manage tool)
 ├── cron/           # Scheduled jobs
@@ -1821,28 +1821,28 @@ clarify:
   timeout: 120                 # Seconds to wait for user clarification response
 ```
 
-## Context Files (SOUL.md, AGENTS.md)
+## Context Files (MASK.md, AGENTS.md)
 
 Lycus uses two different context scopes:
 
 | File | Purpose | Scope |
 |------|---------|-------|
-| `SOUL.md` | **Primary agent identity** — defines who the agent is (slot #1 in the system prompt) | `~/.autolycus/SOUL.md` or `$AUTOLYCUS_HOME/SOUL.md` |
+| `MASK.md` | **Primary agent identity** — defines who the agent is (slot #1 in the system prompt) | `~/.autolycus/MASK.md` or `$AUTOLYCUS_HOME/MASK.md` |
 | `.autolycus.md` / `HERMES.md` | Project-specific instructions (highest priority) | Walks to git root |
 | `AGENTS.md` | Project-specific instructions, coding conventions | Recursive directory walk |
 | `CLAUDE.md` | Claude Code context files (also detected) | Working directory only |
 | `.cursorrules` | Cursor IDE rules (also detected) | Working directory only |
 | `.cursor/rules/*.mdc` | Cursor rule files (also detected) | Working directory only |
 
-- **SOUL.md** is the agent's primary identity. It occupies slot #1 in the system prompt, completely replacing the built-in default identity. Edit it to fully customize who the agent is.
-- If SOUL.md is missing, empty, or cannot be loaded, Lycus falls back to a built-in default identity.
-- **Project context files use a priority system** — only ONE type is loaded (first match wins): `.autolycus.md` → `AGENTS.md` → `CLAUDE.md` → `.cursorrules`. SOUL.md is always loaded independently.
+- **MASK.md** is the agent's primary identity. It occupies slot #1 in the system prompt, completely replacing the built-in default identity. Edit it to fully customize who the agent is.
+- If MASK.md is missing, empty, or cannot be loaded, Lycus falls back to a built-in default identity.
+- **Project context files use a priority system** — only ONE type is loaded (first match wins): `.autolycus.md` → `AGENTS.md` → `CLAUDE.md` → `.cursorrules`. MASK.md is always loaded independently.
 - **AGENTS.md** is hierarchical: if subdirectories also have AGENTS.md, all are combined.
-- Lycus automatically seeds a default `SOUL.md` if one does not already exist.
+- Lycus automatically seeds a default `MASK.md` if one does not already exist.
 - All loaded context files are capped at 20,000 characters with smart truncation.
 
 See also:
-- [Personality & SOUL.md](/user-guide/features/personality)
+- [Personality & MASK.md](/user-guide/features/personality)
 - [Context Files](/user-guide/features/context-files)
 
 ## Working Directory

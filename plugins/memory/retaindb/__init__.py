@@ -8,7 +8,7 @@ Features:
 - Semantic search + user profile retrieval
 - Context query with deduplication overlay
 - Dialectic synthesis (LLM-powered user understanding, prefetched each turn)
-- Agent self-model (persona + instructions from SOUL.md, prefetched each turn)
+- Agent self-model (persona + instructions from MASK.md, prefetched each turn)
 - Shared file store tools (upload, list, read, ingest, delete)
 - Explicit memory tools (profile, search, context, remember, forget)
 
@@ -274,7 +274,7 @@ class _Client:
     def get_agent_model(self, agent_id: str) -> dict:
         return self.request("GET", f"/v1/memory/agent/{quote(agent_id, safe='')}/model", params={"project": self.project}, timeout=4.0)
 
-    def seed_agent_identity(self, agent_id: str, content: str, source: str = "soul_md") -> dict:
+    def seed_agent_identity(self, agent_id: str, content: str, source: str = "mask_md") -> dict:
         return self.request("POST", f"/v1/memory/agent/{quote(agent_id, safe='')}/seed", json_body={
             "project": self.project, "content": content, "source": source,
         }, timeout=20.0)
@@ -510,8 +510,8 @@ class RetainDBMemoryProvider(MemoryProvider):
         db_path = lycus_home_path / "retaindb_queue.db"
         self._queue = _WriteQueue(self._client, db_path)
 
-        # Seed agent identity from SOUL.md in background
-        soul_path = lycus_home_path / "SOUL.md"
+        # Seed agent identity from MASK.md in background
+        soul_path = lycus_home_path / "MASK.md"
         if soul_path.exists():
             soul_content = soul_path.read_text(encoding="utf-8", errors="replace").strip()
             if soul_content:
@@ -524,7 +524,7 @@ class RetainDBMemoryProvider(MemoryProvider):
 
     def _seed_soul(self, content: str) -> None:
         try:
-            self._client.seed_agent_identity(self._agent_id, content, source="soul_md")
+            self._client.seed_agent_identity(self._agent_id, content, source="mask_md")
         except Exception as exc:
             logger.debug("RetainDB soul seed failed: %s", exc)
 

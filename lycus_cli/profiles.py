@@ -11,7 +11,7 @@ zero migration needed.
 Usage::
 
     lycus profile create coder          # fresh profile + bundled skills
-    lycus profile create coder --clone  # also copy config, .env, SOUL.md, skills
+    lycus profile create coder --clone  # also copy config, .env, MASK.md, skills
     lycus profile create coder --clone-all  # full copy of source profile
     coder chat                           # use via wrapper alias
     lycus -p coder chat                 # or via flag
@@ -56,12 +56,12 @@ _PROFILE_DIRS = [
 _CLONE_CONFIG_FILES = [
     "config.yaml",
     ".env",
-    "SOUL.md",
+    "MASK.md",
 ]
 
 # Subdirectory files copied during --clone (path relative to profile root).
 # Memory files are part of the agent's curated identity — just as important
-# as SOUL.md for continuity when cloning a profile.
+# as MASK.md for continuity when cloning a profile.
 _CLONE_SUBDIR_FILES = [
     "memories/MEMORY.md",
     "memories/USER.md",
@@ -802,7 +802,7 @@ def create_profile(
     clone_all:
         If True, do a full copytree of the source (all state).
     clone_config:
-        If True, copy config files (config.yaml, .env, SOUL.md), installed
+        If True, copy config files (config.yaml, .env, MASK.md), installed
         skills, and selected profile identity files from the source profile.
     no_alias:
         If True, skip wrapper script creation.
@@ -918,13 +918,13 @@ def create_profile(
         except OSError:
             pass  # best-effort — save_env_value creates the file on demand
 
-    # Seed a default SOUL.md so the user has a file to customize immediately.
+    # Seed a default MASK.md so the user has a file to customize immediately.
     # Skipped when the profile already has one (from --clone / --clone-all).
-    soul_path = profile_dir / "SOUL.md"
+    soul_path = profile_dir / "MASK.md"
     if not soul_path.exists():
         try:
-            from lycus_cli.default_soul import DEFAULT_SOUL_MD
-            soul_path.write_text(DEFAULT_SOUL_MD, encoding="utf-8")
+            from lycus_cli.default_mask import DEFAULT_MASK_MD
+            soul_path.write_text(DEFAULT_MASK_MD, encoding="utf-8")
         except Exception:
             pass  # best-effort — don't fail profile creation over this
 

@@ -2636,7 +2636,7 @@
     "date": "2026-05-30",
     "category": "business-ops",
     "headline": "One isolated Lycus profile per client — sell AI ops to local businesses",
-    "quote": "Selling AI ops to local businesses: one Lycus profile per client, fully isolated — each gets their own SOUL.md, memory, cron. Charge $497/month per client to manage their workflows. 5 clients = $2,485/month recurring. Lycus runs the work, you keep the margin.",
+    "quote": "Selling AI ops to local businesses: one Lycus profile per client, fully isolated — each gets their own MASK.md, memory, cron. Charge $497/month per client to manage their workflows. 5 clients = $2,485/month recurring. Lycus runs the work, you keep the margin.",
     "size": "md"
   },
   {
@@ -2647,7 +2647,7 @@
     "date": "2026-05-16",
     "category": "meta",
     "headline": "The anatomy of the ~/.autolycus folder — one folder controls everything",
-    "quote": "One folder controls everything your lycus agent knows, remembers, and can do. SOUL.md occupies slot #1 in the system prompt. state.db with FTS5 is what makes 'what did we discuss three weeks ago?' actually work across CLI and messaging.",
+    "quote": "One folder controls everything your lycus agent knows, remembers, and can do. MASK.md occupies slot #1 in the system prompt. state.db with FTS5 is what makes 'what did we discuss three weeks ago?' actually work across CLI and messaging.",
     "size": "md"
   },
   {

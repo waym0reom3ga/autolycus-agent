@@ -28,7 +28,7 @@ Primary files:
 
 The cached system prompt is assembled as three ordered tiers (see `agent/system_prompt.py`):
 
-1. **stable** — identity (`SOUL.md` or fallback), tool/model guidance, skills prompt, environment hints, platform hints
+1. **stable** — identity (`MASK.md` or fallback), tool/model guidance, skills prompt, environment hints, platform hints
 2. **context** — caller-supplied `system_message` plus project context files (`.autolycus.md` / `AGENTS.md` / `CLAUDE.md` / `.cursorrules`)
 3. **volatile** — built-in memory snapshot (`MEMORY.md`), user profile snapshot (`USER.md`), external memory-provider block, timestamp/session/model/provider line
 
@@ -39,14 +39,14 @@ This ordering matters for precedence discussions:
 - memory/profile snapshots are part of the **volatile** tier
 - both are still in the cached system prompt (they are not injected as ad-hoc mid-turn overlays)
 
-When `skip_context_files` is set (e.g., subagent delegation), SOUL.md is not loaded and the hardcoded `DEFAULT_AGENT_IDENTITY` is used instead.
+When `skip_context_files` is set (e.g., subagent delegation), MASK.md is not loaded and the hardcoded `DEFAULT_AGENT_IDENTITY` is used instead.
 
 ### Concrete example: assembled system prompt
 
 Here is a simplified view of what the final system prompt looks like when all layers are present (comments show the source of each section):
 
 ```
-# Layer 1: Agent Identity (from ~/.autolycus/SOUL.md)
+# Layer 1: Agent Identity (from ~/.autolycus/MASK.md)
 You are Lycus, an AI assistant created by Nous Research.
 You are an expert software engineer and researcher.
 You value correctness, clarity, and efficiency.
@@ -116,25 +116,25 @@ You are a CLI AI Agent. Try not to use markdown but simple text
 renderable inside a terminal.
 ```
 
-## How SOUL.md appears in the prompt
+## How MASK.md appears in the prompt
 
-`SOUL.md` lives at `~/.autolycus/SOUL.md` and serves as the agent's identity — the very first section of the system prompt. The loading logic in `prompt_builder.py` works as follows:
+`MASK.md` lives at `~/.autolycus/MASK.md` and serves as the agent's identity — the very first section of the system prompt. The loading logic in `prompt_builder.py` works as follows:
 
 ```python
 # From agent/prompt_builder.py (simplified)
-def load_soul_md() -> Optional[str]:
-    soul_path = get_lycus_home() / "SOUL.md"
+def load_mask_md() -> Optional[str]:
+    soul_path = get_lycus_home() / "MASK.md"
     if not soul_path.exists():
         return None
     content = soul_path.read_text(encoding="utf-8").strip()
-    content = _scan_context_content(content, "SOUL.md")  # Security scan
-    content = _truncate_content(content, "SOUL.md")       # Cap at 20k chars
+    content = _scan_context_content(content, "MASK.md")  # Security scan
+    content = _truncate_content(content, "MASK.md")       # Cap at 20k chars
     return content
 ```
 
-When `load_soul_md()` returns content, it replaces the hardcoded `DEFAULT_AGENT_IDENTITY`. The `build_context_files_prompt()` function is then called with `skip_soul=True` to prevent SOUL.md from appearing twice (once as identity, once as a context file).
+When `load_mask_md()` returns content, it replaces the hardcoded `DEFAULT_AGENT_IDENTITY`. The `build_context_files_prompt()` function is then called with `skip_soul=True` to prevent MASK.md from appearing twice (once as identity, once as a context file).
 
-If `SOUL.md` doesn't exist, the system falls back to:
+If `MASK.md` doesn't exist, the system falls back to:
 
 ```
 You are Lycus Agent, an intelligent AI assistant created by Nous Research.
@@ -167,9 +167,9 @@ def build_context_files_prompt(cwd=None, skip_soul=False):
     if project_context:
         sections.append(project_context)
 
-    # SOUL.md from AUTOLYCUS_HOME (independent of project context)
+    # MASK.md from AUTOLYCUS_HOME (independent of project context)
     if not skip_soul:
-        soul_content = load_soul_md()
+        soul_content = load_mask_md()
         if soul_content:
             sections.append(soul_content)
 
@@ -224,7 +224,7 @@ Local memory and user profile data are captured in the system prompt's **volatil
 3. `CLAUDE.md` (CWD only)
 4. `.cursorrules` / `.cursor/rules/*.mdc` (CWD only)
 
-`SOUL.md` is loaded separately via `load_soul_md()` for the identity slot. When it loads successfully, `build_context_files_prompt(skip_soul=True)` prevents it from appearing twice.
+`MASK.md` is loaded separately via `load_mask_md()` for the identity slot. When it loads successfully, `build_context_files_prompt(skip_soul=True)` prevents it from appearing twice.
 
 Long files are truncated before injection.
 
@@ -238,7 +238,7 @@ Most users should treat `agent/prompt_builder.py` as implementation code, not a 
 
 ### Use these surfaces first
 
-- `~/.autolycus/SOUL.md` — replace the built-in default identity block with your own agent persona and standing behavior.
+- `~/.autolycus/MASK.md` — replace the built-in default identity block with your own agent persona and standing behavior.
 - `~/.autolycus/MEMORY.md` and `~/.autolycus/USER.md` — provide durable cross-session facts and user profile data that should be snapshotted into new sessions.
 - Project context files such as `.autolycus.md`, `HERMES.md`, `AGENTS.md`, `CLAUDE.md`, or `.cursorrules` — inject repo-specific working rules.
 - Skills — package reusable workflows and references without editing core prompt code.
@@ -251,7 +251,7 @@ Edit `agent/prompt_builder.py` only if you are intentionally maintaining a fork 
 
 In other words:
 
-- if you want a different assistant identity, edit `SOUL.md`
+- if you want a different assistant identity, edit `MASK.md`
 - if you want different repo rules, edit project context files
 - if you want reusable operating procedures, add or modify skills
 - if you want to change how Lycus assembles prompts for everyone, change Python and treat it as a code contribution

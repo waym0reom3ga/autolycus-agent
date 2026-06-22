@@ -17,7 +17,7 @@ Lycus Agent includes a rich set of capabilities that extend far beyond basic cha
 - **[Tools & Toolsets](tools.md)** — Tools are functions that extend the agent's capabilities. They're organized into logical toolsets that can be enabled or disabled per platform, covering web search, terminal execution, file editing, memory, delegation, and more.
 - **[Skills System](skills.md)** — On-demand knowledge documents the agent can load when needed. Skills follow a progressive disclosure pattern to minimize token usage and are compatible with the [agentskills.io](https://agentskills.io/specification) open standard.
 - **[Persistent Memory](memory.md)** — Bounded, curated memory that persists across sessions. Lycus remembers your preferences, projects, environment, and things it has learned via `MEMORY.md` and `USER.md`.
-- **[Context Files](context-files.md)** — Lycus automatically discovers and loads project context files (`.autolycus.md`, `AGENTS.md`, `CLAUDE.md`, `SOUL.md`, `.cursorrules`) that shape how it behaves in your project.
+- **[Context Files](context-files.md)** — Lycus automatically discovers and loads project context files (`.autolycus.md`, `AGENTS.md`, `CLAUDE.md`, `MASK.md`, `.cursorrules`) that shape how it behaves in your project.
 - **[Context References](context-references.md)** — Type `@` followed by a reference to inject files, folders, git diffs, and URLs directly into your messages. Lycus expands the reference inline and appends the content automatically.
 - **[Checkpoints](../checkpoints-and-rollback.md)** — Lycus automatically snapshots your working directory before making file changes, giving you a safety net to roll back with `/rollback` if something goes wrong.
 
@@ -51,6 +51,6 @@ Lycus Agent includes a rich set of capabilities that extend far beyond basic cha
 
 ## Customization
 
-- **[Personality & SOUL.md](personality.md)** — Fully customizable agent personality. `SOUL.md` is the primary identity file — the first thing in the system prompt — and you can swap in built-in or custom `/personality` presets per session.
+- **[Personality & MASK.md](personality.md)** — Fully customizable agent personality. `MASK.md` is the primary identity file — the first thing in the system prompt — and you can swap in built-in or custom `/personality` presets per session.
 - **[Skins & Themes](skins.md)** — Customize the CLI's visual presentation: banner colors, spinner faces and verbs, response-box labels, branding text, and the tool activity prefix.
 - **[Plugins](plugins.md)** — Add custom tools, hooks, and integrations without modifying core code. Three plugin types: general plugins (tools/hooks), memory providers (cross-session knowledge), and context engines (alternative context management). Managed via the unified `lycus plugins` interactive UI.

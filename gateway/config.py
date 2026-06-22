@@ -525,7 +525,7 @@ class GatewayConfig:
     # ".") pre-send. These are model hallucinations emitted when a persona has
     # nothing actionable to say; in bot-to-bot channels they mirror back and
     # forth, burning tokens and crashing models. Substrate-level guard that
-    # survives SOUL.md/prompt drift across providers. Opt out with False for
+    # survives MASK.md/prompt drift across providers. Opt out with False for
     # raw passthrough.
     filter_silence_narration: bool = True
 

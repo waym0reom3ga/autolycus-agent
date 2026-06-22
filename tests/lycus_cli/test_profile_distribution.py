@@ -52,12 +52,12 @@ def _make_staging_dir(root: Path, name: str = "src", *, manifest: DistributionMa
     """Build a local distribution staging directory (what a git clone would
     contain after .git is removed).
 
-    Lays down a minimal but representative tree: SOUL.md, config.yaml,
+    Lays down a minimal but representative tree: MASK.md, config.yaml,
     mcp.json, one skill, one cron file, plus the distribution.yaml manifest.
     """
     staged = root / f"staging_{name}"
     staged.mkdir(parents=True, exist_ok=True)
-    (staged / "SOUL.md").write_text("I am Source.\n")
+    (staged / "MASK.md").write_text("I am Source.\n")
     (staged / "config.yaml").write_text("model:\n  model: gpt-4\n")
     (staged / "mcp.json").write_text('{"servers": {}}\n')
     (staged / "skills").mkdir(exist_ok=True)
@@ -110,7 +110,7 @@ class TestManifestParsing:
             "    required: false\n"
             "    default: http://127.0.0.1:8000\n"
             "distribution_owned:\n"
-            "  - SOUL.md\n"
+            "  - MASK.md\n"
             "  - skills/\n"
         )
         m = read_manifest(tmp_path)
@@ -123,7 +123,7 @@ class TestManifestParsing:
         assert m.env_requires[0].required is True
         assert m.env_requires[1].required is False
         assert m.env_requires[1].default == "http://127.0.0.1:8000"
-        assert m.distribution_owned == ["SOUL.md", "skills"]
+        assert m.distribution_owned == ["MASK.md", "skills"]
 
     def test_missing_name_rejected(self, tmp_path):
         (tmp_path / MANIFEST_FILENAME).write_text("version: 1.0\n")
@@ -145,8 +145,8 @@ class TestManifestParsing:
         assert m.owned_paths() == list(DEFAULT_DIST_OWNED)
 
     def test_owned_paths_explicit(self):
-        m = DistributionManifest(name="x", distribution_owned=["SOUL.md", "skills"])
-        assert m.owned_paths() == ["SOUL.md", "skills"]
+        m = DistributionManifest(name="x", distribution_owned=["MASK.md", "skills"])
+        assert m.owned_paths() == ["MASK.md", "skills"]
 
     def test_roundtrip_write_read(self, tmp_path):
         original = DistributionManifest(
@@ -278,7 +278,7 @@ class TestInstall:
         staged = _make_staging_dir(profile_env, "src")
         plan = install_distribution(str(staged), name="installed")
         assert plan.target_dir.is_dir()
-        assert (plan.target_dir / "SOUL.md").read_text() == "I am Source.\n"
+        assert (plan.target_dir / "MASK.md").read_text() == "I am Source.\n"
         assert (plan.target_dir / "skills" / "demo" / "SKILL.md").exists()
         assert (plan.target_dir / "mcp.json").exists()
         # Manifest on disk records canonical name + provenance
@@ -370,13 +370,13 @@ class TestUpdate:
         (plan.target_dir / "sessions" / "chat.json").write_text('{"s": 1}')
 
         # 3. Bump source in the staging dir
-        (staged / "SOUL.md").write_text("I am Source v2.\n")
+        (staged / "MASK.md").write_text("I am Source v2.\n")
 
         # 4. Update
         update_distribution("telem", force_config=False)
 
         # 5. Dist-owned changed
-        assert (plan.target_dir / "SOUL.md").read_text() == "I am Source v2.\n"
+        assert (plan.target_dir / "MASK.md").read_text() == "I am Source v2.\n"
         # 6. User-owned preserved
         assert (plan.target_dir / "memories" / "MEMORY.md").read_text() == "# USER MEMORY\n"
         assert (plan.target_dir / ".env").read_text() == "OPENAI_API_KEY=sk-user\n"

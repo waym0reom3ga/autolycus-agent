@@ -38,9 +38,9 @@ def _make_profile(
     p = lycus_home / "profiles" / name
     p.mkdir(parents=True)
     if config:
-        # SOUL.md is what the reconciler keys on — it's always seeded by
+        # MASK.md is what the reconciler keys on — it's always seeded by
         # `lycus profile create`. See container_boot._render_run_script.
-        (p / "SOUL.md").write_text("# fake profile\n")
+        (p / "MASK.md").write_text("# fake profile\n")
     if state is not None or desired_state is not None:
         payload: dict[str, object] = {"timestamp": 1234567890}
         if state is not None:
@@ -222,9 +222,9 @@ def test_profile_without_state_file_is_registered_but_not_started(
 
 def test_directory_without_marker_file_is_skipped(tmp_path: Path) -> None:
     """A stray dir under profiles/ that isn't actually a profile (no
-    SOUL.md — the marker the reconciler keys on) should be skipped."""
+    MASK.md — the marker the reconciler keys on) should be skipped."""
     scandir = tmp_path / "run-service"; scandir.mkdir()
-    # Create a profile dir but without SOUL.md
+    # Create a profile dir but without MASK.md
     (tmp_path / "profiles" / "stray").mkdir(parents=True)
 
     actions = reconcile_profile_gateways(

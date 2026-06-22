@@ -106,7 +106,7 @@ skills:
     - kanban-orchestrator
 ```
 
-The director's terminal access is conventional but the SOUL.md rules forbid
+The director's terminal access is conventional but the MASK.md rules forbid
 execution. Audit logs catch violations.
 
 ### writer / copywriter
@@ -265,7 +265,7 @@ skills:
 ```
 
 These are mostly ffmpeg-driven; no special skill needed beyond `kanban-worker`.
-For captioner add Whisper invocation patterns to the SOUL.md.
+For captioner add Whisper invocation patterns to the MASK.md.
 
 ### reviewer / brand-cop
 

@@ -64,24 +64,8 @@ The installer will:
 7. Sync bundled skills
 ```
 
-### Windows (native, PowerShell)
 
-> **Heads up:** Native Windows runs Lycus without WSL — CLI, gateway, TUI, and tools all work natively. If you'd rather use WSL2, the Linux/macOS one-liner above works there too. Found a bug? Please [file issues](https://github.com/NousResearch/lycus-agent/issues).
-
-Run this in PowerShell:
-
-```powershell
-iex (irm https://lycus-agent.nousresearch.com/install.ps1)
-```
-
-The installer handles everything: uv, Python 3.11, Node.js, ripgrep, ffmpeg, **and a portable Git Bash** (MinGit, unpacked to `%LOCALAPPDATA%\lycus\git` — no admin required, completely isolated from any system Git install). Lycus uses this bundled Git Bash to run shell commands.
-
-If you already have Git installed, the installer detects it and uses that instead. Otherwise a ~45MB MinGit download is all you need — it won't touch or interfere with any system Git.
-
-> **Android / Termux:** The tested manual path is documented in the [Termux guide](https://lycus-agent.nousresearch.com/docs/getting-started/termux). On Termux, Lycus installs a curated `.[termux]` extra because the full `.[all]` extra currently pulls Android-incompatible voice dependencies.
->
-> **Windows:** Native Windows is fully supported — the PowerShell one-liner above installs everything. If you'd rather use WSL2, the Linux command works there too. Native Windows install lives under `%LOCALAPPDATA%\lycus`; WSL2 installs under `~/.autolycus` as on Linux.
-
+After installation:
 After installation:
 
 ```bash
@@ -142,7 +126,7 @@ lycus update       # Update to the latest version
 lycus doctor       # Diagnose any issues
 ```
 
-📖 **Documentation:** See [Lycus Agent docs](https://lycus-agent.nousresearch.com/docs/) for reference (Autolycus is API-compatible).
+📖 **Documentation:** See the [docs/](docs/) directory for full reference guides.
 
 ---
 
@@ -159,7 +143,7 @@ One command from a fresh install:
 lycus setup --portal
 ```
 
-That logs you in via OAuth, sets Nous as your provider, and turns on the Tool Gateway. Check what's wired up any time with `lycus portal info`. Full details on the [Tool Gateway docs page](https://lycus-agent.nousresearch.com/docs/user-guide/features/tool-gateway).
+That logs you in via OAuth, sets Nous as your provider, and turns on the Tool Gateway. Check what's wired up any time with `lycus portal info`. 
 
 You can still bring your own keys per-tool whenever you want — the gateway is per-backend, not all-or-nothing.
 
@@ -181,34 +165,34 @@ Autolycus has two entry points: start the terminal UI with `lycus`, or run the g
 | Interrupt current work | `Ctrl+C` or send a new message | `/stop` or send a new message |
 | Platform-specific status | `/platforms` | `/status`, `/sethome` |
 
-For the full command lists, see the [CLI guide](https://lycus-agent.nousresearch.com/docs/user-guide/cli) and the [Messaging Gateway guide](https://lycus-agent.nousresearch.com/docs/user-guide/messaging).
+For the full command lists, see the [CLI guide](docs/user-guide/cli.md) and the [Messaging Gateway guide](docs/user-guide/messaging.md).
 
 ---
 
 ## Documentation
 
-Autolycus is API-compatible with Lycus Agent. For full documentation, refer to the **[Lycus Agent docs](https://lycus-agent.nousresearch.com/docs/)**.
+Autolycus is API-compatible with Lycus Agent. Full documentation lives in the [docs/](docs/) directory.
 
 | Section | What's Covered |
 |---------|---------------|
-| [Quickstart](https://lycus-agent.nousresearch.com/docs/getting-started/quickstart) | Install → setup → first conversation in 2 minutes |
-| [CLI Usage](https://lycus-agent.nousresearch.com/docs/user-guide/cli) | Commands, keybindings, personalities, sessions |
-| [Configuration](https://lycus-agent.nousresearch.com/docs/user-guide/configuration) | Config file, providers, models, all options |
-| [Messaging Gateway](https://lycus-agent.nousresearch.com/docs/user-guide/messaging) | Telegram, Discord, Slack, WhatsApp, Signal, Home Assistant |
-| [Security](https://lycus-agent.nousresearch.com/docs/user-guide/security) | Command approval, DM pairing, container isolation |
-| [Tools & Toolsets](https://lycus-agent.nousresearch.com/docs/user-guide/features/tools) | 40+ tools, toolset system, terminal backends |
-| [Skills System](https://lycus-agent.nousresearch.com/docs/user-guide/features/skills) | Procedural memory, Skills Hub, creating skills |
-| [Memory](https://lycus-agent.nousresearch.com/docs/user-guide/features/memory) | Persistent memory, user profiles, best practices |
-| [MCP Integration](https://lycus-agent.nousresearch.com/docs/user-guide/features/mcp) | Connect any MCP server for extended capabilities |
-| [Cron Scheduling](https://lycus-agent.nousresearch.com/docs/user-guide/features/cron) | Scheduled tasks with platform delivery |
+| [Quickstart](docs/getting-started/quickstart.md) | Install → setup → first conversation in 2 minutes |
+| [CLI Usage](docs/user-guide/cli.md) | Commands, keybindings, personalities, sessions |
+| [Configuration](docs/user-guide/configuration.md) | Config file, providers, models, all options |
+| [Messaging Gateway](docs/user-guide/messaging.md) | Telegram, Discord, Slack, WhatsApp, Signal, Home Assistant |
+| [Security](docs/user-guide/security.md) | Command approval, DM pairing, container isolation |
+| [Tools & Toolsets](docs/user-guide/features/tools.md) | 40+ tools, toolset system, terminal backends |
+| [Skills System](docs/user-guide/features/skills.md) | Procedural memory, Skills Hub, creating skills |
+| [Memory](docs/user-guide/features/memory.md) | Persistent memory, user profiles, best practices |
+| [MCP Integration](docs/user-guide/features/mcp.md) | Connect any MCP server for extended capabilities |
+| [Cron Scheduling](docs/user-guide/features/cron.md) | Scheduled tasks with platform delivery |
 
 > **Note:** Voice transcription (faster-whisper) is unavailable on FreeBSD due to missing ctranslate2 wheels — use cloud-based STT instead. On Linux/macOS, voice tools work out of the box.
 
 ---
 
-## Migrating from Lycus/OpenClaw
+## Migrating from Hermes/OpenClaw
 
-If you're coming from Lycus or OpenClaw, Autolycus can automatically import your settings, memories, skills, and API keys.
+If you're coming from Hermes or OpenClaw, Autolycus can automatically import your settings, memories, skills, and API keys. The migration tool detects `~/.openclaw`, `~/.clawdbot`, and `~/.moltbot` directories.
 
 **During first-time setup:** The setup wizard (`lycus setup`) automatically detects `~/.openclaw` and offers to migrate before configuration begins.
 
@@ -256,7 +240,7 @@ full git checkout it creates at `$AUTOLYCUS_HOME/lycus-agent` (usually
 managed venv, lazy dependencies, gateway, and docs tooling.
 
 ```bash
-curl -fsSL https://lycus-agent.nousresearch.com/install.sh | bash
+sh scripts/install-autolycus.sh
 cd "${AUTOLYCUS_HOME:-$HOME/.autolycus}/lycus-agent"
 uv pip install -e ".[all,dev]"
 scripts/run_tests.sh

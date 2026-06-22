@@ -11,7 +11,7 @@ metadata:
     related_skills: [kanban-orchestrator, kanban-worker, ascii-video, manim-video, p5js, comfyui, touchdesigner-mcp, blender-mcp, pixel-art, ascii-art, songwriting-and-ai-music, heartmula, songsee, spotify, youtube-content, claude-design, excalidraw, architecture-diagram, concept-diagrams, baoyu-comic, baoyu-infographic, humanizer, gif-search, meme-generation]
     credits: |
       The single-project workspace layout, profile-config patching pattern,
-      SOUL.md-per-profile model, TEAM.md task-graph convention, and
+      MASK.md-per-profile model, TEAM.md task-graph convention, and
       `--workspace dir:<path>` discipline are adapted from alt-glitch's
       original multi-agent video pipeline at
       https://github.com/NousResearch/kanban-video-pipeline.
@@ -100,7 +100,7 @@ Generate a setup script (`setup.sh`) and run it. The script:
 1. Creates the project workspace (`~/projects/video-pipeline/<slug>/`)
 2. Copies any provided assets into `taste/`, `audio/`, `assets/`
 3. Creates each Lycus profile via `lycus profile create --clone`
-4. Writes per-profile `SOUL.md` (personality + role definition)
+4. Writes per-profile `MASK.md` (personality + role definition)
 5. Configures profile YAML (toolsets, always_load skills, cwd)
 6. Writes `brief.md`, `TEAM.md`, and `taste/` content
 7. Fires the initial `lycus kanban create` task assigned to the director
@@ -172,7 +172,7 @@ task graphs. See **[references/examples.md](references/examples.md)**.
    provides.
 
 6. **The director never executes.** Even with the full `kanban + terminal +
-   file` toolset, the director's `SOUL.md` rules forbid it from executing
+   file` toolset, the director's `MASK.md` rules forbid it from executing
    work itself. It decomposes and routes only — every concrete task becomes
    a `lycus kanban create` call to a specialist profile. The
    `kanban-orchestrator` skill spells this out further.

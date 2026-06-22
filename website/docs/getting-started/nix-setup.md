@@ -333,7 +333,7 @@ Quick reference for the most common things Nix users want to customize:
 | Change the LLM model | `settings.model.default` | `"anthropic/claude-sonnet-4"` |
 | Use a different provider endpoint | `settings.model.base_url` | `"https://openrouter.ai/api/v1"` |
 | Add API keys | `environmentFiles` | `[ config.sops.secrets."lycus-env".path ]` |
-| Give the agent a personality | `${services.autolycus-agent.stateDir}/.autolycus/SOUL.md` | manage the file directly |
+| Give the agent a personality | `${services.autolycus-agent.stateDir}/.autolycus/MASK.md` | manage the file directly |
 | Add MCP tool servers | `mcpServers.<name>` | See [MCP Servers](#mcp-servers) |
 | Enable Discord/Telegram/Slack | `extraDependencyGroups` | `[ "messaging" ]` |
 | Mount host directories into container | `container.extraVolumes` | `[ "/data:/data:rw" ]` |
@@ -418,7 +418,7 @@ The `documents` option installs files into the agent's working directory (the `w
 - **`USER.md`** — context about the user the agent is interacting with.
 - Any other files you place here are visible to the agent as workspace files.
 
-The agent identity file is separate: Lycus loads its primary `SOUL.md` from `$AUTOLYCUS_HOME/SOUL.md`, which in the NixOS module is `${services.autolycus-agent.stateDir}/.autolycus/SOUL.md`. Putting `SOUL.md` in `documents` only creates a workspace file and will not replace the main persona file.
+The agent identity file is separate: Lycus loads its primary `MASK.md` from `$AUTOLYCUS_HOME/MASK.md`, which in the NixOS module is `${services.autolycus-agent.stateDir}/.autolycus/MASK.md`. Putting `MASK.md` in `documents` only creates a workspace file and will not replace the main persona file.
 
 ```nix
 {
@@ -584,7 +584,7 @@ Host                                    Container
   │   └── mcp-tokens/                      (OAuth tokens for MCP servers)
   ├── home/                                ──►  /home/lycus    (rw)
   └── workspace/                           (agent working directory)
-      ├── SOUL.md                          (from documents option)
+      ├── MASK.md                          (from documents option)
       └── (agent-created files)
 
 Container writable layer (apt/pip/npm):   /usr, /usr/local, /tmp
@@ -609,7 +609,7 @@ The container is only recreated when its **identity hash** changes. The hash cov
 :::warning Writable layer loss
 When the identity hash changes (image upgrade, new volumes, new container options), the container is destroyed and recreated from a fresh pull of `container.image`. Any `apt install`, `pip install`, or `npm install` packages in the writable layer are lost. State in `/data` and `/home/lycus` is preserved (these are bind mounts).
 
-If the agent relies on specific packages, consider baking them into a custom image (`container.image = "my-registry/lycus-base:latest"`) or scripting their installation in the agent's SOUL.md.
+If the agent relies on specific packages, consider baking them into a custom image (`container.image = "my-registry/lycus-base:latest"`) or scripting their installation in the agent's MASK.md.
 :::
 
 ### GC Root Protection
@@ -919,7 +919,7 @@ nix build .#checks.x86_64-linux.config-roundtrip    # merge script preserves use
 │   └── logs/
 ├── home/                            # Agent HOME
 └── workspace/                       # Agent working directory
-    ├── SOUL.md                      # From documents option
+    ├── MASK.md                      # From documents option
     └── (agent-created files)
 ```
 

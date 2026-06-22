@@ -282,7 +282,7 @@ class TestCmdMigrate:
         fake_migrator.migrate.return_value = {
             "summary": {"migrated": 2, "skipped": 1, "conflict": 0, "error": 0},
             "items": [
-                {"kind": "soul", "status": "migrated", "destination": str(tmp_path / "SOUL.md")},
+                {"kind": "soul", "status": "migrated", "destination": str(tmp_path / "MASK.md")},
                 {"kind": "memory", "status": "migrated", "destination": str(tmp_path / "memories/MEMORY.md")},
             ],
         }
@@ -606,7 +606,7 @@ class TestCmdCleanup:
         ws = openclaw / "workspace"
         ws.mkdir()
         (ws / "todo.json").write_text("{}")
-        (ws / "SOUL.md").write_text("# Soul")
+        (ws / "MASK.md").write_text("# Soul")
 
         args = Namespace(source=None, dry_run=True, yes=False)
         with patch.object(claw_mod, "_find_openclaw_dirs", return_value=[openclaw]):
@@ -644,7 +644,7 @@ class TestPrintMigrationReport:
         report = {
             "summary": {"migrated": 2, "skipped": 1, "conflict": 1, "error": 0},
             "items": [
-                {"kind": "soul", "status": "migrated", "destination": "/home/user/.autolycus/SOUL.md"},
+                {"kind": "soul", "status": "migrated", "destination": "/home/user/.autolycus/MASK.md"},
                 {"kind": "memory", "status": "migrated", "destination": "/home/user/.autolycus/memories/MEMORY.md"},
                 {"kind": "skills", "status": "conflict", "reason": "already exists"},
                 {"kind": "tts-assets", "status": "skipped", "reason": "not found"},
@@ -662,7 +662,7 @@ class TestPrintMigrationReport:
         report = {
             "summary": {"migrated": 3, "skipped": 0, "conflict": 0, "error": 0},
             "items": [
-                {"kind": "soul", "status": "migrated", "destination": "/home/user/.autolycus/SOUL.md"},
+                {"kind": "soul", "status": "migrated", "destination": "/home/user/.autolycus/MASK.md"},
             ],
             "output_dir": "/home/user/.autolycus/migration/openclaw/20250312T120000",
         }

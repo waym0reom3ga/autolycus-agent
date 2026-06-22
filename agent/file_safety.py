@@ -553,7 +553,7 @@ def get_sandbox_mirror_warning(path: str) -> Optional[str]:
 # full ``…/sandboxes/<backend>/<task>/home/.autolycus/…`` prefix on the host.
 # But when file tools execute *inside* the container the bind-mount strips
 # that prefix: the agent sees plain ``/root/.autolycus/…``.  The root:root
-# ownership on the divergent SOUL.md in #32049 confirms this is the primary
+# ownership on the divergent MASK.md in #32049 confirms this is the primary
 # failure mode.
 #
 # Fix: file_tools passes the active Docker mirror prefix when the terminal

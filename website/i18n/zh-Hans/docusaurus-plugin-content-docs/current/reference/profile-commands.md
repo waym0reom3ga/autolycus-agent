@@ -79,7 +79,7 @@ lycus profile create <name> [options]
 | 参数 / 选项 | 描述 |
 |-------------------|-------------|
 | `<name>` | 新 profile 的名称。必须是合法的目录名（字母数字、连字符、下划线）。 |
-| `--clone` | 从当前 profile 复制 `config.yaml`、`.env`、`SOUL.md` 和 skills。 |
+| `--clone` | 从当前 profile 复制 `config.yaml`、`.env`、`MASK.md` 和 skills。 |
 | `--clone-all` | 从当前 profile 复制所有内容（config、memories、skills、cron、plugins）。会排除每个 profile 自己的历史数据：sessions、`state.db`、backups、state-snapshots、checkpoints。 |
 | `--clone-from <profile>` | 从指定 profile 克隆 config/skills/SOUL，而非当前 profile。除非与 `--clone-all` 配合使用，否则会隐含 `--clone`。 |
 | `--no-alias` | 跳过 wrapper 脚本创建。 |
@@ -189,7 +189,7 @@ Model:   anthropic/claude-sonnet-4 (anthropic)
 Gateway: stopped
 Skills:  12
 .env:    exists
-SOUL.md: exists
+MASK.md: exists
 Alias:   ~/.local/bin/work
 ```
 
@@ -341,7 +341,7 @@ lycus profile install ./telemetry/
 lycus profile update <name> [--force-config] [--yes]
 ```
 
-从记录的来源重新克隆发行版并应用更新。发行版所有的文件（SOUL.md、skills/、cron/、mcp.json）会被覆盖；用户数据（memories、sessions、auth、.env）不会被修改。
+从记录的来源重新克隆发行版并应用更新。发行版所有的文件（MASK.md、skills/、cron/、mcp.json）会被覆盖；用户数据（memories、sessions、auth、.env）不会被修改。
 
 默认保留 `config.yaml` 以保持本地覆盖设置。传入 `--force-config` 可将其重置为发行版附带的 config。
 
@@ -388,9 +388,9 @@ env_requires:
     description: "Memory graph URL"
     required: false
     default: "http://127.0.0.1:8000/sse"
-distribution_owned:   # optional; defaults to SOUL.md, config.yaml,
+distribution_owned:   # optional; defaults to MASK.md, config.yaml,
                       #   mcp.json, skills/, cron/, distribution.yaml
-  - SOUL.md
+  - MASK.md
   - skills/compliance/
   - cron/
 ```

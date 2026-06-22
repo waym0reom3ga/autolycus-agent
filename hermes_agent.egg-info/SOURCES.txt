@@ -235,7 +235,7 @@ lycus_cli/cron.py
 lycus_cli/curator.py
 lycus_cli/curses_ui.py
 lycus_cli/debug.py
-lycus_cli/default_soul.py
+lycus_cli/default_mask.py
 lycus_cli/dep_ensure.py
 lycus_cli/dingtalk_auth.py
 lycus_cli/doctor.py

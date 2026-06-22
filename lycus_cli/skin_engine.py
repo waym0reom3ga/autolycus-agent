@@ -171,7 +171,7 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
         },
         "branding": {
             "agent_name": "Autolycus Agent",
-            "welcome": "Welcome to Autolycus Agent! We hope to be script compatible with Lycus Agent.",
+            "welcome": "Welcome to Autolycus Agent! Let us succeed through continuous improvement and superior technology",
             "goodbye": "Goodbye! 🦊",
             "response_label": " 🦊 Autolycus ",
             "prompt_symbol": "❯ ",
@@ -266,7 +266,7 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
         "spinner": {},
         "branding": {
             "agent_name": "Autolycus Agent",
-            "welcome": "Welcome to Autolycus Agent! We hope to be script compatible with Lycus Agent.",
+            "welcome": "Welcome to Autolycus Agent! Let us succeed through continuous improvement and superior technology",
             "goodbye": "Goodbye! 🦊",
             "response_label": " 🦊 Autolycus ",
             "prompt_symbol": "❯ ",
@@ -297,7 +297,7 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
         "spinner": {},
         "branding": {
             "agent_name": "Autolycus Agent",
-            "welcome": "Welcome to Autolycus Agent! We hope to be script compatible with Lycus Agent.",
+            "welcome": "Welcome to Autolycus Agent! Let us succeed through continuous improvement and superior technology",
             "goodbye": "Goodbye! 🦊",
             "response_label": " 🦊 Autolycus ",
             "prompt_symbol": "❯ ",
@@ -537,11 +537,34 @@ def _build_skin_config(data: Dict[str, Any]) -> SkinConfig:
     # Start with default values as base for missing keys
     default = _BUILTIN_SKINS["default"]
     colors = dict(default.get("colors", {}))
-    colors.update(data.get("colors", {}))
+    user_colors = data.get("colors")
+    if isinstance(user_colors, dict):
+        colors.update(user_colors)
+    elif user_colors is not None:
+        logger.warning("Skin %r: 'colors' section must be a mapping (dict), got %s — keeping defaults", data.get("name"), type(user_colors).__name__)
+
     spinner = dict(default.get("spinner", {}))
-    spinner.update(data.get("spinner", {}))
+    user_spinner = data.get("spinner")
+    if isinstance(user_spinner, dict):
+        spinner.update(user_spinner)
+    elif user_spinner is not None:
+        logger.warning("Skin %r: 'spinner' section must be a mapping (dict), got %s — keeping defaults", data.get("name"), type(user_spinner).__name__)
+
     branding = dict(default.get("branding", {}))
-    branding.update(data.get("branding", {}))
+    user_branding = data.get("branding")
+    if isinstance(user_branding, dict):
+        branding.update(user_branding)
+    elif user_branding is not None:
+        logger.warning("Skin %r: 'branding' section must be a mapping (dict), got %s — keeping defaults", data.get("name"), type(user_branding).__name__)
+
+    tool_emojis = data.get("tool_emojis")
+    if isinstance(tool_emojis, dict):
+        pass
+    elif tool_emojis is not None:
+        logger.warning("Skin %r: 'tool_emojis' section must be a mapping (dict), got %s — keeping defaults", data.get("name"), type(tool_emojis).__name__)
+        tool_emojis = {}
+    else:
+        tool_emojis = {}
 
     return SkinConfig(
         name=data.get("name", "unknown"),
@@ -550,7 +573,7 @@ def _build_skin_config(data: Dict[str, Any]) -> SkinConfig:
         spinner=spinner,
         branding=branding,
         tool_prefix=data.get("tool_prefix", default.get("tool_prefix", "┊")),
-        tool_emojis=data.get("tool_emojis", {}),
+        tool_emojis=tool_emojis,
         banner_logo=data.get("banner_logo", ""),
         banner_hero=data.get("banner_hero", ""),
     )
@@ -683,8 +706,8 @@ def get_prompt_toolkit_style_overrides() -> Dict[str, str]:
     except Exception:
         return {}
 
-    prompt = skin.get_color("prompt", "#FFF8DC")
-    input_rule = skin.get_color("input_rule", "#CD7F32")
+    prompt = skin.get_color("prompt", "#e6ebf0")
+    input_rule = skin.get_color("input_rule", "#0b1f35")
     title = skin.get_color("banner_title", "#FFD700")
     text = skin.get_color("banner_text", prompt)
     dim = skin.get_color("banner_dim", "#555555")

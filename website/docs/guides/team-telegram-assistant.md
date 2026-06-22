@@ -287,11 +287,11 @@ display:
 
 Users can also change this per-session with the `/verbose` command in chat.
 
-### Set Up a Personality with SOUL.md
+### Set Up a Personality with MASK.md
 
-Customize how the bot communicates by editing `~/.autolycus/SOUL.md`:
+Customize how the bot communicates by editing `~/.autolycus/MASK.md`:
 
-For a full guide, see [Use SOUL.md with Lycus](/guides/use-soul-with-lycus).
+For a full guide, see [Use MASK.md with Lycus](/guides/use-soul-with-lycus).
 
 ```markdown
 # Soul
@@ -432,7 +432,7 @@ You've got a working team Telegram assistant. Here are some next steps:
 - **[Messaging Gateway](/user-guide/messaging)** — full reference for gateway architecture, session management, and chat commands
 - **[Telegram Setup](/user-guide/messaging/telegram)** — platform-specific details including voice messages and TTS
 - **[Scheduled Tasks](/user-guide/features/cron)** — advanced cron scheduling with delivery options and cron expressions
-- **[Context Files](/user-guide/features/context-files)** — AGENTS.md, SOUL.md, and .cursorrules for project knowledge
+- **[Context Files](/user-guide/features/context-files)** — AGENTS.md, MASK.md, and .cursorrules for project knowledge
 - **[Personality](/user-guide/features/personality)** — built-in personality presets and custom persona definitions
 - **Add more platforms** — the same gateway can simultaneously run [Discord](/user-guide/messaging/discord), [Slack](/user-guide/messaging/slack), and [WhatsApp](/user-guide/messaging/whatsapp)
 

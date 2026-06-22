@@ -80,11 +80,11 @@ Create an `AGENTS.md` in your project root with architecture decisions, coding c
 - Never commit .env files
 ```
 
-### SOUL.md: Customize Personality
+### MASK.md: Customize Personality
 
-Want Lycus to have a stable default voice? Edit `~/.autolycus/SOUL.md` (or `$AUTOLYCUS_HOME/SOUL.md` if you use a custom Lycus home). Lycus now seeds a starter SOUL automatically and uses that global file as the instance-wide personality source.
+Want Lycus to have a stable default voice? Edit `~/.autolycus/MASK.md` (or `$AUTOLYCUS_HOME/MASK.md` if you use a custom Lycus home). Lycus now seeds a starter SOUL automatically and uses that global file as the instance-wide personality source.
 
-For a full walkthrough, see [Use SOUL.md with Lycus](/guides/use-soul-with-lycus).
+For a full walkthrough, see [Use MASK.md with Lycus](/guides/use-soul-with-lycus).
 
 ```markdown
 # Soul
@@ -93,7 +93,7 @@ Skip explanations unless asked. Prefer one-liners over verbose solutions.
 Always consider error handling and edge cases.
 ```
 
-Use `SOUL.md` for durable personality. Use `AGENTS.md` for project-specific instructions.
+Use `MASK.md` for durable personality. Use `AGENTS.md` for project-specific instructions.
 
 ### .cursorrules Compatibility
 

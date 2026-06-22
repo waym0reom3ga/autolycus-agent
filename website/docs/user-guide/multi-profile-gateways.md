@@ -192,7 +192,7 @@ Every profile keeps its config inside its own directory:
 ~/.autolycus/profiles/<name>/
 ├── .env              # API keys, bot tokens (chmod 600)
 ├── config.yaml       # model, provider, toolsets, gateway settings
-└── SOUL.md           # personality / system prompt
+└── MASK.md           # personality / system prompt
 ```
 
 The default profile uses `~/.autolycus/` directly with the same three files.

@@ -17,7 +17,7 @@ A profile = a full `~/.autolycus/profiles/<name>/` directory with its own:
 - `config.yaml` — holds `model`/`provider`, `mcp_servers`, enabled skills
 - `skills/` — physical SKILL.md files (built-in seed + optional + hub installs)
 - `.env` — secrets
-- `SOUL.md` / `USER.md` — identity
+- `MASK.md` / `USER.md` — identity
 
 So per-profile scoping of Model, MCPs, and Skills is **native** — no data-model
 change needed. The gap is purely UX: creation today is a thin modal

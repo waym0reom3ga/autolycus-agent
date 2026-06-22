@@ -211,7 +211,7 @@ def build_top_level_parser():
         "--ignore-rules",
         action="store_true",
         default=False,
-        help="Skip auto-injection of AGENTS.md, SOUL.md, .cursorrules, memory, and preloaded skills",
+        help="Skip auto-injection of AGENTS.md, MASK.md, .cursorrules, memory, and preloaded skills",
     )
     _inherited_flag(
         parser,
@@ -371,7 +371,7 @@ def build_top_level_parser():
         "--ignore-rules",
         action="store_true",
         default=argparse.SUPPRESS,
-        help="Skip auto-injection of AGENTS.md, SOUL.md, .cursorrules, memory, and preloaded skills. Combine with --ignore-user-config for a fully isolated run.",
+        help="Skip auto-injection of AGENTS.md, MASK.md, .cursorrules, memory, and preloaded skills. Combine with --ignore-user-config for a fully isolated run.",
     )
     _inherited_flag(
         chat_parser,

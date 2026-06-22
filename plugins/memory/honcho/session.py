@@ -868,7 +868,7 @@ class HonchoSessionManager:
                 "user",
             ),
             (
-                "SOUL.md",
+                "MASK.md",
                 "agent_soul.md",
                 "Agent persona and identity configuration",
                 assistant_peer,
@@ -1266,14 +1266,14 @@ class HonchoSessionManager:
         """
         Seed the AI peer's Honcho representation from text content.
 
-        Useful for priming AI identity from SOUL.md, exported chats, or
+        Useful for priming AI identity from MASK.md, exported chats, or
         any structured description. The content is sent as an assistant
         peer message so Honcho's reasoning model can incorporate it.
 
         Args:
             session_key: The session key to associate with.
             content: The identity/persona content to seed.
-            source: Metadata tag for the source (e.g. "soul_md", "export").
+            source: Metadata tag for the source (e.g. "mask_md", "export").
 
         Returns:
             True on success, False on failure.

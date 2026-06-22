@@ -158,7 +158,7 @@ The `/opt/data` volume is the single source of truth for all Lycus state. It map
 |------|----------|
 | `.env` | API keys and secrets |
 | `config.yaml` | All Lycus configuration |
-| `SOUL.md` | Agent personality/identity |
+| `MASK.md` | Agent personality/identity |
 | `sessions/` | Conversation history |
 | `memories/` | Persistent memory store |
 | `skills/` | Installed skills |
@@ -459,7 +459,7 @@ The official image is based on `debian:13.4` and includes:
 - **[`s6-overlay`](https://github.com/just-containers/s6-overlay) v3** as PID 1 (replaces the older `tini`) — supervises the dashboard and per-profile gateways with auto-restart on crash, reaps zombie subprocesses, and forwards signals.
 
 The container's `ENTRYPOINT` is s6-overlay's `/init`. On boot it:
-1. Runs `/etc/cont-init.d/01-lycus-setup` (= `docker/stage2-hook.sh`) as root: optional UID/GID remap, fixes volume ownership, seeds `.env` / `config.yaml` / `SOUL.md` on first boot, runs non-interactive config-schema migrations unless `HERMES_SKIP_CONFIG_MIGRATION=1`, syncs bundled skills.
+1. Runs `/etc/cont-init.d/01-lycus-setup` (= `docker/stage2-hook.sh`) as root: optional UID/GID remap, fixes volume ownership, seeds `.env` / `config.yaml` / `MASK.md` on first boot, runs non-interactive config-schema migrations unless `HERMES_SKIP_CONFIG_MIGRATION=1`, syncs bundled skills.
 2. Runs `/etc/cont-init.d/02-reconcile-profiles` (= `lycus_cli.container_boot`): walks `$AUTOLYCUS_HOME/profiles/<name>/`, recreates the per-profile gateway s6 service slot under `/run/service/gateway-<profile>/`, and auto-starts only those whose last recorded state was `running` (see [Per-profile gateway supervision](#per-profile-gateway-supervision)).
 3. Starts the static `main-lycus` and `dashboard` s6-rc services.
 4. Exec's the container's CMD as the main program (`/opt/lycus/docker/main-wrapper.sh`), which routes the arguments the user passed to `docker run`:

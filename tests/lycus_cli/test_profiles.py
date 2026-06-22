@@ -204,7 +204,7 @@ class TestCreateProfile:
         # Create source config files in default profile
         (default_home / "config.yaml").write_text("model: test")
         (default_home / ".env").write_text("KEY=val")
-        (default_home / "SOUL.md").write_text("Be helpful.")
+        (default_home / "MASK.md").write_text("Be helpful.")
 
         profile_dir = create_profile("coder", clone_config=True, no_alias=True)
 
@@ -212,7 +212,7 @@ class TestCreateProfile:
         assert cloned_config["_config_version"] == DEFAULT_CONFIG["_config_version"]
         assert cloned_config["model"] == "test"
         assert (profile_dir / ".env").read_text().strip() == "KEY=val"
-        assert (profile_dir / "SOUL.md").read_text() == "Be helpful."
+        assert (profile_dir / "MASK.md").read_text() == "Be helpful."
 
     def test_clone_config_migrates_legacy_config_version(self, profile_env):
         tmp_path = profile_env
@@ -378,8 +378,8 @@ class TestCreateProfile:
         # .env is always seeded (placeholder) so the profile has its own
         # credentials file even when the clone source lacked one.
         assert (profile_dir / ".env").exists()
-        # SOUL.md is always seeded with the default even when clone source lacks it
-        assert (profile_dir / "SOUL.md").exists()
+        # MASK.md is always seeded with the default even when clone source lacks it
+        assert (profile_dir / "MASK.md").exists()
 
 
 # ===================================================================
@@ -1161,7 +1161,7 @@ class TestExportImport:
         default_dir = get_profile_dir("default")
         (default_dir / "config.yaml").write_text("model: test")
         (default_dir / ".env").write_text("KEY=val")
-        (default_dir / "SOUL.md").write_text("Be nice.")
+        (default_dir / "MASK.md").write_text("Be nice.")
         mem_dir = default_dir / "memories"
         mem_dir.mkdir(exist_ok=True)
         (mem_dir / "MEMORY.md").write_text("remember this")
@@ -1175,7 +1175,7 @@ class TestExportImport:
 
         assert "default/config.yaml" in names
         assert "default/.env" not in names  # credentials excluded
-        assert "default/SOUL.md" in names
+        assert "default/MASK.md" in names
         assert "default/memories/MEMORY.md" in names
 
     def test_export_default_excludes_infrastructure(self, profile_env, tmp_path):

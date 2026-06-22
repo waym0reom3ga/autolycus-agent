@@ -3418,7 +3418,7 @@ class LycusCLI(CLIAgentSetupMixin, CLICommandsMixin):
         # --ignore-rules: honor either the constructor flag or the env var set
         # by `lycus chat --ignore-rules` in lycus_cli/main.py. When true we
         # pass skip_context_files=True and skip_memory=True to AIAgent so
-        # AGENTS.md/SOUL.md/.cursorrules and persistent memory are not loaded.
+        # AGENTS.md/MASK.md/.cursorrules and persistent memory are not loaded.
         self.ignore_rules = ignore_rules or os.environ.get("HERMES_IGNORE_RULES") == "1"
         
         # Ephemeral system prompt: env var takes precedence, then config

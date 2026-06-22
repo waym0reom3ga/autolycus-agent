@@ -417,7 +417,7 @@ class TestMemoryFileMigrationTargets:
 
         (tmp_path / "MEMORY.md").write_text("memory facts", encoding="utf-8")
         (tmp_path / "USER.md").write_text("user profile", encoding="utf-8")
-        (tmp_path / "SOUL.md").write_text("ai identity", encoding="utf-8")
+        (tmp_path / "MASK.md").write_text("ai identity", encoding="utf-8")
 
         uploaded = mgr.migrate_memory_files(session.key, str(tmp_path))
 

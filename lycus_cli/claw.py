@@ -632,7 +632,7 @@ def _cmd_cleanup(args):
             workspace_dirs = [
                 d for d in source_dir.iterdir()
                 if d.is_dir() and not d.name.startswith(".")
-                and any((d / name).exists() for name in ("todo.json", "SOUL.md", "MEMORY.md", "USER.md"))
+                and any((d / name).exists() for name in ("todo.json", "MASK.md", "MEMORY.md", "USER.md"))
             ]
         except OSError:
             workspace_dirs = []
@@ -645,8 +645,8 @@ def _cmd_cleanup(args):
                     items.append("todo.json")
                 if (ws / "sessions").is_dir():
                     items.append("sessions/")
-                if (ws / "SOUL.md").exists():
-                    items.append("SOUL.md")
+                if (ws / "MASK.md").exists():
+                    items.append("MASK.md")
                 if (ws / "MEMORY.md").exists():
                     items.append("MEMORY.md")
                 detail = ", ".join(items) if items else "empty"

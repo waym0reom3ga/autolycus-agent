@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Context file scanning — detect prompt injection / promptware in AGENTS.md,
-# .cursorrules, SOUL.md before they get injected into the system prompt.
+# .cursorrules, MASK.md before they get injected into the system prompt.
 #
 # Patterns live in ``tools/threat_patterns.py`` — the single source of truth
 # shared with the memory-tool scanner and the tool-result delimiter system.
@@ -1025,7 +1025,7 @@ def build_environment_hints() -> str:
     # Embedder-supplied environment description. Lets a host that wraps Lycus
     # (e.g. a sandbox runner / managed platform) explain the environment the
     # agent is running in — proxy, credential handling, mount layout — without
-    # forking the identity slot (SOUL.md). Read once at prompt-build time, so
+    # forking the identity slot (MASK.md). Read once at prompt-build time, so
     # it's part of the stable, cache-safe system prompt. The env var is the
     # build-time/embedder mechanism (set in a container ENV); config.yaml
     # ``agent.environment_hint`` is the user-facing surface. Env var wins.
@@ -1552,7 +1552,7 @@ def build_nous_subscription_prompt(valid_tool_names: "set[str] | None" = None) -
 
 
 # =========================================================================
-# Context files (SOUL.md, AGENTS.md, .cursorrules)
+# Context files (MASK.md, AGENTS.md, .cursorrules)
 # =========================================================================
 
 def _truncate_content(content: str, filename: str, max_chars: int = CONTEXT_FILE_MAX_CHARS) -> str:
@@ -1567,31 +1567,31 @@ def _truncate_content(content: str, filename: str, max_chars: int = CONTEXT_FILE
     return head + marker + tail
 
 
-def load_soul_md() -> Optional[str]:
-    """Load SOUL.md from AUTOLYCUS_HOME and return its content, or None.
+def load_mask_md() -> Optional[str]:
+    """Load MASK.md from AUTOLYCUS_HOME and return its content, or None.
 
     Used as the agent identity (slot #1 in the system prompt).  When this
     returns content, ``build_context_files_prompt`` should be called with
-    ``skip_soul=True`` so SOUL.md isn't injected twice.
+    ``skip_soul=True`` so MASK.md isn't injected twice.
     """
     try:
         from lycus_cli.config import ensure_lycus_home
         ensure_lycus_home()
     except Exception as e:
-        logger.debug("Could not ensure AUTOLYCUS_HOME before loading SOUL.md: %s", e)
+        logger.debug("Could not ensure AUTOLYCUS_HOME before loading MASK.md: %s", e)
 
-    soul_path = get_lycus_home() / "SOUL.md"
+    soul_path = get_lycus_home() / "MASK.md"
     if not soul_path.exists():
         return None
     try:
         content = soul_path.read_text(encoding="utf-8").strip()
         if not content:
             return None
-        content = _scan_context_content(content, "SOUL.md")
-        content = _truncate_content(content, "SOUL.md")
+        content = _scan_context_content(content, "MASK.md")
+        content = _truncate_content(content, "MASK.md")
         return content
     except Exception as e:
-        logger.debug("Could not read SOUL.md from %s: %s", soul_path, e)
+        logger.debug("Could not read MASK.md from %s: %s", soul_path, e)
         return None
 
 
@@ -1689,11 +1689,11 @@ def build_context_files_prompt(cwd: Optional[str] = None, skip_soul: bool = Fals
       3. CLAUDE.md / claude.md   (cwd only)
       4. .cursorrules / .cursor/rules/*.mdc  (cwd only)
 
-    SOUL.md from AUTOLYCUS_HOME is independent and always included when present.
+    MASK.md from AUTOLYCUS_HOME is independent and always included when present.
     Each context source is capped at 20,000 chars.
 
-    When *skip_soul* is True, SOUL.md is not included here (it was already
-    loaded via ``load_soul_md()`` for the identity slot).
+    When *skip_soul* is True, MASK.md is not included here (it was already
+    loaded via ``load_mask_md()`` for the identity slot).
     """
     if cwd is None:
         cwd = os.getcwd()
@@ -1711,9 +1711,9 @@ def build_context_files_prompt(cwd: Optional[str] = None, skip_soul: bool = Fals
     if project_context:
         sections.append(project_context)
 
-    # SOUL.md from AUTOLYCUS_HOME only — skip when already loaded as identity
+    # MASK.md from AUTOLYCUS_HOME only — skip when already loaded as identity
     if not skip_soul:
-        soul_content = load_soul_md()
+        soul_content = load_mask_md()
         if soul_content:
             sections.append(soul_content)
 

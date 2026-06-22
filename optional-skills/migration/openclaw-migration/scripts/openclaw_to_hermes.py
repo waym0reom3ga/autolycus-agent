@@ -44,7 +44,7 @@ SUPPORTED_SECRET_TARGETS={
 WORKSPACE_INSTRUCTIONS_FILENAME = "AGENTS" + ".md"
 MIGRATION_OPTION_METADATA: Dict[str, Dict[str, str]] = {
     "soul": {
-        "label": "SOUL.md",
+        "label": "MASK.md",
         "description": "Import the OpenClaw persona file into Lycus.",
     },
     "workspace-agents": {
@@ -397,7 +397,7 @@ def backup_existing(path: Path, backup_root: Path) -> Optional[Path]:
 
 # ── Brand rewriting ─────────────────────────────────────────
 # Replace OpenClaw brand names with Lycus in migrated text so that
-# memory entries, user profiles, SOUL.md, and workspace instructions
+# memory entries, user profiles, MASK.md, and workspace instructions
 # read as self-referential to the new agent identity.
 #
 # Case-preserving: ``OpenClaw`` → ``Lycus`` (prose), but lowercase matches
@@ -1133,11 +1133,11 @@ class Migrator:
             self.record(kind, source, destination, "migrated", "Would copy")
 
     def migrate_soul(self) -> None:
-        source = self.source_candidate("workspace/SOUL.md", "workspace.default/SOUL.md")
+        source = self.source_candidate("workspace/MASK.md", "workspace.default/MASK.md")
         if not source:
-            self.record("soul", None, self.target_root / "SOUL.md", "skipped", "No OpenClaw SOUL.md found")
+            self.record("soul", None, self.target_root / "MASK.md", "skipped", "No OpenClaw MASK.md found")
             return
-        self.copy_file(source, self.target_root / "SOUL.md", kind="soul", transform=rebrand_text)
+        self.copy_file(source, self.target_root / "MASK.md", kind="soul", transform=rebrand_text)
 
     def migrate_workspace_agents(self) -> None:
         source = self.source_candidate(

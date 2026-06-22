@@ -28,25 +28,25 @@ Lycus 刻意将以下内容分离：
 
 已缓存的系统 prompt 大致按以下顺序组装：
 
-1. agent 身份 — 优先使用 `AUTOLYCUS_HOME` 中的 `SOUL.md`，否则回退到 `prompt_builder.py` 中的 `DEFAULT_AGENT_IDENTITY`
+1. agent 身份 — 优先使用 `AUTOLYCUS_HOME` 中的 `MASK.md`，否则回退到 `prompt_builder.py` 中的 `DEFAULT_AGENT_IDENTITY`
 2. 工具感知行为指导
 3. Honcho 静态块（激活时）
 4. 可选系统消息
 5. 冻结的 MEMORY 快照
 6. 冻结的 USER 配置文件快照
 7. skills 索引
-8. 上下文文件（`AGENTS.md`、`.cursorrules`、`.cursor/rules/*.mdc`）— 若 SOUL.md 已在第 1 步作为身份加载，则此处**不**再包含它
+8. 上下文文件（`AGENTS.md`、`.cursorrules`、`.cursor/rules/*.mdc`）— 若 MASK.md 已在第 1 步作为身份加载，则此处**不**再包含它
 9. 时间戳 / 可选会话 ID
 10. 平台提示
 
-当设置了 `skip_context_files`（例如子 agent 委托）时，不会加载 SOUL.md，而是使用硬编码的 `DEFAULT_AGENT_IDENTITY`。
+当设置了 `skip_context_files`（例如子 agent 委托）时，不会加载 MASK.md，而是使用硬编码的 `DEFAULT_AGENT_IDENTITY`。
 
 ### 具体示例：组装后的系统 prompt
 
 以下是所有层都存在时最终系统 prompt 的简化视图（注释说明每个部分的来源）：
 
 ```
-# Layer 1: Agent Identity (from ~/.autolycus/SOUL.md)
+# Layer 1: Agent Identity (from ~/.autolycus/MASK.md)
 You are Lycus, an AI assistant created by Nous Research.
 You are an expert software engineer and researcher.
 You value correctness, clarity, and efficiency.
@@ -116,25 +116,25 @@ You are a CLI AI Agent. Try not to use markdown but simple text
 renderable inside a terminal.
 ```
 
-## SOUL.md 在 prompt 中的位置
+## MASK.md 在 prompt 中的位置
 
-`SOUL.md` 位于 `~/.autolycus/SOUL.md`，作为 agent 的身份标识——系统 prompt 的第一个部分。`prompt_builder.py` 中的加载逻辑如下：
+`MASK.md` 位于 `~/.autolycus/MASK.md`，作为 agent 的身份标识——系统 prompt 的第一个部分。`prompt_builder.py` 中的加载逻辑如下：
 
 ```python
 # From agent/prompt_builder.py (simplified)
-def load_soul_md() -> Optional[str]:
-    soul_path = get_lycus_home() / "SOUL.md"
+def load_mask_md() -> Optional[str]:
+    soul_path = get_lycus_home() / "MASK.md"
     if not soul_path.exists():
         return None
     content = soul_path.read_text(encoding="utf-8").strip()
-    content = _scan_context_content(content, "SOUL.md")  # Security scan
-    content = _truncate_content(content, "SOUL.md")       # Cap at 20k chars
+    content = _scan_context_content(content, "MASK.md")  # Security scan
+    content = _truncate_content(content, "MASK.md")       # Cap at 20k chars
     return content
 ```
 
-当 `load_soul_md()` 返回内容时，它会替换硬编码的 `DEFAULT_AGENT_IDENTITY`。随后调用 `build_context_files_prompt()` 时传入 `skip_soul=True`，以防止 SOUL.md 出现两次（一次作为身份，一次作为上下文文件）。
+当 `load_mask_md()` 返回内容时，它会替换硬编码的 `DEFAULT_AGENT_IDENTITY`。随后调用 `build_context_files_prompt()` 时传入 `skip_soul=True`，以防止 MASK.md 出现两次（一次作为身份，一次作为上下文文件）。
 
-若 `SOUL.md` 不存在，系统将回退到：
+若 `MASK.md` 不存在，系统将回退到：
 
 ```
 You are Lycus Agent, an intelligent AI assistant created by Nous Research.
@@ -167,9 +167,9 @@ def build_context_files_prompt(cwd=None, skip_soul=False):
     if project_context:
         sections.append(project_context)
 
-    # SOUL.md from AUTOLYCUS_HOME (independent of project context)
+    # MASK.md from AUTOLYCUS_HOME (independent of project context)
     if not skip_soul:
-        soul_content = load_soul_md()
+        soul_content = load_mask_md()
         if soul_content:
             sections.append(soul_content)
 
@@ -222,7 +222,7 @@ def build_context_files_prompt(cwd=None, skip_soul=False):
 3. `CLAUDE.md`（仅 CWD）
 4. `.cursorrules` / `.cursor/rules/*.mdc`（仅 CWD）
 
-`SOUL.md` 通过 `load_soul_md()` 单独加载用于身份槽位。加载成功后，`build_context_files_prompt(skip_soul=True)` 会防止其出现两次。
+`MASK.md` 通过 `load_mask_md()` 单独加载用于身份槽位。加载成功后，`build_context_files_prompt(skip_soul=True)` 会防止其出现两次。
 
 长文件在注入前会被截断。
 
@@ -236,7 +236,7 @@ def build_context_files_prompt(cwd=None, skip_soul=False):
 
 ### 优先使用这些入口
 
-- `~/.autolycus/SOUL.md` — 用自定义 agent 角色和固定行为替换内置默认身份块。
+- `~/.autolycus/MASK.md` — 用自定义 agent 角色和固定行为替换内置默认身份块。
 - `~/.autolycus/MEMORY.md` 和 `~/.autolycus/USER.md` — 提供应在新会话中快照的持久跨会话事实和用户配置文件数据。
 - 项目上下文文件，如 `.autolycus.md`、`HERMES.md`、`AGENTS.md`、`CLAUDE.md` 或 `.cursorrules` — 注入仓库特定的工作规则。
 - Skills — 打包可复用的工作流和参考资料，无需编辑核心 prompt 代码。
@@ -249,7 +249,7 @@ def build_context_files_prompt(cwd=None, skip_soul=False):
 
 换言之：
 
-- 若想要不同的助手身份，编辑 `SOUL.md`
+- 若想要不同的助手身份，编辑 `MASK.md`
 - 若想要不同的仓库规则，编辑项目上下文文件
 - 若想要可复用的操作流程，添加或修改 skills
 - 若想改变 Lycus 为所有人组装 prompt 的方式，修改 Python 代码并将其视为代码贡献

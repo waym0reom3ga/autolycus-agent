@@ -4,7 +4,7 @@ Brian's shape-based guard (#32213) catches paths that carry the full
 ``…/sandboxes/<backend>/<task>/home/.autolycus/…`` prefix. This covers the
 complementary inner-container case: when file tools execute inside Docker,
 the bind-mount strips that prefix and the guard sees plain ``/root/.autolycus/…``.
-The root:root ownership on the divergent SOUL.md in #32049 confirms this
+The root:root ownership on the divergent MASK.md in #32049 confirms this
 is the primary failure mode.
 """
 from __future__ import annotations
@@ -17,22 +17,22 @@ class TestClassifyContainerMirrorTarget:
         """No Docker context — /root/.autolycus/… must not be flagged."""
         from agent.file_safety import classify_container_mirror_target
 
-        assert classify_container_mirror_target("/root/.autolycus/profiles/group1/SOUL.md") is None
+        assert classify_container_mirror_target("/root/.autolycus/profiles/group1/MASK.md") is None
 
-    def test_catches_soul_md_with_context(self):
-        """Primary failure mode from #32049: agent writes SOUL.md via container path."""
+    def test_catches_mask_md_with_context(self):
+        """Primary failure mode from #32049: agent writes MASK.md via container path."""
         from agent.file_safety import classify_container_mirror_target
 
         result = classify_container_mirror_target(
-            "/root/.autolycus/profiles/group1/SOUL.md",
+            "/root/.autolycus/profiles/group1/MASK.md",
             mirror_prefix="/root/.autolycus",
         )
         assert result is not None
         assert result["mirror_root"].replace("\\", "/").endswith("root/.autolycus")
-        assert result["inner_path"] == "profiles/group1/SOUL.md"
+        assert result["inner_path"] == "profiles/group1/MASK.md"
 
     @pytest.mark.parametrize("inner", [
-        "SOUL.md",
+        "MASK.md",
         "memories/MEMORY.md",
     ])
     def test_catches_authoritative_profile_files(self, inner):
@@ -63,11 +63,11 @@ class TestGetContainerMirrorWarning:
         from agent.file_safety import get_container_mirror_warning
 
         warn = get_container_mirror_warning(
-            "/root/.autolycus/profiles/group1/SOUL.md",
+            "/root/.autolycus/profiles/group1/MASK.md",
             mirror_prefix="/root/.autolycus",
         )
         assert warn is not None
-        assert "profiles/group1/SOUL.md" in warn
+        assert "profiles/group1/MASK.md" in warn
         assert "cross_profile=True" in warn
 
 
@@ -78,7 +78,7 @@ class TestOrthogonality:
         """No sandboxes/ segment — shape guard passes, context guard blocks."""
         from agent.file_safety import classify_container_mirror_target
 
-        path = "/root/.autolycus/profiles/group1/SOUL.md"
+        path = "/root/.autolycus/profiles/group1/MASK.md"
 
         assert classify_container_mirror_target(path) is None  # no context
         assert classify_container_mirror_target(path, mirror_prefix="/root/.autolycus") is not None
@@ -97,10 +97,10 @@ class TestFileToolIntegration:
         )
 
         warning = file_tools._check_cross_profile_path(
-            "/root/.autolycus/profiles/group1/SOUL.md",
+            "/root/.autolycus/profiles/group1/MASK.md",
             task_id="new-task",
         )
 
         assert warning is not None
         assert "Sandbox-mirror write blocked" in warning
-        assert "profiles/group1/SOUL.md" in warning
+        assert "profiles/group1/MASK.md" in warning

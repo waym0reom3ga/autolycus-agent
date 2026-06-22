@@ -281,7 +281,7 @@ class HonchoMemoryProvider(MemoryProvider):
         """Initialize Honcho session manager.
 
         Handles: cron guard, recall_mode, session name resolution,
-        peer memory mode, SOUL.md ai_peer sync, memory file migration,
+        peer memory mode, MASK.md ai_peer sync, memory file migration,
         and pre-warming context at init.
         """
         try:
@@ -327,7 +327,7 @@ class HonchoMemoryProvider(MemoryProvider):
                 logger.debug("Honcho cost-awareness config parse error: %s", e)
 
             # aiPeer comes from honcho.json (host block or root) only.
-            # SOUL.md is persona content, not identity config.
+            # MASK.md is persona content, not identity config.
 
             self._lazy_init_kwargs = dict(kwargs)
             self._lazy_init_session_id = session_id
@@ -441,7 +441,7 @@ class HonchoMemoryProvider(MemoryProvider):
 
         # ----- B6: Memory file migration (one-time, for new sessions) -----
         # Skip under per-session strategy: every Lycus run creates a fresh
-        # Honcho session by design, so uploading MEMORY.md/USER.md/SOUL.md to
+        # Honcho session by design, so uploading MEMORY.md/USER.md/MASK.md to
         # each one would flood the backend with short-lived duplicates instead
         # of performing a one-time migration.
         try:

@@ -636,8 +636,8 @@ def run_conversation(
         # Rogue AI Policy: check for absolute hard halt from rogue AI detection
         try:
             from tools.rogue_ai_policy import check_hard_halt as _check_halt
-            _sid = getattr(agent, '_session_id', None) or "unknown"
-            if _check_halt(_sid):
+            _sid = getattr(agent, '_session_id', None)
+            if _sid and _check_halt(_sid):
                 agent._safe_print("\n🛑 HARD HALT: Rogue AI detected - terminating session immediately")
                 interrupted = True
                 _turn_exit_reason = "rogue_ai_hard_halt"

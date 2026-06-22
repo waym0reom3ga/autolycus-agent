@@ -294,7 +294,7 @@ def test_source_candidate_finds_files_in_custom_workspace(tmp_path: Path):
 
     # No workspace/ directory inside .openclaw — files live in custom workspace
     (custom_ws / "MEMORY.md").write_text("# Memory\n\n- custom workspace entry\n", encoding="utf-8")
-    (custom_ws / "SOUL.md").write_text("# Soul\n\nI am me.\n", encoding="utf-8")
+    (custom_ws / "MASK.md").write_text("# Soul\n\nI am me.\n", encoding="utf-8")
     (custom_ws / "skills" / "my-skill").mkdir(parents=True)
     (custom_ws / "skills" / "my-skill" / "SKILL.md").write_text(
         "---\nname: my-skill\ndescription: test\n---\n\nbody\n",
@@ -320,8 +320,8 @@ def test_source_candidate_finds_files_in_custom_workspace(tmp_path: Path):
     )
     report = migrator.migrate()
 
-    # SOUL.md should have been found and migrated
-    assert (target / "SOUL.md").exists()
+    # MASK.md should have been found and migrated
+    assert (target / "MASK.md").exists()
 
     # MEMORY.md should have been found and migrated
     assert (target / "memories" / "MEMORY.md").exists()
@@ -351,8 +351,8 @@ def test_source_candidate_prefers_standard_workspace_over_custom(tmp_path: Path)
     (source / "workspace").mkdir(parents=True)
 
     # File in both locations
-    (source / "workspace" / "SOUL.md").write_text("# Standard soul\n", encoding="utf-8")
-    (custom_ws / "SOUL.md").write_text("# Custom soul\n", encoding="utf-8")
+    (source / "workspace" / "MASK.md").write_text("# Standard soul\n", encoding="utf-8")
+    (custom_ws / "MASK.md").write_text("# Custom soul\n", encoding="utf-8")
 
     (source / "openclaw.json").write_text(
         json.dumps({"agents": {"defaults": {"workspace": str(custom_ws)}}}),
@@ -372,7 +372,7 @@ def test_source_candidate_prefers_standard_workspace_over_custom(tmp_path: Path)
     migrator.migrate()
 
     # Standard workspace location should have been preferred
-    content = (target / "SOUL.md").read_text(encoding="utf-8")
+    content = (target / "MASK.md").read_text(encoding="utf-8")
     assert "Standard soul" in content
 
 
@@ -949,8 +949,8 @@ def test_migrate_soul_rebrands_content(tmp_path):
     source_root.mkdir()
     workspace = source_root / "workspace"
     workspace.mkdir()
-    soul_md = workspace / "SOUL.md"
-    soul_md.write_text("You are OpenClaw, an AI assistant made by SparkLab.", encoding="utf-8")
+    mask_md = workspace / "MASK.md"
+    mask_md.write_text("You are OpenClaw, an AI assistant made by SparkLab.", encoding="utf-8")
 
     target_root = tmp_path / "lycus"
     target_root.mkdir()
@@ -967,7 +967,7 @@ def test_migrate_soul_rebrands_content(tmp_path):
     )
     migrator.migrate()
 
-    result = (target_root / "SOUL.md").read_text(encoding="utf-8")
+    result = (target_root / "MASK.md").read_text(encoding="utf-8")
     assert "OpenClaw" not in result
     assert "You are Lycus" in result
 

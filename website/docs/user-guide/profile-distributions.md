@@ -12,7 +12,7 @@ If a [profile](./profiles.md) is a local agent, a distribution is that agent mad
 
 Before distributions, sharing a Lycus agent meant sending someone:
 
-1. Your SOUL.md
+1. Your MASK.md
 2. A list of skills to install
 3. Your config.yaml, minus the secrets
 4. A description of which MCP servers you wired up
@@ -26,7 +26,7 @@ With distributions, all of that lives in one git repo:
 ```
 my-research-agent/
 ├── distribution.yaml    # manifest: name, version, env-var requirements
-├── SOUL.md              # the agent's personality / system prompt
+├── MASK.md              # the agent's personality / system prompt
 ├── config.yaml          # model, temperature, reasoning, tool defaults
 ├── skills/              # bundled skills that come with the agent
 ├── cron/                # scheduled tasks the agent runs
@@ -84,7 +84,7 @@ Build and refine the agent like any other profile:
 ```bash
 lycus profile create research-bot
 research-bot setup                    # configure model, API keys
-# Edit ~/.autolycus/profiles/research-bot/SOUL.md
+# Edit ~/.autolycus/profiles/research-bot/MASK.md
 # Install skills, wire up MCP servers, schedule cron jobs, etc.
 research-bot chat                     # dogfood until it feels right
 ```
@@ -140,7 +140,7 @@ Every time the agent reaches a stable point, bump the version and tag:
 
 ```bash
 # Edit distribution.yaml: version: 1.1.0
-git add distribution.yaml SOUL.md skills/
+git add distribution.yaml MASK.md skills/
 git commit -m "v1.1.0: tighter research SOUL, add arxiv skill"
 git tag v1.1.0
 git push --tags
@@ -155,7 +155,7 @@ A complete authored distribution:
 ```
 research-bot/
 ├── distribution.yaml            # required
-├── SOUL.md                      # strongly recommended
+├── MASK.md                      # strongly recommended
 ├── config.yaml                  # model, provider, tool defaults
 ├── mcp.json                     # MCP server connections
 ├── skills/
@@ -173,7 +173,7 @@ When an installer updates to a new version, some things get replaced (author's d
 
 | Category | Paths | On update |
 |---|---|---|
-| **Distribution-owned** | `SOUL.md`, `config.yaml`, `mcp.json`, `skills/`, `cron/`, `distribution.yaml` | Replaced from the new clone |
+| **Distribution-owned** | `MASK.md`, `config.yaml`, `mcp.json`, `skills/`, `cron/`, `distribution.yaml` | Replaced from the new clone |
 | **Config override** | `config.yaml` | Actually preserved by default — the installer may have tuned model or provider. Pass `--force-config` on update to reset. |
 | **User-owned** | `memories/`, `sessions/`, `state.db*`, `auth.json`, `.env`, `logs/`, `workspace/`, `plans/`, `home/`, `*_cache/`, `local/` | Never touched |
 
@@ -181,7 +181,7 @@ You can override the distribution-owned list in the manifest:
 
 ```yaml
 distribution_owned:
-  - SOUL.md
+  - MASK.md
   - skills/research/            # only my research skills; other installed skills stay
   - cron/digest.json
 ```
@@ -501,7 +501,7 @@ The standard git workflow — distributions are just repos:
 lycus profile install github.com/yourname/forked-research-bot --alias
 
 # Iterate locally in ~/.autolycus/profiles/forked-research-bot/
-# Edit SOUL.md, commit, push to your fork
+# Edit MASK.md, commit, push to your fork
 # Upstream changes: pull them into your fork the usual way
 ```
 
@@ -545,7 +545,7 @@ Profile distributions are unsigned by default. You're trusting:
 - **The git host** (GitHub / GitLab / wherever) to serve the bytes the author pushed.
 - **The author** to not ship a malicious SOUL, skills, or cron jobs.
 
-Cron jobs from a distribution are **not auto-scheduled** — the installer prints `lycus -p <name> cron list` and you enable them explicitly. SOUL.md and skills ARE active as soon as you start chatting with the profile, so read them before your first run if you're installing from someone you don't know.
+Cron jobs from a distribution are **not auto-scheduled** — the installer prints `lycus -p <name> cron list` and you enable them explicitly. MASK.md and skills ARE active as soon as you start chatting with the profile, so read them before your first run if you're installing from someone you don't know.
 
 Rough analogy: installing a distribution is like installing a browser extension or a VS Code extension. Low friction, high power, trust the source. For internal company distributions, use a private repo and your normal git auth — nothing new to configure.
 

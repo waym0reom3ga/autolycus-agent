@@ -9,7 +9,7 @@ fork inherits the cached prompt verbatim.
 
 Three tiers are joined with ``\\n\\n``:
 
-* ``stable``   — identity (SOUL.md or DEFAULT_AGENT_IDENTITY), tool
+* ``stable``   — identity (MASK.md or DEFAULT_AGENT_IDENTITY), tool
   guidance, computer-use guidance, nous subscription block, tool-use
   enforcement guidance + per-model operational guidance, skills prompt,
   alibaba model-name workaround, environment hints, platform hints.
@@ -47,11 +47,11 @@ from agent.runtime_cwd import resolve_context_cwd
 def _ra():
     """Lazy reference to the ``run_agent`` module.
 
-    Helpers like ``load_soul_md``, ``build_environment_hints``,
+    Helpers like ``load_mask_md``, ``build_environment_hints``,
     ``build_context_files_prompt``, ``build_nous_subscription_prompt``,
     ``build_skills_system_prompt`` and ``get_toolset_for_tool`` are
     imported into ``run_agent``'s namespace.  Many tests
-    ``patch("run_agent.load_soul_md", ...)``; if we imported them
+    ``patch("run_agent.load_mask_md", ...)``; if we imported them
     directly here those patches would not reach us.  Looking them up
     through ``run_agent`` on every call preserves the patch contract.
     """
@@ -85,12 +85,12 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # ── Stable tier ────────────────────────────────────────────────
     stable_parts: List[str] = []
 
-    # Try SOUL.md as primary identity unless the caller explicitly skipped it.
+    # Try MASK.md as primary identity unless the caller explicitly skipped it.
     # Some execution modes (cron) still want AUTOLYCUS_HOME persona while keeping
     # cwd project instructions disabled.
     _soul_loaded = False
     if agent.load_soul_identity or not agent.skip_context_files:
-        _soul_content = _r.load_soul_md()
+        _soul_content = _r.load_mask_md()
         if _soul_content:
             stable_parts.append(_soul_content)
             _soul_loaded = True

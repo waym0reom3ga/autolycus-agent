@@ -64,7 +64,7 @@ messaging platforms.
 
 **Project-level:** add the bias to `AGENTS.md` / `CLAUDE.md` /
 `.cursorrules` in a project the agent works from, to your global
-persona in `~/.autolycus/SOUL.md`, or as a named preset under
+persona in `~/.autolycus/MASK.md`, or as a named preset under
 `agent.personalities` in `~/.autolycus/config.yaml` (switchable per session
 via `/personality`).
 

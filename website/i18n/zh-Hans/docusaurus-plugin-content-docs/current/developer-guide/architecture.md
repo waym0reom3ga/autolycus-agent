@@ -197,7 +197,7 @@ lycus-agent/
 
 在对话生命周期中构建和维护 prompt：
 
-- **`prompt_builder.py`** — 从以下来源组装系统 prompt：个性（SOUL.md）、记忆（MEMORY.md、USER.md）、skill、上下文文件（AGENTS.md、.autolycus.md）、工具使用指引以及模型专项指令
+- **`prompt_builder.py`** — 从以下来源组装系统 prompt：个性（MASK.md）、记忆（MEMORY.md、USER.md）、skill、上下文文件（AGENTS.md、.autolycus.md）、工具使用指引以及模型专项指令
 - **`prompt_caching.py`** — 为前缀缓存应用 Anthropic 缓存断点
 - **`context_compressor.py`** — 当上下文超出阈值时对中间对话轮次进行摘要
 
