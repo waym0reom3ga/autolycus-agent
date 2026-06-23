@@ -699,7 +699,7 @@ export default function SystemPage() {
               <div>
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Lycus</div>
                 <div className="flex items-center gap-2">
-                  <span>v{stats?.autolycus_version}</span>
+                  <span>v{stats?.lycus_version}</span>
                   {canUpdateLycus &&
                     updateInfo &&
                     (updateInfo.update_available ? (
