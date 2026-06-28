@@ -3004,8 +3004,13 @@ def _build_compact_banner() -> str:
     dim_color = _skin.get_color("banner_dim", "#B8860B") if _skin else "#B8860B"
 
     if skin_name == "default":
-        line1 = "🔱 NOUS HERMES - AI Agent Framework"
-        tiny_line = "🔱 NOUS HERMES"
+        try:
+            from agent.prompt_builder import get_agent_name
+            _agent_name = get_agent_name()
+        except Exception:
+            _agent_name = "Lycus Agent"
+        line1 = f"🔱 {_agent_name} - AI Agent Framework"
+        tiny_line = f"🔱 {_agent_name}"
     else:
         try:
             from agent.prompt_builder import get_agent_name
