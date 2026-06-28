@@ -175,7 +175,7 @@ from lycus_cli.browser_connect import (
     try_launch_chrome_debug,
 )
 from lycus_cli.env_loader import load_lycus_dotenv
-from utils import base_url_host_matches
+from utils import base_url_host_matches, fast_safe_load
 
 _lycus_home = get_lycus_home()
 _project_env = Path(__file__).parent / '.env'
@@ -509,7 +509,7 @@ def load_cli_config() -> Dict[str, Any]:
             with open(config_path, "r", encoding="utf-8") as f:
                 from lycus_cli.config import _normalize_root_model_keys
 
-                file_config = _normalize_root_model_keys(yaml.safe_load(f) or {})
+                file_config = _normalize_root_model_keys(fast_safe_load(f) or {})
             
             _file_has_terminal_config = "terminal" in file_config
 
@@ -8539,7 +8539,7 @@ class LycusCLI(CLIAgentSetupMixin, CLICommandsMixin):
         self._config_mtime = mtime
         try:
             with open(cfg_path, encoding="utf-8") as f:
-                new_cfg = _yaml.safe_load(f) or {}
+                new_cfg = _fast_safe_load(f) or {}
         except Exception:
             return
 
