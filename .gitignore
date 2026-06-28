@@ -38,7 +38,6 @@ run_datagen_kimik2-thinking.sh
 run_datagen_megascience_glm4-6.sh
 run_datagen_sonnet.sh
 source-data/*
-run_datagen_megascience_glm4-6.sh
 data/*
 node_modules/
 browser-use/
@@ -60,7 +59,6 @@ cli-config.yaml
 skills/.hub/
 ignored/
 .worktrees/
-environments/benchmarks/evals/
 
 # Web UI build output
 hermes_cli/web_dist/
@@ -76,7 +74,6 @@ web/public/ds-assets/
 
 # Release script temp files
 .release_notes.md
-mini-swe-agent/
 
 # Nix
 .direnv/
@@ -107,11 +104,6 @@ hermes_cli/tui_dist/*
 hermes_cli/scripts/
 docs/superpowers/*
 docs/superpowers/*/comm/target/
-# Working directory for the Lycus Agent's session state (~/.lycus/ at runtime;
-# also created in-repo when an agent operates in this checkout). Plans, audit
-# logs, and per-session caches are never artifacts of the codebase.
-.hermes/
-
 # Desktop/bootstrap install marker written into the managed checkout root by the
 # bootstrap installer. It is Hermes-managed runtime state, never a code change —
 # ignore it so `hermes update`'s `git stash push --include-untracked` does not
