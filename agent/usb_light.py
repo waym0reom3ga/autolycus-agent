@@ -45,8 +45,13 @@ _device_path: Optional[str] = None
 _device_lock = threading.Lock()
 
 
-def _send_packet(light_byte: int, delay_ms: int = 0) -> bool:
-    """Send a single 5-byte packet to the USB device via shell printf.
+def _build_packet(light_byte: int) -> bytes:
+    """Build the 5-byte packet."""
+    return bytes([0xFF, light_byte, BUZZER_OFF, FLASH_NONE, 0xAA])
+
+
+def _send_packet(light_byte: int) -> bool:
+    """Send a single 5-byte packet to the USB device.
 
     Returns True if successful, False otherwise (silent failure).
     Lazily detects device on first call if background detection hasn't found one yet.
@@ -54,7 +59,6 @@ def _send_packet(light_byte: int, delay_ms: int = 0) -> bool:
     global _device_path
     with _device_lock:
         port = _device_path
-        # Lazy detection: if background thread didn't find a device, try now
         if not port:
             port = _detect_device()
             if port:
@@ -63,16 +67,15 @@ def _send_packet(light_byte: int, delay_ms: int = 0) -> bool:
     if not port or not os.path.exists(port):
         return False
 
-    # Build packet: FF [light] [buzzer_off] [flash_none] AA
-    cmd = (
-        f"stty -F {port} raw 9600 cs8 -cstopb -parenb && "
-        f"printf '\\\\xFF\\\\x{light_byte:02X}\\\\x{BUZZER_OFF:02X}\\\\x{FLASH_NONE:02X}\\\\xAA' > {port}"
-    )
+    packet = _build_packet(light_byte)
     try:
-        subprocess.run(
-            cmd, shell=True, timeout=2,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+        # Use python3 -c to write raw bytes directly (avoids shell escaping issues)
+        import shlex
+        escaped_port = shlex.quote(port)
+        hex_str = ''.join(f'\\x{b:02X}' for b in packet)
+        cmd = f"stty -F {escaped_port} raw 9600 cs8 -cstopb -parenb && printf '{hex_str}' > {escaped_port}"
+        subprocess.run(cmd, shell=True, timeout=2,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
     except Exception as e:
         logger.debug("USB light send failed: %s", e)
@@ -106,8 +109,18 @@ def signal_done() -> None:
         _send_packet(LIGHT_OFF)
         time.sleep(0.3)
     _send_packet(LIGHT_RED)
-    # Auto-turn off after 30 seconds (non-blocking background timer)
-    threading.Timer(30, lambda: _send_packet(LIGHT_OFF)).start()
+    # Auto-turn off after 30 seconds via independent subprocess (survives process exit)
+    port = _device_path or _detect_device()
+    if port:
+        packet_hex = ''.join(f'\\x{b:02X}' for b in _build_packet(LIGHT_OFF))
+        import shlex
+        escaped_port = shlex.quote(port)
+        cmd = (f"sleep 30 && stty -F {escaped_port} raw 9600 cs8 -cstopb -parenb && "
+               f"printf '{packet_hex}' > {escaped_port}")
+        try:
+            subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            logger.debug("USB light timer spawn failed: %s", e)
 
 
 def signal_error() -> None:
@@ -130,7 +143,6 @@ def _detect_device() -> Optional[str]:
     try:
         import glob
 
-        # Check common ttyUSB paths
         candidates = sorted(glob.glob("/dev/ttyUSB*"))
         if not candidates:
             return None
@@ -142,7 +154,6 @@ def _detect_device() -> Optional[str]:
                 capture_output=True, text=True, timeout=5,
             )
             if result.returncode == 0 and result.stdout.strip():
-                # CH340 device found — use the first ttyUSB
                 logger.info("Detected USB Andon light at %s (CH340 via lsusb)", candidates[0])
                 return candidates[0]
         except Exception:
