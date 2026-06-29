@@ -60,6 +60,13 @@ def clarify_tool(
             ensure_ascii=False,
         )
 
+    # ── USB Andon light: signal permission request ─────────────────
+    try:
+        from agent.usb_light import signal_permission
+        signal_permission()
+    except Exception:
+        pass  # No device — silent no-op
+
     try:
         user_response = callback(question, choices)
     except Exception as exc:

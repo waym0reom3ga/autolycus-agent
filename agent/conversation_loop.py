@@ -558,6 +558,13 @@ def run_conversation(
     Returns:
         Dict: Complete conversation result with final response and message history
     """
+    # ── USB Andon light: signal user input received ────────────────
+    try:
+        from agent.usb_light import signal_start
+        signal_start()
+    except Exception:
+        pass  # No device or detection failed — silent no-op
+
     # ── Per-turn setup (the prologue) ──
     # All once-per-turn setup — stdio guarding, retry-counter resets, user
     # message sanitization, todo/nudge hydration, system-prompt restore-or-
@@ -4601,9 +4608,22 @@ def run_conversation(
                 _turn_exit_reason = f"text_response(finish_reason={finish_reason})"
                 if not agent.quiet_mode:
                     agent._safe_print(f"🎉 Conversation completed after {api_call_count} OpenAI-compatible API call(s)")
+                # ── USB Andon light: signal completion ───────────────
+                try:
+                    from agent.usb_light import signal_done
+                    signal_done()
+                except Exception:
+                    pass
                 break
             
         except Exception as e:
+            # ── USB Andon light: signal error ────────────────────────
+            try:
+                from agent.usb_light import signal_error
+                signal_error()
+            except Exception:
+                pass
+
             error_msg = f"Error during OpenAI-compatible API call #{api_call_count}: {str(e)}"
             try:
                 print(f"❌ {error_msg}")
