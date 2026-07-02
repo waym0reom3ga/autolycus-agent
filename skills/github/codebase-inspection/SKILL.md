@@ -76,7 +76,7 @@ pygount --suffix=py,yaml,yml --format=summary .
 pygount --folders-to-skip=".git,node_modules,venv" .
 
 # Sort by code lines (pipe through sort)
-pygount --folders-to-skip=".git,node_modules,venv" . | sort -t$'\t' -k1 -nr | head -20
+pygount --folders-to-skip=".git,node_modules,venv" . | sort -t$'\t' -k1 -nr | 
 ```
 
 ## 5. Output Formats

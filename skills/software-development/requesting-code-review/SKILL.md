@@ -76,34 +76,34 @@ Only NEW failures introduced by your changes block the commit.
 
 **Test frameworks** (auto-detect by project files):
 ```bash
-# Python (pytest)
-python -m pytest --tb=no -q 2>&1 | tail -5
+# Python (pytest) — save full output, read file after
+python -m pytest --tb=no -q > /tmp/test_output.txt 2>&1; echo "exit=$?" >> /tmp/test_output.txt
 
 # Node (npm test)
-npm test -- --passWithNoTests 2>&1 | tail -5
+npm test -- --passWithNoTests > /tmp/test_output.txt 2>&1; echo "exit=$?" >> /tmp/test_output.txt
 
 # Rust
-cargo test 2>&1 | tail -5
+cargo test > /tmp/test_output.txt 2>&1; echo "exit=$?" >> /tmp/test_output.txt
 
 # Go
-go test ./... 2>&1 | tail -5
+go test ./... > /tmp/test_output.txt 2>&1; echo "exit=$?" >> /tmp/test_output.txt
 ```
 
 **Linting and type checking** (run only if installed):
 ```bash
-# Python
-which ruff && ruff check . 2>&1 | tail -10
-which mypy && mypy . --ignore-missing-imports 2>&1 | tail -10
+# Python — save full output, read file after
+which ruff && ruff check . > /tmp/lint_output.txt 2>&1
+which mypy && mypy . --ignore-missing-imports > /tmp/type_check.txt 2>&1
 
 # Node
-which npx && npx eslint . 2>&1 | tail -10
-which npx && npx tsc --noEmit 2>&1 | tail -10
+which npx && npx eslint . > /tmp/eslint_output.txt 2>&1
+which npx && npx tsc --noEmit > /tmp/tsc_output.txt 2>&1
 
 # Rust
-cargo clippy -- -D warnings 2>&1 | tail -10
+cargo clippy -- -D warnings > /tmp/clippy_output.txt 2>&1
 
 # Go
-which go && go vet ./... 2>&1 | tail -10
+which go && go vet ./... > /tmp/go_vet.txt 2>&1
 ```
 
 **Baseline comparison:** If baseline was clean and your changes introduce failures,

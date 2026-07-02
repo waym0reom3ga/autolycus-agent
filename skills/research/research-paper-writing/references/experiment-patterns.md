@@ -425,7 +425,7 @@ For each experiment batch, create a monitoring prompt:
 Check the status of the [EXPERIMENT_NAME] experiment:
 
 1. Process check: ps aux | grep [PROCESS_PATTERN]
-2. Log check: tail -30 [LOG_FILE]
+2. Log check: cp [LOG_FILE] /tmp/experiment_log.txt
 3. Results check: ls [RESULT_DIR]/eval/ (or appropriate result location)
 4. If results are available:
    - Read the result JSON files

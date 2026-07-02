@@ -96,10 +96,10 @@ Use this skill when:
 ### Step 0.1: Explore the Repository
 
 ```bash
-# Understand project structure
-ls -la
-find . -name "*.py" | head -30
-find . -name "*.md" -o -name "*.txt" | xargs grep -l -i "result\|conclusion\|finding"
+# Understand project structure — save full output, read file after
+ls -la > /tmp/project_structure.txt 2>&1
+find . -name "*.py" > /tmp/python_files.txt 2>/dev/null
+find . -name "*.md" -o -name "*.txt" | xargs grep -l -i "result\|conclusion\|finding" > /tmp/result_docs.txt 2>/dev/null
 ```
 
 Look for:
@@ -488,9 +488,9 @@ For long-running experiments, set up periodic status checks. The cron prompt sho
 
 ```
 Monitor Prompt Template:
-1. Check if process is still running: ps aux | grep <pattern>
-2. Read last 30 lines of log: tail -30 <logfile>
-3. Check for completed results: ls <result_dir>
+1. Check if process is still running: ps aux | grep <pattern> > /tmp/process_status.txt 2>&1
+2. Read full log to file: cp <logfile> /tmp/experiment_log.txt
+3. Check for completed results: ls <result_dir> > /tmp/results_list.txt 2>&1
 4. If results exist, read and report: cat <result_file>
 5. If all done, commit: git add -A && git commit -m "<descriptive message>" && git push
 6. Report in structured format (tables with key metrics)
@@ -2154,9 +2154,9 @@ Compose this skill with other Lycus skills for specific phases:
 
 **Experiment monitoring** (most common):
 ```
-terminal("ps aux | grep <pattern>")
-→ terminal("tail -30 <logfile>")
-→ terminal("ls results/")
+terminal("ps aux | grep <pattern> > /tmp/process_status.txt 2>&1")
+→ terminal("cp <logfile> /tmp/experiment_log.txt")
+→ terminal("ls results/ > /tmp/results_list.txt 2>&1")
 → execute_code("analyze results JSON, compute metrics")
 → terminal("git add -A && git commit -m '<descriptive message>' && git push")
 → send_message("Experiment complete: <summary>")
@@ -2220,9 +2220,9 @@ todo("update", id=1, status="completed")
 ```
 1. todo("list")                           # Check current task list
 2. memory("read")                         # Recall key decisions
-3. terminal("git log --oneline -10")      # Check recent commits
-4. terminal("ps aux | grep python")       # Check running experiments
-5. terminal("ls results/ | tail -20")     # Check for new results
+3. terminal("git log --oneline -10 > /tmp/recent_commits.txt 2>&1")      # Check recent commits
+4. terminal("ps aux | grep python > /tmp/running_experiments.txt 2>&1")       # Check running experiments
+5. terminal("ls results/ > /tmp/results_list.txt 2>&1")     # Check for new results
 6. Report status to user, ask for direction
 ```
 
@@ -2234,9 +2234,9 @@ Use the `cronjob` tool to schedule periodic experiment checks:
 cronjob("create", {
   "schedule": "*/30 * * * *",  # Every 30 minutes
   "prompt": "Check experiment status:
-    1. ps aux | grep run_experiment
-    2. tail -30 logs/experiment_haiku.log
-    3. ls results/haiku_baselines/
+    1. ps aux | grep run_experiment > /tmp/experiment_status.txt 2>&1
+    2. cp logs/experiment_haiku.log /tmp/haiku_log.txt
+    3. ls results/haiku_baselines/ > /tmp/haiku_results.txt 2>&1
     4. If complete: read results, compute Borda scores, 
        git add -A && git commit -m 'Add Haiku results' && git push
     5. Report: table of results, key finding, next step
