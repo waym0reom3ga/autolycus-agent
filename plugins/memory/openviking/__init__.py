@@ -422,6 +422,10 @@ class OpenVikingMemoryProvider(MemoryProvider):
         self._prefetch_result = ""
         self._prefetch_lock = threading.Lock()
         self._prefetch_thread: Optional[threading.Thread] = None
+        # Track memory mirror write threads so shutdown can drain them.
+        self._memory_write_threads: set = set()
+        # Set on shutdown so deferred writers stop issuing network calls.
+        self._shutting_down = False
 
     @property
     def name(self) -> str:
@@ -658,9 +662,18 @@ class OpenVikingMemoryProvider(MemoryProvider):
                 })
             except Exception as e:
                 logger.debug("OpenViking memory mirror failed: %s", e)
+            finally:
+                self._memory_write_threads.discard(threading.current_thread())
 
+        if self._shutting_down:
+            return
         t = threading.Thread(target=_write, daemon=True, name="openviking-memwrite")
-        t.start()
+        self._memory_write_threads.add(t)
+        try:
+            t.start()
+        except Exception as e:
+            self._memory_write_threads.discard(t)
+            logger.debug("OpenViking memory mirror worker failed to start: %s", e)
 
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
         return [SEARCH_SCHEMA, READ_SCHEMA, BROWSE_SCHEMA, REMEMBER_SCHEMA, ADD_RESOURCE_SCHEMA]
@@ -685,7 +698,13 @@ class OpenVikingMemoryProvider(MemoryProvider):
             return tool_error(str(e))
 
     def shutdown(self) -> None:
-        # Wait for background threads to finish
+        # Signal writers to stop, then wait for in-flight threads.
+        self._shutting_down = True
+        for t in list(self._memory_write_threads):
+            if t.is_alive():
+                t.join(timeout=3.0)
+        self._memory_write_threads.clear()
+        # Wait for background sync/prefetch threads to finish
         for t in (self._sync_thread, self._prefetch_thread):
             if t and t.is_alive():
                 t.join(timeout=5.0)
