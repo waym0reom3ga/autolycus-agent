@@ -38,8 +38,8 @@ _HERMES_CORE_TOOLS = [
     "read_terminal",
     # File manipulation
     "read_file", "write_file", "patch", "search_files",
-    # Vision + image generation
-    "vision_analyze", "image_generate",
+    # Image generation
+    "image_generate",
     # Skills
     "skills_list", "skill_view", "skill_manage",
     # Browser automation
@@ -81,7 +81,6 @@ _HERMES_CORE_TOOLS = [
 _HERMES_WEBHOOK_SAFE_TOOLS = [
     "web_search",
     "web_extract",
-    "vision_analyze",
     "clarify",
 ]
 
@@ -113,12 +112,6 @@ TOOLSETS = {
         "includes": []
     },
     
-    "vision": {
-        "description": "Image analysis and vision tools",
-        "tools": ["vision_analyze"],
-        "includes": []
-    },
-
     "video": {
         "description": "Video analysis and understanding tools (opt-in, not in default toolset)",
         "tools": ["video_analyze"],
@@ -337,7 +330,7 @@ TOOLSETS = {
     "safe": {
         "description": "Safe toolkit without terminal access",
         "tools": [],
-        "includes": ["web", "vision", "image_gen"]
+        "includes": ["web", "image_gen"]
     },
 
     # Coding posture (base Lycus — CLI/TUI/desktop/ACP). Auto-selected in a
@@ -345,12 +338,11 @@ TOOLSETS = {
     # for while pairing on code and drops the rest (messaging, tts, image_gen,
     # spotify, home-assistant, cron, computer-use).
     "coding": {
-        "description": "Coding-focused toolset: files, terminal, search, web docs, skills, todo, delegate, vision, browser",
+        "description": "Coding-focused toolset: files, terminal, search, web docs, skills, todo, delegate, browser",
         "tools": [
             "web_search", "web_extract",
             "terminal", "process", "read_terminal",
             "read_file", "write_file", "patch", "search_files",
-            "vision_analyze",
             "skills_list", "skill_view", "skill_manage",
             "browser_navigate", "browser_snapshot", "browser_click",
             "browser_type", "browser_scroll", "browser_back",
@@ -380,7 +372,6 @@ TOOLSETS = {
             "web_search", "web_extract",
             "terminal", "process",
             "read_file", "write_file", "patch", "search_files",
-            "vision_analyze",
             "skills_list", "skill_view", "skill_manage",
             "browser_navigate", "browser_snapshot", "browser_click",
             "browser_type", "browser_scroll", "browser_back",
@@ -402,8 +393,8 @@ TOOLSETS = {
             "terminal", "process",
             # File manipulation
             "read_file", "write_file", "patch", "search_files",
-            # Vision + image generation
-            "vision_analyze", "image_generate",
+            # Image generation
+            "image_generate",
             # Skills
             "skills_list", "skill_view", "skill_manage",
             # Browser automation
@@ -901,8 +892,8 @@ if __name__ == "__main__":
     
     print("\nMultiple Toolset Resolution:")
     print("-" * 40)
-    combined = resolve_multiple_toolsets(["web", "vision", "terminal"])
-    print("  Combining ['web', 'vision', 'terminal']:")
+    combined = resolve_multiple_toolsets(["web", "terminal"])
+    print("  Combining ['web', 'terminal']:")
     print(f"    Result: {', '.join(sorted(combined))}")
     
     print("\nCustom Toolset Creation:")
@@ -911,7 +902,7 @@ if __name__ == "__main__":
         name="my_custom",
         description="My custom toolset for specific tasks",
         tools=["web_search"],
-        includes=["terminal", "vision"]
+        includes=["terminal"]
     )
     custom_info = get_toolset_info("my_custom")
     print("  Created 'my_custom' toolset:")

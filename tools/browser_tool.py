@@ -3234,119 +3234,27 @@ def browser_vision(question: str, annotate: bool = False, task_id: Optional[str]
         _screenshot_b64 = base64.b64encode(_screenshot_bytes).decode("ascii")
         data_url = f"data:image/png;base64,{_screenshot_b64}"
 
-        # Fast path: when native image routing is in effect for the active main
-        # model, attach the screenshot directly instead of describing it through
-        # an auxiliary vision LLM. The model inspects the pixels on its next
-        # turn — no aux call, no information loss. Consistent with vision_analyze.
-        from tools.vision_tools import (
-            _build_native_vision_tool_result,
-            _should_use_native_vision_fast_path,
+        # Always attach screenshot as native multimodal envelope — same-turn delivery.
+        from tools.vision_tools import _build_native_vision_tool_result
+
+        # Always return native multimodal envelope — same-turn delivery for all models.
+        native_result = _build_native_vision_tool_result(
+            image_url=str(screenshot_path),
+            question=question,
+            image_data_url=data_url,
+            image_size_bytes=len(_screenshot_bytes),
         )
-
-        if _should_use_native_vision_fast_path():
-            native_result = _build_native_vision_tool_result(
-                image_url=str(screenshot_path),
-                question=question,
-                image_data_url=data_url,
-                image_size_bytes=len(_screenshot_bytes),
-            )
-            meta = native_result.setdefault("meta", {})
-            meta["screenshot_path"] = str(screenshot_path)
-            if _lp_fallback_warning:
-                meta["fallback_warning"] = _lp_fallback_warning
-            if annotate and result.get("data", {}).get("annotations"):
-                meta["annotations"] = result["data"]["annotations"]
-            native_result["text_summary"] = (
-                f"{native_result.get('text_summary', '')} "
-                f"Screenshot path: {screenshot_path}"
-            ).strip()
-            return native_result
-
-        vision_prompt = (
-            f"You are analyzing a screenshot of a web browser.\n\n"
-            f"User's question: {question}\n\n"
-            f"Provide a detailed and helpful answer based on what you see in the screenshot. "
-            f"If there are interactive elements, describe them. If there are verification challenges "
-            f"or CAPTCHAs, describe what type they are and what action might be needed. "
-            f"Focus on answering the user's specific question."
-        )
-
-        # Use the centralized LLM router
-        vision_model = _get_vision_model()
-        logger.debug("browser_vision: analysing screenshot (%d bytes)",
-                     len(_screenshot_bytes))
-
-        # Read vision timeout/temperature from config (auxiliary.vision.*).
-        # Local vision models (llama.cpp, ollama) can take well over 30s for
-        # screenshot analysis, so the default timeout must be generous.
-        vision_timeout = 120.0
-        vision_temperature = 0.1
-        try:
-            from lycus_cli.config import load_config
-            _cfg = load_config()
-            _vision_cfg = cfg_get(_cfg, "auxiliary", "vision", default={})
-            _vt = _vision_cfg.get("timeout")
-            if _vt is not None:
-                vision_timeout = float(_vt)
-            _vtemp = _vision_cfg.get("temperature")
-            if _vtemp is not None:
-                vision_temperature = float(_vtemp)
-        except Exception:
-            pass
-
-        call_kwargs = {
-            "task": "vision",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": vision_prompt},
-                        {"type": "image_url", "image_url": {"url": data_url}},
-                    ],
-                }
-            ],
-            "max_tokens": 2000,
-            "temperature": vision_temperature,
-            "timeout": vision_timeout,
-        }
-        if vision_model:
-            call_kwargs["model"] = vision_model
-        # Try full-size screenshot; on size-related rejection, downscale and retry.
-        try:
-            response = call_llm(**call_kwargs)
-        except Exception as _api_err:
-            from tools.vision_tools import (
-                _is_image_size_error, _resize_image_for_vision, _RESIZE_TARGET_BYTES,
-            )
-            if (_is_image_size_error(_api_err)
-                    and len(data_url) > _RESIZE_TARGET_BYTES):
-                logger.info(
-                    "Vision API rejected screenshot (%.1f MB); "
-                    "auto-resizing to ~%.0f MB and retrying...",
-                    len(data_url) / (1024 * 1024),
-                    _RESIZE_TARGET_BYTES / (1024 * 1024),
-                )
-                data_url = _resize_image_for_vision(
-                    screenshot_path, mime_type="image/png")
-                call_kwargs["messages"][0]["content"][1]["image_url"]["url"] = data_url
-                response = call_llm(**call_kwargs)
-            else:
-                raise
-
-        analysis = (response.choices[0].message.content or "").strip()
-        # Redact secrets the vision LLM may have read from the screenshot.
-        from agent.redact import redact_sensitive_text
-        analysis = redact_sensitive_text(analysis)
-        response_data = {
-            "success": True,
-            "analysis": analysis or "Vision analysis returned no content.",
-            "screenshot_path": str(screenshot_path),
-        }
-        _copy_fallback_warning(response_data, result)
-        # Include annotation data if annotated screenshot was taken
+        meta = native_result.setdefault("meta", {})
+        meta["screenshot_path"] = str(screenshot_path)
+        if _lp_fallback_warning:
+            meta["fallback_warning"] = _lp_fallback_warning
         if annotate and result.get("data", {}).get("annotations"):
-            response_data["annotations"] = result["data"]["annotations"]
-        return json.dumps(response_data, ensure_ascii=False)
+            meta["annotations"] = result["data"]["annotations"]
+        native_result["text_summary"] = (
+            f"{native_result.get('text_summary', '')} "
+            f"Screenshot path: {screenshot_path}"
+        ).strip()
+        return native_result
 
     except Exception as e:
         # Keep the screenshot if it was captured successfully — the failure is

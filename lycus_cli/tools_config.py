@@ -58,7 +58,6 @@ CONFIGURABLE_TOOLSETS = [
     ("terminal",        "💻 Terminal & Processes",      "terminal, process"),
     ("file",            "📁 File Operations",           "read, write, patch, search"),
     ("code_execution",  "⚡ Code Execution",            "execute_code"),
-    ("vision",          "👁️  Vision / Image Analysis",  "vision_analyze"),
     ("video",           "🎬 Video Analysis",            "video_analyze (requires video-capable model)"),
     ("image_gen",       "🎨 Image Generation",          "image_generate"),
     ("video_gen",       "🎬 Video Generation",          "video_generate (text-to-video + image-to-video)"),
@@ -565,9 +564,8 @@ TOOL_CATEGORIES = {
 }
 
 # Simple env-var requirements for toolsets NOT in TOOL_CATEGORIES.
-# Used as a fallback for tools like vision/moa that just need an API key.
+# Used as a fallback for tools like moa that just need an API key.
 TOOLSET_ENV_REQUIREMENTS = {
-    "vision":     [("OPENROUTER_API_KEY",   "https://openrouter.ai/keys")],
     "moa":        [("OPENROUTER_API_KEY",   "https://openrouter.ai/keys")],
 }
 
@@ -1605,15 +1603,6 @@ def _toolset_has_keys(
     if config is None:
         config = load_config()
 
-    if ts_key == "vision":
-        try:
-            from agent.auxiliary_client import resolve_vision_provider_client
-
-            _provider, client, _model = resolve_vision_provider_client()
-            return client is not None
-        except Exception:
-            return False
-
     if ts_key in {"web", "image_gen", "video_gen", "tts", "browser"}:
         features = get_nous_subscription_features(config, force_fresh=force_fresh)
         feature = features.features.get(ts_key)
@@ -1773,7 +1762,7 @@ def _configure_toolset(
     if cat:
         _configure_tool_category(ts_key, cat, config, force_fresh=force_fresh)
     else:
-        # Simple fallback for vision, moa, etc.
+        # Simple fallback for moa, etc.
         _configure_simple_requirements(ts_key)
 
 
@@ -3007,44 +2996,6 @@ def _configure_provider(
 
 def _configure_simple_requirements(ts_key: str):
     """Simple fallback for toolsets that just need env vars (no provider selection)."""
-    if ts_key == "vision":
-        if _toolset_has_keys("vision"):
-            return
-        print()
-        print(color("  Vision / Image Analysis requires a multimodal backend:", Colors.YELLOW))
-        choices = [
-            "OpenRouter — uses Gemini",
-            "OpenAI-compatible endpoint — base URL, API key, and vision model",
-            "Skip",
-        ]
-        idx = _prompt_choice("  Configure vision backend", choices, 2)
-        if idx == 0:
-            _print_info("  Get key at: https://openrouter.ai/keys")
-            value = _prompt("    OPENROUTER_API_KEY", password=True)
-            if value and value.strip():
-                save_env_value("OPENROUTER_API_KEY", value.strip())
-                _print_success("    Saved")
-            else:
-                _print_warning("    Skipped")
-        elif idx == 1:
-            base_url = _prompt("    OPENAI_BASE_URL (blank for OpenAI)").strip() or "https://api.openai.com/v1"
-            is_native_openai = base_url_hostname(base_url) == "api.openai.com"
-            key_label = "    OPENAI_API_KEY" if is_native_openai else "    API key"
-            api_key = _prompt(key_label, password=True)
-            if api_key and api_key.strip():
-                save_env_value("OPENAI_API_KEY", api_key.strip())
-                # Save vision base URL to config (not .env — only secrets go there)
-                _cfg = load_config()
-                _aux = _cfg.setdefault("auxiliary", {}).setdefault("vision", {})
-                _aux["base_url"] = base_url
-                save_config(_cfg)
-                if is_native_openai:
-                    save_env_value("AUXILIARY_VISION_MODEL", "gpt-4o-mini")
-                _print_success("    Saved")
-            else:
-                _print_warning("    Skipped")
-        return
-
     requirements = TOOLSET_ENV_REQUIREMENTS.get(ts_key, [])
     if not requirements:
         return

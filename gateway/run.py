@@ -15092,6 +15092,24 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 # content list. Consume-and-clear so subsequent turns on the same
                 # runner instance don't re-attach stale images.
                 _native_imgs = self._consume_pending_native_image_paths(session_key)
+
+                # Also scan for embedded image paths in the message text itself.
+                # This catches paths mid-message that weren't caught by platform adapters.
+                if isinstance(message, str):
+                    try:
+                        from cli import _find_image_paths_in_text as _cli_find_images
+                        _embedded = _cli_find_images(message)
+                        if _embedded and not _native_imgs:
+                            _native_imgs = [str(p) for p in _embedded]
+                        elif _embedded and _native_imgs:
+                            # Merge embedded images with platform-attached ones
+                            for _img in _embedded:
+                                _s = str(_img)
+                                if _s not in _native_imgs:
+                                    _native_imgs.append(_s)
+                    except Exception as _scan_exc:
+                        logger.debug("Embedded image scan failed: %s", _scan_exc)
+
                 if _native_imgs:
                     try:
                         from agent.image_routing import build_native_content_parts
