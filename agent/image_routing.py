@@ -1,16 +1,9 @@
 """Routing helpers for inbound user-attached images.
 
-Two modes:
-
-  native  — attach images as OpenAI-style ``image_url`` content parts on the
-            user turn. Provider adapters (Anthropic, Gemini, Bedrock, Codex,
-            OpenAI chat.completions) already translate these into their
-            vendor-specific multimodal formats.
-
-  text    — run ``vision_analyze`` on each image up-front and prepend the
-            description to the user's text. The model never sees the pixels;
-            it only sees a lossy text summary. This is the pre-existing
-            behaviour and still the right choice for non-vision models.
+Images are attached as OpenAI-style ``image_url`` content parts on the
+user turn. Provider adapters (Anthropic, Gemini, Bedrock, Codex,
+OpenAI chat.completions) already translate these into their
+vendor-specific multimodal formats.
 
 The decision is made once per message turn by :func:`decide_image_input_mode`.
 It reads ``agent.image_input_mode`` from config.yaml (``auto`` | ``native``
@@ -25,11 +18,8 @@ In ``auto`` mode:
     models.dev metadata, we attach natively.
   - Otherwise (non-vision model, no explicit override), we fall back to text.
 
-This keeps ``vision_analyze`` surfaced as a tool in every session — skills
-and agent flows that chain it (browser screenshots, deeper inspection of
-URL-referenced images, style-gating loops) keep working. The routing only
-affects *how user-attached images on the current turn* are presented to the
-main model.
+The routing only affects *how user-attached images on the current turn* are
+presented to the main model.
 """
 
 from __future__ import annotations

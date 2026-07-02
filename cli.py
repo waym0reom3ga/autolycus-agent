@@ -2468,10 +2468,47 @@ def _resolve_attachment_path(raw_path: str) -> Path | None:
     return resolved
 
 
+def _find_image_paths_in_text(text):
+    """Scan text for local image file paths and return those that exist.
+
+    Catches paths embedded anywhere in the text (not just at the start).
+    Used to auto-attach images when the user references them mid-message
+    or when tool output contains image paths.
+
+    Returns a deduplicated list of Path objects for files that actually exist.
+    """
+    if not isinstance(text, str):
+        return []
+
+    import re as _re
+    # Match absolute Unix paths, tilde home, relative ./ and ../ paths
+    # with common image extensions. Boundary is whitespace or punctuation.
+    pattern = _re.compile(
+        r'(?:^|[\s,"\'`(])(/[^,\s"\'\`)]+\.(jpg|jpeg|png|gif|bmp|tiff?|webp)|~[/\\][^,\s"\'\`)]+\.(jpg|jpeg|png|gif|bmp|tiff?|webp)|\./[^,\s"\'\`)]+\.(jpg|jpeg|png|gif|bmp|tiff?|webp)|\.\./[^,\s"\'\`)]+\.(jpg|jpeg|png|gif|bmp|tiff?|webp))',
+        _re.IGNORECASE,
+    )
+
+    found = []
+    seen_paths = set()
+
+    for match in pattern.finditer(text):
+        raw_path = match.group(0).strip().strip('"\'`')
+        if not raw_path or raw_path in seen_paths:
+            continue
+
+        resolved = _resolve_attachment_path(raw_path)
+        if resolved and resolved.exists() and resolved.is_file():
+            abs_str = str(resolved.resolve())
+            if abs_str not in seen_paths:
+                seen_paths.add(abs_str)
+                found.append(resolved)
+
+    return found
 
 
 
-def _detect_file_drop(user_input: str) -> "dict | None":
+
+def _detect_file_drop(user_input):
     """Detect if *user_input* starts with a real local file path.
 
     This catches dragged/pasted paths before they are mistaken for slash
@@ -9951,6 +9988,14 @@ class LycusCLI(CLIAgentSetupMixin, CLICommandsMixin):
         if not self._ensure_runtime_credentials():
             return None
 
+        # Auto-detect image paths embedded in the message text.
+        # This catches paths mid-message that weren't caught by _detect_file_drop.
+        if isinstance(message, str) and images is None:
+            _embedded = _find_image_paths_in_text(message)
+            if _embedded:
+                from pathlib import Path as _Path
+                images = [_Path(p) for p in _embedded]
+
         turn_route = self._resolve_turn_agent_config(message)
         if turn_route["signature"] != self._active_agent_route_signature:
             self.agent = None
@@ -12927,6 +12972,15 @@ class LycusCLI(CLIAgentSetupMixin, CLICommandsMixin):
                                 f"[User attached file: {_drop_path}]"
                                 + (f"\n{_remainder}" if _remainder else "")
                             )
+
+                    # Scan for embedded image paths anywhere in the text.
+                    # This catches paths mid-message that _detect_file_drop missed.
+                    if isinstance(user_input, str):
+                        _embedded_images = _find_image_paths_in_text(user_input)
+                        for _img_path in _embedded_images:
+                            if _img_path not in submit_images:
+                                submit_images.append(_img_path)
+                                _cprint(f"  📎 Auto-attached image: {_img_path.name}")
 
                     # A bare number right after a bare `/resume` prompt selects
                     # that session (see #34584). Checked before chat routing so

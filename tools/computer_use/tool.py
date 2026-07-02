@@ -81,15 +81,26 @@ _DESTRUCTIVE_ACTIONS = frozenset({
 
 # Hard-blocked key combinations. Mirrored from #4562 — these are destructive
 # regardless of approval level (e.g. logout kills the session Lycus runs in).
+# macOS combos use cmd/option; Linux combos use ctrl/alt/super.
 _BLOCKED_KEY_COMBOS = {
-    frozenset({"cmd", "shift", "backspace"}),   # empty trash
-    frozenset({"cmd", "option", "backspace"}),   # force delete
-    frozenset({"cmd", "ctrl", "q"}),             # lock screen
-    frozenset({"cmd", "shift", "q"}),            # log out
-    frozenset({"cmd", "option", "shift", "q"}),  # force log out
+    # macOS
+    frozenset({"cmd", "shift", "backspace"}),     # empty trash
+    frozenset({"cmd", "option", "backspace"}),     # force delete
+    frozenset({"cmd", "ctrl", "q"}),               # lock screen
+    frozenset({"cmd", "shift", "q"}),              # log out
+    frozenset({"cmd", "option", "shift", "q"}),    # force log out
+    # Linux / cross-platform
+    frozenset({"ctrl", "alt", "delete"}),          # logout dialog (Linux)
+    frozenset({"ctrl", "alt", "backspace"}),       # kill X server (old Linux)
+    frozenset({"super", "ctrl", "q"}),             # lock screen (GNOME/KDE)
 }
 
-_KEY_ALIASES = {"command": "cmd", "control": "ctrl", "alt": "option", "⌘": "cmd", "⌥": "option"}
+_KEY_ALIASES = {
+    "command": "cmd", "control": "ctrl", "alt": "option",
+    "⌘": "cmd", "⌥": "option",
+    # Linux aliases
+    "win": "super", "windows": "super",
+}
 
 
 def _canon_key_combo(keys: str) -> frozenset:
@@ -132,11 +143,33 @@ def _get_backend() -> ComputerUseBackend:
     global _backend
     with _backend_lock:
         if _backend is None:
-            backend_name = os.environ.get("HERMES_COMPUTER_USE_BACKEND", "cua").lower()
-            if backend_name in {"cua", "cua-driver", ""}:
+            backend_name = os.environ.get("HERMES_COMPUTER_USE_BACKEND", "").lower().strip()
+
+            # Auto-detect platform when no explicit override
+            if not backend_name:
+                if sys.platform == "darwin":
+                    from tools.computer_use.cua_backend import cua_driver_binary_available
+                    if cua_driver_binary_available():
+                        backend_name = "cua"
+                    else:
+                        backend_name = "noop"
+                elif sys.platform.startswith(("linux", "freebsd", "openbsd")) or hasattr(os, "confstr"):
+                    # POSIX systems (Linux, BSD, etc.) — use posix_backend
+                    from tools.computer_use.posix_backend import posix_backend_available
+                    if posix_backend_available():
+                        backend_name = "posix"
+                    else:
+                        backend_name = "noop"
+                else:
+                    backend_name = "noop"
+
+            if backend_name in {"cua", "cua-driver"}:
                 from tools.computer_use.cua_backend import CuaDriverBackend
                 _backend = CuaDriverBackend()
-            elif backend_name == "noop":  # pragma: no cover
+            elif backend_name in {"posix", "linux"}:  # linux is backward compat alias
+                from tools.computer_use.posix_backend import PosixBackend
+                _backend = PosixBackend()
+            elif backend_name in {"noop", ""}:  # pragma: no cover
                 _backend = _NoopBackend()
             else:
                 raise RuntimeError(f"Unknown HERMES_COMPUTER_USE_BACKEND={backend_name!r}")
@@ -724,12 +757,16 @@ def _element_to_dict(e: UIElement) -> Dict[str, Any]:
 def check_computer_use_requirements() -> bool:
     """Return True iff computer_use can run on this host.
 
-    Conditions: macOS + cua-driver binary installed (or override via env).
+    Conditions (macOS): cua-driver binary installed.
+    Conditions (POSIX — Linux, BSD, etc.): video capture device or ImageMagick import available.
     """
-    if sys.platform != "darwin":
-        return False
-    from tools.computer_use.cua_backend import cua_driver_binary_available
-    return cua_driver_binary_available()
+    if sys.platform == "darwin":
+        from tools.computer_use.cua_backend import cua_driver_binary_available
+        return cua_driver_binary_available()
+    elif sys.platform.startswith(("linux", "freebsd", "openbsd")) or hasattr(os, "confstr"):
+        from tools.computer_use.posix_backend import posix_backend_available
+        return posix_backend_available()
+    return False
 
 
 def get_computer_use_schema() -> Dict[str, Any]:

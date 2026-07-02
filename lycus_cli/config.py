@@ -2593,7 +2593,7 @@ OPTIONAL_ENV_VARS = {
         "prompt": "OpenRouter API key",
         "url": "https://openrouter.ai/keys",
         "password": True,
-        "tools": ["vision_analyze", "mixture_of_agents"],
+        "tools": ["mixture_of_agents"],
         "category": "provider",
         "advanced": True,
     },

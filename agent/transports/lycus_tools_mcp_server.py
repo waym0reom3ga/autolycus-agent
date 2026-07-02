@@ -16,7 +16,6 @@ Scope (what we expose):
   - browser_navigate / _click / _type /  — Camofox/Browserbase automation
     _snapshot / _scroll / _back / _press /
     _get_images / _console / _vision
-  - vision_analyze                       — image inspection by vision model
   - image_generate                       — image generation
   - skill_view, skills_list              — Lycus' skill library
   - text_to_speech                       — TTS
@@ -78,7 +77,6 @@ EXPOSED_TOOLS: tuple[str, ...] = (
     "browser_get_images",
     "browser_console",
     "browser_vision",
-    "vision_analyze",
     "image_generate",
     "skill_view",
     "skills_list",
