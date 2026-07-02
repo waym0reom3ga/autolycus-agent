@@ -66,6 +66,14 @@ _MEMORY_WRITE_TARGET_SUBDIR_MAP = {
     "memory": "patterns",
 }
 
+_DERIVED_MEMORY_FILENAMES = {
+    ".abstract.md",
+    ".overview.md",
+    ".read.md",
+    ".full.md",
+    ".relations.json",
+}
+
 
 # ---------------------------------------------------------------------------
 # Process-level atexit safety net — ensures pending sessions are committed
@@ -187,6 +195,17 @@ class _VikingClient:
             timeout=_TIMEOUT, **kwargs
         )
         return self._parse_response(resp)
+
+    def delete(self, path: str, **kwargs) -> dict:
+        """Send an HTTP DELETE request to the OpenViking API."""
+        try:
+            resp = self._httpx.delete(
+                self._url(path), headers=self._headers(), timeout=_TIMEOUT, **kwargs
+            )
+            return self._parse_response(resp)
+        except Exception as e:
+            logger.debug("OpenViking DELETE %s failed: %s", path, e)
+            raise
 
     def upload_temp_file(self, file_path: Path) -> str:
         mime_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
@@ -311,6 +330,26 @@ REMEMBER_SCHEMA = {
     },
 }
 
+FORGET_SCHEMA = {
+    "name": "viking_forget",
+    "description": (
+        "Delete one OpenViking memory file by exact viking:// URI. "
+        "Use only when the user explicitly asks to forget or delete a specific "
+        "memory and you have the exact memory file URI. Resources, skills, "
+        "sessions, directories, generated summaries, and broad deletes are rejected."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "uri": {
+                "type": "string",
+                "description": "Exact viking:// memory file URI ending in .md.",
+            },
+        },
+        "required": ["uri"],
+    },
+}
+
 ADD_RESOURCE_SCHEMA = {
     "name": "viking_add_resource",
     "description": (
@@ -351,6 +390,50 @@ ADD_RESOURCE_SCHEMA = {
         "required": ["url"],
     },
 }
+
+
+def _memory_segment_index(parts):
+    """Find the index of 'memories' segment in a viking:// URI path."""
+    if len(parts) >= 2 and parts[0] == "user" and parts[1] == "memories":
+        return 1
+    if len(parts) >= 3 and parts[0] == "user" and parts[2] == "memories":
+        return 2
+    if len(parts) >= 4 and parts[0] == "user" and parts[1] == "peers" and parts[3] == "memories":
+        return 3
+    if len(parts) >= 5 and parts[0] == "user" and parts[2] == "peers" and parts[4] == "memories":
+        return 4
+    return None
+
+
+def _validate_forget_memory_uri(raw_uri):
+    """Validate a viking:// URI for deletion. Returns (uri, error) tuple."""
+    from urllib.parse import urlparse
+
+    if not isinstance(raw_uri, str):
+        return None, "uri is required"
+
+    uri = raw_uri.strip()
+    if not uri:
+        return None, "uri is required"
+
+    parsed = urlparse(uri)
+    if parsed.scheme != "viking" or not uri.startswith("viking://"):
+        return None, "viking_forget only accepts viking:// memory file URIs"
+    if parsed.query or parsed.fragment:
+        return None, "viking_forget requires an exact URI without query or fragment"
+    if uri.endswith("/") or not uri.endswith(".md"):
+        return None, "viking_forget only deletes concrete .md memory files"
+
+    parts = [part for part in uri[len("viking://"):].split("/") if part]
+    memories_idx = _memory_segment_index(parts)
+    if memories_idx is None or len(parts) < memories_idx + 2:
+        return None, "viking_forget only deletes user memory file URIs"
+
+    filename = uri.rsplit("/", 1)[-1]
+    if filename in _DERIVED_MEMORY_FILENAMES:
+        return None, "viking_forget cannot delete generated memory summary files"
+
+    return uri, None
 
 
 def _zip_directory(dir_path: Path) -> Path:
@@ -676,7 +759,7 @@ class OpenVikingMemoryProvider(MemoryProvider):
             logger.debug("OpenViking memory mirror worker failed to start: %s", e)
 
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
-        return [SEARCH_SCHEMA, READ_SCHEMA, BROWSE_SCHEMA, REMEMBER_SCHEMA, ADD_RESOURCE_SCHEMA]
+        return [SEARCH_SCHEMA, READ_SCHEMA, BROWSE_SCHEMA, REMEMBER_SCHEMA, FORGET_SCHEMA, ADD_RESOURCE_SCHEMA]
 
     def handle_tool_call(self, tool_name: str, args: dict, **kwargs) -> str:
         if not self._client:
@@ -691,6 +774,8 @@ class OpenVikingMemoryProvider(MemoryProvider):
                 return self._tool_browse(args)
             elif tool_name == "viking_remember":
                 return self._tool_remember(args)
+            elif tool_name == "viking_forget":
+                return self._tool_forget(args)
             elif tool_name == "viking_add_resource":
                 return self._tool_add_resource(args)
             return tool_error(f"Unknown tool: {tool_name}")
@@ -928,6 +1013,30 @@ class OpenVikingMemoryProvider(MemoryProvider):
         except Exception as e:
             logger.error("OpenViking content/write failed: %s", e)
             return tool_error(f"Failed to store memory: {e}")
+
+    def _tool_forget(self, args):
+        """Delete a specific memory file by exact URI."""
+        uri, error = _validate_forget_memory_uri(args.get("uri"))
+        if error:
+            return tool_error(error)
+
+        try:
+            resp = self._client.delete(
+                "/api/v1/fs",
+                params={"uri": uri, "recursive": False},
+            )
+            result = self._unwrap_result(resp)
+            payload = {"status": "deleted", "uri": uri}
+            if isinstance(result, dict):
+                payload["uri"] = result.get("uri") or uri
+                for key in ("estimated_deleted_count", "memory_cleanup",
+                           "semantic_root_uri", "semantic_status", "queue_status"):
+                    if key in result:
+                        payload[key] = result[key]
+            return json.dumps(payload, ensure_ascii=False)
+        except Exception as e:
+            logger.error("OpenViking delete failed: %s", e)
+            return tool_error(f"Failed to delete memory: {e}")
 
     def _tool_add_resource(self, args: dict) -> str:
         url = args.get("url", "")
