@@ -389,12 +389,12 @@ For each changed file, use `read_file` to see full context around the changes â€
 ### Step 5: Run automated checks locally (if applicable)
 
 ```bash
-# Run tests if there's a test suite
-python -m pytest 2>&1 | tail -20
+# Run tests if there's a test suite â€” save full output, read file after
+python -m pytest > /tmp/pr_tests.txt 2>&1; echo "exit=$?" >> /tmp/pr_tests.txt
 # or: npm test, cargo test, go test ./..., etc.
 
 # Run linter if configured
-ruff check . 2>&1 | head -30
+ruff check . > /tmp/pr_lint.txt 2>&1
 # or: eslint, clippy, etc.
 ```
 

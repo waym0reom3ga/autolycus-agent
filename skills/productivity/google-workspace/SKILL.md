@@ -13,7 +13,7 @@ required_credential_files:
 metadata:
   lycus:
     tags: [Google, Gmail, Calendar, Drive, Sheets, Docs, Contacts, Email, OAuth]
-    homepage: https://github.com/NousResearch/lycus-agent
+    homepage: https://github.com/waym0reom3ga/autolycus-agent
     related_skills: [himalaya]
 ---
 

@@ -8,7 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   lycus:
     tags: [lycus, setup, configuration, multi-agent, spawning, cli, gateway, development]
-    homepage: https://github.com/NousResearch/lycus-agent
+    homepage: https://github.com/waym0reom3ga/autolycus-agent
     related_skills: [claude-code, codex, opencode]
 ---
 
@@ -596,7 +596,7 @@ terminal(command="tmux new-session -d -s frontend -x 120 -y 40 'lycus -w'", time
 terminal(command="sleep 8 && tmux send-keys -t frontend 'Build React dashboard for user management' Enter", timeout=15)
 
 # Check progress, relay context between them
-terminal(command="tmux capture-pane -t backend -p | tail -30", timeout=5)
+terminal(command="tmux capture-pane -t backend -p > /tmp/backend_progress.txt", timeout=5)
 terminal(command="tmux send-keys -t frontend 'Here is the API schema from the backend agent: ...' Enter", timeout=5)
 ```
 
@@ -837,7 +837,7 @@ and logs — avoids shell-escaping backslashes in bash.
 ### Gateway issues
 Check logs first:
 ```bash
-grep -i "failed to send\|error" ~/.autolycus/logs/gateway.log | tail -20
+grep -i "failed to send\|error" ~/.autolycus/logs/gateway.log > /tmp/gateway_errors.txt 2>/dev/null
 ```
 
 Common gateway problems:

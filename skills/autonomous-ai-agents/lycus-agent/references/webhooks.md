@@ -188,7 +188,7 @@ If webhooks aren't working:
 
 1. **Is the gateway running?** Check with `systemctl --user status lycus-gateway` or `ps aux | grep gateway`
 2. **Is the webhook server listening?** `curl http://localhost:8644/health` should return `{"status": "ok"}`
-3. **Check gateway logs:** `grep webhook ~/.autolycus/logs/gateway.log | tail -20`
+3. **Check gateway logs:** `grep webhook ~/.autolycus/logs/gateway.log > /tmp/webhook_errors.txt 2>/dev/null`
 4. **Signature mismatch?** Verify the secret in your service matches the one from `lycus webhook list`. GitHub sends `X-Hub-Signature-256`, GitLab sends `X-Gitlab-Token`.
 5. **Firewall/NAT?** The webhook URL must be reachable from the service. For local development, use a tunnel (ngrok, cloudflared).
 6. **Wrong event type?** Check `--events` filter matches what the service sends. Use `lycus webhook test <name>` to verify the route works.
