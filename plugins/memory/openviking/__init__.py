@@ -126,25 +126,43 @@ class _VikingClient:
         if self._httpx is None:
             raise ImportError("httpx is required for OpenViking: pip install httpx")
 
-    def _headers(self) -> dict:
-        # Always send tenant headers when account/user are configured.
-        # OpenViking 0.3.x requires X-OpenViking-Account and X-OpenViking-User
-        # for ROOT API key requests to tenant-scoped APIs — omitting them
-        # causes INVALID_ARGUMENT errors even when account="default".
-        # User-level keys can omit them (server derives tenancy from the key),
-        # but ROOT keys must always include them explicitly.
-        h = {
-            "Content-Type": "application/json",
-            "X-OpenViking-Agent": self._agent,
-        }
-        if self._account:
-            h["X-OpenViking-Account"] = self._account
-        if self._user:
-            h["X-OpenViking-User"] = self._user
+    def _headers(self, *, include_tenant=None):
+        """Build request headers for OpenViking API calls."""
+        if include_tenant is None:
+            include_tenant = not bool(self._api_key)
+
+        h = {"Content-Type": "application/json"}
+        if self._agent:
+            h["X-OpenViking-Actor-Peer"] = self._agent
+        if include_tenant:
+            if self._account:
+                h["X-OpenViking-Account"] = self._account
+            if self._user:
+                h["X-OpenViking-User"] = self._user
         if self._api_key:
             h["X-API-Key"] = self._api_key
             h["Authorization"] = "Bearer " + self._api_key
         return h
+
+    @staticmethod
+    def _needs_trusted_identity_retry(exc):
+        """Check if an error indicates the server needs tenant headers."""
+        message = str(exc)
+        return (
+            "Trusted mode requests must include X-OpenViking-Account" in message
+            or "Trusted mode requests must include X-OpenViking-User" in message
+            or "Trusted mode requests must include X-OpenViking-Account or explicit account_id" in message
+        )
+
+    def _send_with_trusted_identity_retry(self, send):
+        """Try a request without tenant headers first, retry with them if server asks."""
+        try:
+            return self._parse_response(send(self._headers()))
+        except Exception as exc:
+            if not self._api_key or not self._needs_trusted_identity_retry(exc):
+                raise
+            # Retry with tenant headers included
+            return self._parse_response(send(self._headers(include_tenant=True)))
 
     def _url(self, path: str) -> str:
         return f"{self._endpoint}{path}"
@@ -184,28 +202,31 @@ class _VikingClient:
         return data
 
     def get(self, path: str, **kwargs) -> dict:
-        resp = self._httpx.get(
-            self._url(path), headers=self._headers(), timeout=_TIMEOUT, **kwargs
-        )
-        return self._parse_response(resp)
+        def _send(headers):
+            return self._httpx.get(
+                self._url(path), headers=headers, timeout=_TIMEOUT, **kwargs
+            )
+        return self._send_with_trusted_identity_retry(_send)
 
     def post(self, path: str, payload: dict = None, **kwargs) -> dict:
-        resp = self._httpx.post(
-            self._url(path), json=payload or {}, headers=self._headers(),
-            timeout=_TIMEOUT, **kwargs
-        )
-        return self._parse_response(resp)
+        def _send(headers):
+            return self._httpx.post(
+                self._url(path), json=payload or {}, headers=headers,
+                timeout=_TIMEOUT, **kwargs
+            )
+        return self._send_with_trusted_identity_retry(_send)
 
     def delete(self, path: str, **kwargs) -> dict:
         """Send an HTTP DELETE request to the OpenViking API."""
-        try:
-            resp = self._httpx.delete(
-                self._url(path), headers=self._headers(), timeout=_TIMEOUT, **kwargs
-            )
-            return self._parse_response(resp)
-        except Exception as e:
-            logger.debug("OpenViking DELETE %s failed: %s", path, e)
-            raise
+        def _send(headers):
+            try:
+                return self._httpx.delete(
+                    self._url(path), headers=headers, timeout=_TIMEOUT, **kwargs
+                )
+            except Exception as e:
+                logger.debug("OpenViking DELETE %s failed: %s", path, e)
+                raise
+        return self._send_with_trusted_identity_retry(_send)
 
     def upload_temp_file(self, file_path: Path) -> str:
         mime_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
