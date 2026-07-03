@@ -95,6 +95,32 @@ class TestBrowserConsole:
         assert result["total_messages"] == 0
         assert result["total_errors"] == 0
 
+    def test_redacts_secrets_from_console_messages_and_errors(self):
+        from tools.browser_tool import browser_console
+
+        fake_key = "sk-" + "BROWSERCONSOLESECRET1234567890"
+        console_response = {
+            "success": True,
+            "messages": [
+                {"level": "log", "text": f"token={fake_key}", "source": "console-api"},
+            ],
+            "errors": [],
+        }
+
+        with patch("tools.browser_tool._get_browser_session") as mock_session:
+            mock_session.return_value.console.return_value = console_response
+            result = json.loads(browser_console(task_id="test"))
+
+        serialized = json.dumps(result)
+        # The secret body must be gone. The exact mask format
+        # (partial ``sk-…7890`` vs full ``***`` for keyed ``token=`` values)
+        # is owned by agent.redact and intentionally not pinned here.
+        assert "BROWSERCONSOLESECRET" not in serialized
+        redacted_text = result["console_messages"][0]["text"]
+        assert fake_key not in redacted_text
+        assert "***" in redacted_text or "..." in redacted_text
+
+
 
 # ── browser_console schema ───────────────────────────────────────────
 

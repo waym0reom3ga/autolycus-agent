@@ -959,6 +959,7 @@ AUTHOR_MAP = {
     "xush@xush.org": "KUSH42",
     "yangzhi.see@gmail.com": "SeeYangZhi",
     "yongtenglei@gmail.com": "yongtenglei",
+    "yong2bba@gmail.com": "yong2bba",  # PR #49830 salvage (harden browser tool safety boundaries: config-gated risky-eval blocklist, force-redact browser/CDP/supervisor output, session-ownership tracking, credential-query denylist)
     "young@YoungdeMacBook-Pro.local": "YoungYang963",
     "ysfalweshcan@gmail.com": "Junass1",
     "ysfwaxlycan@gmail.com": "WAXLYY",
