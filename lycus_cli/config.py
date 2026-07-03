@@ -5314,6 +5314,18 @@ def cfg_get(cfg: Optional[Dict[str, Any]], *keys: str, default: Any = None) -> A
     return node
 
 
+def clear_model_endpoint_credentials(cfg: Optional[Dict[str, Any]]) -> None:
+    """Clear any stored endpoint credentials from the config dict.
+
+    Used by gateway slash commands to prevent credential leakage when
+    displaying or sharing session information across origins.
+    """
+    if not isinstance(cfg, dict):
+        return
+    for key in list(cfg.keys()):
+        if "endpoint" in key.lower() and ("key" in key.lower() or "token" in key.lower() or "secret" in key.lower()):
+            cfg.pop(key, None)
+
 
 def read_raw_config() -> Dict[str, Any]:
     """Read ~/.autolycus/config.yaml as-is, without merging defaults or migrating.

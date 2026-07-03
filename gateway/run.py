@@ -16398,6 +16398,53 @@ def _start_cron_ticker(stop_event: threading.Event, adapters=None, loop=None, in
     logger.info("Cron ticker stopped")
 
 
+def _start_temporal_worker(adapters=None):
+    """Start the Temporal worker for durable cron workflow orchestration.
+
+    Runs in a background thread alongside the cron ticker. If Temporal is
+    unavailable, falls back silently to file-based tick() scheduling.
+    """
+    import threading
+
+    def _run():
+        try:
+            from cron.temporal_bridge import TemporalCronBridge
+            import asyncio
+
+            async def _main():
+                bridge = TemporalCronBridge.get_instance()
+                if not await bridge.ensure_connected():
+                    logger.warning("Temporal unavailable — using file-based cron ticker")
+                    return
+                # Sync existing jobs to Temporal schedules on startup.
+                try:
+                    synced = await bridge.sync_schedules()
+                    created = len(synced.get("created", []))
+                    updated = len(synced.get("updated", []))
+                    if created or updated:
+                        logger.info(
+                            "Temporal schedule sync: %d created, %d updated",
+                            created, updated,
+                        )
+                except Exception as e:
+                    logger.debug("Schedule sync error (non-fatal): %s", e)
+
+                # Start the worker — blocks until interrupted.
+                await bridge.run_worker()
+
+            asyncio.run(_main())
+        except Exception as e:
+            logger.error("Temporal worker failed: %s", e)
+
+    thread = threading.Thread(
+        target=_run,
+        daemon=True,
+        name="temporal-worker",
+    )
+    thread.start()
+    logger.info("Temporal worker thread started")
+
+
 async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = False, verbosity: Optional[int] = 0) -> bool:
     """
     Start the gateway and run until interrupted.
@@ -16802,6 +16849,9 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
         name="cron-ticker",
     )
     cron_thread.start()
+
+    # Start Temporal worker for durable workflow orchestration (if available).
+    _start_temporal_worker(runner.adapters)
     
     # Wait for shutdown
     await runner.wait_for_shutdown()
