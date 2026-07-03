@@ -2182,8 +2182,8 @@ def _apply_model_switch(
             "api_key": result.api_key,
             "api_mode": result.api_mode,
         }
-    if persist_global:
-        _persist_model_switch(result)
+    # Always persist model switch to config.yaml so cron jobs inherit the current session's model.
+    _persist_model_switch(result)
     return {
         "value": result.new_model,
         "warning": result.warning_message or "",

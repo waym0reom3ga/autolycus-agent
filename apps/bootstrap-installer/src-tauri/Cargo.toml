@@ -2,7 +2,7 @@
 name = "lycus-bootstrap"
 version = "0.0.1"
 description = "Lycus Setup — signed installer that drives scripts/install.ps1"
-authors = ["Nous Research <info@nousresearch.com>"]
+authors = ["Technetia Inc"]
 edition = "2021"
 rust-version = "1.77"
 

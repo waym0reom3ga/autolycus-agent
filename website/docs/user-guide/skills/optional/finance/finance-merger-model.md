@@ -17,7 +17,7 @@ Build accretion/dilution (merger) models in Excel — pro-forma P&L, synergies, 
 | Source | Optional — install with `lycus skills install official/finance/merger-model` |
 | Path | `optional-skills/finance/merger-model` |
 | Version | `1.0.0` |
-| Author | Anthropic (adapted by Nous Research) |
+| Author | Anthropic (adapted by Technetia Inc) |
 | License | Apache-2.0 |
 | Platforms | linux, macos, windows |
 | Tags | `finance`, `m-and-a`, `merger`, `accretion-dilution`, `excel`, `openpyxl`, `modeling`, `investment-banking` |

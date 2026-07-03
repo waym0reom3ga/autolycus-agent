@@ -2,7 +2,7 @@
 name: openclaw-migration
 description: Migrate a user's OpenClaw customization footprint into Lycus Agent. Imports Lycus-compatible memories, MASK.md, command allowlists, user skills, and selected workspace assets from ~/.openclaw, then reports exactly what could not be migrated and why.
 version: 1.0.0
-author: Lycus Agent (Nous Research)
+author: Lycus Agent (Technetia Inc)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:

@@ -717,12 +717,7 @@ class ContextCompressor(ContextEngine):
         self.compression_count = 0
 
         # Derive token budgets: ratio is relative to the threshold, not total context.
-        # For Lycus unified model mode, use a smaller tail budget so each compression
-        # pass removes enough tokens to drop below threshold (prevents thrashing loops).
-        if getattr(self, '_lycus_mode', False):
-            _effective_ratio = min(self.summary_target_ratio, 0.15)
-        else:
-            _effective_ratio = self.summary_target_ratio
+        _effective_ratio = self.summary_target_ratio
         target_tokens = int(self.threshold_tokens * _effective_ratio)
         self.tail_token_budget = target_tokens
         self.max_summary_tokens = min(
@@ -1212,7 +1207,7 @@ Summary generation was unavailable, so this is a best-effort deterministic fallb
             "do not preserve their values."
         )
 
-        _summarizer_preamble_lycus = (
+        _summarizer_preamble_hermes = (
             "You have to resume this given work session into a working document/manifesto of what was done and what is left to do. "
             "Use the present state to generate the complete foundation of future activities with as complete a context and background as can fit. "
             "Write the summary in the same language the user was using in the conversation — do not translate or switch to English. "
@@ -1222,7 +1217,7 @@ Summary generation was unavailable, so this is a best-effort deterministic fallb
             "do not preserve their values."
         )
 
-        _summarizer_preamble = _summarizer_preamble_lycus if getattr(self, '_lycus_mode', False) else _summarizer_preamble_lycus
+        _summarizer_preamble = _summarizer_preamble_lycus if getattr(self, '_lycus_mode', False) else _summarizer_preamble_hermes
 
         # Temporal anchoring directive. Rewrites relative / still-pending-sounding
         # references into absolute, dated, past-tense facts so a resumed
@@ -1339,12 +1334,12 @@ Update the summary using this exact structure. PRESERVE all existing information
                 "Create a structured checkpoint summary for the conversation after earlier turns are compacted. "
                 "The summary should preserve enough detail for continuity without re-reading the original turns."
             )
-            _first_compact_lycus = (
+            _first_compact_hermes = (
                 "You have to resume this given work session into a working document/manifesto of what was done and what is left to do. "
                 "Use the present state to generate the complete foundation of future activities with as complete a context and background as can fit. "
                 "The summary should preserve enough detail for continuity without re-reading the original turns."
             )
-            _first_compact = _first_compact_lycus if getattr(self, '_lycus_mode', False) else _first_compact_lycus
+            _first_compact = _first_compact_lycus if getattr(self, '_lycus_mode', False) else _first_compact_hermes
             prompt = f"""{_summarizer_preamble}
 
 {_first_compact}

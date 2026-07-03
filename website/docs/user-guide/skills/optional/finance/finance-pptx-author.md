@@ -17,7 +17,7 @@ Build PowerPoint decks headless with python-pptx. Pairs with excel-author for mo
 | Source | Optional — install with `lycus skills install official/finance/pptx-author` |
 | Path | `optional-skills/finance/pptx-author` |
 | Version | `1.0.0` |
-| Author | Anthropic (adapted by Nous Research) |
+| Author | Anthropic (adapted by Technetia Inc) |
 | License | Apache-2.0 |
 | Platforms | linux, macos, windows |
 | Tags | `powerpoint`, `pptx`, `python-pptx`, `presentation`, `finance` |

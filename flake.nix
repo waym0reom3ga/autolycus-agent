@@ -1,5 +1,5 @@
 {
-  description = "Lycus Agent - AI agent framework by Nous Research";
+  description = "Lycus Agent - AI agent framework by Technetia Inc";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

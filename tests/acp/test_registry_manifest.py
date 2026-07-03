@@ -34,7 +34,7 @@ def test_agent_json_matches_official_registry_required_fields():
     assert data["description"]
     assert data["repository"] == "https://github.com/NousResearch/lycus-agent"
     assert data["website"].startswith("https://lycus-agent.nousresearch.com/")
-    assert data["authors"] == ["Nous Research"]
+    assert data["authors"] == ["Technetia Inc"]
     assert data["license"] == "MIT"
     assert set(data["distribution"]) <= ALLOWED_DISTRIBUTIONS
 

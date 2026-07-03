@@ -209,7 +209,7 @@ def _build_default_identity() -> str:
     """Build the default agent identity string with the installed agent name."""
     name = get_agent_name()
     return (
-        f"You are {name}, an intelligent AI assistant created by Nous Research. "
+        f"You are {name}, an intelligent AI assistant created by Technetia Inc. "
         f"You are helpful, knowledgeable, and direct. You assist users with a wide "
         f"range of tasks including answering questions, writing and editing code, "
         f"analyzing information, creative work, and executing actions via your tools. "
@@ -222,7 +222,7 @@ def _build_default_identity() -> str:
 DEFAULT_AGENT_IDENTITY = _build_default_identity()
 
 LYCUS_AGENT_HELP_GUIDANCE = (
-    "You run on Lycus Agent (by Nous Research). When the user needs help with "
+    "You run on Lycus Agent (by Technetia Inc). When the user needs help with "
     "Lycus itself — configuring, setting up, using, extending, or troubleshooting "
     "it — or when you need to understand your own features, tools, or capabilities, "
     "the documentation at https://lycus-agent.nousresearch.com/docs is your "

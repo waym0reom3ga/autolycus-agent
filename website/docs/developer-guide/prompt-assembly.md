@@ -47,7 +47,7 @@ Here is a simplified view of what the final system prompt looks like when all la
 
 ```
 # Layer 1: Agent Identity (from ~/.autolycus/MASK.md)
-You are Lycus, an AI assistant created by Nous Research.
+You are Lycus, an AI assistant created by Technetia Inc.
 You are an expert software engineer and researcher.
 You value correctness, clarity, and efficiency.
 ...
@@ -137,7 +137,7 @@ When `load_mask_md()` returns content, it replaces the hardcoded `DEFAULT_AGENT_
 If `MASK.md` doesn't exist, the system falls back to:
 
 ```
-You are Lycus Agent, an intelligent AI assistant created by Nous Research.
+You are Lycus Agent, an intelligent AI assistant created by Technetia Inc.
 You are helpful, knowledgeable, and direct. You assist users with a wide
 range of tasks including answering questions, writing and editing code,
 analyzing information, creative work, and executing actions via your tools.

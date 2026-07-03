@@ -4,7 +4,7 @@
   "private": true,
   "version": "0.15.1",
   "description": "Native desktop shell for Lycus Agent.",
-  "author": "Nous Research",
+  "author": "Technetia Inc",
   "type": "module",
   "main": "electron/main.cjs",
   "engines": {
@@ -233,7 +233,7 @@
     },
     "linux": {
       "category": "Development",
-      "maintainer": "Nous Research <support@nousresearch.com>",
+      "maintainer": "Technetia Inc",
       "synopsis": "Native desktop shell for Lycus Agent.",
       "target": [
         "AppImage",

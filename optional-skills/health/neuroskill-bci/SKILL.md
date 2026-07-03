@@ -8,7 +8,7 @@ description: >
   running locally.
 platforms: [linux, macos, windows]
 version: 1.0.0
-author: Lycus Agent + Nous Research
+author: Lycus Agent + Technetia Inc
 license: MIT
 metadata:
   lycus:

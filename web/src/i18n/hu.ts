@@ -55,7 +55,7 @@ export const hu: Translations = {
     closeNavigation: "Navigáció bezárása",
     closeModelTools: "Modell és eszközök bezárása",
     footer: {
-      org: "Nous Research",
+      org: "Technetia Inc",
     },
     activeSessionsLabel: "Aktív munkamenetek:",
     gatewayStatusLabel: "Átjáró állapota:",

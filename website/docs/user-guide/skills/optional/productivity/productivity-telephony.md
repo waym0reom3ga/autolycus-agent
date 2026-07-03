@@ -17,7 +17,7 @@ Give Lycus phone capabilities without core tool changes. Provision and persist a
 | Source | Optional — install with `lycus skills install official/productivity/telephony` |
 | Path | `optional-skills/productivity/telephony` |
 | Version | `1.0.0` |
-| Author | Nous Research |
+| Author | Technetia Inc |
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `telephony`, `phone`, `sms`, `mms`, `voice`, `twilio`, `bland.ai`, `vapi`, `calling`, `texting` |

@@ -36,8 +36,8 @@
     "category": "DeveloperTool",
     "shortDescription": "Lycus",
     "longDescription": "Installs Lycus Agent on your machine. Drives scripts/install.ps1 (Windows) and scripts/install.sh (macOS/Linux).",
-    "publisher": "Nous Research",
-    "copyright": "Copyright © 2026 Nous Research",
+    "publisher": "Technetia Inc",
+    "copyright": "Copyright © 2026 Technetia Inc",
     "targets": [
       "app",
       "dmg",

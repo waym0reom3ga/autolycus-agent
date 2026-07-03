@@ -17,7 +17,7 @@ Delegate coding tasks to Blackbox AI CLI agent. Multi-model agent with built-in 
 | Source | Optional — install with `lycus skills install official/autonomous-ai-agents/blackbox` |
 | Path | `optional-skills/autonomous-ai-agents/blackbox` |
 | Version | `1.0.0` |
-| Author | Lycus Agent (Nous Research) |
+| Author | Lycus Agent (Technetia Inc) |
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `Coding-Agent`, `Blackbox`, `Multi-Agent`, `Judge`, `Multi-Model` |

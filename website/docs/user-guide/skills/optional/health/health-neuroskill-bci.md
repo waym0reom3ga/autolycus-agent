@@ -17,7 +17,7 @@ Connect to a running NeuroSkill instance and incorporate the user's real-time co
 | Source | Optional — install with `lycus skills install official/health/neuroskill-bci` |
 | Path | `optional-skills/health/neuroskill-bci` |
 | Version | `1.0.0` |
-| Author | Lycus Agent + Nous Research |
+| Author | Lycus Agent + Technetia Inc |
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `BCI`, `neurofeedback`, `health`, `focus`, `EEG`, `cognitive-state`, `biometrics`, `neuroskill` |

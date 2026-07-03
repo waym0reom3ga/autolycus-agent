@@ -17,7 +17,7 @@ Migrate a user's OpenClaw customization footprint into Lycus Agent. Imports Lycu
 | Source | Optional — install with `lycus skills install official/migration/openclaw-migration` |
 | Path | `optional-skills/migration/openclaw-migration` |
 | Version | `1.0.0` |
-| Author | Lycus Agent (Nous Research) |
+| Author | Lycus Agent (Technetia Inc) |
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `Migration`, `OpenClaw`, `Lycus`, `Memory`, `Persona`, `Import` |
