@@ -136,7 +136,7 @@ AGENT_NAMES = [
     "Horizon", "Ignis", "Jolt", "Kinetic", "Lynx",
     "Magma", "Nimbus", "Opal", "Phoenix", "Quantum",
     "Radar", "Solar", "Terra", "Ultra", "Vector",
-    "Wraith", "Xenon", "Yield", "Zen", "Arc",
+    "Wraith", "Raven", "Yield", "Zen", "Arc",
 ]
 
 _AGENT_NAME_FILE = ".autolycus_agent_name"  # stored in ~/.autolycus/

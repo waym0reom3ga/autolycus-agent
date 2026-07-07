@@ -353,6 +353,7 @@ setup_path
 
 _install_setup_config
 _install_sync_skills
+_install_setup_totalrecall
 
 # ============================================================================
 # Done
