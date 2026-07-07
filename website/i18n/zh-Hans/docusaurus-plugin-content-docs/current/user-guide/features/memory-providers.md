@@ -1,12 +1,12 @@
 ---
 sidebar_position: 4
 title: "Memory Providers"
-description: "外部记忆提供者插件 — Honcho、OpenViking、Mem0、Hindsight、Holographic、RetainDB、ByteRover、Supermemory"
+description: "外部记忆提供者插件 — Honcho、Mem0、Hindsight、Holographic、RetainDB、ByteRover、Supermemory"
 ---
 
 # Memory Providers
 
-Lycus Agent 内置 8 个外部记忆提供者插件，为 Agent 提供跨会话的持久化知识，超越内置的 MEMORY.md 和 USER.md。同一时间只能激活**一个**外部提供者——内置记忆始终与其并行工作。
+Lycus Agent 内置 7 个外部记忆提供者插件，为 Agent 提供跨会话的持久化知识，超越内置的 MEMORY.md 和 USER.md。同一时间只能激活**一个**外部提供者——内置记忆始终与其并行工作。
 
 ## 快速开始
 
@@ -22,7 +22,7 @@ lycus memory off        # 禁用外部提供者
 
 ```yaml
 memory:
-  provider: openviking   # 或 honcho, mem0, hindsight, holographic, retaindb, byterover, supermemory
+  provider: honcho   # 或 mem0, hindsight, holographic, retaindb, byterover, supermemory
 ```
 
 ## 工作原理
@@ -260,39 +260,6 @@ lycus honcho sync
 
 ---
 
-### OpenViking
-
-由 Volcengine（ByteDance）提供的上下文数据库，具备文件系统式知识层级、分层检索，以及自动将记忆提取为 6 个类别的功能。
-
-| | |
-|---|---|
-| **适合场景** | 具有结构化浏览功能的自托管知识管理 |
-| **依赖** | `pip install openviking` + 运行中的服务器 |
-| **数据存储** | 自托管（本地或云端） |
-| **费用** | 免费（开源，AGPL-3.0） |
-
-**工具：** `viking_search`（语义搜索）、`viking_read`（分层：摘要/概览/全文）、`viking_browse`（文件系统导航）、`viking_remember`（存储事实）、`viking_add_resource`（导入 URL/文档）
-
-**安装：**
-```bash
-# 先启动 OpenViking 服务器
-pip install openviking
-openviking-server
-
-# 然后配置 Lycus
-lycus memory setup    # 选择 "openviking"
-# 或手动配置：
-lycus config set memory.provider openviking
-echo "OPENVIKING_ENDPOINT=http://localhost:1933" >> ~/.autolycus/.env
-```
-
-**主要特性：**
-- 分层上下文加载：L0（约 100 tokens）→ L1（约 2k）→ L2（完整）
-- 会话提交时自动提取记忆（profile、偏好、实体、事件、案例、模式）
-- `viking://` URI 方案用于层级知识浏览
-
----
-
 ### Mem0
 
 服务端 LLM 事实提取，具备语义搜索、重排序和自动去重功能。
@@ -527,7 +494,6 @@ echo 'SUPERMEMORY_API_KEY=***' >> ~/.autolycus/.env
 | 提供者 | 存储 | 费用 | 工具数 | 依赖 | 独特特性 |
 |----------|---------|------|-------|-------------|----------------|
 | **Honcho** | 云端 | 付费 | 5 | `honcho-ai` | 辩证用户建模 + 会话范围上下文 |
-| **OpenViking** | 自托管 | 免费 | 5 | `openviking` + 服务器 | 文件系统层级 + 分层加载 |
 | **Mem0** | 云端 | 付费 | 3 | `mem0ai` | 服务端 LLM 提取 |
 | **Hindsight** | 云端/本地 | 免费/付费 | 3 | `hindsight-client` | 知识图谱 + reflect 合成 |
 | **Holographic** | 本地 | 免费 | 2 | 无 | HRR 代数 + 信任评分 |
@@ -542,7 +508,6 @@ echo 'SUPERMEMORY_API_KEY=***' >> ~/.autolycus/.env
 - **本地存储提供者**（Holographic、ByteRover）使用 `$AUTOLYCUS_HOME/` 路径，各 profile 路径不同
 - **配置文件提供者**（Honcho、Mem0、Hindsight、Supermemory）将配置存储在 `$AUTOLYCUS_HOME/` 中，每个 profile 拥有独立凭证
 - **云端提供者**（RetainDB）自动派生 profile 范围的项目名称
-- **环境变量提供者**（OpenViking）通过每个 profile 的 `.env` 文件配置
 
 ## 构建记忆提供者
 

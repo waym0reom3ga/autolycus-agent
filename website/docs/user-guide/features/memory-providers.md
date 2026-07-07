@@ -1,12 +1,12 @@
 ---
 sidebar_position: 4
 title: "Memory Providers"
-description: "External memory provider plugins — Honcho, OpenViking, Mem0, Hindsight, Holographic, RetainDB, ByteRover, Supermemory"
+description: "External memory provider plugins — Honcho, Mem0, Hindsight, Holographic, RetainDB, ByteRover, Supermemory"
 ---
 
 # Memory Providers
 
-Lycus Agent ships with 8 external memory provider plugins that give the agent persistent, cross-session knowledge beyond the built-in MEMORY.md and USER.md. Only **one** external provider can be active at a time — the built-in memory is always active alongside it.
+Lycus Agent ships with 7 external memory provider plugins that give the agent persistent, cross-session knowledge beyond the built-in MEMORY.md and USER.md. Only **one** external provider can be active at a time — the built-in memory is always active alongside it.
 
 ## Quick Start
 
@@ -22,7 +22,7 @@ Or set manually in `~/.autolycus/config.yaml`:
 
 ```yaml
 memory:
-  provider: openviking   # or honcho, mem0, hindsight, holographic, retaindb, byterover, supermemory
+  provider: honcho   # or mem0, hindsight, holographic, retaindb, byterover, supermemory
 ```
 
 ## How It Works
@@ -272,39 +272,6 @@ Off-gateway these keys do nothing. `lycus memory setup` only prompts for them wh
 
 See the [config reference](https://github.com/NousResearch/lycus-agent/blob/main/plugins/memory/honcho/README.md) and [Honcho integration guide](https://docs.honcho.dev/v3/guides/integrations/lycus).
 
-
----
-
-### OpenViking
-
-Context database by Volcengine (ByteDance) with filesystem-style knowledge hierarchy, tiered retrieval, and automatic memory extraction into 6 categories.
-
-| | |
-|---|---|
-| **Best for** | Self-hosted knowledge management with structured browsing |
-| **Requires** | `pip install openviking` + running server |
-| **Data storage** | Self-hosted (local or cloud) |
-| **Cost** | Free (open-source, AGPL-3.0) |
-
-**Tools:** `viking_search` (semantic search), `viking_read` (tiered: abstract/overview/full), `viking_browse` (filesystem navigation), `viking_remember` (store facts), `viking_add_resource` (ingest URLs/docs)
-
-**Setup:**
-```bash
-# Start the OpenViking server first
-pip install openviking
-openviking-server
-
-# Then configure Lycus
-lycus memory setup    # select "openviking"
-# Or manually:
-lycus config set memory.provider openviking
-echo "OPENVIKING_ENDPOINT=http://localhost:1933" >> ~/.autolycus/.env
-```
-
-**Key features:**
-- Tiered context loading: L0 (~100 tokens) → L1 (~2k) → L2 (full)
-- Automatic memory extraction on session commit (profile, preferences, entities, events, cases, patterns)
-- `viking://` URI scheme for hierarchical knowledge browsing
 
 ---
 
@@ -563,7 +530,6 @@ lycus memory setup
 | Provider | Storage | Cost | Tools | Dependencies | Unique Feature |
 |----------|---------|------|-------|-------------|----------------|
 | **Honcho** | Cloud | Paid | 5 | `honcho-ai` | Dialectic user modeling + session-scoped context |
-| **OpenViking** | Self-hosted | Free | 5 | `openviking` + server | Filesystem hierarchy + tiered loading |
 | **Mem0** | Cloud | Paid | 3 | `mem0ai` | Server-side LLM extraction |
 | **Hindsight** | Cloud/Local | Free/Paid | 3 | `hindsight-client` | Knowledge graph + reflect synthesis |
 | **Holographic** | Local | Free | 2 | None | HRR algebra + trust scoring |
@@ -579,7 +545,6 @@ Each provider's data is isolated per [profile](/user-guide/profiles):
 - **Local storage providers** (Holographic, ByteRover) use `$AUTOLYCUS_HOME/` paths which differ per profile
 - **Config file providers** (Honcho, Mem0, Hindsight, Supermemory) store config in `$AUTOLYCUS_HOME/` so each profile has its own credentials
 - **Cloud providers** (RetainDB) auto-derive profile-scoped project names
-- **Env var providers** (OpenViking) are configured via each profile's `.env` file
 
 ## Building a Memory Provider
 

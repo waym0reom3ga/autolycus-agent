@@ -7,7 +7,7 @@ description: "Use your Nous Portal subscription (or other OAuth provider) as an 
 # Subscription Proxy
 
 The subscription proxy is a local HTTP server that lets external apps —
-OpenViking, Karakeep, Open WebUI, anything that speaks OpenAI-compatible
+Karakeep, Open WebUI, anything that speaks OpenAI-compatible
 chat completions — use your Lycus-managed provider subscription as their
 LLM endpoint. The proxy attaches the right credentials (refreshing them
 automatically) so the app never needs a static API key.
@@ -108,41 +108,6 @@ Portal:
 Other paths (`/v1/images/generations`, `/v1/audio/speech`, etc.) return
 404 with a clear error pointing at the allowed paths. This keeps stray
 clients from leaking weird requests to the upstream.
-
-## Configuring OpenViking to use Portal
-
-[OpenViking](https://github.com/volcengine/OpenViking) is a context
-database that needs an LLM provider for its VLM (vision/language model
-used to extract memories) and embedding model. With the proxy, you can
-point its `vlm.api_base` at your local proxy:
-
-Edit `~/.openviking/ov.conf`:
-
-```json
-{
-  "vlm": {
-    "provider": "openai",
-    "model": "Lycus-4-70B",
-    "api_base": "http://127.0.0.1:8645/v1",
-    "api_key": "unused-proxy-attaches-real-creds"
-  }
-}
-```
-
-Then start your proxy in a terminal alongside `openviking-server`:
-
-```bash
-# Terminal 1
-lycus proxy start
-
-# Terminal 2
-openviking-server
-```
-
-OpenViking's VLM calls now flow through your Portal subscription. The
-embedding model side still needs its own provider — Portal does serve
-`/v1/embeddings` but the model selection depends on what your tier
-supports; check `portal.nousresearch.com/models`.
 
 ## Configuring Karakeep (or any bookmark/summarizer app)
 

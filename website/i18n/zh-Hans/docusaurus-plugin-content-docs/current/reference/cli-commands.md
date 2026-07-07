@@ -942,7 +942,7 @@ lycus hooks <subcommand>
 lycus memory <subcommand>
 ```
 
-设置和管理外部 memory provider plugin。可用 provider：honcho、openviking、mem0、hindsight、holographic、retaindb、byterover、supermemory。同一时间只能有一个外部 provider 处于活跃状态。内置 memory（MEMORY.md/USER.md）始终处于活跃状态。
+设置和管理外部 memory provider plugin。可用 provider：honcho、mem0、hindsight、holographic、retaindb、byterover、supermemory。同一时间只能有一个外部 provider 处于活跃状态。内置 memory（MEMORY.md/USER.md）始终处于活跃状态。
 
 子命令：
 
