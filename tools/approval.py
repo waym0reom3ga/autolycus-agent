@@ -742,7 +742,8 @@ _permanent_approved: set = set()
 _command_history: dict[str, list[str]] = {}
 
 # Maximum number of consecutive identical commands allowed before blocking.
-_REPEATED_COMMAND_THRESHOLD = 2
+# Set to 1 so the FIRST duplicate is blocked immediately.
+_REPEATED_COMMAND_THRESHOLD = 1
 
 # =========================================================================
 # Blocking gateway approval (mirrors CLI's synchronous input() flow)

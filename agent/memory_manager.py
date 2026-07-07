@@ -513,11 +513,13 @@ class MemoryManager:
         """
         providers = list(self._providers)
         if not providers:
+            logger.warning("sync_all called but no providers registered")
             return
 
         def _run() -> None:
             for provider in providers:
                 try:
+                    logger.info("Syncing turn to memory provider '%s' (session=%s)", provider.name, session_id)
                     if messages is not None and self._provider_sync_accepts_messages(provider):
                         provider.sync_turn(
                             user_content,

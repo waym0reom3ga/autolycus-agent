@@ -3051,8 +3051,16 @@ class AIAgent:
         backend must not block the user from seeing their response.
         """
         if interrupted:
+            logger.debug("Skipping memory sync: turn was interrupted")
             return
-        if not (self._memory_manager and final_response and original_user_message):
+        if not self._memory_manager:
+            logger.warning("Skipping memory sync: _memory_manager is None")
+            return
+        if not final_response:
+            logger.warning("Skipping memory sync: final_response is empty/None (type=%s)", type(final_response).__name__)
+            return
+        if not original_user_message:
+            logger.warning("Skipping memory sync: original_user_message is empty/None (type=%s)", type(original_user_message).__name__)
             return
         # Multimodal turns carry content as a list of typed parts; providers
         # expect plain strings, so flatten to text first (newline-joined for

@@ -6,6 +6,9 @@ chunked, compressed into L1 memories by an LLM, and then recursively compressed
 into higher-level summaries (L2, L3, …). Recall uses tag-based retrieval with
 decay scoring.
 
+Also registers the `memory_compression` auxiliary task so Lycus routes LLM calls
+through the configured provider instead of failing silently.
+
 Config in $AUTOLYCUS_HOME/config.yaml (profile-scoped):
   plugins:
     totalrecall:
@@ -44,16 +47,40 @@ except ImportError as exc:
 # ---------------------------------------------------------------------------
 
 def _lycus_llm_backend(messages, temperature=None, max_tokens=None):
-    """Callable that TotalRecall invokes for compression/distillation."""
+    """Callable that TotalRecall invokes for compression/distillation.
+
+    Routes through Lycus auxiliary_client with task='memory_compression'.
+    Returns an OpenAI-style response object with .choices[0].message.content.
+    Falls back to the main chat provider if memory_compression is not configured.
+    """
     from agent.auxiliary_client import call_llm
-    kwargs = {
-        "task": "memory_compression",
-        "messages": messages,
-        "temperature": temperature or 0.1,
-    }
-    if max_tokens is not None:
-        kwargs["max_tokens"] = int(max_tokens)
-    return call_llm(**kwargs)
+
+    # Try memory_compression task first (registered by this plugin)
+    try:
+        kwargs = {
+            "task": "memory_compression",
+            "messages": messages,
+            "temperature": temperature or 0.1,
+        }
+        if max_tokens is not None:
+            kwargs["max_tokens"] = int(max_tokens)
+        return call_llm(**kwargs)
+    except Exception as primary_err:
+        logger.warning("TotalRecall memory_compression task failed (%s), trying main provider", primary_err)
+
+    # Fallback: use the main chat provider directly via auto-detect
+    try:
+        kwargs = {
+            "task": None,
+            "messages": messages,
+            "temperature": temperature or 0.1,
+        }
+        if max_tokens is not None:
+            kwargs["max_tokens"] = int(max_tokens)
+        return call_llm(**kwargs)
+    except Exception as fallback_err:
+        logger.error("TotalRecall LLM backend failed (primary=%s, fallback=%s)", primary_err, fallback_err)
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -180,9 +207,9 @@ class TotalRecallMemoryProvider(MemoryProvider):
                 db_dir=db_dir,
                 llm_backend=_lycus_llm_backend,
             )
-            logger.info("TotalRecall initialized at %s", db_dir)
+            logger.info("TotalRecall initialized at %s (session=%s)", db_dir, session_id)
         except Exception as exc:
-            logger.error("Failed to initialize TotalRecall: %s", exc)
+            logger.error("Failed to initialize TotalRecall: %s", exc, exc_info=True)
             self._tr = None
 
     # -- System prompt block ------------------------------------------------
@@ -199,11 +226,12 @@ class TotalRecallMemoryProvider(MemoryProvider):
 
         memories_by_level = stats.get("memories_by_level", {})
         total_memories = stats.get("total_memories", 0)
+        unassigned = stats.get("unassigned", 0)
 
         if total_memories == 0:
             return (
                 "# TotalRecall Memory\n"
-                "Active. No compressed memories yet — conversations will be ingested and compressed at session end.\n"
+                f"Active. {unassigned} turns pending compression — conversations are ingested per-turn and compressed at session end.\n"
                 "Use totalrecall_compress to actively distill recent turns into durable memories."
             )
 
@@ -215,7 +243,7 @@ class TotalRecallMemoryProvider(MemoryProvider):
 
         return (
             f"# TotalRecall Memory\n"
-            f"Active. {total_memories} compressed memories ({levels_str}).\n"
+            f"Active. {total_memories} compressed memories ({levels_str}), {unassigned} turns pending.\n"
             f"Use totalrecall_search to recall past context, totalrecall_status for stats, "
             f"totalrecall_compress to distill recent turns."
         )
@@ -235,19 +263,25 @@ class TotalRecallMemoryProvider(MemoryProvider):
                 return ""
             return f"## TotalRecall Memory\n{result}"
         except Exception as exc:
-            logger.debug("TotalRecall prefetch failed: %s", exc)
+            logger.warning("TotalRecall prefetch failed: %s", exc)
             return ""
 
     # -- Turn sync ----------------------------------------------------------
 
     def sync_turn(self, user_content: str, assistant_content: str, *, session_id: str = "", messages: Optional[List[Dict[str, Any]]] = None) -> None:
         """Ingest a completed turn into TotalRecall."""
-        if not self._tr or not user_content:
+        if not self._tr:
+            logger.warning("TotalRecall sync_turn skipped: _tr is None (initialization may have failed)")
+            return
+        if not user_content:
+            logger.debug("TotalRecall sync_turn skipped: user_content is empty")
             return
         try:
-            self._tr.ingest(self._session_id, user_content, assistant_content)
+            cmd_id = self._tr.ingest(self._session_id, user_content, assistant_content)
+            logger.info("TotalRecall ingested command %d (session=%s, user_len=%d, assistant_len=%d)",
+                       cmd_id, self._session_id, len(user_content), len(assistant_content or ""))
         except Exception as exc:
-            logger.debug("TotalRecall ingest failed: %s", exc)
+            logger.error("TotalRecall ingest failed: %s", exc, exc_info=True)
 
     # -- Tool schemas -------------------------------------------------------
 
@@ -274,32 +308,41 @@ class TotalRecallMemoryProvider(MemoryProvider):
             return
 
         try:
+            stats_before = self._tr.status()
+            unassigned = stats_before.get("unassigned", 0)
+            logger.info("Session end: TotalRecall has %d unassigned commands to compress", unassigned)
+
             # Phase 1: Assign and compress all remaining unchunked commands
             compressed_chunks = 0
             while True:
                 chunk_number = self._tr.assign_chunk()
                 if chunk_number is None:
                     break
+                logger.info("Compressing chunk %d...", chunk_number)
                 new_memory_ids = self._tr.compress_chunk(chunk_number)
                 if new_memory_ids:
                     compressed_chunks += 1
                     logger.info("Compressed chunk %d -> %d L1 memories", chunk_number, len(new_memory_ids))
+                else:
+                    logger.warning("Chunk %d compressed to 0 memories (LLM backend may have failed)", chunk_number)
 
             # Phase 2: Recursive compression of accumulated L1 memories
-            stats = self._tr.status()
-            l1_count = stats.get("memories_by_level", {}).get(1, 0)
+            stats_after = self._tr.status()
+            l1_count = stats_after.get("memories_by_level", {}).get(1, 0)
             if l1_count > 5:
                 logger.info("Triggering recursive compression for %d L1 memories", l1_count)
-                # Collect all L1 memory IDs and compress them into higher levels
                 self._recursive_compress_l1()
 
+            final_stats = self._tr.status()
+            logger.info("Session end TotalRecall complete: %d chunks compressed, %d total memories",
+                       compressed_chunks, final_stats.get("total_memories", 0))
+
         except Exception as exc:
-            logger.error("TotalRecall session-end compression failed: %s", exc)
+            logger.error("TotalRecall session-end compression failed: %s", exc, exc_info=True)
 
     def _recursive_compress_l1(self) -> None:
         """Compress accumulated L1 memories into higher-level summaries."""
         try:
-            # Fetch all L1 memory IDs from the database
             rows = self._tr.conn.execute(
                 "SELECT id FROM memories WHERE level = 1 ORDER BY created_at DESC"
             ).fetchall()
@@ -309,7 +352,6 @@ class TotalRecallMemoryProvider(MemoryProvider):
                 logger.debug("Only %d L1 memories — skipping recursive compression", len(l1_ids))
                 return
 
-            # Compress in batches of 20 to stay within context limits
             batch_size = 20
             for i in range(0, len(l1_ids), batch_size):
                 batch = l1_ids[i:i + batch_size]
@@ -317,14 +359,22 @@ class TotalRecallMemoryProvider(MemoryProvider):
                 if new_ids:
                     logger.info("Recursive compression: %d L1 -> %d higher-level memories",
                                 len(batch), len(new_ids))
+                else:
+                    logger.warning("Recursive compression produced 0 memories for batch of %d (LLM backend may have failed)", len(batch))
         except Exception as exc:
-            logger.debug("Recursive L1 compression failed: %s", exc)
+            logger.error("Recursive L1 compression failed: %s", exc, exc_info=True)
 
     # -- Shutdown -----------------------------------------------------------
 
     def shutdown(self) -> None:
         """Close TotalRecall connection."""
         if self._tr:
+            try:
+                stats = self._tr.status()
+                logger.info("TotalRecall shutting down: %d commands, %d memories",
+                           stats.get("commands", 0), stats.get("total_memories", 0))
+            except Exception:
+                pass
             try:
                 self._tr.close()
             except Exception as exc:
@@ -372,7 +422,6 @@ class TotalRecallMemoryProvider(MemoryProvider):
         if not self._tr:
             return tool_error("TotalRecall not initialized")
         try:
-            # Assign the next chunk of unchunked commands
             chunk_number = self._tr.assign_chunk()
             if chunk_number is None:
                 return json.dumps({
@@ -380,8 +429,13 @@ class TotalRecallMemoryProvider(MemoryProvider):
                     "message": "No unassigned commands to compress. All ingested turns are already chunked.",
                 })
 
-            # Compress the assigned chunk into L1 memories
             new_memory_ids = self._tr.compress_chunk(chunk_number)
+            if not new_memory_ids:
+                return json.dumps({
+                    "status": "compression_failed",
+                    "chunk_number": chunk_number,
+                    "message": "Compression produced 0 memories — LLM backend may have failed. Check agent.log for details.",
+                })
             return json.dumps({
                 "status": "compressed",
                 "chunk_number": chunk_number,
@@ -389,6 +443,7 @@ class TotalRecallMemoryProvider(MemoryProvider):
                 "memory_ids": new_memory_ids,
             })
         except Exception as exc:
+            logger.error("totalrecall_compress failed: %s", exc, exc_info=True)
             return tool_error(str(exc))
 
 
@@ -413,3 +468,25 @@ def register(ctx) -> None:
 
     provider = TotalRecallMemoryProvider(config=config)
     ctx.register_memory_provider(provider)
+
+    # Register the auxiliary LLM task so memory_compression resolves properly.
+    # Defaults to 'auto' which picks up the main chat provider — users can
+    # override in config.yaml under auxiliary.memory_compression if they want
+    # a separate model for compression (e.g., a cheaper/faster model).
+    try:
+        ctx.register_auxiliary_task(
+            key="memory_compression",
+            display_name="TotalRecall Memory Compression",
+            description="LLM calls for TotalRecall recursive memory distillation",
+            defaults={
+                "provider": "auto",
+                "model": "",
+                "base_url": "",
+                "api_key": "",
+                "timeout": 120,
+                "extra_body": {},
+            },
+        )
+        logger.info("Registered auxiliary task 'memory_compression' for TotalRecall")
+    except Exception as exc:
+        logger.warning("Failed to register memory_compression auxiliary task: %s", exc)
