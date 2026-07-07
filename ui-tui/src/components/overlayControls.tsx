@@ -1,4 +1,5 @@
 import { Text, useInput } from '@lycus/ink'
+import { exec } from 'child_process'
 
 import type { Theme } from '../theme.js'
 
@@ -6,6 +7,15 @@ export function useOverlayKeys({ disabled = false, onBack, onClose }: OverlayKey
   useInput((ch, key) => {
     if (disabled) {
       return
+    }
+
+    // VT switching: Alt+F2-F6 switch to tty2-tty6 while keeping Lycus running
+    if (key.alt && /^f[2-6]$/.test(key.name?.toLowerCase() ?? '')) {
+      const vtNum = parseInt(key.name![1], 10)
+      if (vtNum >= 2 && vtNum <= 6) {
+        exec(`chvt ${vtNum}`, () => {})
+        return
+      }
     }
 
     if (ch === 'q') {

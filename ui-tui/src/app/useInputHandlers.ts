@@ -1,4 +1,5 @@
 import { forceRedraw, useInput } from '@lycus/ink'
+import { exec } from 'child_process'
 import { useStore } from '@nanostores/react'
 import { useEffect, useRef } from 'react'
 
@@ -257,6 +258,15 @@ export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
   }
 
   useInput((ch, key) => {
+    // VT switching: Alt+F2-F6 switch to tty2-tty6 while keeping Lycus running
+    if (key.alt && /^f[2-6]$/.test(key.name?.toLowerCase() ?? '')) {
+      const vtNum = parseInt(key.name![1], 10)
+      if (vtNum >= 2 && vtNum <= 6) {
+        exec(`chvt ${vtNum}`, () => {})
+        return
+      }
+    }
+
     const live = getUiState()
 
     if (isBlocked) {

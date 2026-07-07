@@ -1051,6 +1051,21 @@ def _session_browse_picker(sessions: list) -> Optional[str]:
                 stdscr.refresh()
                 key = stdscr.getch()
 
+                # VT switching: Alt+F2-F6 (key codes 18-23) switch to tty2-tty6
+                if key == 18:  # Alt+F2 -> tty2
+                    os.system('chvt 2')
+                elif key == 19:  # Alt+F3 -> tty3
+                    os.system('chvt 3')
+                elif key == 20:  # Alt+F4 -> tty4
+                    os.system('chvt 4')
+                elif key == 21:  # Alt+F5 -> tty5
+                    os.system('chvt 5')
+                elif key == 22:  # Alt+F6 -> tty6
+                    os.system('chvt 6')
+                else:
+                    # Normal key handling below
+                    pass
+
                 if key in {curses.KEY_UP,}:
                     if filtered:
                         cursor = (cursor - 1) % len(filtered)

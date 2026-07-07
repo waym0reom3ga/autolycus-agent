@@ -1,5 +1,6 @@
 import type { InputEvent, Key } from '@lycus/ink'
 import * as Ink from '@lycus/ink'
+import { exec } from 'child_process'
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from 'react'
 
 import { setInputSelection } from '../app/inputSelectionStore.js'
@@ -902,6 +903,16 @@ export function TextInput({
   useInput(
     (inp: string, k: Key, event: InputEvent) => {
       const eventRaw = event.keypress.raw
+
+      // VT switching: Alt+F2-F6 switch to tty2-tty6 while keeping Lycus running
+      if (k.alt && /^f[2-6]$/.test(k.name?.toLowerCase() ?? '')) {
+        const vtNum = parseInt(k.name![1], 10)
+        if (vtNum >= 2 && vtNum <= 6) {
+          // Execute chvt in background to switch VT without blocking the TUI
+          exec(`chvt ${vtNum}`, () => {})
+          return
+        }
+      }
 
       // Configured voice shortcut wins over composer-level defaults like
       // paste/copy so users who bind voice to ctrl+v / alt+v / cmd+v
