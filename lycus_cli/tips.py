@@ -102,7 +102,7 @@ TIPS = [
     "lycus webhook subscribe creates event-driven webhook routes with HMAC validation.",
     "Save money: lycus tools disables unused tools, lycus skills config trims skills down.",
     "/reasoning low or /reasoning minimal cuts thinking depth below the default (medium) — faster, cheaper responses.",
-    "lycus models routes vision, compression, and aux tasks to cheaper models — cuts background token cost 85%+ without downgrading your main chat model.",
+    "By default, auxiliary tasks (vision, compression) use the same model as your main chat. Set auxiliary.<task>.provider and auxiliary.<task>.model in config.yaml to route them to a cheaper model instead.",
 
     # --- Configuration ---
     "Set display.bell_on_complete: true in config.yaml to hear a bell when long tasks finish.",
@@ -186,7 +186,7 @@ TIPS = [
 
     # --- Voice ---
     "Voice mode works with zero API keys if faster-whisper is installed (free local speech-to-text).",
-    "Five TTS providers available: Edge TTS (free), ElevenLabs, OpenAI, NeuTTS (free local), MiniMax.",
+    "Multiple TTS providers: Edge TTS (free), ElevenLabs, OpenAI, xAI, Mistral, Gemini, NeuTTS, MiniMax, Piper, and KittenTTS.",
     "/voice on enables voice mode in the CLI. Ctrl+B toggles push-to-talk recording.",
     "Streaming TTS plays sentences as they generate — you don't wait for the full response.",
     "Voice messages on Telegram, Discord, WhatsApp, and Slack are auto-transcribed.",
@@ -236,9 +236,8 @@ TIPS = [
     "MCP OAuth support: auth: oauth enables browser-based authorization with PKCE.",
 
     # --- Checkpoints & Rollback ---
-    "Checkpoints have zero overhead when no files are modified — enabled by default.",
+    "Enable checkpoints via lycus chat --checkpoints or config.yaml — they snapshot files before destructive ops with zero overhead when nothing changes.",
     "A pre-rollback snapshot is saved automatically so you can undo the undo.",
-    "/rollback also undoes the conversation turn, so the agent doesn't remember rolled-back changes.",
     "Checkpoints use shadow repos in ~/.autolycus/checkpoints/ — your project's .git is never touched.",
 
     # --- Batch & Data ---
@@ -255,7 +254,6 @@ TIPS = [
     # --- Miscellaneous ---
     "Prompt caching (Anthropic) reduces costs by reusing cached system prompt prefixes.",
     "The agent auto-generates session titles in a background thread — zero latency impact.",
-    "Smart model routing can auto-route simple queries to a cheaper model.",
     "Slash commands support prefix matching: /h resolves to /help, /mod to /model.",
     "Dragging a file path into the terminal auto-attaches images or sends as context.",
     ".worktreeinclude in your repo root lists gitignored files to copy into worktrees.",
@@ -356,7 +354,7 @@ TIPS = [
     # --- Cron (no-agent & scripts) ---
     'cronjob with no_agent=True runs a script on schedule and sends its stdout directly — zero tokens, zero LLM.',
     'An empty cron script stdout means silent tick — nothing is delivered, perfect for threshold watchdogs.',
-    "HERMES_CRON_MAX_PARALLEL (default 4) caps how many cron jobs run per tick so bursts don't saturate your keys.",
+    "Set cron.max_parallel in config.yaml (default 4) or HERMES_CRON_MAX_PARALLEL env var to cap concurrent cron jobs per tick.",
 
     # --- Gateway Hooks ---
     'Gateway hooks live under ~/.autolycus/hooks/<name>/ with HOOK.yaml + handler.py — handler must be named `handle`.',
