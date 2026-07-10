@@ -99,7 +99,7 @@ conservative at the waist.
   concrete consumer. Adding a hook is easy; removing one after plugins depend
   on it is hard. A hook is NOT speculative if a contributor has a real, stated
   use case — even if the consumer ships separately.
-- **New `HERMES_*` env vars for non-secret config.** `.env` is for secrets
+- **New `LYCUS_*` env vars for non-secret config.** `.env` is for secrets
   only (API keys, tokens, passwords). All behavioral settings — timeouts,
   thresholds, feature flags, display prefs — go in `config.yaml`. Bridge to an
   internal env var if the mechanism needs one, but user-facing docs point to
@@ -220,7 +220,7 @@ entry points you'll actually edit.
 lycus-agent/
 ├── run_agent.py          # AIAgent class — core conversation loop (~12k LOC)
 ├── model_tools.py        # Tool orchestration, discover_builtin_tools(), handle_function_call()
-├── toolsets.py           # Toolset definitions, _HERMES_CORE_TOOLS list
+├── toolsets.py           # Toolset definitions, _LYCUS_CORE_TOOLS list
 ├── cli.py                # LycusCLI class — interactive CLI orchestrator (~11k LOC)
 ├── lycus_state.py       # SessionDB — SQLite session store (FTS5 search)
 ├── lycus_constants.py   # get_lycus_home(), display_lycus_home() — profile-aware paths
@@ -416,7 +416,7 @@ if canonical == "mycommand":
 
 ## TUI Architecture (ui-tui + tui_gateway)
 
-The TUI is a full replacement for the classic (prompt_toolkit) CLI, activated via `lycus --tui` or `HERMES_TUI=1`.
+The TUI is a full replacement for the classic (prompt_toolkit) CLI, activated via `lycus --tui` or `LYCUS_TUI=1`.
 
 ### Process Model
 
@@ -531,7 +531,7 @@ registry.register(
 )
 ```
 
-**2. Add to `toolsets.py`** — either `_HERMES_CORE_TOOLS` (all platforms) or a new toolset. **This step is required:** auto-discovery imports the tool and registers its schema, but the tool is only *exposed to an agent* if its name appears in a toolset. `_HERMES_CORE_TOOLS` is not dead code — it's the default bundle every platform's base toolset inherits from.
+**2. Add to `toolsets.py`** — either `_LYCUS_CORE_TOOLS` (all platforms) or a new toolset. **This step is required:** auto-discovery imports the tool and registers its schema, but the tool is only *exposed to an agent* if its name appears in a toolset. `_LYCUS_CORE_TOOLS` is not dead code — it's the default bundle every platform's base toolset inherits from.
 
 Auto-discovery: any `tools/*.py` file with a top-level `registry.register()` call is imported automatically — no manual import list to maintain. Wiring into a toolset is still a deliberate, manual step.
 
@@ -936,7 +936,7 @@ contributor skill PRs.
 
 All toolsets are defined in `toolsets.py` as a single `TOOLSETS` dict.
 Each platform's adapter picks a base toolset (e.g. Telegram uses
-`"messaging"`); `_HERMES_CORE_TOOLS` is the default bundle most
+`"messaging"`); `_LYCUS_CORE_TOOLS` is the default bundle most
 platforms inherit from.
 
 Current toolset keys: `browser`, `clarify`, `code_execution`, `cronjob`,
@@ -1082,7 +1082,7 @@ kanban task.
 
 Isolation model:
 - **Board** is the hard boundary — workers are spawned with
-  `HERMES_KANBAN_BOARD` pinned in their env so they can't see other
+  `LYCUS_KANBAN_BOARD` pinned in their env so they can't see other
   boards.
 - **Tenant** is a soft namespace *within* a board — one specialist
   fleet can serve multiple businesses with workspace-path + memory-key
@@ -1116,7 +1116,7 @@ invalidation. See `/skills install --now` for the canonical pattern.
 When `terminal(background=true, notify_on_complete=true)` is used, the gateway runs a watcher that
 detects process completion and triggers a new agent turn. Control verbosity of background process
 messages with `display.background_process_notifications`
-in config.yaml (or `HERMES_BACKGROUND_NOTIFICATIONS` env var):
+in config.yaml (or `LYCUS_BACKGROUND_NOTIFICATIONS` env var):
 
 - `all` — running-output updates + final message (default)
 - `result` — only the final completion message
@@ -1281,7 +1281,7 @@ Implementation notes:
 - Pass `--no-isolate` to disable isolation — useful when debugging a single
   test interactively, or when you specifically want to verify state leakage.
 - The plugin disables itself in child processes (sentinel envvar
-  `HERMES_ISOLATE_CHILD=1`), so there's no fork-bomb risk.
+  `LYCUS_ISOLATE_CHILD=1`), so there's no fork-bomb risk.
 
 ### Why the wrapper (and why the old "just call pytest" doesn't work)
 

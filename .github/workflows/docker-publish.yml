@@ -71,7 +71,7 @@ jobs:
           platforms: linux/amd64
           tags: ${{ env.IMAGE_NAME }}:test
           build-args: |
-            HERMES_GIT_SHA=${{ github.sha }}
+            LYCUS_GIT_SHA=${{ github.sha }}
           cache-from: type=gha,scope=docker-amd64
           cache-to: type=gha,mode=max,scope=docker-amd64
 
@@ -92,8 +92,8 @@ jobs:
       #
       # Piggybacking here avoids a second image build: the smoke test
       # already proved the image loads + runs, so the daemon has it under
-      # `${IMAGE_NAME}:test` and we just point ``HERMES_TEST_IMAGE`` at
-      # that.  The fixture's ``HERMES_TEST_IMAGE`` branch (see
+      # `${IMAGE_NAME}:test` and we just point ``LYCUS_TEST_IMAGE`` at
+      # that.  The fixture's ``LYCUS_TEST_IMAGE`` branch (see
       # tests/docker/conftest.py:62-63) short-circuits the rebuild.
       #
       # Why this job and not a standalone one: the image is 5GB+; passing
@@ -120,7 +120,7 @@ jobs:
       - name: Run docker integration tests
         env:
           # Skip rebuild; use the image already loaded by the build step.
-          HERMES_TEST_IMAGE: ${{ env.IMAGE_NAME }}:test
+          LYCUS_TEST_IMAGE: ${{ env.IMAGE_NAME }}:test
           # Match the policy in tests.yml :: test job — no accidental
           # real-API calls from inside the harness.
           OPENROUTER_API_KEY: ""
@@ -151,7 +151,7 @@ jobs:
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
-            HERMES_GIT_SHA=${{ github.sha }}
+            LYCUS_GIT_SHA=${{ github.sha }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=docker-amd64
           cache-to: type=gha,mode=max,scope=docker-amd64
@@ -230,7 +230,7 @@ jobs:
           platforms: linux/arm64
           tags: ${{ env.IMAGE_NAME }}:test
           build-args: |
-            HERMES_GIT_SHA=${{ github.sha }}
+            LYCUS_GIT_SHA=${{ github.sha }}
           cache-from: type=registry,ref=ghcr.io/nousresearch/lycus-agent:buildcache-arm64
 
       # Main/release builds read AND write the registry cache so the digest
@@ -246,7 +246,7 @@ jobs:
           platforms: linux/arm64
           tags: ${{ env.IMAGE_NAME }}:test
           build-args: |
-            HERMES_GIT_SHA=${{ github.sha }}
+            LYCUS_GIT_SHA=${{ github.sha }}
           cache-from: type=registry,ref=ghcr.io/nousresearch/lycus-agent:buildcache-arm64
           cache-to: type=registry,ref=ghcr.io/nousresearch/lycus-agent:buildcache-arm64,mode=max
 
@@ -273,7 +273,7 @@ jobs:
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
-            HERMES_GIT_SHA=${{ github.sha }}
+            LYCUS_GIT_SHA=${{ github.sha }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=registry,ref=ghcr.io/nousresearch/lycus-agent:buildcache-arm64
           cache-to: type=registry,ref=ghcr.io/nousresearch/lycus-agent:buildcache-arm64,mode=max

@@ -1,32 +1,32 @@
-# Fix: Missing `HERMES_CADUCEUS` in `lycus_cli/banner.py`
+# Fix: Missing `LYCUS_CADUCEUS` in `lycus_cli/banner.py`
 
 ## Problem
 
 Running the autolycus agent via `lycus` produced a `NameError`:
 
 ```
-NameError: name 'HERMES_CADUCEUS' is not defined
+NameError: name 'LYCUS_CADUCEUS' is not defined
   File "lycus_cli/banner.py", line 520, in build_welcome_banner
-    _hero = ... else HERMES_CADUCEUS
+    _hero = ... else LYCUS_CADUCEUS
 ```
 
 The same error occurred again in the exception handler at line 523.
 
 ## Root Cause
 
-`HERMES_CADUCEUS` is a multi-line ASCII art string used as the default banner hero image. It was defined only in `cli.py:2695`, but referenced in `lycus_cli/banner.py:520,523` without an import.
+`LYCUS_CADUCEUS` is a multi-line ASCII art string used as the default banner hero image. It was defined only in `cli.py:2695`, but referenced in `lycus_cli/banner.py:520,523` without an import.
 
-A simple `from cli import HERMES_CADUCEUS` isn't viable because of a **circular import**:
+A simple `from cli import LYCUS_CADUCEUS` isn't viable because of a **circular import**:
 - `cli.py` imports from `banner.py` (lines 168 and 809)
 - If `banner.py` imports from `cli.py`, Python's module loader deadlocks
 
 ## Fix
 
-Copied the `HERMES_CADUCEUS` constant definition directly into `lycus_cli/banner.py:26`, immediately after the logger initialization. This makes `banner.py` self-contained and eliminates the circular import risk.
+Copied the `LYCUS_CADUCEUS` constant definition directly into `lycus_cli/banner.py:26`, immediately after the logger initialization. This makes `banner.py` self-contained and eliminates the circular import risk.
 
 ### Modified File
 
-- **`lycus_cli/banner.py`** — Added 15-line `HERMES_CADUCEUS` string constant at line 26 (after `logger = logging.getLogger(__name__)`).
+- **`lycus_cli/banner.py`** — Added 15-line `LYCUS_CADUCEUS` string constant at line 26 (after `logger = logging.getLogger(__name__)`).
 
 No other files were changed. The existing definition in `cli.py:2695` remains as-is to avoid breaking any code that references it there directly.
 
@@ -34,7 +34,7 @@ No other files were changed. The existing definition in `cli.py:2695` remains as
 
 ```bash
 cd /home/waymore/compiled/autolycus-agent
-python -c "from lycus_cli.banner import HERMES_CADUCEUS; print('OK')"
+python -c "from lycus_cli.banner import LYCUS_CADUCEUS; print('OK')"
 python -c "from lycus_cli.banner import build_welcome_banner; print('OK')"
 ```
 
