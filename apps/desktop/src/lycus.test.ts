@@ -14,7 +14,7 @@ describe('Lycus REST session helpers', () => {
 
   beforeEach(() => {
     api = vi.fn().mockResolvedValue(emptySessionsResponse)
-    Object.defineProperty(window, 'lycusDesktop', {
+    Object.defineProperty(window, 'autolycusDesktop', {
       configurable: true,
       value: { api }
     })
@@ -22,7 +22,7 @@ describe('Lycus REST session helpers', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    Reflect.deleteProperty(window, 'lycusDesktop')
+    Reflect.deleteProperty(window, 'autolycusDesktop')
   })
 
   it('uses a longer timeout for the single-profile session list', async () => {

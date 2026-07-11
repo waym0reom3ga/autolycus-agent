@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { canOpenSessionWindow, openNewSessionInNewWindow, openSessionInNewWindow } from './windows'
 
-const desktopWindow = window as unknown as { lycusDesktop?: Window['lycusDesktop'] }
-const initialLycusDesktop = desktopWindow.autolycusDesktop
+const desktopWindow = window as unknown as { autolycusDesktop?: Window['autolycusDesktop'] }
+const initialLycusDesktop = desktopWindow.autoautolycusDesktop
 
 const notifyError = vi.fn()
 
@@ -12,13 +12,13 @@ vi.mock('./notifications', () => ({
 }))
 
 function installBridge(
-  openSessionWindow?: Window['lycusDesktop']['openSessionWindow'],
-  openNewSessionWindow?: Window['lycusDesktop']['openNewSessionWindow']
+  openSessionWindow?: Window['autolycusDesktop']['openSessionWindow'],
+  openNewSessionWindow?: Window['autolycusDesktop']['openNewSessionWindow']
 ) {
-  desktopWindow.autolycusDesktop = {
+  desktopWindow.autoautolycusDesktop = {
     ...(openSessionWindow ? { openSessionWindow } : {}),
     ...(openNewSessionWindow ? { openNewSessionWindow } : {})
-  } as unknown as Window['lycusDesktop']
+  } as unknown as Window['autolycusDesktop']
 }
 
 beforeEach(() => {
@@ -27,15 +27,15 @@ beforeEach(() => {
 
 afterEach(() => {
   if (initialLycusDesktop) {
-    desktopWindow.autolycusDesktop = initialLycusDesktop
+    desktopWindow.autoautolycusDesktop = initialLycusDesktop
   } else {
-    delete desktopWindow.autolycusDesktop
+    delete desktopWindow.autoautolycusDesktop
   }
 })
 
 describe('canOpenSessionWindow', () => {
   it('is false when the desktop bridge is absent', () => {
-    delete desktopWindow.autolycusDesktop
+    delete desktopWindow.autoautolycusDesktop
     expect(canOpenSessionWindow()).toBe(false)
   })
 
@@ -62,7 +62,7 @@ describe('openSessionInNewWindow', () => {
   })
 
   it('no-ops gracefully when the bridge is absent (web fallback)', async () => {
-    delete desktopWindow.autolycusDesktop
+    delete desktopWindow.autoautolycusDesktop
 
     await openSessionInNewWindow('s1')
 
@@ -108,7 +108,7 @@ describe('openSessionInNewWindow', () => {
 
 describe('openNewSessionInNewWindow', () => {
   it('no-ops gracefully when the bridge is absent (web fallback)', async () => {
-    delete desktopWindow.autolycusDesktop
+    delete desktopWindow.autoautolycusDesktop
 
     await openNewSessionInNewWindow()
 

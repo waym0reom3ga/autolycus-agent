@@ -72,7 +72,7 @@ describe('gatewayMediaDataUrl', () => {
 
   beforeEach(() => {
     api.mockClear()
-    vi.stubGlobal('window', { lycusDesktop: { api } })
+    vi.stubGlobal('window', { autolycusDesktop: { api } })
   })
 
   afterEach(() => {

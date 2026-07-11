@@ -12,15 +12,15 @@ import {
   urlSlugTitleLabel
 } from './external-link'
 
-const desktopWindow = window as unknown as { lycusDesktop?: Window['lycusDesktop'] }
-const initialLycusDesktop = desktopWindow.autolycusDesktop
+const desktopWindow = window as unknown as { autolycusDesktop?: Window['autolycusDesktop'] }
+const initialLycusDesktop = desktopWindow.autoautolycusDesktop
 
-function installDesktopBridge(partial: Partial<Window['lycusDesktop']> = {}) {
-  desktopWindow.autolycusDesktop = {
+function installDesktopBridge(partial: Partial<Window['autolycusDesktop']> = {}) {
+  desktopWindow.autoautolycusDesktop = {
     fetchLinkTitle: vi.fn().mockResolvedValue(''),
     openExternal: vi.fn().mockResolvedValue(undefined),
     ...partial
-  } as unknown as Window['lycusDesktop']
+  } as unknown as Window['autolycusDesktop']
 }
 
 afterEach(() => {
@@ -29,9 +29,9 @@ afterEach(() => {
   cleanup()
 
   if (initialLycusDesktop) {
-    desktopWindow.autolycusDesktop = initialLycusDesktop
+    desktopWindow.autoautolycusDesktop = initialLycusDesktop
   } else {
-    delete desktopWindow.autolycusDesktop
+    delete desktopWindow.autoautolycusDesktop
   }
 })
 
@@ -61,7 +61,7 @@ describe('external link helpers', () => {
 
   it('deduplicates in-flight title fetches and caches results', async () => {
     const bridge = vi.fn().mockResolvedValue('El Yunque Tour Water Slide, Rope Swing & Pickup')
-    installDesktopBridge({ fetchLinkTitle: bridge as unknown as Window['lycusDesktop']['fetchLinkTitle'] })
+    installDesktopBridge({ fetchLinkTitle: bridge as unknown as Window['autolycusDesktop']['fetchLinkTitle'] })
 
     const url =
       'https://www.expedia.com/things-to-do/puerto-rico-el-yunque-rainforest-adventure-with-transport.a46272756.activity-details'
@@ -80,7 +80,7 @@ describe('external link helpers', () => {
 
   it('shares cache across protocol/www URL variants', async () => {
     const bridge = vi.fn().mockResolvedValue('Shared Canonical Title')
-    installDesktopBridge({ fetchLinkTitle: bridge as unknown as Window['lycusDesktop']['fetchLinkTitle'] })
+    installDesktopBridge({ fetchLinkTitle: bridge as unknown as Window['autolycusDesktop']['fetchLinkTitle'] })
 
     const first = 'https://www.getyourguide.com/san-juan-puerto-rico-l355/sunset-tours-tc306/'
     const second = 'http://getyourguide.com/san-juan-puerto-rico-l355/sunset-tours-tc306/'
@@ -94,7 +94,7 @@ describe('external link helpers', () => {
 
   it('opens links via the desktop bridge', () => {
     const openExternal = vi.fn().mockResolvedValue(undefined)
-    installDesktopBridge({ openExternal: openExternal as unknown as Window['lycusDesktop']['openExternal'] })
+    installDesktopBridge({ openExternal: openExternal as unknown as Window['autolycusDesktop']['openExternal'] })
 
     render(<ExternalLink href="https://example.com/path/to/resource">Example link</ExternalLink>)
 
@@ -113,7 +113,7 @@ describe('external link helpers', () => {
 
   it('renders pretty links with fetched titles and no host suffix', async () => {
     const bridge = vi.fn().mockResolvedValue('From Fajardo: Full-Day Culebra Islands Catamaran Tour')
-    installDesktopBridge({ fetchLinkTitle: bridge as unknown as Window['lycusDesktop']['fetchLinkTitle'] })
+    installDesktopBridge({ fetchLinkTitle: bridge as unknown as Window['autolycusDesktop']['fetchLinkTitle'] })
 
     const url =
       'https://www.getyourguide.com/culebra-island-l145468/from-fajardo-full-day-cordillera-islands-catamaran-tour-t19894/'
@@ -142,7 +142,7 @@ describe('external link helpers', () => {
 
   it('ignores error-like fetched titles and falls back to slug label', async () => {
     const bridge = vi.fn().mockResolvedValue('GetYourGuide – Error')
-    installDesktopBridge({ fetchLinkTitle: bridge as unknown as Window['lycusDesktop']['fetchLinkTitle'] })
+    installDesktopBridge({ fetchLinkTitle: bridge as unknown as Window['autolycusDesktop']['fetchLinkTitle'] })
 
     const url =
       'https://www.getyourguide.com/culebra-island-l145468/from-fajardo-full-day-cordillera-islands-catamaran-tour-t19894/'

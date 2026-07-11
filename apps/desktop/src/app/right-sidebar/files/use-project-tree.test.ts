@@ -13,14 +13,14 @@ beforeEach(() => {
   $connection.set(null)
   resetProjectTreeState()
   readDir.mockReset()
-  ;(window as unknown as { lycusDesktop: { readDir: typeof readDir } }).autolycusDesktop = { readDir }
+  ;(window as unknown as { autolycusDesktop: { readDir: typeof readDir } }).autoautolycusDesktop = { readDir }
 })
 
 afterEach(() => {
   cleanup()
   $connection.set(null)
   resetProjectTreeState()
-  delete (window as unknown as { lycusDesktop?: unknown }).autolycusDesktop
+  delete (window as unknown as { autolycusDesktop?: unknown }).autoautolycusDesktop
 })
 
 function ok(entries: { name: string; path: string; isDirectory: boolean }[]): LycusReadDirResult {
@@ -124,7 +124,7 @@ describe('useProjectTree', () => {
       }
       throw new Error(`unexpected path ${path}`)
     })
-    ;(window as unknown as { lycusDesktop: unknown }).autolycusDesktop = { gitRoot, readDir, readFileDataUrl }
+    ;(window as unknown as { autolycusDesktop: unknown }).autoautolycusDesktop = { gitRoot, readDir, readFileDataUrl }
 
     $connection.set({ baseUrl: 'local-a', mode: 'local' } as never)
     await expect(readProjectDir('/repo/src', '/repo')).resolves.toMatchObject({
@@ -228,7 +228,7 @@ describe('useProjectTree', () => {
       if (path === '/home/me/projects') return ok([{ name: 'repo', path: '/home/me/projects/repo', isDirectory: true }])
       throw new Error(`unexpected path ${path}`)
     })
-    ;(window as unknown as { lycusDesktop: unknown }).autolycusDesktop = { readDir, sanitizeWorkspaceCwd }
+    ;(window as unknown as { autolycusDesktop: unknown }).autoautolycusDesktop = { readDir, sanitizeWorkspaceCwd }
 
     const { result } = renderHook(() => useProjectTree('/deleted/worktree'))
 
@@ -243,7 +243,7 @@ describe('useProjectTree', () => {
   it('keeps the root error when sanitize offers no usable fallback', async () => {
     const sanitizeWorkspaceCwd = vi.fn(async () => ({ cwd: '/deleted/worktree', sanitized: false }))
     readDir.mockResolvedValue({ entries: [], error: 'ENOENT' })
-    ;(window as unknown as { lycusDesktop: unknown }).autolycusDesktop = { readDir, sanitizeWorkspaceCwd }
+    ;(window as unknown as { autolycusDesktop: unknown }).autoautolycusDesktop = { readDir, sanitizeWorkspaceCwd }
 
     const { result } = renderHook(() => useProjectTree('/deleted/worktree'))
 
@@ -251,8 +251,8 @@ describe('useProjectTree', () => {
     expect(result.current.effectiveCwd).toBe('/deleted/worktree')
   })
 
-  it('returns no-bridge gracefully when window.autolycusDesktop is missing', async () => {
-    delete (window as unknown as { lycusDesktop?: unknown }).autolycusDesktop
+  it('returns no-bridge gracefully when window.autoautolycusDesktop is missing', async () => {
+    delete (window as unknown as { autolycusDesktop?: unknown }).autoautolycusDesktop
 
     const { result } = renderHook(() => useProjectTree('/p'))
 

@@ -18,12 +18,12 @@ function ok(entries: { name: string; path: string; isDirectory: boolean }[]): Ly
 function installBridge() {
   ;(
     window as unknown as {
-      lycusDesktop: {
+      autolycusDesktop: {
         readDir: typeof readDir
         selectPaths: typeof selectPaths
       }
     }
-  ).autolycusDesktop = { readDir, selectPaths }
+  ).autoautolycusDesktop = { readDir, selectPaths }
 }
 
 describe('RightSidebarPane', () => {
@@ -43,7 +43,7 @@ describe('RightSidebarPane', () => {
     $connection.set(null)
     setCurrentCwd('')
     resetProjectTreeState()
-    delete (window as unknown as { lycusDesktop?: unknown }).autolycusDesktop
+    delete (window as unknown as { autolycusDesktop?: unknown }).autoautolycusDesktop
   })
 
   it('refreshes the current tree without opening the folder picker', async () => {

@@ -28,7 +28,7 @@ const api = vi.fn(async ({ path }: { path: string }) => {
 
 function stubBridge() {
   vi.stubGlobal('window', {
-    lycusDesktop: {
+    autolycusDesktop: {
       api,
       gitRoot,
       readDir,

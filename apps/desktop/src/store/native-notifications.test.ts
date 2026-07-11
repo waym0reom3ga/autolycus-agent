@@ -12,8 +12,8 @@ import {
 import { $approvalRequest, setApprovalRequest } from './prompts'
 import { $activeSessionId, setActiveSessionId } from './session'
 
-const desktopWindow = window as unknown as { lycusDesktop?: Window['lycusDesktop'] }
-const initialLycusDesktop = desktopWindow.autolycusDesktop
+const desktopWindow = window as unknown as { autolycusDesktop?: Window['autolycusDesktop'] }
+const initialLycusDesktop = desktopWindow.autoautolycusDesktop
 
 const notify = vi.fn().mockResolvedValue(true)
 
@@ -34,7 +34,7 @@ function freshSession(): string {
 
 beforeEach(() => {
   notify.mockClear()
-  desktopWindow.autolycusDesktop = { notify } as unknown as Window['lycusDesktop']
+  desktopWindow.autoautolycusDesktop = { notify } as unknown as Window['autolycusDesktop']
   setNativeNotifyEnabled(true)
 
   for (const kind of NATIVE_NOTIFICATION_KINDS) {
@@ -47,9 +47,9 @@ beforeEach(() => {
 
 afterEach(() => {
   if (initialLycusDesktop) {
-    desktopWindow.autolycusDesktop = initialLycusDesktop
+    desktopWindow.autoautolycusDesktop = initialLycusDesktop
   } else {
-    delete desktopWindow.autolycusDesktop
+    delete desktopWindow.autoautolycusDesktop
   }
 })
 

@@ -121,7 +121,7 @@ beforeEach(() => {
   FakeWebSocket.mode = 'open'
   FakeWebSocket.instances = []
   ;(globalThis as { WebSocket: unknown }).WebSocket = FakeWebSocket
-  ;(window as { lycusDesktop?: unknown }).autolycusDesktop = fakeDesktop()
+  ;(window as { autolycusDesktop?: unknown }).autoautolycusDesktop = fakeDesktop()
   $gatewayState.set('idle')
   $desktopBoot.set({
     error: null,
@@ -139,7 +139,7 @@ afterEach(() => {
   cleanup()
   vi.useRealTimers()
   ;(globalThis as { WebSocket: unknown }).WebSocket = originalWebSocket
-  delete (window as { lycusDesktop?: unknown }).autolycusDesktop
+  delete (window as { autolycusDesktop?: unknown }).autoautolycusDesktop
 })
 
 // Let pending microtasks (awaits) AND the queued 0ms socket open/error fire.
@@ -174,7 +174,7 @@ describe('useGatewayBoot remote reconnect loop (real hook, fake socket)', () => 
           rejectConn = reject
         })
     )
-    ;(window as { lycusDesktop?: unknown }).autolycusDesktop = desktop
+    ;(window as { autolycusDesktop?: unknown }).autoautolycusDesktop = desktop
 
     render(<Harness />)
     await flushAsync()

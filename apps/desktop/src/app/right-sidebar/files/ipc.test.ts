@@ -23,13 +23,13 @@ function dataUrl(text: string) {
 function installBridge() {
   ;(
     window as unknown as {
-      lycusDesktop: {
+      autolycusDesktop: {
         gitRoot: typeof gitRoot
         readDir: typeof readDir
         readFileDataUrl: typeof readFileDataUrl
       }
     }
-  ).autolycusDesktop = { gitRoot, readDir, readFileDataUrl }
+  ).autoautolycusDesktop = { gitRoot, readDir, readFileDataUrl }
 }
 
 describe('readProjectDir', () => {
@@ -43,11 +43,11 @@ describe('readProjectDir', () => {
 
   afterEach(() => {
     clearProjectDirCache()
-    delete (window as unknown as { lycusDesktop?: unknown }).autolycusDesktop
+    delete (window as unknown as { autolycusDesktop?: unknown }).autoautolycusDesktop
   })
 
   it('returns no-bridge when the desktop bridge is unavailable', async () => {
-    delete (window as unknown as { lycusDesktop?: unknown }).autolycusDesktop
+    delete (window as unknown as { autolycusDesktop?: unknown }).autoautolycusDesktop
 
     await expect(readProjectDir('/repo')).resolves.toEqual({ entries: [], error: 'no-bridge' })
   })

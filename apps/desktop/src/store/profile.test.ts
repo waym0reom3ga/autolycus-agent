@@ -32,7 +32,7 @@ beforeEach(() => {
   $gateway.set({ id: 'live-socket' })
   $activeGatewayProfile.set('default')
   $connection.set(localConn())
-  vi.stubGlobal('window', { lycusDesktop: { getConnection } })
+  vi.stubGlobal('window', { autolycusDesktop: { getConnection } })
 })
 
 afterEach(() => {
