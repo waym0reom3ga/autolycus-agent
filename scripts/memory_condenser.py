@@ -41,7 +41,7 @@ logger = logging.getLogger('memory_condenser')
 LAYER_0_MAX_CHARS = 32768  # Max chars per raw chunk
 CONDENSE_MAX_TOKENS = 131072  # Upper bound for condensation output (no fixed target)
 DB_PATH = lycus_home / "state.db"
-WEEK_SECONDS = 7 * 24 * 3600  # One week in seconds - max age for fresh chunks
+WEEK_SECONDS = 30 * 24 * 3600  # 30 days - max age for fresh chunks
 
 
 def _strip_thinking_preamble(text: str) -> str:
@@ -382,8 +382,9 @@ def _calculate_batch_size(chunks: List[dict], conn: sqlite3.Connection) -> int:
     if not chunks:
         return 1
 
-    # Estimate available context (model max minus prompt overhead)
-    available_context = 260000 - 4000  # conservative estimate for our model
+    # Estimate available context: use 75% of CONDENSE_MAX_TOKENS * 4 chars/token
+    # as a safe working window, minus prompt overhead
+    available_context = int(CONDENSE_MAX_TOKENS * 4 * 0.75) - 4000
     avg_chunk_size = sum(len(c['content']) for c in chunks) // len(chunks)
 
     if avg_chunk_size == 0:
@@ -425,11 +426,36 @@ CONDENSED SUMMARY:"""
     try:
         import urllib.request
         import urllib.error
-        
+
         # Load provider config from .env or config.yaml
-        base_url = os.environ.get('OPENAI_BASE_URL', 'http://192.168.2.22:1234/v1')
-        api_key = os.environ.get('OPENAI_API_KEY', 'lycus-local')
-        model = os.environ.get('LYCUS_MODEL', 'unsloth/qwen3.6-27b-mtp')
+        base_url = os.environ.get('OPENAI_BASE_URL')
+        api_key = os.environ.get('OPENAI_API_KEY')
+        model = os.environ.get('LYCUS_MODEL')
+
+        # Fall back to autolycus config if env vars not set
+        if not base_url or not api_key or not model:
+            try:
+                from lycus_cli.config import cfg_get
+                all_cfg = {}
+                config_path = lycus_home / "config.yaml"
+                if config_path.exists():
+                    import yaml  # noqa: TID251
+                    with open(config_path, encoding="utf-8-sig") as f:
+                        all_cfg = yaml.safe_load(f) or {}
+                if not base_url:
+                    base_url = cfg_get(all_cfg, "providers", "chat", "base_url", default="") or ""
+                if not api_key:
+                    api_key = cfg_get(all_cfg, "providers", "chat", "api_key", default="") or ""
+                if not model:
+                    model = cfg_get(all_cfg, "providers", "chat", "model", default="") or ""
+            except Exception as cfg_err:
+                logger.debug("Failed to load config from autolycus: %s", cfg_err)
+
+        if not base_url or not api_key or not model:
+            raise ValueError(
+                "LLM configuration missing. Set OPENAI_BASE_URL, OPENAI_API_KEY, and LYCUS_MODEL "
+                "env vars, or configure providers.chat in config.yaml."
+            )
         
         # Ensure URL ends with /chat/completions
         if not base_url.endswith('/v1'):
