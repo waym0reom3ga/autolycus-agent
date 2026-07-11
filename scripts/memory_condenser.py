@@ -39,7 +39,7 @@ logger = logging.getLogger('memory_condenser')
 
 # Constants
 LAYER_0_MAX_CHARS = 32768  # Max chars per raw chunk
-CONDENSE_TARGET_TOKENS = 500  # Target tokens for condensed output
+CONDENSE_MAX_TOKENS = 131072  # Upper bound for condensation output (no fixed target)
 DB_PATH = lycus_home / "state.db"
 WEEK_SECONDS = 7 * 24 * 3600  # One week in seconds - max age for fresh chunks
 
@@ -329,7 +329,7 @@ def _calculate_batch_size(chunks: List[dict], conn: sqlite3.Connection) -> int:
     if avg_chunk_size == 0:
         return 10
 
-    batch_size = min(available_context // (avg_chunk_size + 500), len(chunks))
+    batch_size = min(available_context // max(avg_chunk_size + 1000, 1), len(chunks))
     return max(1, batch_size)
 
 
@@ -343,17 +343,17 @@ def _condense_batch(chunks: List[dict], source_layer: int, target_layer: int) ->
 
     source_text = "\n\n".join(chunk_contents)
 
-    prompt = f"""You are a knowledge distillation engine. Condense the following session chunks into a concise summary.
+    prompt = f"""You are a knowledge distillation engine. Condense the following session chunks into a comprehensive summary.
 
 Source layer: {source_layer}
 Target layer: {target_layer}
 Number of source chunks: {len(chunks)}
 
 INSTRUCTIONS:
-- Preserve key facts, decisions, code changes, and outcomes
+- Preserve ALL key facts, decisions, code changes, outcomes, and technical details
 - Remove conversational filler, greetings, and redundant explanations
-- Keep technical details (file paths, commands, error messages) that would be useful for recall
-- Target approximately {CONDENSE_TARGET_TOKENS} tokens of output
+- Keep file paths, commands, error messages, configuration values, and any detail useful for recall
+- Output as much detail as is necessary — do NOT artificially limit length
 - Use clear section headers if the content spans multiple topics
 
 SOURCE CHUNKS:
@@ -379,7 +379,7 @@ CONDENSED SUMMARY:"""
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": CONDENSE_TARGET_TOKENS * 2,
+            "max_tokens": CONDENSE_MAX_TOKENS,
             "temperature": 0.3,
         }
         
@@ -401,9 +401,11 @@ CONDENSED SUMMARY:"""
             msg = result['choices'][0]['message']
             # Some models put output in reasoning_content instead of content
             content = msg.get('content', '') or msg.get('reasoning_content', '')
+            # Estimate actual tokens from content length (~4 chars/token)
+            estimated_tokens = len(content) // 4 if content else 0
             return {
                 'content': content,
-                'tokens': CONDENSE_TARGET_TOKENS,
+                'tokens': estimated_tokens,
                 'prompt': prompt[:1000]  # store truncated prompt for reference
             }
     except Exception as e:
