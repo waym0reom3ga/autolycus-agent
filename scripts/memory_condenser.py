@@ -44,6 +44,66 @@ DB_PATH = lycus_home / "state.db"
 WEEK_SECONDS = 7 * 24 * 3600  # One week in seconds - max age for fresh chunks
 
 
+def _strip_thinking_preamble(text: str) -> str:
+    """Remove LLM thinking process content from response text.
+
+    Models often emit a thinking preamble (numbered analysis, reasoning steps,
+    <thinking> tags, etc.) before the actual structured output.  This function
+    strips that preamble so only the real payload remains.
+    """
+    import re
+    if not text:
+        return text
+
+    # Strip <thinking>...</thinking> blocks
+    text = re.sub(r'<thinking>.*?</thinking>', '', text, flags=re.DOTALL | re.IGNORECASE)
+
+    # Strip thinking preamble: "Here's a thinking process:" through the end of
+    # the numbered/lettered analysis list.
+    preamble_re = re.compile(
+        r'(?:'
+        r"Here's?\s+a\s+thinking\s+process"
+        r'|Thinking\s+process'
+        r'|Let\s+me\s+think'
+        r'|Step\s+\d+'
+        r'|Analysis\s*:?'
+        r')',
+        re.IGNORECASE,
+    )
+    m = preamble_re.search(text)
+    if m:
+        candidate = text[m.end():].lstrip()
+        lines = candidate.split('\n')
+        skip = True
+        kept: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if skip:
+                # Skip blank lines and pure punctuation
+                if not stripped or stripped in (':', '::'):
+                    continue
+                # Skip numbered analysis items (1., 2., 3., etc.)
+                if re.match(r'^\d+[.)]\s', stripped):
+                    continue
+                # Skip bullet points that are meta-commentary
+                if re.match(r'^[-*]\s*\*\*', stripped):
+                    continue
+                # Skip meta-commentary keywords
+                if re.match(
+                    r'^(?:Draft|Refine|Polish|Target|Let\'s\s+draft|Attempt\s+\d+|'
+                    r'Refining|Polishing|Drafting)',
+                    stripped, re.IGNORECASE,
+                ):
+                    continue
+                # Reached actual content — stop skipping
+                skip = False
+            kept.append(line)
+        if kept:
+            text = '\n'.join(kept).strip()
+
+    return text
+
+
 def get_connection() -> sqlite3.Connection:
     """Get a connection to the state database."""
     conn = sqlite3.connect(str(DB_PATH))
@@ -401,6 +461,8 @@ CONDENSED SUMMARY:"""
             msg = result['choices'][0]['message']
             # Some models put output in reasoning_content instead of content
             content = msg.get('content', '') or msg.get('reasoning_content', '')
+            # Strip LLM thinking preamble before storing
+            content = _strip_thinking_preamble(content)
             # Estimate actual tokens from content length (~4 chars/token)
             estimated_tokens = len(content) // 4 if content else 0
             return {
