@@ -38,6 +38,7 @@ _TotalRecall_import_error: Optional[str] = None
 
 try:
     from totalrecall.core import TotalRecall as _TotalRecall  # noqa: F811
+    from totalrecall.core import CompressionError  # noqa: F401
 except ImportError as exc:
     _TotalRecall_import_error = str(exc)
 
@@ -430,17 +431,22 @@ class TotalRecallMemoryProvider(MemoryProvider):
 
             # Phase 1: Assign and compress all remaining unchunked commands
             compressed_chunks = 0
+            compression_errors = 0
             while True:
                 chunk_number = self._tr.assign_chunk()
                 if chunk_number is None:
                     break
                 logger.info("Compressing chunk %d...", chunk_number)
-                new_memory_ids = self._tr.compress_chunk(chunk_number)
-                if new_memory_ids:
-                    compressed_chunks += 1
-                    logger.info("Compressed chunk %d -> %d L1 memories", chunk_number, len(new_memory_ids))
-                else:
-                    logger.warning("Chunk %d compressed to 0 memories (LLM backend may have failed)", chunk_number)
+                try:
+                    new_memory_ids = self._tr.compress_chunk(chunk_number)
+                    if new_memory_ids:
+                        compressed_chunks += 1
+                        logger.info("Compressed chunk %d -> %d L1 memories", chunk_number, len(new_memory_ids))
+                    else:
+                        logger.info("Chunk %d: LLM returned 0 memories (nothing to extract)", chunk_number)
+                except CompressionError as ce:
+                    compression_errors += 1
+                    logger.error("Chunk %d compression FAILED: %s", chunk_number, ce)
 
             # Phase 2: Recursive compression of accumulated L1 memories
             stats_after = self._tr.status()
@@ -450,8 +456,12 @@ class TotalRecallMemoryProvider(MemoryProvider):
                 self._recursive_compress_l1()
 
             final_stats = self._tr.status()
-            logger.info("Session end TotalRecall complete: %d chunks compressed, %d total memories",
-                       compressed_chunks, final_stats.get("total_memories", 0))
+            logger.info(
+                "Session end TotalRecall complete: %d chunks compressed, "
+                "%d total memories, %d compression errors",
+                compressed_chunks, final_stats.get("total_memories", 0),
+                final_stats.get("llm_failure_count", 0),
+            )
 
         except Exception as exc:
             logger.error("TotalRecall session-end compression failed: %s", exc, exc_info=True)
@@ -471,12 +481,15 @@ class TotalRecallMemoryProvider(MemoryProvider):
             batch_size = 20
             for i in range(0, len(l1_ids), batch_size):
                 batch = l1_ids[i:i + batch_size]
-                new_ids = self._tr.compress_memories(batch)
-                if new_ids:
-                    logger.info("Recursive compression: %d L1 -> %d higher-level memories",
-                                len(batch), len(new_ids))
-                else:
-                    logger.warning("Recursive compression produced 0 memories for batch of %d (LLM backend may have failed)", len(batch))
+                try:
+                    new_ids = self._tr.compress_memories(batch)
+                    if new_ids:
+                        logger.info("Recursive compression: %d L1 -> %d higher-level memories",
+                                    len(batch), len(new_ids))
+                    else:
+                        logger.info("Recursive compression: batch of %d produced 0 memories (nothing to extract)", len(batch))
+                except CompressionError as ce:
+                    logger.error("Recursive compression FAILED for batch of %d: %s", len(batch), ce)
         except Exception as exc:
             logger.error("Recursive L1 compression failed: %s", exc, exc_info=True)
 
@@ -548,9 +561,9 @@ class TotalRecallMemoryProvider(MemoryProvider):
             new_memory_ids = self._tr.compress_chunk(chunk_number)
             if not new_memory_ids:
                 return json.dumps({
-                    "status": "compression_failed",
+                    "status": "no_memories",
                     "chunk_number": chunk_number,
-                    "message": "Compression produced 0 memories — LLM backend may have failed. Check agent.log for details.",
+                    "message": "LLM extracted 0 memories from this chunk (nothing useful to retain).",
                 })
             return json.dumps({
                 "status": "compressed",
@@ -558,6 +571,8 @@ class TotalRecallMemoryProvider(MemoryProvider):
                 "new_memory_count": len(new_memory_ids),
                 "memory_ids": new_memory_ids,
             })
+        except CompressionError as ce:
+            return tool_error(f"Compression failed: {ce}")
         except Exception as exc:
             logger.error("totalrecall_compress failed: %s", exc, exc_info=True)
             return tool_error(str(exc))
