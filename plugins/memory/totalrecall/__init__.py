@@ -321,10 +321,15 @@ class TotalRecallMemoryProvider(MemoryProvider):
         if not user_content:
             logger.debug("TotalRecall sync_turn skipped: user_content is empty")
             return
+        # Use passed session_id if provided (from memory_manager), fall back to cached
+        effective_sid = session_id or self._session_id
+        if not effective_sid:
+            logger.warning("TotalRecall sync_turn skipped: no session_id available")
+            return
         try:
-            cmd_id = self._tr.ingest(self._session_id, user_content, assistant_content)
+            cmd_id = self._tr.ingest(effective_sid, user_content, assistant_content)
             logger.info("TotalRecall ingested command %d (session=%s, user_len=%d, assistant_len=%d)",
-                       cmd_id, self._session_id, len(user_content), len(assistant_content or ""))
+                       cmd_id, effective_sid, len(user_content), len(assistant_content or ""))
         except Exception as exc:
             logger.error("TotalRecall ingest failed: %s", exc, exc_info=True)
 
@@ -343,6 +348,72 @@ class TotalRecallMemoryProvider(MemoryProvider):
         elif tool_name == "totalrecall_compress":
             return self._handle_compress()
         return tool_error(f"Unknown TotalRecall tool: {tool_name}")
+
+    # -- Session switch -----------------------------------------------------
+
+    def on_session_switch(
+        self,
+        new_session_id: str,
+        *,
+        parent_session_id: str = "",
+        reset: bool = False,
+        rewound: bool = False,
+        **kwargs,
+    ) -> None:
+        """Update session_id when the agent rotates to a new session.
+
+        Before switching, flush any unassigned commands from the old session
+        by assigning and compressing them, so no turns are orphaned.
+        """
+        if not self._tr:
+            logger.warning("TotalRecall not initialized, skipping session-switch flush")
+            return
+
+        # Flush unassigned commands from the old session before switching
+        try:
+            stats = self._tr.status()
+            unassigned = stats.get("unassigned", 0)
+            if unassigned:
+                logger.info(
+                    "Session switch: flushing %d unassigned commands from session %s",
+                    unassigned, self._session_id,
+                )
+                while True:
+                    chunk_number = self._tr.assign_chunk()
+                    if chunk_number is None:
+                        break
+                    self._tr.compress_chunk(chunk_number)
+                    logger.info("Session switch: flushed chunk %d", chunk_number)
+        except Exception as exc:
+            logger.error("Session switch flush failed: %s", exc, exc_info=True)
+
+        # Update cached session_id
+        self._session_id = new_session_id
+        logger.info("TotalRecall session switched: %s -> %s", parent_session_id or "(none)", new_session_id)
+
+    # -- Pre-compress hook --------------------------------------------------
+
+    def on_pre_compress(self, messages: List[Dict[str, Any]]) -> str:
+        """Flush unassigned commands before context compression discards them.
+
+        Returns empty string — TotalRecall doesn't contribute to the
+        compression summary prompt itself.
+        """
+        if not self._tr:
+            return ""
+        try:
+            stats = self._tr.status()
+            unassigned = stats.get("unassigned", 0)
+            if unassigned:
+                logger.info("Pre-compress: flushing %d unassigned commands", unassigned)
+                while True:
+                    chunk_number = self._tr.assign_chunk()
+                    if chunk_number is None:
+                        break
+                    self._tr.compress_chunk(chunk_number)
+        except Exception as exc:
+            logger.error("Pre-compress flush failed: %s", exc, exc_info=True)
+        return ""
 
     # -- Session end --------------------------------------------------------
 
@@ -441,7 +512,7 @@ class TotalRecallMemoryProvider(MemoryProvider):
             if not tags:
                 return json.dumps({"results": [], "message": "No meaningful tags extracted from query"})
 
-            result = self._tr.recall(tags, max_tokens=max_tokens)
+            result = self._tr.recall(tags, max_tokens=max_tokens, query_text=query)
             return json.dumps({
                 "query": query,
                 "tags": tags,
