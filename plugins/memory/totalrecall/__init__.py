@@ -87,13 +87,58 @@ def _lycus_llm_backend(messages, temperature=None, max_tokens=None):
 # Tag extraction helper
 # ---------------------------------------------------------------------------
 
+# English stop words to filter out — these add no semantic value for tag matching
+_TAG_STOP_WORDS = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "need", "dare", "ought",
+    "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
+    "as", "into", "through", "during", "before", "after", "above", "below",
+    "between", "out", "off", "over", "under", "again", "further", "then",
+    "once", "here", "there", "when", "where", "why", "how", "all", "both",
+    "each", "few", "more", "most", "other", "some", "such", "no", "nor",
+    "not", "only", "own", "same", "so", "than", "too", "very", "just",
+    "because", "but", "and", "or", "if", "while", "that", "this", "these",
+    "those", "it", "its", "i", "me", "my", "we", "our", "you", "your",
+    "he", "him", "his", "she", "her", "they", "them", "their", "what",
+    "which", "who", "whom", "am", "about", "up", "also", "get", "got",
+    "let", "say", "said", "make", "like", "take", "come", "see", "know",
+    "go", "think", "look", "want", "give", "use", "find", "tell", "ask",
+    "work", "try", "call", "feel", "keep", "leave", "put", "mean", "new",
+    "old", "long", "great", "little", "big", "high", "different", "small",
+    "large", "next", "early", "young", "important", "few", "public",
+    "bad", "good", "able", "help", "show", "every", "right", "thing",
+    "things", "things", "way", "many", "much", "part", "things", "time",
+    "things", "ask", "please", "help", "fix", "check", "look", "find",
+    "tell", "show", "make", "want", "need", "use", "run", "set",
+})
+
 def _extract_tags(text: str) -> List[str]:
-    """Pull meaningful tags from query text by splitting on spaces/punctuation."""
+    """Extract meaningful tags from query text.
+
+    Strategy:
+    1. Split into tokens (words and hyphenated compounds)
+    2. Filter stop words and short tokens
+    3. Extract bigrams of adjacent meaningful tokens as compound tags
+    4. Return both individual and compound tags for broader matching
+    """
     if not text:
         return []
-    # Split on whitespace and punctuation, keep words >= 2 chars
+
+    # Split preserving hyphenated compounds
     tokens = re.split(r'[\s\W_]+', text.lower())
-    return [t for t in tokens if len(t) >= 2]
+    words = [t for t in tokens if len(t) >= 3 and t not in _TAG_STOP_WORDS]
+
+    if not words:
+        return []
+
+    # Build compound tags from adjacent meaningful words (bigrams)
+    compounds = []
+    for i in range(len(words) - 1):
+        compounds.append(f"{words[i]}-{words[i + 1]}")
+
+    # Return compounds + individual words; compounds first for better matching
+    return list(dict.fromkeys(compounds + words))  # deduplicate, preserve order
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +303,7 @@ class TotalRecallMemoryProvider(MemoryProvider):
             tags = _extract_tags(query)
             if not tags:
                 return ""
-            result = self._tr.recall(tags, max_tokens=200_000)
+            result = self._tr.recall(tags, max_tokens=200_000, query_text=query)
             if not result or not result.strip():
                 return ""
             return f"## TotalRecall Memory\n{result}"
