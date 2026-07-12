@@ -503,12 +503,59 @@ CONDENSED SUMMARY:"""
 
 
 def show_status(conn: sqlite3.Connection):
-    """Display condensation status across all layers with age info."""
+    """Display condensation status across all layers with age info.
+
+    Uses TotalRecall as the primary data source. Falls back to legacy
+    condensation_layers table if TotalRecall is not available.
+    """
+    # Try TotalRecall first
+    try:
+        from totalrecall.core import TotalRecall
+        tr_dir = lycus_home / "totalrecall"
+        tr = TotalRecall(db_dir=str(tr_dir))
+        stats = tr.status()
+
+        memories_by_level = stats.get("memories_by_level", {})
+        total_memories = stats.get("total_memories", 0)
+        llm_failures = stats.get("llm_failure_count", 0)
+        last_error = stats.get("last_llm_error", "")
+
+        print("\nTotalRecall Memory Status (unified):")
+        print("-" * 80)
+
+        if total_memories == 0:
+            print("  No compressed memories yet.")
+        else:
+            for level in sorted(memories_by_level.keys()):
+                count = memories_by_level[level]
+                print(f"  L{level}: {count} memories")
+            print(f"  Total: {total_memories} compressed memories")
+
+        print(f"  LLM backend health: {llm_failures} consecutive failures")
+        if last_error:
+            print(f"  Last LLM error: {last_error}")
+
+        # Legacy condensation_layers stats
+        cursor = conn.cursor()
+        legacy_rows = cursor.execute(
+            "SELECT layer, COUNT(*) as cnt, SUM(char_count) as chars "
+            "FROM condensation_layers WHERE layer >= 1 GROUP BY layer ORDER BY layer"
+        ).fetchall()
+        if legacy_rows:
+            print(f"\nLegacy condensation_layers (read-only, pre-migration):")
+            for row in legacy_rows:
+                print(f"  L{row['layer']}: {row['cnt']} chunks, {row['chars']:,} chars")
+
+        tr.close()
+        return
+    except Exception as e:
+        logger.debug("TotalRecall status unavailable: %s", e)
+
+    # Fall back to legacy condensation_layers
     cursor = conn.cursor()
     now = time.time()
     week_ago = now - WEEK_SECONDS
 
-    # Overall stats
     cursor.execute("""
         SELECT layer, COUNT(*) as chunk_count,
                SUM(char_count) as total_chars,
@@ -526,7 +573,7 @@ def show_status(conn: sqlite3.Connection):
         print("No condensation layers exist yet.")
         return
 
-    print("\nCondensation Status:")
+    print("\nCondensation Status (legacy):")
     print("-" * 80)
     for row in rows:
         oldest_age = (now - row['oldest_session']) / (24 * 3600) if row['oldest_session'] else 0
@@ -537,7 +584,6 @@ def show_status(conn: sqlite3.Connection):
               f"{row['sessions_covered']} sessions")
         print(f"  Age range: {newest_age:.1f} - {oldest_age:.1f} days old")
 
-    # Sessions without any condensation
     cursor.execute("""
         SELECT COUNT(*) as total FROM sessions WHERE ended_at IS NOT NULL
     """)
@@ -548,9 +594,8 @@ def show_status(conn: sqlite3.Connection):
     """)
     has_condensed = cursor.fetchone()['condensed']
 
-    # Time-based pruning info
     cursor.execute("""
-        SELECT COUNT(*) as recent FROM sessions 
+        SELECT COUNT(*) as recent FROM sessions
         WHERE ended_at IS NOT NULL AND ended_at >= ?
     """, (week_ago,))
     recent_sessions = cursor.fetchone()['recent']
@@ -564,7 +609,28 @@ def show_status(conn: sqlite3.Connection):
 
 
 def search_condensed(conn: sqlite3.Connection, query: str) -> List[dict]:
-    """Search across all condensation layers using FTS."""
+    """Search across all memory layers using TotalRecall FTS.
+
+    Falls back to legacy condensation_layers FTS if TotalRecall is unavailable.
+    """
+    # Try TotalRecall first
+    try:
+        from totalrecall.core import TotalRecall
+        from plugins.memory.totalrecall import _extract_tags
+
+        tr_dir = lycus_home / "totalrecall"
+        tr = TotalRecall(db_dir=str(tr_dir))
+
+        tags = _extract_tags(query)
+        result = tr.recall(tags, max_tokens=200_000, query_text=query)
+        tr.close()
+
+        if result and result.strip():
+            return [{"content": result, "source": "totalrecall"}]
+    except Exception as e:
+        logger.debug("TotalRecall search unavailable: %s", e)
+
+    # Fall back to legacy condensation_layers FTS
     cursor = conn.cursor()
     cursor.execute("""
         SELECT cl.id, cl.session_id, cl.layer, cl.chunk_index,
@@ -616,7 +682,14 @@ def run_cycle(target_layer: Optional[int] = None):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Memory Condensation Engine')
+    parser = argparse.ArgumentParser(
+        description='Memory Condensation Engine (unified with TotalRecall)',
+        epilog=(
+            'Note: This script delegates to TotalRecall for status and search.\n'
+            'The legacy condensation_layers table is kept for backward compatibility.\n'
+            'Run migrate_condensation_to_totalrecall.py to migrate existing data.'
+        ),
+    )
     parser.add_argument('--status', action='store_true', help='Show condensation status')
     parser.add_argument('--layer', type=int, help='Target layer to condense up to')
     parser.add_argument('--search', type=str, help='Search condensed memory')
@@ -632,11 +705,22 @@ def main():
             show_status(conn)
         elif args.search:
             results = search_condensed(conn, args.search)
+            if not results:
+                print(f"\nNo matches for '{args.search}'")
+                return
+
             print(f"\nFound {len(results)} matches for '{args.search}':\n")
             for r in results:
-                preview = r['content'][:200].replace('\n', ' ')
-                print(f"[Layer {r['layer']}] Session: {r.get('session_title', 'N/A')}")
-                print(f"  {preview}...\n")
+                content = r.get('content', '')
+                preview = content[:300].replace('\n', ' ')
+                source = r.get('source', 'legacy')
+                if source == 'totalrecall':
+                    print(f"[TotalRecall] {preview}...\n")
+                else:
+                    layer = r.get('layer', '?')
+                    title = r.get('session_title', 'N/A')
+                    print(f"[Legacy L{layer}] Session: {title}")
+                    print(f"  {preview}...\n")
         else:
             run_cycle(target_layer=args.layer)
 
