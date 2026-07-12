@@ -363,30 +363,30 @@ class TotalRecallMemoryProvider(MemoryProvider):
     ) -> None:
         """Update session_id when the agent rotates to a new session.
 
-        Before switching, flush any unassigned commands from the old session
-        by assigning and compressing them, so no turns are orphaned.
+        Before switching, assign any unassigned commands from the old session
+        into chunks. Compression happens at session end, not during switch,
+        to avoid blocking the agent on LLM calls.
         """
         if not self._tr:
             logger.warning("TotalRecall not initialized, skipping session-switch flush")
             return
 
-        # Flush unassigned commands from the old session before switching
+        # Assign unassigned commands into chunks (no LLM call needed)
         try:
             stats = self._tr.status()
             unassigned = stats.get("unassigned", 0)
             if unassigned:
                 logger.info(
-                    "Session switch: flushing %d unassigned commands from session %s",
+                    "Session switch: assigning %d unassigned commands from session %s",
                     unassigned, self._session_id,
                 )
                 while True:
                     chunk_number = self._tr.assign_chunk()
                     if chunk_number is None:
                         break
-                    self._tr.compress_chunk(chunk_number)
-                    logger.info("Session switch: flushed chunk %d", chunk_number)
+                    logger.info("Session switch: assigned chunk %d", chunk_number)
         except Exception as exc:
-            logger.error("Session switch flush failed: %s", exc, exc_info=True)
+            logger.error("Session switch assign failed: %s", exc, exc_info=True)
 
         # Update cached session_id
         self._session_id = new_session_id
