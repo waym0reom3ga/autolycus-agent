@@ -16392,10 +16392,81 @@ def _start_cron_ticker(stop_event: threading.Event, adapters=None, loop=None, in
                     on_summary=lambda msg: logger.info("curator: %s", msg),
                 )
             except Exception as e:
-                logger.debug("Curator tick error: %s", e)
+                 logger.debug("Curator tick error: %s", e)
 
         stop_event.wait(timeout=interval)
     logger.info("Cron ticker stopped")
+
+
+def _launch_khronos_server():
+    """Launch the Khronos workflow orchestration server if not already running.
+
+    Khronos is our lightweight Temporal-compatible workflow server.
+    We launch it here so the TemporalCronBridge can connect to it.
+    """
+    import os
+    import socket
+    import subprocess
+    import sys
+
+    # Check if Khronos is already running
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            s.connect(('127.0.0.1', 7233))
+            logger.info("Khronos server already running on port 7233")
+            return True
+    except (socket.timeout, ConnectionRefusedError, OSError):
+        pass
+
+    # Find the Khronos binary
+    khronos_bin = os.path.expanduser("~/.local/bin/khronos")
+    if not os.path.exists(khronos_bin):
+        # Try building from source
+        khronos_src = os.path.expanduser("~/khronos/target/release/khronos")
+        if os.path.exists(khronos_src):
+            khronos_bin = khronos_src
+        else:
+            logger.warning("Khronos binary not found, attempting to build...")
+            try:
+                subprocess.run(
+                    ["cargo", "build", "--release"],
+                    cwd=os.path.expanduser("~/khronos"),
+                    check=True,
+                    capture_output=True,
+                    timeout=300,
+                )
+                khronos_bin = khronos_src
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+                logger.error("Failed to build Khronos: %s", e)
+                return False
+
+    # Launch Khronos
+    try:
+        proc = subprocess.Popen(
+            [khronos_bin, "--port", "7233", "--data-dir", os.path.expanduser("~/.khronos/data")],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+        logger.info("Launched Khronos server (PID %d)", proc.pid)
+
+        # Wait for it to be ready
+        for _ in range(10):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2)
+                    s.connect(('127.0.0.1', 7233))
+                    return True
+            except (socket.timeout, ConnectionRefusedError, OSError):
+                import time
+                time.sleep(1)
+
+        logger.error("Khronos server failed to start within timeout")
+        return False
+    except Exception as e:
+        logger.error("Failed to launch Khronos: %s", e)
+        return False
 
 
 def _start_temporal_worker(adapters=None):
@@ -16849,6 +16920,9 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
         name="cron-ticker",
     )
     cron_thread.start()
+
+    # Launch Khronos workflow orchestration server
+    _launch_khronos_server()
 
     # Start Temporal worker for durable workflow orchestration (if available).
     _start_temporal_worker(runner.adapters)
