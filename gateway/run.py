@@ -1076,15 +1076,45 @@ def _ensure_ssl_certs() -> None:
 def _home_target_env_var(platform_name: str) -> str:
     """Return the configured home-target env var for a platform.
 
-    Consults built-in ``_HOME_TARGET_ENV_VARS`` first, then the plugin
-    registry via ``cron.scheduler._resolve_home_env_var``, then falls back
-    to ``<PLATFORM>_HOME_CHANNEL`` for unknown names.
+    Consults built-in mapping first, then the plugin registry via the
+    platform registry, then falls back to ``<PLATFORM>_HOME_CHANNEL``
+    for unknown names.
     """
-    from cron.scheduler import _resolve_home_env_var
+    _HOME_TARGET_ENV_VARS = {
+        "matrix": "MATRIX_HOME_ROOM",
+        "telegram": "TELEGRAM_HOME_CHANNEL",
+        "discord": "DISCORD_HOME_CHANNEL",
+        "slack": "SLACK_HOME_CHANNEL",
+        "signal": "SIGNAL_HOME_CHANNEL",
+        "mattermost": "MATTERMOST_HOME_CHANNEL",
+        "sms": "SMS_HOME_CHANNEL",
+        "email": "EMAIL_HOME_ADDRESS",
+        "dingtalk": "DINGTALK_HOME_CHANNEL",
+        "feishu": "FEISHU_HOME_CHANNEL",
+        "wecom": "WECOM_HOME_CHANNEL",
+        "weixin": "WEIXIN_HOME_CHANNEL",
+        "bluebubbles": "BLUEBUBBLES_HOME_CHANNEL",
+        "qqbot": "QQBOT_HOME_CHANNEL",
+        "whatsapp": "WHATSAPP_HOME_CHANNEL",
+        "whatsapp_cloud": "WHATSAPP_CLOUD_HOME_CHANNEL",
+    }
 
-    resolved = _resolve_home_env_var(platform_name)
-    if resolved:
-        return resolved
+    name = platform_name.lower()
+    env_var = _HOME_TARGET_ENV_VARS.get(name)
+    if env_var:
+        return env_var
+
+    # Try plugin registry
+    try:
+        from lycus_cli.plugins import discover_plugins
+        discover_plugins()  # idempotent
+        from gateway.platform_registry import platform_registry
+        entry = platform_registry.get(name)
+        if entry and entry.cron_deliver_env_var:
+            return entry.cron_deliver_env_var
+    except Exception:
+        pass
+
     return f"{platform_name.upper()}_HOME_CHANNEL"
 
 
@@ -16306,7 +16336,7 @@ def _run_planned_stop_watcher(
 def _start_cron_ticker(stop_event: threading.Event, adapters=None, loop=None, interval: int = 60):
     """
     Background thread that ticks the cron scheduler at a regular interval.
-    
+
     Runs inside the gateway process so cronjobs fire automatically without
     needing a separate `lycus cron daemon` or system cron entry.
 
@@ -16317,9 +16347,10 @@ def _start_cron_ticker(stop_event: threading.Event, adapters=None, loop=None, in
     image/audio/document cache + expired ``lycus debug share`` pastes
     once per hour.
     """
-    from cron.scheduler import tick as cron_tick
+    from cron.temporal_bridge import bridge_tick
     from gateway.platforms.base import cleanup_image_cache, cleanup_document_cache
     from lycus_cli.debug import _sweep_expired_pastes
+    import asyncio
 
     IMAGE_CACHE_EVERY = 60   # ticks — once per hour at default 60s interval
     CHANNEL_DIR_EVERY = 5    # ticks — every 5 minutes
@@ -16328,73 +16359,81 @@ def _start_cron_ticker(stop_event: threading.Event, adapters=None, loop=None, in
 
     logger.info("Cron ticker started (interval=%ds)", interval)
     tick_count = 0
-    while not stop_event.is_set():
-        try:
-            cron_tick(verbose=False, adapters=adapters, loop=loop, sync=False)
-        except Exception as e:
-            logger.debug("Cron tick error: %s", e)
 
-        tick_count += 1
+    # Create a dedicated event loop for async bridge_tick calls in this thread
+    ticker_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(ticker_loop)
 
-        if tick_count % CHANNEL_DIR_EVERY == 0 and adapters:
+    try:
+        while not stop_event.is_set():
             try:
-                from gateway.channel_directory import build_channel_directory
-                if loop is not None:
-                    # build_channel_directory is async (Slack web calls), and
-                    # this ticker runs in a background thread. Schedule onto
-                    # the gateway event loop and wait briefly for completion
-                    # so refresh failures are still logged via the except.
-                    fut = safe_schedule_threadsafe(
-                        build_channel_directory(adapters), loop,
-                        logger=logger,
-                        log_message="Channel directory refresh scheduling error",
+                ticker_loop.run_until_complete(bridge_tick(verbose=False))
+            except Exception as e:
+                logger.debug("Cron tick error: %s", e)
+
+            tick_count += 1
+
+            if tick_count % CHANNEL_DIR_EVERY == 0 and adapters:
+                try:
+                    from gateway.channel_directory import build_channel_directory
+                    if loop is not None:
+                        # build_channel_directory is async (Slack web calls), and
+                        # this ticker runs in a background thread. Schedule onto
+                        # the gateway event loop and wait briefly for completion
+                        # so refresh failures are still logged via the except.
+                        fut = safe_schedule_threadsafe(
+                            build_channel_directory(adapters), loop,
+                            logger=logger,
+                            log_message="Channel directory refresh scheduling error",
+                        )
+                        if fut is not None:
+                            fut.result(timeout=30)
+                except Exception as e:
+                    logger.debug("Channel directory refresh error: %s", e)
+
+            if tick_count % IMAGE_CACHE_EVERY == 0:
+                try:
+                    removed = cleanup_image_cache(max_age_hours=24)
+                    if removed:
+                        logger.info("Image cache cleanup: removed %d stale file(s)", removed)
+                except Exception as e:
+                    logger.debug("Image cache cleanup error: %s", e)
+                try:
+                    removed = cleanup_document_cache(max_age_hours=24)
+                    if removed:
+                        logger.info("Document cache cleanup: removed %d stale file(s)", removed)
+                except Exception as e:
+                    logger.debug("Document cache cleanup error: %s", e)
+
+            if tick_count % PASTE_SWEEP_EVERY == 0:
+                try:
+                    deleted, remaining = _sweep_expired_pastes()
+                    if deleted:
+                        logger.info(
+                            "Paste sweep: deleted %d expired paste(s), %d pending",
+                            deleted, remaining,
+                        )
+                except Exception as e:
+                    logger.debug("Paste sweep error: %s", e)
+
+            # Curator — piggy-back on the existing cron ticker so long-running
+            # gateways get weekly skill maintenance without needing restarts.
+            # maybe_run_curator() is internally gated by config.interval_hours
+            # (7 days by default), so CURATOR_EVERY is just the poll rate — the
+            # real work only fires once per config interval.
+            if tick_count % CURATOR_EVERY == 0:
+                try:
+                    from agent.curator import maybe_run_curator
+                    maybe_run_curator(
+                        idle_for_seconds=float("inf"),
+                        on_summary=lambda msg: logger.info("curator: %s", msg),
                     )
-                    if fut is not None:
-                        fut.result(timeout=30)
-            except Exception as e:
-                logger.debug("Channel directory refresh error: %s", e)
+                except Exception as e:
+                     logger.debug("Curator tick error: %s", e)
 
-        if tick_count % IMAGE_CACHE_EVERY == 0:
-            try:
-                removed = cleanup_image_cache(max_age_hours=24)
-                if removed:
-                    logger.info("Image cache cleanup: removed %d stale file(s)", removed)
-            except Exception as e:
-                logger.debug("Image cache cleanup error: %s", e)
-            try:
-                removed = cleanup_document_cache(max_age_hours=24)
-                if removed:
-                    logger.info("Document cache cleanup: removed %d stale file(s)", removed)
-            except Exception as e:
-                logger.debug("Document cache cleanup error: %s", e)
-
-        if tick_count % PASTE_SWEEP_EVERY == 0:
-            try:
-                deleted, remaining = _sweep_expired_pastes()
-                if deleted:
-                    logger.info(
-                        "Paste sweep: deleted %d expired paste(s), %d pending",
-                        deleted, remaining,
-                    )
-            except Exception as e:
-                logger.debug("Paste sweep error: %s", e)
-
-        # Curator — piggy-back on the existing cron ticker so long-running
-        # gateways get weekly skill maintenance without needing restarts.
-        # maybe_run_curator() is internally gated by config.interval_hours
-        # (7 days by default), so CURATOR_EVERY is just the poll rate — the
-        # real work only fires once per config interval.
-        if tick_count % CURATOR_EVERY == 0:
-            try:
-                from agent.curator import maybe_run_curator
-                maybe_run_curator(
-                    idle_for_seconds=float("inf"),
-                    on_summary=lambda msg: logger.info("curator: %s", msg),
-                )
-            except Exception as e:
-                 logger.debug("Curator tick error: %s", e)
-
-        stop_event.wait(timeout=interval)
+            stop_event.wait(timeout=interval)
+    finally:
+        ticker_loop.close()
     logger.info("Cron ticker stopped")
 
 
@@ -16909,24 +16948,12 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
             logger.error("Gateway exiting cleanly: %s", runner.exit_reason)
         return True
     
-    # Start background cron ticker so scheduled jobs fire automatically.
-    # Pass the event loop so cron delivery can use live adapters (E2EE support).
-    cron_stop = threading.Event()
-    cron_thread = threading.Thread(
-        target=_start_cron_ticker,
-        args=(cron_stop,),
-        kwargs={"adapters": runner.adapters, "loop": asyncio.get_running_loop()},
-        daemon=True,
-        name="cron-ticker",
-    )
-    cron_thread.start()
-
     # Launch Khronos workflow orchestration server
     _launch_khronos_server()
 
     # Start Temporal worker for durable workflow orchestration (if available).
     _start_temporal_worker(runner.adapters)
-    
+
     # Wait for shutdown
     await runner.wait_for_shutdown()
 
@@ -16934,10 +16961,6 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
         if runner.exit_reason:
             logger.error("Gateway exiting with failure: %s", runner.exit_reason)
         return False
-    
-    # Stop cron ticker cleanly
-    cron_stop.set()
-    cron_thread.join(timeout=5)
 
     # Stop the planned-stop watcher (daemon=True so this is belt-and-suspenders).
     _planned_stop_watcher_stop.set()

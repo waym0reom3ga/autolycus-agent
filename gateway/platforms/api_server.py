@@ -696,15 +696,15 @@ def _derive_chat_session_id(
 
 _CRON_AVAILABLE = False
 try:
-    from cron.jobs import (
-        list_jobs as _cron_list,
+    from cron.temporal_bridge import (
+        list_all_jobs as _cron_list,
         get_job as _cron_get,
-        create_job as _cron_create,
-        update_job as _cron_update,
-        remove_job as _cron_remove,
-        pause_job as _cron_pause,
-        resume_job as _cron_resume,
-        trigger_job as _cron_trigger,
+        cronjob_bridge_create_job as _cron_create,
+        bridge_update_job as _cron_update,
+        cronjob_bridge_remove_job as _cron_remove,
+        bridge_pause_job as _cron_pause,
+        bridge_resume_job as _cron_resume,
+        cronjob_bridge_trigger_job as _cron_trigger,
     )
     _CRON_AVAILABLE = True
 except ImportError:

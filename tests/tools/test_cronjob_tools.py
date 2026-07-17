@@ -243,9 +243,9 @@ class TestCronjobRequirements:
 class TestUnifiedCronjobTool:
     @pytest.fixture(autouse=True)
     def _setup_cron_dir(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("cron.jobs.CRON_DIR", tmp_path / "cron")
-        monkeypatch.setattr("cron.jobs.JOBS_FILE", tmp_path / "cron" / "jobs.json")
-        monkeypatch.setattr("cron.jobs.OUTPUT_DIR", tmp_path / "cron" / "output")
+        monkeypatch.setattr("cron.temporal_bridge._CRON_DIR", tmp_path / "cron")
+        monkeypatch.setattr("cron.temporal_bridge._JOBS_FILE", tmp_path / "cron" / "jobs.json")
+        monkeypatch.setattr("cron.temporal_bridge._OUTPUT_DIR", tmp_path / "cron" / "output")
 
     def test_create_and_list(self):
         created = json.loads(
@@ -265,19 +265,20 @@ class TestUnifiedCronjobTool:
         assert listing["jobs"][0]["state"] == "scheduled"
 
     def test_list_handles_partial_legacy_job_records(self):
-        from cron.jobs import save_jobs
+        from cron.temporal_bridge import _JOBS_FILE, _save_jobs, _jobs_file_lock
 
-        save_jobs([
-            {
-                "id": "abc123deadbe",
-                "name": None,
-                "prompt": None,
-                "schedule_display": None,
-                "schedule": {"kind": "interval", "minutes": 60, "display": "every 60m"},
-                "repeat": {"times": None, "completed": 0},
-                "enabled": True,
-            }
-        ])
+        with _jobs_file_lock:
+            _save_jobs([
+                {
+                    "id": "abc123deadbe",
+                    "name": None,
+                    "prompt": None,
+                    "schedule_display": None,
+                    "schedule": {"kind": "interval", "minutes": 60, "display": "every 60m"},
+                    "repeat": {"times": None, "completed": 0},
+                    "enabled": True,
+                }
+            ])
 
         listing = json.loads(cronjob(action="list"))
 
@@ -405,7 +406,7 @@ class TestUnifiedCronjobTool:
         string ``"['telegram']"`` as a platform, failing with
         "no delivery target resolved".
         """
-        from cron.jobs import get_job
+        from cron.temporal_bridge import get_job
 
         created = json.loads(
             cronjob(
@@ -421,7 +422,7 @@ class TestUnifiedCronjobTool:
 
     def test_create_normalizes_multi_element_list_deliver(self):
         """deliver=['telegram', 'discord'] is stored as 'telegram,discord'."""
-        from cron.jobs import get_job
+        from cron.temporal_bridge import get_job
 
         created = json.loads(
             cronjob(
@@ -437,7 +438,7 @@ class TestUnifiedCronjobTool:
 
     def test_update_normalizes_list_form_deliver(self):
         """update with deliver=['telegram'] stores the canonical string."""
-        from cron.jobs import get_job
+        from cron.temporal_bridge import get_job
 
         created = json.loads(
             cronjob(action="create", prompt="x", schedule="every 1h")

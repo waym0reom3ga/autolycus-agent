@@ -72,8 +72,7 @@ class LycusCommBridge:
     async def _forward_to_cron(self, trigger: dict):
         """Forward the trigger to the cron scheduler."""
         # Import here to avoid circular imports
-        from cron.scheduler import run_job
-        from cron.jobs import load_jobs
+        from cron.temporal_bridge import cronjob_bridge_trigger_job as run_job, bridge_load_jobs as load_jobs
         
         # Create a cron job from the incoming message
         job = {

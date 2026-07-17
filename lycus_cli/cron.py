@@ -59,7 +59,7 @@ def _cron_api(**kwargs):
 
 def cron_list(show_all: bool = False):
     """List all scheduled jobs."""
-    from cron.jobs import list_jobs
+    from cron.temporal_bridge import list_all_jobs as list_jobs
 
     jobs = list_jobs(include_disabled=show_all)
 
@@ -147,13 +147,13 @@ def cron_list(show_all: bool = False):
 
 def cron_tick():
     """Run due jobs once and exit."""
-    from cron.scheduler import tick
+    from cron.temporal_bridge import bridge_tick as tick
     tick(verbose=True)
 
 
 def cron_status():
     """Show cron execution status."""
-    from cron.jobs import list_jobs
+    from cron.temporal_bridge import list_all_jobs as list_jobs
     from lycus_cli.gateway import find_gateway_pids
 
     print()
@@ -240,7 +240,7 @@ def cron_create(args):
 
 
 def cron_edit(args):
-    from cron.jobs import AmbiguousJobReference, resolve_job_ref
+    from cron.temporal_bridge import AmbiguousJobReference, bridge_resolve_job_ref as resolve_job_ref
 
     try:
         job = resolve_job_ref(args.job_id)

@@ -36,6 +36,12 @@ def cron_env(tmp_path, monkeypatch):
     monkeypatch.setattr(jobs_mod, "JOBS_FILE", lycus_home / "cron" / "jobs.json")
     monkeypatch.setattr(jobs_mod, "OUTPUT_DIR", lycus_home / "cron" / "output")
 
+    # Also patch temporal_bridge paths so cronjob() tool shares the same storage
+    import cron.temporal_bridge as tb_mod
+    monkeypatch.setattr(tb_mod, "_CRON_DIR", lycus_home / "cron")
+    monkeypatch.setattr(tb_mod, "_JOBS_FILE", lycus_home / "cron" / "jobs.json")
+    monkeypatch.setattr(tb_mod, "_OUTPUT_DIR", lycus_home / "cron" / "output")
+
     return lycus_home
 
 

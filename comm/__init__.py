@@ -119,7 +119,7 @@ class LycusComm:
     async def _trigger_cron(self, source: str, message: str):
         """Trigger the cron system with the incoming message."""
         try:
-            from cron.scheduler import run_job
+            from cron.temporal_bridge import cronjob_bridge_trigger_job as run_job
             
             # Create a job from the incoming message
             job = {

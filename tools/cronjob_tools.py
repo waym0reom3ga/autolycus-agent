@@ -9,6 +9,8 @@ import json
 import logging
 import re
 import sys
+import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -16,21 +18,370 @@ from lycus_constants import display_lycus_home
 
 logger = logging.getLogger(__name__)
 
-# Import from cron module (will be available when properly installed)
+# Add parent directory to path so lycus_time, lycus_constants, utils are
+# importable — same pattern as scheduler.py.
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from cron.jobs import (
-    AmbiguousJobReference,
-    create_job,
-    list_jobs,
-    parse_schedule,
-    pause_job,
-    remove_job,
-    resolve_job_ref,
-    resume_job,
-    trigger_job,
-    update_job,
+# ---------------------------------------------------------------------------
+# Backend: route through temporal_bridge instead of cron.jobs
+# ---------------------------------------------------------------------------
+from cron.temporal_bridge import (
+    create_job_entry,
+    get_job,
+    list_all_jobs,
+    remove_job_entry,
+    trigger_job_local,
+    update_job_field,
+    _compute_next_run_local,
 )
+
+
+class AmbiguousJobReference(LookupError):
+    """Raised when a job name matches more than one job."""
+
+    def __init__(self, ref: str, matches: List[Dict[str, Any]]):
+        self.ref = ref
+        self.matches = matches
+        ids = ", ".join(m["id"] for m in matches)
+        super().__init__(
+            f"Job name '{ref}' is ambiguous — matches {len(matches)} jobs: {ids}. "
+            f"Use the job ID instead."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Local schedule parser (replaces cron.jobs.parse_schedule)
+# ---------------------------------------------------------------------------
+def _parse_schedule_local(schedule: str) -> Dict[str, Any]:
+    """Parse schedule string into structured format (self-contained).
+
+    Returns dict with:
+        - kind: "once" | "interval" | "cron"
+        - For "once": "run_at" (ISO timestamp)
+        - For "interval": "minutes" (int)
+        - For "cron": "expr" (cron expression)
+    """
+    schedule = schedule.strip()
+    original = schedule
+    schedule_lower = schedule.lower()
+
+    # "every X" pattern → recurring interval
+    if schedule_lower.startswith("every "):
+        duration_str = schedule[6:].strip()
+        minutes = _parse_duration_local(duration_str)
+        return {
+            "kind": "interval",
+            "minutes": minutes,
+            "display": f"every {minutes}m",
+        }
+
+    # Check for cron expression (5 or 6 space-separated fields)
+    parts = schedule.split()
+    if len(parts) >= 5 and all(
+        re.match(r'^[\d\*\-,/]+$', p) for p in parts[:5]
+    ):
+        try:
+            from croniter import croniter
+            croniter(schedule)
+        except ImportError:
+            raise ValueError(
+                "Cron expressions require 'croniter' package. "
+                "Install with: pip install croniter"
+            )
+        except Exception as e:
+            raise ValueError(f"Invalid cron expression '{schedule}': {e}")
+        return {
+            "kind": "cron",
+            "expr": schedule,
+            "display": schedule,
+        }
+
+    # ISO timestamp (contains T or looks like date)
+    if 'T' in schedule or re.match(r'^\d{4}-\d{2}-\d{2}', schedule):
+        try:
+            dt = datetime.fromisoformat(schedule.replace('Z', '+00:00'))
+            if dt.tzinfo is None:
+                dt = dt.astimezone()
+            return {
+                "kind": "once",
+                "run_at": dt.isoformat(),
+                "display": f"once at {dt.strftime('%Y-%m-%d %H:%M')}",
+            }
+        except ValueError as e:
+            raise ValueError(f"Invalid timestamp '{schedule}': {e}")
+
+    # Duration like "30m", "2h", "1d" → one-shot from now
+    try:
+        minutes = _parse_duration_local(schedule)
+        try:
+            from lycus_time import now as _lycus_now
+            run_at = _lycus_now() + timedelta(minutes=minutes)
+        except Exception:
+            run_at = datetime.now().astimezone() + timedelta(minutes=minutes)
+        return {
+            "kind": "once",
+            "run_at": run_at.isoformat(),
+            "display": f"once in {original}",
+        }
+    except ValueError:
+        pass
+
+    raise ValueError(
+        f"Invalid schedule '{original}'. Use:\n"
+        f"  - Duration: '30m', '2h', '1d' (one-shot)\n"
+        f"  - Interval: 'every 30m', 'every 2h' (recurring)\n"
+        f"  - Cron: '0 9 * * *' (cron expression)\n"
+        f"  - Timestamp: '2026-02-03T14:00:00' (one-shot at time)"
+    )
+
+
+def _parse_duration_local(s: str) -> int:
+    """Parse duration string into minutes (self-contained)."""
+    s = s.strip().lower()
+    match = re.match(
+        r'^(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$',
+        s,
+    )
+    if not match:
+        raise ValueError(
+            f"Invalid duration: '{s}'. Use format like '30m', '2h', or '1d'"
+        )
+    value = int(match.group(1))
+    unit = match.group(2)[0]  # First char: m, h, or d
+    multipliers = {'m': 1, 'h': 60, 'd': 1440}
+    return value * multipliers[unit]
+
+
+# ---------------------------------------------------------------------------
+# Adapter helpers (thin wrappers around temporal_bridge)
+# ---------------------------------------------------------------------------
+def _resolve_job_ref(ref: str) -> Optional[Dict[str, Any]]:
+    """Resolve a job reference (ID or name) to a job record."""
+    if not ref:
+        return None
+    jobs = list_all_jobs(include_disabled=True)
+    for job in jobs:
+        if job["id"] == ref:
+            return job
+    ref_lower = ref.lower()
+    name_matches = [j for j in jobs if (j.get("name") or "").lower() == ref_lower]
+    if not name_matches:
+        return None
+    if len(name_matches) > 1:
+        raise AmbiguousJobReference(ref, name_matches)
+    return name_matches[0]
+
+
+def _create_job(
+    prompt: Optional[str],
+    schedule: str,
+    name: Optional[str] = None,
+    repeat: Optional[int] = None,
+    deliver: Optional[str] = None,
+    origin: Optional[Dict[str, Any]] = None,
+    skill: Optional[str] = None,
+    skills: Optional[List[str]] = None,
+    model: Optional[str] = None,
+    provider: Optional[str] = None,
+    base_url: Optional[str] = None,
+    script: Optional[str] = None,
+    context_from: Optional[Union[str, List[str]]] = None,
+    on_success: Optional[Union[str, List[str]]] = None,
+    enabled_toolsets: Optional[List[str]] = None,
+    workdir: Optional[str] = None,
+    no_agent: bool = False,
+) -> Dict[str, Any]:
+    """Create a new cron job via temporal_bridge."""
+    parsed_schedule = _parse_schedule_local(schedule)
+
+    # Normalize repeat: treat 0 or negative values as None (infinite)
+    if repeat is not None and repeat <= 0:
+        repeat = None
+
+    # Auto-set repeat=1 for one-shot schedules if not specified
+    if parsed_schedule["kind"] == "once" and repeat is None:
+        repeat = 1
+
+    # Default delivery to origin if available, otherwise local
+    if deliver is None:
+        deliver = "origin" if origin else "local"
+
+    job_id = uuid.uuid4().hex[:12]
+
+    # Normalize skills
+    if skills is None:
+        raw_items = [skill] if skill else []
+    elif isinstance(skills, str):
+        raw_items = [skills]
+    else:
+        raw_items = list(skills)
+    normalized_skills: List[str] = []
+    for item in raw_items:
+        text = str(item or "").strip()
+        if text and text not in normalized_skills:
+            normalized_skills.append(text)
+
+    normalized_model = str(model).strip() if isinstance(model, str) else None
+    normalized_provider = str(provider).strip() if isinstance(provider, str) else None
+    normalized_base_url = str(base_url).strip().rstrip("/") if isinstance(base_url, str) else None
+    normalized_model = normalized_model or None
+    normalized_provider = normalized_provider or None
+    normalized_base_url = normalized_base_url or None
+    normalized_script = str(script).strip() if isinstance(script, str) else None
+    normalized_script = normalized_script or None
+    normalized_toolsets = [str(t).strip() for t in enabled_toolsets if str(t).strip()] if enabled_toolsets else None
+    normalized_toolsets = normalized_toolsets or None
+    normalized_no_agent = bool(no_agent)
+
+    if normalized_no_agent and not normalized_script:
+        raise ValueError(
+            "no_agent=True requires a script — with no agent and no script "
+            "there is nothing for the job to run."
+        )
+
+    # Normalize context_from
+    if isinstance(context_from, str):
+        context_from = [context_from.strip()] if context_from.strip() else None
+    elif isinstance(context_from, list):
+        context_from = [str(j).strip() for j in context_from if str(j).strip()] or None
+    else:
+        context_from = None
+
+    # Normalize on_success
+    if isinstance(on_success, str):
+        on_success = [on_success.strip()] if on_success.strip() else []
+    elif isinstance(on_success, list):
+        on_success = [str(j).strip() for j in on_success if str(j).strip()]
+    else:
+        on_success = []
+
+    prompt_text = str(prompt or "")
+    label_source = (
+        prompt_text
+        or (normalized_skills[0] if normalized_skills else None)
+        or (normalized_script if normalized_no_agent else None)
+    ) or "cron job"
+
+    try:
+        from lycus_time import now as _lycus_now
+        now = _lycus_now().isoformat()
+    except Exception:
+        now = datetime.now().astimezone().isoformat()
+
+    job = {
+        "id": job_id,
+        "name": name or label_source[:50].strip(),
+        "prompt": prompt_text,
+        "skills": normalized_skills,
+        "skill": normalized_skills[0] if normalized_skills else None,
+        "model": normalized_model,
+        "provider": normalized_provider,
+        "base_url": normalized_base_url,
+        "script": normalized_script,
+        "no_agent": normalized_no_agent,
+        "context_from": context_from,
+        "on_success": on_success,
+        "schedule": parsed_schedule,
+        "schedule_display": parsed_schedule.get("display", schedule),
+        "repeat": {
+            "times": repeat,
+            "completed": 0,
+        },
+        "enabled": True,
+        "state": "scheduled",
+        "paused_at": None,
+        "paused_reason": None,
+        "created_at": now,
+        "next_run_at": _compute_next_run_local(parsed_schedule),
+        "last_run_at": None,
+        "last_status": None,
+        "last_error": None,
+        "last_delivery_error": None,
+        "deliver": deliver,
+        "origin": origin,
+        "enabled_toolsets": normalized_toolsets,
+        "workdir": workdir,
+    }
+
+    return create_job_entry(job)
+
+
+def _update_job(job_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Update a job by ID via temporal_bridge, handling schedule refresh."""
+    # Block mutation of immutable fields
+    if "id" in updates:
+        raise ValueError("Cron job field 'id' cannot be updated")
+
+    # Read current job to handle deep-merge for nested fields
+    current = get_job(job_id)
+    if current is None:
+        return None
+
+    # Handle repeat deep-merge: preserve completed count when only times changes
+    if "repeat" in updates and current.get("repeat"):
+        existing_repeat = dict(current["repeat"])
+        incoming_repeat = dict(updates["repeat"])
+        if "completed" not in incoming_repeat:
+            incoming_repeat["completed"] = existing_repeat.get("completed", 0)
+        updates = dict(updates)
+        updates["repeat"] = incoming_repeat
+
+    # Handle schedule change: recompute next_run_at
+    schedule_changed = "schedule" in updates
+    if schedule_changed:
+        updated_schedule = updates["schedule"]
+        if isinstance(updated_schedule, str):
+            updated_schedule = _parse_schedule_local(updated_schedule)
+            updates = dict(updates)
+            updates["schedule"] = updated_schedule
+        updates.setdefault(
+            "schedule_display",
+            updated_schedule.get("display", updates.get("schedule_display")),
+        )
+
+    result = update_job_field(job_id, updates)
+
+    if result and schedule_changed:
+        updated_schedule = updates["schedule"]
+        if result.get("state") != "paused":
+            next_run = _compute_next_run_local(updated_schedule)
+            if next_run:
+                update_job_field(job_id, {"next_run_at": next_run})
+                result["next_run_at"] = next_run
+
+    return result
+
+
+def _pause_job(job_id: str, reason: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Pause a job via temporal_bridge."""
+    try:
+        from lycus_time import now as _lycus_now
+        now_iso = _lycus_now().isoformat()
+    except Exception:
+        now_iso = datetime.now().astimezone().isoformat()
+
+    return update_job_field(job_id, {
+        "enabled": False,
+        "state": "paused",
+        "paused_at": now_iso,
+        "paused_reason": reason,
+    })
+
+
+def _resume_job(job_id: str) -> Optional[Dict[str, Any]]:
+    """Resume a paused job via temporal_bridge."""
+    job = get_job(job_id)
+    if not job:
+        return None
+
+    next_run_at = _compute_next_run_local(job.get("schedule", {}))
+    return update_job_field(job_id, {
+        "enabled": True,
+        "state": "scheduled",
+        "paused_at": None,
+        "paused_reason": None,
+        "next_run_at": next_run_at,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -96,8 +447,8 @@ _CRON_EXFIL_COMMAND_PATTERNS = [
     # or shipping it via Authorization headers to arbitrary hosts. The
     # only intended allowlist exception today is the bundled GitHub skill
     # pattern that talks to api.github.com.
-    (rf'curl\s+[^\n]*https?://[^\s"\'`]*{_CRON_SECRET_VAR_RE}', "exfil_curl_url"),
-    (rf'wget\s+[^\n]*https?://[^\s"\'`]*{_CRON_SECRET_VAR_RE}', "exfil_wget_url"),
+    (rf'curl\s+[^\n]*https?://[^\s"\']*{_CRON_SECRET_VAR_RE}', "exfil_curl_url"),
+    (rf'wget\s+[^\n]*https?://[^\s"\']*{_CRON_SECRET_VAR_RE}', "exfil_wget_url"),
     (rf'curl\s+[^\n]*(?:--data(?:-raw|-binary|-urlencode)?|-d|--form|-F)\s+[^\n]*{_CRON_SECRET_VAR_RE}', "exfil_curl_data"),
     (rf'wget\s+[^\n]*--post-(?:data|file)=[^\n]*{_CRON_SECRET_VAR_RE}', "exfil_wget_post"),
     (rf'curl\s+[^\n]*(?:-H|--header)\s+["\']Authorization:\s*(?:Bearer|token)\s+{_CRON_SECRET_VAR_RE}["\']', "exfil_curl_auth_header"),
@@ -109,7 +460,7 @@ _CRON_INVISIBLE_CHARS = {
 }
 
 # U+200D Zero-Width Joiner is also a legitimate, required part of many
-# Unicode emoji sequences (for example 👨‍👩‍👧, 🏳️‍🌈, ❤️‍🩹, 🧑‍💻).
+# Unicode emoji sequences (for example 👨‍👩‍👧, 🏳️ 🌈, ❤️  🩹, 🧑 💻).
 # We should still block ZWJ when it is hiding between plain text characters,
 # but not when it is clearly part of an emoji grapheme cluster.
 _EMOJI_NEIGHBOUR_CP_RANGES = (
@@ -310,7 +661,6 @@ def _canonical_skills(skill: Optional[str] = None, skills: Optional[Any] = None)
         if text and text not in normalized:
             normalized.append(text)
     return normalized
-
 
 
 
@@ -527,10 +877,9 @@ def cronjob(
 
             # Validate context_from references existing jobs
             if context_from:
-                from cron.jobs import get_job as _get_job
                 refs = [context_from] if isinstance(context_from, str) else context_from
                 for ref_id in refs:
-                    if not _get_job(ref_id):
+                    if not get_job(ref_id):
                         return tool_error(
                             f"context_from job '{ref_id}' not found. "
                             "Use cronjob(action='list') to see available jobs.",
@@ -539,17 +888,16 @@ def cronjob(
 
             # Validate on_success references existing jobs
             if on_success:
-                from cron.jobs import get_job as _get_job
                 refs = [on_success] if isinstance(on_success, str) else on_success
                 for ref_id in refs:
-                    if not _get_job(ref_id):
+                    if not get_job(ref_id):
                         return tool_error(
                             f"on_success job '{ref_id}' not found. "
                             "Use cronjob(action='list') to see available jobs.",
                             success=False,
                         )
 
-            job = create_job(
+            job = _create_job(
                 prompt=prompt or "",
                 schedule=schedule,
                 name=name,
@@ -585,14 +933,14 @@ def cronjob(
             )
 
         if normalized == "list":
-            jobs = [_format_job(job) for job in list_jobs(include_disabled=include_disabled)]
+            jobs = [_format_job(job) for job in list_all_jobs(include_disabled=include_disabled)]
             return json.dumps({"success": True, "count": len(jobs), "jobs": jobs}, indent=2)
 
         if not job_id:
             return tool_error(f"job_id is required for action '{normalized}'", success=False)
 
         try:
-            job = resolve_job_ref(job_id)
+            job = _resolve_job_ref(job_id)
         except AmbiguousJobReference as exc:
             return json.dumps(
                 {
@@ -616,18 +964,18 @@ def cronjob(
                 indent=2,
             )
         # Resolve to canonical ID (supports name-based lookup)
-        job_id = job["id"]
+        canonical_id: str = str(job["id"])
 
         if normalized == "remove":
-            removed = remove_job(job_id)
+            removed = remove_job_entry(canonical_id)
             if not removed:
-                return tool_error(f"Failed to remove job '{job_id}'", success=False)
+                return tool_error(f"Failed to remove job '{canonical_id}'", success=False)
             return json.dumps(
                 {
                     "success": True,
                     "message": f"Cron job '{job['name']}' removed.",
                     "removed_job": {
-                        "id": job_id,
+                        "id": canonical_id,
                         "name": job["name"],
                         "schedule": job.get("schedule_display"),
                     },
@@ -636,15 +984,15 @@ def cronjob(
             )
 
         if normalized == "pause":
-            updated = pause_job(job_id, reason=reason)
+            updated = _pause_job(canonical_id, reason=reason)
             return json.dumps({"success": True, "job": _format_job(updated)}, indent=2)
 
         if normalized == "resume":
-            updated = resume_job(job_id)
+            updated = _resume_job(canonical_id)
             return json.dumps({"success": True, "job": _format_job(updated)}, indent=2)
 
         if normalized in {"run", "run_now", "trigger"}:
-            updated = trigger_job(job_id)
+            updated = trigger_job_local(canonical_id)
             return json.dumps({"success": True, "job": _format_job(updated)}, indent=2)
 
         if normalized == "update":
@@ -684,9 +1032,8 @@ def cronjob(
                 else:
                     refs = [str(j).strip() for j in context_from if str(j).strip()]
                 if refs:
-                    from cron.jobs import get_job as _get_job
                     for ref_id in refs:
-                        if not _get_job(ref_id):
+                        if not get_job(ref_id):
                             return tool_error(
                                 f"context_from job '{ref_id}' not found. "
                                 "Use cronjob(action='list') to see available jobs.",
@@ -702,9 +1049,8 @@ def cronjob(
                 else:
                     refs = [str(j).strip() for j in on_success if str(j).strip()]
                 if refs:
-                    from cron.jobs import get_job as _get_job
                     for ref_id in refs:
-                        if not _get_job(ref_id):
+                        if not get_job(ref_id):
                             return tool_error(
                                 f"on_success job '{ref_id}' not found. "
                                 "Use cronjob(action='list') to see available jobs.",
@@ -738,7 +1084,7 @@ def cronjob(
                 repeat_state["times"] = normalized_repeat
                 updates["repeat"] = repeat_state
             if schedule is not None:
-                parsed_schedule = parse_schedule(schedule)
+                parsed_schedule = _parse_schedule_local(schedule)
                 updates["schedule"] = parsed_schedule
                 updates["schedule_display"] = parsed_schedule.get("display", schedule)
                 if job.get("state") != "paused":
@@ -746,7 +1092,7 @@ def cronjob(
                     updates["enabled"] = True
             if not updates:
                 return tool_error("No updates provided.", success=False)
-            updated = update_job(job_id, updates)
+            updated = _update_job(canonical_id, updates)
             return json.dumps({"success": True, "job": _format_job(updated)}, indent=2)
 
         return tool_error(f"Unknown cron action '{action}'", success=False)
@@ -804,7 +1150,7 @@ Important safety rule: cron-run sessions should not recursively schedule more cr
             },
             "deliver": {
                 "type": "string",
-                "description": "Omit this parameter to auto-deliver back to the current chat and topic (recommended). Auto-detection preserves thread/topic context. Only set explicitly when the user asks to deliver somewhere OTHER than the current conversation. Values: 'origin' (same as omitting), 'local' (no delivery, save only), 'all' (fan out to every connected home channel), or platform:chat_id:thread_id for a specific destination. Combine with comma: 'origin,all' delivers to the origin plus every other connected channel. Examples: 'telegram:-1001234567890:17585', 'discord:#engineering', 'sms:+15551234567', 'all'. WARNING: 'platform:chat_id' without :thread_id loses topic targeting. 'all' resolves at fire time, so a job created before a channel was wired up will pick it up automatically once connected."
+                "description": "Omit this parameter to auto-deliver back to the current chat and topic (recommended). Auto-detection preserves thread/topic context. Only set explicitly when the user asks to deliver somewhere OTHER than the current conversation. Values: 'origin' (same as omitting), 'local' (no delivery, save only), 'all' (fan out to every connected home channel), or platform:chat_id:thread_id for a specific destination. Combine with comma: 'origin,all' delivers to the origin plus every other connected channel. Examples: 'telegram:-1001234567890:17585', 'discord:#engineering', 'sms:+155****4567', 'all'. WARNING: 'platform:chat_id' without :thread_id loses topic targeting. 'all' resolves at fire time, so a job created before a channel was wired up will pick it up automatically once connected."
             },
             "skills": {
                 "type": "array",

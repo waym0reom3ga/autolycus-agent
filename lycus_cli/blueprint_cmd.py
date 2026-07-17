@@ -303,7 +303,7 @@ def handle_blueprint_command(
         )
 
     try:
-        from cron.jobs import create_job
+        from cron.temporal_bridge import cronjob_bridge_create_job as create_job
 
         job = create_job(**spec)
     except Exception as e:

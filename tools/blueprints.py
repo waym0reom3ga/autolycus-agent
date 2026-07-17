@@ -206,7 +206,7 @@ def create_blueprint_job(
     optional ``prompt`` becomes the task instruction. Delivery, model, and
     toolsets carry through. Returns the created job dict.
     """
-    from cron.jobs import create_job
+    from cron.temporal_bridge import cronjob_bridge_create_job as create_job
 
     job_spec = blueprint_to_job_spec(spec, name=name)
     if origin is not None:

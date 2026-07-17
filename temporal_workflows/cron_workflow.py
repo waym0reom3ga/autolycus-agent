@@ -56,15 +56,36 @@ class CronJobWorkflow:
     @workflow.run
     async def run(self, job_id: str) -> Dict[str, Any]:
         # Step 1: Execute the job with retry policy.
-        exec_result = await workflow.execute_activity(
-            execute_cron_job,
-            arg=job_id,
-            start_to_close_timeout=DEFAULT_EXECUTION_TIMEOUT,
-            retry_policy=RetryPolicy(
-                maximum_attempts=1,  # Don't re-run agent logic on failure.
-                initial_interval=timedelta(seconds=5),
-            ),
-        )
+        # Retry strategy: up to 3 attempts with exponential backoff (10s → 20s → 40s)
+        # for transient failures (network, timeout, context overflow). Non-retryable
+        # errors (PermissionError, ValueError) fail immediately without backoff.
+        try:
+            exec_result = await workflow.execute_activity(
+                execute_cron_job,
+                arg=job_id,
+                start_to_close_timeout=DEFAULT_EXECUTION_TIMEOUT,
+                retry_policy=RetryPolicy(
+                    maximum_attempts=3,  # Retry up to 3 times with exponential backoff
+                    initial_interval=timedelta(seconds=10),
+                    backoff_coefficient=2.0,  # 10s -> 20s -> 40s
+                    maximum_interval=timedelta(minutes=5),
+                    non_retryable_error_types=["PermissionError", "ValueError"],  # Don't retry auth/logic errors
+                ),
+            )
+        except Exception as act_err:  # noqa: BLE001
+            # Non-retryable or exhausted-retry failures: log and continue the run cycle
+            # so dependent steps (save, deliver, mark) still execute.
+            logger.warning(
+                "execute_cron_job failed for job %s: %s",
+                job_id, act_err,
+            )
+            exec_result = {
+                "success": False,
+                "output": "",
+                "final_response": "",
+                "error": str(act_err),
+                "on_success": [],
+            }
 
         success = exec_result.get("success", False)
         output = exec_result.get("output", "")
@@ -104,7 +125,7 @@ class CronJobWorkflow:
                 trigger_on_success_jobs,
                 args=[job_id, list(on_success_ids)],
                 start_to_close_timeout=timedelta(seconds=30),
-                retry_policy=RetryPolicy(maximum_attempts=1),
+                retry_policy=RetryPolicy(maximum_attempts=2),  # on_success chains should have at least one retry
             )
 
         return {

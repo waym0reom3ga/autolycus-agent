@@ -1121,7 +1121,7 @@ def _write_run_report(
             if isinstance(e, dict) and e.get("name")
         ]
         if consolidated_map or pruned_names:
-            from cron.jobs import rewrite_skill_refs as _rewrite_cron_refs
+            from cron.temporal_bridge import bridge_rewrite_skill_refs as _rewrite_cron_refs
             cron_rewrites = _rewrite_cron_refs(
                 consolidated=consolidated_map,
                 pruned=pruned_names,
