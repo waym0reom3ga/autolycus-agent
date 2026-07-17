@@ -272,6 +272,53 @@ _install_fallback_totalrecall() {
 }
 
 # ---------------------------------------------------------------------------
+# Khronos workflow server setup (platform-agnostic, runs after venv is created)
+# ---------------------------------------------------------------------------
+_install_setup_khronos() {
+    printf '%b\n' "${CYAN}→${NC} Setting up Khronos workflow server..."
+
+    AUTOLYCUS_HOME="${AUTOLYCUS_HOME:-$HOME/.autolycus}"
+    SCRIPTS_DIR="$AUTOLYCUS_HOME/scripts"
+    mkdir -p "$SCRIPTS_DIR" "$AUTOLYCUS_HOME/logs"
+
+    # Copy the manager script
+    if [ -f "$_INSTALL_SCRIPT_DIR/khronos_manager.py" ]; then
+        cp "$_INSTALL_SCRIPT_DIR/khronos_manager.py" "$SCRIPTS_DIR/khronos_manager.py"
+        chmod +x "$SCRIPTS_DIR/khronos_manager.py"
+        printf '%b\n' "${GREEN}✓${NC} Khronos manager installed"
+    else
+        printf '%b\n' "${YELLOW}⚠${NC} Khronos manager script not found, skipping"
+        return 1
+    fi
+
+    # Configure the hook if config.yaml exists and doesn't have hooks yet
+    if [ -f "$AUTOLYCUS_HOME/config.yaml" ]; then
+        # Check if hooks are already configured
+        if ! grep -q "hooks:" "$AUTOLYCUS_HOME/config.yaml" 2>/dev/null; then
+            # Add hooks section before the closing if it doesn't exist
+            python3 -c "
+import yaml
+with open('$AUTOLYCUS_HOME/config.yaml', 'r') as f:
+    config = yaml.safe_load(f)
+config.setdefault('hooks', {})
+config['hooks']['on_session_start'] = [
+    {
+        'command': 'python3 $SCRIPTS_DIR/khronos_manager.py start',
+        'timeout': 15,
+        'allowlist': True
+    }
+]
+with open('$AUTOLYCUS_HOME/config.yaml', 'w') as f:
+    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+" 2>/dev/null
+            printf '%b\n' "${GREEN}✓${NC} Khronos hook configured"
+        else
+            printf '%b\n' "${GREEN}✓${NC} Hooks already configured, skipping"
+        fi
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Skills sync (platform-agnostic, runs after venv is created)
 # ---------------------------------------------------------------------------
 _install_sync_skills() {
