@@ -233,6 +233,20 @@ TR_EOF
         printf '%b\n' "${GREEN}✓${NC} Created ~/.autolycus/totalrecall.yaml"
     fi
 
+    # Wire TotalRecall as the active memory provider in config.yaml
+    if [ -f "$AUTOLYCUS_HOME/config.yaml" ]; then
+        "$PYTHON_PATH" -c "
+import yaml
+with open('$AUTOLYCUS_HOME/config.yaml', 'r') as f:
+    config = yaml.safe_load(f) or {}
+config.setdefault('memory', {})
+config['memory']['provider'] = 'totalrecall'
+with open('$AUTOLYCUS_HOME/config.yaml', 'w') as f:
+    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+" 2>/dev/null && printf '%b\n' "${GREEN}✓${NC} Set memory.provider = totalrecall" || \
+            printf '%b\n' "${YELLOW}⚠${NC} Could not set memory.provider in config.yaml"
+    fi
+
     echo ""
     printf '%b\n' "${CYAN}${BOLD}  ┌──────────────────────────────────────────────────────┐${NC}"
     printf '%b\n' "${CYAN}${BOLD}  │           TotalRecall Memory System                   │${NC}"
