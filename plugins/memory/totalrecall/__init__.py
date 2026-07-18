@@ -449,24 +449,32 @@ class TotalRecallMemoryProvider(MemoryProvider):
             while compressed < self._PRE_COMPRESS_CHUNK_LIMIT:
                 try:
                     # Try to compress the next pending chunk.
-                    # assign_chunk returns None when all commands are chunked,
-                    # so we need to get pending chunk IDs from the DB directly.
                     pending = self._tr.conn.execute(
-                        "SELECT id FROM chunks WHERE compressed = 0 "
+                        "SELECT chunk_number FROM chunks WHERE compressed = 0 "
                         "ORDER BY created_at DESC LIMIT 1"
                     ).fetchall()
                     if not pending:
                         break
-                    chunk_number = pending[0]["id"]
+                    chunk_number = pending[0]["chunk_number"]
                     new_memory_ids = self._tr.compress_chunk(chunk_number)
                     if new_memory_ids:
                         compressed += 1
                         consecutive_fails = 0
+                        self._tr.conn.execute(
+                            "UPDATE chunks SET compressed = 1, fail_count = 0 WHERE chunk_number = ?",
+                            (chunk_number,),
+                        )
+                        self._tr.conn.commit()
                         logger.info("Pre-compress: compressed chunk %d -> %d memories",
                                    chunk_number, len(new_memory_ids))
                     else:
                         # Chunk had nothing to extract; count as success (not a failure).
                         consecutive_fails = 0
+                        self._tr.conn.execute(
+                            "UPDATE chunks SET compressed = 1, fail_count = 0 WHERE chunk_number = ?",
+                            (chunk_number,),
+                        )
+                        self._tr.conn.commit()
                         logger.debug("Pre-compress: chunk %d produced 0 memories", chunk_number)
                 except CompressionError:
                     consecutive_fails += 1
@@ -510,6 +518,17 @@ class TotalRecallMemoryProvider(MemoryProvider):
 
     # -- Session end --------------------------------------------------------
 
+    # Cap on how many chunks on_session_end will compress via LLM.
+    # Higher than _PRE_COMPRESS_CHUNK_LIMIT because this runs at the session
+    # boundary (not competing with context compression), but still bounded
+    # to prevent exhausting the auxiliary provider on sessions with many turns.
+    _SESSION_END_CHUNK_LIMIT = 10
+
+    # Max consecutive LLM failures on the SAME chunk before marking it
+    # as permanently skipped (compressed=2).  Prevents a single stubborn
+    # chunk from blocking all future compression cycles.
+    _MAX_CHUNK_RETRIES = 3
+
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
         """Run compression cycles at session boundary."""
         if not self._tr:
@@ -521,24 +540,85 @@ class TotalRecallMemoryProvider(MemoryProvider):
             unassigned = stats_before.get("unassigned", 0)
             logger.info("Session end: TotalRecall has %d unassigned commands to compress", unassigned)
 
-            # Phase 1: Assign and compress all remaining unchunked commands
+            # Phase 1: Assign and compress remaining unchunked commands
             compressed_chunks = 0
             compression_errors = 0
+
+            # First, flush any unassigned commands into chunks
             while True:
                 chunk_number = self._tr.assign_chunk()
                 if chunk_number is None:
                     break
-                logger.info("Compressing chunk %d...", chunk_number)
+                logger.info("Session end: assigned chunk %d", chunk_number)
+
+            # Then compress pending chunks (including previously-failed ones)
+            while compressed_chunks < self._SESSION_END_CHUNK_LIMIT:
                 try:
+                    pending = self._tr.conn.execute(
+                        "SELECT chunk_number FROM chunks WHERE compressed = 0 "
+                        "ORDER BY created_at ASC LIMIT 1"
+                    ).fetchall()
+                    if not pending:
+                        break
+
+                    chunk_number = pending[0]["chunk_number"]
                     new_memory_ids = self._tr.compress_chunk(chunk_number)
                     if new_memory_ids:
                         compressed_chunks += 1
-                        logger.info("Compressed chunk %d -> %d L1 memories", chunk_number, len(new_memory_ids))
+                        self._tr.conn.execute(
+                            "UPDATE chunks SET compressed = 1, fail_count = 0 WHERE chunk_number = ?",
+                            (chunk_number,),
+                        )
+                        self._tr.conn.commit()
+                        logger.info("Session end: compressed chunk %d -> %d L1 memories",
+                                   chunk_number, len(new_memory_ids))
                     else:
-                        logger.info("Chunk %d: LLM returned 0 memories (nothing to extract)", chunk_number)
+                        # Nothing to extract — mark as compressed (not a failure)
+                        self._tr.conn.execute(
+                            "UPDATE chunks SET compressed = 1, fail_count = 0 WHERE chunk_number = ?",
+                            (chunk_number,),
+                        )
+                        self._tr.conn.commit()
+                        logger.info("Session end: chunk %d produced 0 memories (nothing to extract)",
+                                   chunk_number)
                 except CompressionError as ce:
                     compression_errors += 1
-                    logger.error("Chunk %d compression FAILED: %s", chunk_number, ce)
+                    logger.error("Session end: chunk %d compression FAILED: %s", chunk_number, ce)
+
+                    # Increment failure count; skip if exhausted retries
+                    self._tr.conn.execute(
+                        "UPDATE chunks SET fail_count = fail_count + 1 WHERE chunk_number = ?",
+                        (chunk_number,),
+                    )
+                    self._tr.conn.commit()
+
+                    fail_count = self._tr.conn.execute(
+                        "SELECT fail_count FROM chunks WHERE chunk_number = ?",
+                        (chunk_number,),
+                    ).fetchone()["fail_count"]
+
+                    if fail_count >= self._MAX_CHUNK_RETRIES:
+                        self._tr.conn.execute(
+                            "UPDATE chunks SET compressed = 2 WHERE chunk_number = ?",
+                            (chunk_number,),
+                        )
+                        self._tr.conn.commit()
+                        logger.warning(
+                            "Session end: chunk %d permanently skipped after %d failures "
+                            "(will not be retried in future cycles)",
+                            chunk_number, fail_count,
+                        )
+                        # Count as processed so we don't spin on it again
+                        compressed_chunks += 1
+                except Exception as exc:
+                    compression_errors += 1
+                    logger.error("Session end: chunk %d unexpected error: %s", chunk_number, exc)
+                    break
+
+            logger.info(
+                "Session end Phase 1 done: %d chunks compressed, %d errors",
+                compressed_chunks, compression_errors,
+            )
 
             # Phase 2: Recursive compression of accumulated L1 memories
             stats_after = self._tr.status()
