@@ -76,7 +76,7 @@ else
     INSTALL_DIR=""
     INSTALL_DIR_EXPLICIT=false
 fi
-PYTHON_VERSION="3.11"
+PYTHON_VERSION="3.13"
 # Detect CPU architecture for platform-specific exclusions
 ARCH="$(uname -m)"
 NODE_VERSION="22"
@@ -592,18 +592,34 @@ check_python() {
         return 0
     fi
 
-    log_info "Checking Python $PYTHON_VERSION..."
+    # Detect system Python first — prefer whatever the system provides
+    # in the supported range [3.11, 3.14). This avoids installing a
+    # redundant Python when the system already has a suitable version
+    # (e.g. 3.12 on Ubuntu 24.04, 3.13 on Debian 13).
+    log_info "Checking for system Python (>= 3.11, < 3.14)..."
 
-    # Let uv handle Python — it can download and manage Python versions
-    # First check if a suitable Python is already available
-    if PYTHON_PATH="$("$UV_CMD" python find "$PYTHON_VERSION" 2>/dev/null)"; then
-        PYTHON_FOUND_VERSION="$("$PYTHON_PATH" --version 2>/dev/null)"
-        log_success "Python found: $PYTHON_FOUND_VERSION"
+    local found_system_python=false
+    for candidate in python3.13 python3.12 python3.11 python3; do
+        local candidate_path
+        candidate_path=$(command -v "$candidate" 2>/dev/null || true)
+        if [ -n "$candidate_path" ]; then
+            # Check version is in supported range [3.11, 3.14)
+            if "$candidate_path" -c 'import sys; raise SystemExit(0 if (3, 11) <= sys.version_info[:2] < (3, 14) else 1)' 2>/dev/null; then
+                PYTHON_PATH="$candidate_path"
+                PYTHON_FOUND_VERSION="$("$PYTHON_PATH" --version 2>/dev/null)"
+                log_success "System Python found: $PYTHON_FOUND_VERSION"
+                found_system_python=true
+                break
+            fi
+        fi
+    done
+
+    if [ "$found_system_python" = true ]; then
         return 0
     fi
 
-    # Python not found — use uv to install it (no sudo needed!)
-    log_info "Python $PYTHON_VERSION not found, installing via uv..."
+    # No suitable system Python — use uv to install it (no sudo needed!)
+    log_info "No suitable system Python found, installing Python $PYTHON_VERSION via uv..."
     if "$UV_CMD" python install "$PYTHON_VERSION"; then
         PYTHON_PATH="$("$UV_CMD" python find "$PYTHON_VERSION")"
         PYTHON_FOUND_VERSION="$("$PYTHON_PATH" --version 2>/dev/null)"

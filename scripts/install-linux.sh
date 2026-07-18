@@ -20,7 +20,7 @@ source "$SCRIPT_DIR/install-common.sh"
 # Detect repo directory
 _install_detect_dirs "${BASH_SOURCE[0]}"
 
-PYTHON_VERSION="3.11"
+PYTHON_VERSION="3.13"
 
 # Detect CPU architecture for platform-specific exclusions
 ARCH="$(uname -m)"
@@ -265,15 +265,30 @@ install_uv
 # ============================================================================
 
 setup_python() {
-    printf '%b\n' "${CYAN}→${NC} Checking Python ${PYTHON_VERSION}..."
+    printf '%b\n' "${CYAN}→${NC} Checking for system Python (>= 3.11, < 3.14)..."
 
-    if UV_PYTHON=$($UV_CMD python find "$PYTHON_VERSION" 2>/dev/null); then
-        PYTHON_PATH="$UV_PYTHON"
-        local py_version
-        py_version=$("$PYTHON_PATH" --version 2>/dev/null)
-        printf '%b\n' "${GREEN}✓${NC} Python found: ${py_version}"
-    else
-        printf '%b\n' "${CYAN}→${NC} Python ${PYTHON_VERSION} not found, installing via uv..."
+    # First try to find any suitable system Python in the supported range.
+    # This avoids installing a redundant Python when the system already has
+    # a suitable version (e.g. 3.12 on Ubuntu 24.04, 3.13 on Debian 13).
+    local found_system_python=false
+    for candidate in python3.13 python3.12 python3.11 python3; do
+        local candidate_path
+        candidate_path=$(command -v "$candidate" 2>/dev/null || true)
+        if [[ -n "$candidate_path" ]]; then
+            # Check version is in supported range [3.11, 3.14)
+            if "$candidate_path" -c 'import sys; raise SystemExit(0 if (3, 11) <= sys.version_info[:2] < (3, 14) else 1)' 2>/dev/null; then
+                PYTHON_PATH="$candidate_path"
+                local py_version
+                py_version=$("$PYTHON_PATH" --version 2>/dev/null)
+                printf '%b\n' "${GREEN}✓${NC} System Python found: ${py_version}"
+                found_system_python=true
+                break
+            fi
+        fi
+    done
+
+    if [[ "$found_system_python" == false ]]; then
+        printf '%b\n' "${CYAN}→${NC} No suitable system Python found, installing Python ${PYTHON_VERSION} via uv..."
         if $UV_CMD python install "$PYTHON_VERSION"; then
             PYTHON_PATH=$($UV_CMD python find "$PYTHON_VERSION")
             local py_version
@@ -284,10 +299,10 @@ setup_python() {
             echo ""
             echo "Install manually:"
             case "$PKG_MANAGER" in
-                apt)      echo "  sudo apt install python3.11" ;;
+                apt)      echo "  sudo apt install python3.13" ;;
                 pacman)   echo "  sudo pacman -S python" ;;
-                dnf)      echo "  sudo dnf install python3.11" ;;
-                zypper)   echo "  sudo zypper install python311" ;;
+                dnf)      echo "  sudo dnf install python3.13" ;;
+                zypper)   echo "  sudo zypper install python313" ;;
             esac
             exit 1
         fi
