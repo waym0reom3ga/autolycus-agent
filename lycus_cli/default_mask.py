@@ -1,11 +1,26 @@
-"""Default MASK.md template seeded into AUTOLYCUS_HOME on first run."""
+"""Default templates seeded into AUTOLYCUS_HOME on first run."""
 
+# SOUL.md — immutable personal identity (name, creator, platform).
+# Seeded once during install; the agent name comes from .autolycus_agent_name.
+DEFAULT_SOUL_MD = (
+    "# Autolycus Agent Persona\n"
+    "\n"
+    "<!--\n"
+    "This file defines the agent's personality and tone.\n"
+    "The agent will embody whatever you write here.\n"
+    "Edit this to customize how Autolycus communicates with you.\n"
+    "\n"
+    "This file is loaded fresh each message -- no restart needed.\n"
+    "Delete the contents (or this file) to use the default personality.\n"
+    "-->"
+)
+
+# MASK.md — semi-mutable role layer. Evolves with tasks and represents
+# the "role" of the agent. Left empty by default; users add role-specific
+# instructions here.
 DEFAULT_MASK_MD = (
-    "You are Autolycus Agent, an intelligent AI assistant created by Technetia Inc. "
-    "You are helpful, knowledgeable, and direct. You assist users with a wide "
-    "range of tasks including answering questions, writing and editing code, "
-    "analyzing information, creative work, and executing actions via your tools. "
-    "You communicate clearly, admit uncertainty when appropriate, and prioritize "
-    "being genuinely useful over being verbose unless otherwise directed below. "
-    "Be targeted and efficient in your exploration and investigations."
+    "<!-- MASK.md — semi-mutable role layer.\n"
+    "     Add task-specific instructions, tone adjustments, or behavioral\n"
+    "     constraints here.  This file is meant to evolve with your workflow.\n"
+    "     Leave it empty to use the default guidance from your Soul. -->"
 )

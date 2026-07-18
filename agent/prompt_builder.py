@@ -1568,31 +1568,52 @@ def _truncate_content(content: str, filename: str, max_chars: int = CONTEXT_FILE
 
 
 def load_mask_md() -> Optional[str]:
-    """Load MASK.md from AUTOLYCUS_HOME and return its content, or None.
+    """Load SOUL.md + MASK.md from AUTOLYCUS_HOME and return combined content.
+
+    SOUL.md is the immutable personal identity (name, creator, platform).
+    MASK.md is the semi-mutable role layer (task-specific instructions,
+    tone adjustments, behavioral constraints).
 
     Used as the agent identity (slot #1 in the system prompt).  When this
     returns content, ``build_context_files_prompt`` should be called with
-    ``skip_soul=True`` so MASK.md isn't injected twice.
+    ``skip_soul=True`` so the identity files aren't injected twice.
     """
     try:
         from lycus_cli.config import ensure_lycus_home
         ensure_lycus_home()
     except Exception as e:
-        logger.debug("Could not ensure AUTOLYCUS_HOME before loading MASK.md: %s", e)
+        logger.debug("Could not ensure AUTOLYCUS_HOME before loading identity: %s", e)
 
-    soul_path = get_lycus_home() / "MASK.md"
-    if not soul_path.exists():
+    home = get_lycus_home()
+    parts = []
+
+    # --- SOUL.md (immutable identity) ---
+    soul_path = home / "SOUL.md"
+    if soul_path.exists():
+        try:
+            soul_content = soul_path.read_text(encoding="utf-8").strip()
+            if soul_content:
+                soul_content = _scan_context_content(soul_content, "SOUL.md")
+                parts.append(soul_content)
+        except Exception as e:
+            logger.debug("Could not read SOUL.md from %s: %s", soul_path, e)
+
+    # --- MASK.md (role layer) ---
+    mask_path = home / "MASK.md"
+    if mask_path.exists():
+        try:
+            mask_content = mask_path.read_text(encoding="utf-8").strip()
+            if mask_content:
+                mask_content = _scan_context_content(mask_content, "MASK.md")
+                parts.append(mask_content)
+        except Exception as e:
+            logger.debug("Could not read MASK.md from %s: %s", mask_path, e)
+
+    if not parts:
         return None
-    try:
-        content = soul_path.read_text(encoding="utf-8").strip()
-        if not content:
-            return None
-        content = _scan_context_content(content, "MASK.md")
-        content = _truncate_content(content, "MASK.md")
-        return content
-    except Exception as e:
-        logger.debug("Could not read MASK.md from %s: %s", soul_path, e)
-        return None
+
+    combined = "\n\n".join(parts)
+    return _truncate_content(combined, "SOUL+MASK")
 
 
 def _load_lycus_md(cwd_path: Path) -> str:

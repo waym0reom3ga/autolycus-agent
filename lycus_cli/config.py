@@ -743,13 +743,49 @@ def _secure_file(path):
         pass
 
 
-def _ensure_default_mask_md(home: Path) -> None:
-    """Seed a default MASK.md into AUTOLYCUS_HOME if the user doesn't have one yet."""
-    soul_path = home / "MASK.md"
+def _ensure_default_soul_md(home: Path) -> None:
+    """Seed SOUL.md with the personalized agent identity if missing.
+
+    Reads the agent name from .autolycus_agent_name (set during install)
+    and writes a minimal identity line into SOUL.md.  MASK.md is left
+    empty by default — it's the semi-mutable role layer.
+    """
+    from lycus_cli.default_mask import DEFAULT_SOUL_MD, DEFAULT_MASK_MD
+
+    soul_path = home / "SOUL.md"
+    mask_path = home / "MASK.md"
+
     if soul_path.exists():
+        # Already seeded — nothing to do.
         return
-    soul_path.write_text(DEFAULT_MASK_MD, encoding="utf-8")
+
+    # Try to read the personalized agent name from install-time file.
+    agent_name = "Autolycus"
+    name_file = home / ".autolycus_agent_name"
+    if name_file.exists():
+        try:
+            agent_name = name_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            pass
+
+    soul_content = (
+        f"{DEFAULT_SOUL_MD}\n"
+        f"\n"
+        f"You are {agent_name}, an intelligent AI assistant created by Technetia Inc. "
+        f"You run on Autolycus Agent.\n"
+    )
+    soul_path.write_text(soul_content, encoding="utf-8")
     _secure_file(soul_path)
+
+    # Seed MASK.md as empty/template (role layer, not identity).
+    if not mask_path.exists():
+        mask_path.write_text(DEFAULT_MASK_MD, encoding="utf-8")
+        _secure_file(mask_path)
+
+
+def _ensure_default_mask_md(home: Path) -> None:
+    """Backward-compat shim: delegates to _ensure_default_soul_md."""
+    _ensure_default_soul_md(home)
 
 
 def ensure_lycus_home():
