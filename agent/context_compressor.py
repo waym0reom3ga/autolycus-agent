@@ -2288,6 +2288,10 @@ This compaction should PRIORITISE preserving all information related to the focu
             self._last_summary_dropped_count = 0  # nothing actually dropped
             self._last_summary_fallback_used = False
             self._last_compress_aborted = True
+            # Messages returned unchanged (0% savings) — count as ineffective
+            # so the anti-thrashing guard can trigger on repeated failures.
+            self._ineffective_compression_count += 1
+            self._last_compression_savings_pct = 0.0
             if not self.quiet_mode:
                 logger.warning(
                     "Summary generation failed — aborting compression "

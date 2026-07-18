@@ -394,8 +394,24 @@ class TotalRecallMemoryProvider(MemoryProvider):
 
     # -- Pre-compress hook --------------------------------------------------
 
+    # Cap on how many chunks on_pre_compress will compress via LLM.
+    # This prevents the hook from exhausting the auxiliary provider's
+    # rate budget and starving the actual context compression that runs
+    # immediately after.  The real compression happens in on_session_end.
+    _PRE_COMPRESS_CHUNK_LIMIT = 2
+
+    # Max consecutive LLM failures before bailing out of the LLM loop.
+    # Rate-limit (429), budget exhaustion, or other provider errors that
+    # recur indicate the auxiliary provider is under pressure.
+    _PRE_COMPRESS_MAX_FAILS = 2
+
     def on_pre_compress(self, messages: List[Dict[str, Any]]) -> str:
         """Flush unassigned commands before context compression discards them.
+
+        Defensive about LLM budget: caps the number of chunks compressed
+        and bails out on repeated LLM failures so the actual context
+        compression (which runs immediately after this hook) is not
+        starved of the auxiliary provider's rate budget.
 
         Returns empty string — TotalRecall doesn't contribute to the
         compression summary prompt itself.
@@ -405,13 +421,89 @@ class TotalRecallMemoryProvider(MemoryProvider):
         try:
             stats = self._tr.status()
             unassigned = stats.get("unassigned", 0)
-            if unassigned:
-                logger.info("Pre-compress: flushing %d unassigned commands", unassigned)
-                while True:
-                    chunk_number = self._tr.assign_chunk()
-                    if chunk_number is None:
+            if not unassigned:
+                return ""
+
+            logger.info("Pre-compress: %d unassigned commands to flush", unassigned)
+
+            # Phase 1: Assign all unassigned commands into chunks (no LLM calls).
+            # This ensures turns are not lost even if we skip compression below.
+            chunks_assigned = 0
+            while True:
+                chunk_number = self._tr.assign_chunk()
+                if chunk_number is None:
+                    break
+                chunks_assigned += 1
+                logger.info("Pre-compress: assigned chunk %d", chunk_number)
+
+            # Phase 2: Compress a limited number of chunks via LLM.
+            # We cap this to avoid exhausting the auxiliary provider's
+            # rate budget — the real compression happens in on_session_end.
+            if chunks_assigned == 0:
+                return ""
+
+            compressed = 0
+            consecutive_fails = 0
+
+            # Re-query stats to find newly-created chunks that need compression.
+            while compressed < self._PRE_COMPRESS_CHUNK_LIMIT:
+                try:
+                    # Try to compress the next pending chunk.
+                    # assign_chunk returns None when all commands are chunked,
+                    # so we need to get pending chunk IDs from the DB directly.
+                    pending = self._tr.conn.execute(
+                        "SELECT id FROM chunks WHERE compressed = 0 "
+                        "ORDER BY created_at DESC LIMIT 1"
+                    ).fetchall()
+                    if not pending:
                         break
-                    self._tr.compress_chunk(chunk_number)
+                    chunk_number = pending[0]["id"]
+                    new_memory_ids = self._tr.compress_chunk(chunk_number)
+                    if new_memory_ids:
+                        compressed += 1
+                        consecutive_fails = 0
+                        logger.info("Pre-compress: compressed chunk %d -> %d memories",
+                                   chunk_number, len(new_memory_ids))
+                    else:
+                        # Chunk had nothing to extract; count as success (not a failure).
+                        consecutive_fails = 0
+                        logger.debug("Pre-compress: chunk %d produced 0 memories", chunk_number)
+                except CompressionError:
+                    consecutive_fails += 1
+                    logger.warning(
+                        "Pre-compress: LLM compression failed (attempt %d), "
+                        "bailing out to preserve rate budget for context compression",
+                        consecutive_fails,
+                    )
+                    if consecutive_fails >= self._PRE_COMPRESS_MAX_FAILS:
+                        logger.warning(
+                            "Pre-compress: %d consecutive LLM failures — "
+                            "skipping further compression to avoid starving "
+                            "the actual context compression",
+                            consecutive_fails,
+                        )
+                        break
+                except Exception as exc:
+                    # Catch-all for rate-limit, timeout, network errors, etc.
+                    consecutive_fails += 1
+                    logger.warning(
+                        "Pre-compress: LLM call failed (%s, attempt %d), "
+                        "bailing out to preserve rate budget for context compression",
+                        type(exc).__name__, consecutive_fails,
+                    )
+                    if consecutive_fails >= self._PRE_COMPRESS_MAX_FAILS:
+                        logger.warning(
+                            "Pre-compress: %d consecutive failures — "
+                            "skipping further compression to avoid starving "
+                            "the actual context compression",
+                            consecutive_fails,
+                        )
+                        break
+
+            if compressed:
+                logger.info("Pre-compress: compressed %d chunks (limit %d)",
+                           compressed, self._PRE_COMPRESS_CHUNK_LIMIT)
+
         except Exception as exc:
             logger.error("Pre-compress flush failed: %s", exc, exc_info=True)
         return ""
