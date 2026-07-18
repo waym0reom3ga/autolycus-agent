@@ -87,11 +87,11 @@ check_prerequisites() {
             fi
         done
         if [[ "$need_build_tools" == true ]]; then
-            printf '%b\n' "${CYAN}→${NC} Installing build tools (gcc, python3-dev, libffi-dev)..."
+            printf '%b\n' "${CYAN}→${NC} Installing build tools (gcc, python3-dev, libffi-dev, zlib1g-dev)..."
             if command -v sudo &>/dev/null; then
                 if sudo -n true 2>/dev/null; then
                     sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get update -qq && \
-                    sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -qq build-essential python3-dev libffi-dev >/dev/null 2>&1 || true
+                    sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -qq build-essential python3-dev libffi-dev zlib1g-dev >/dev/null 2>&1 || true
                     printf '%b\n' "${GREEN}✓${NC} Build tools installed"
                 else
                     printf '%b\n' "${YELLOW}⚠${NC} sudo is needed to install build tools (build-essential, python3-dev, libffi-dev)"
@@ -420,14 +420,14 @@ print(','.join(extras))
     fi
 
     # Tier 1: install with filtered extras
-    if UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e ".${EXTRAS}" 2>/dev/null; then
+    if UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e ".${EXTRAS}" 2>"/tmp/lycus-install-stderr.log"; then
         printf '%b\n' "${GREEN}✓${NC} Dependencies installed"
         return 0
     fi
 
     # Tier 2: core only — last resort so at least the CLI launches
     printf '%b\n' "${YELLOW}⚠${NC} Extras install failed, installing core only..."
-    if UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e "." 2>/dev/null; then
+    if UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e "." 2>"/tmp/lycus-install-stderr.log"; then
         printf '%b\n' "${GREEN}✓${NC} Core dependencies installed (some features may be limited)"
         printf '%b\n' "${YELLOW}⚠${NC} To install missing extras later: cd $_INSTALL_REPO_DIR && uv pip install -e '.${EXTRAS}'"
         return 0
