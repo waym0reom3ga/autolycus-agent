@@ -1397,7 +1397,7 @@ install_deps() {
     # need build tools. Check and offer to install them if missing.
     if [ "$DISTRO" = "ubuntu" ] || [ "$DISTRO" = "debian" ] || [ "$DISTRO" = "armbian" ]; then
         local need_build_tools=false
-        for pkg in gcc python3-dev libffi-dev zlib1g-dev; do
+        for pkg in gcc python3-dev libffi-dev zlib1g-dev libjpeg-dev; do
             if ! dpkg -s "$pkg" &>/dev/null; then
                 need_build_tools=true
                 break
@@ -1407,13 +1407,13 @@ install_deps() {
             log_info "Some build tools may be needed for Python packages..."
             if command -v sudo &> /dev/null; then
                 if sudo -n true 2>/dev/null; then
-                    sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -qq build-essential python3-dev libffi-dev zlib1g-dev >/dev/null 2>&1 || true
+                    sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -qq build-essential python3-dev libffi-dev zlib1g-dev libjpeg-dev >/dev/null 2>&1 || true
                     log_success "Build tools installed"
                 else
-                    log_info "sudo is needed ONLY to install build tools (build-essential, python3-dev, libffi-dev, zlib1g-dev) via apt."
+                    log_info "sudo is needed ONLY to install build tools (build-essential, python3-dev, libffi-dev, zlib1g-dev, libjpeg-dev) via apt."
                     log_info "Lycus Agent itself does not require or retain root access."
                     if prompt_yes_no "Install build tools?" "yes"; then
-                        sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -qq build-essential python3-dev libffi-dev zlib1g-dev >/dev/null 2>&1 || true
+                        sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -qq build-essential python3-dev libffi-dev zlib1g-dev libjpeg-dev >/dev/null 2>&1 || true
                         log_success "Build tools installed"
                     fi
                 fi

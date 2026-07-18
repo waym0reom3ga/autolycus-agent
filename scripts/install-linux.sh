@@ -78,20 +78,21 @@ check_prerequisites() {
     if [[ "$PKG_MANAGER" == "apt" ]]; then
         local need_build_tools=false
         # zlib1g-dev: required for Pillow (no armv7l wheels, must build from source)
+        # libjpeg-dev: required for Pillow JPEG support (fails without it on armv7l)
         # libffi-dev: required for cffi/cryptography
         # python3-dev: required headers for C extensions
-        for pkg in gcc python3-dev libffi-dev zlib1g-dev; do
+        for pkg in gcc python3-dev libffi-dev zlib1g-dev libjpeg-dev; do
             if ! dpkg -s "$pkg" &>/dev/null; then
                 need_build_tools=true
                 break
             fi
         done
         if [[ "$need_build_tools" == true ]]; then
-            printf '%b\n' "${CYAN}→${NC} Installing build tools (gcc, python3-dev, libffi-dev, zlib1g-dev)..."
+            printf '%b\n' "${CYAN}→${NC} Installing build tools (gcc, python3-dev, libffi-dev, zlib1g-dev, libjpeg-dev)..."
             if command -v sudo &>/dev/null; then
                 if sudo -n true 2>/dev/null; then
                     sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get update -qq && \
-                    sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -qq build-essential python3-dev libffi-dev zlib1g-dev >/dev/null 2>&1 || true
+                    sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -qq build-essential python3-dev libffi-dev zlib1g-dev libjpeg-dev >/dev/null 2>&1 || true
                     printf '%b\n' "${GREEN}✓${NC} Build tools installed"
                 else
                     printf '%b\n' "${YELLOW}⚠${NC} sudo is needed to install build tools (build-essential, python3-dev, libffi-dev)"
