@@ -22,6 +22,9 @@ _install_detect_dirs "${BASH_SOURCE[0]}"
 
 PYTHON_VERSION="3.11"
 
+# Detect CPU architecture for platform-specific exclusions
+ARCH="$(uname -m)"
+
 echo ""
 printf '%b\n' "${CYAN}${BOLD}⚕ Autolycus Agent Installer (Linux)${NC}"
 echo ""
@@ -42,7 +45,7 @@ detect_distro() {
     fi
 
     case "$DISTRO" in
-        ubuntu|debian|linuxmint|pop)
+        ubuntu|debian|linuxmint|pop|armbian)
             PKG_MANAGER="apt"
             ;;
         arch|manjaro|endeavouros)
@@ -67,6 +70,54 @@ detect_distro
 
 check_prerequisites() {
     printf '%b\n' "${CYAN}→${NC} Checking prerequisites..."
+
+    # On Debian/Ubuntu (including Armbian), some Python packages need build tools.
+    # Check and install them before anything else — cffi, cryptography, and others
+    # build from source without these, wasting minutes before failing with
+    # obscure compiler errors (e.g. "fatal error: ffi.h: No such file or directory").
+    if [[ "$PKG_MANAGER" == "apt" ]]; then
+        local need_build_tools=false
+        for pkg in gcc python3-dev libffi-dev; do
+            if ! dpkg -s "$pkg" &>/dev/null; then
+                need_build_tools=true
+                break
+            fi
+        done
+        if [[ "$need_build_tools" == true ]]; then
+            printf '%b\n' "${CYAN}→${NC} Installing build tools (gcc, python3-dev, libffi-dev)..."
+            if command -v sudo &>/dev/null; then
+                if sudo -n true 2>/dev/null; then
+                    sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get update -qq && \
+                    sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -qq build-essential python3-dev libffi-dev >/dev/null 2>&1 || true
+                    printf '%b\n' "${GREEN}✓${NC} Build tools installed"
+                else
+                    printf '%b\n' "${YELLOW}⚠${NC} sudo is needed to install build tools (build-essential, python3-dev, libffi-dev)"
+                    printf '%b\n' "${YELLOW}⚠${NC} Without these, Python packages like cffi/cryptography will fail to build."
+                    printf '%b\n' "${YELLOW}⚠${NC} Install manually: sudo apt install build-essential python3-dev libffi-dev"
+                fi
+            fi
+        fi
+    elif [[ "$PKG_MANAGER" == "pacman" ]]; then
+        # On Arch/Manjaro, check for base-devel (gcc, make) and libffi.
+        # These are needed for cffi, cryptography, and other C-extension packages.
+        local need_build_tools=false
+        if ! pacman -Qe base-devel &>/dev/null || ! pacman -Qe libffi &>/dev/null || ! pacman -Qe python &>/dev/null; then
+            need_build_tools=true
+        fi
+        if [[ "$need_build_tools" == true ]]; then
+            printf '%b\n' "${CYAN}→${NC} Installing build tools (base-devel, libffi, python)..."
+            if command -v sudo &>/dev/null; then
+                if sudo -n true 2>/dev/null; then
+                    sudo pacman -S --noconfirm --needed base-devel libffi python >/dev/null 2>&1 || true
+                    printf '%b\n' "${GREEN}✓${NC} Build tools installed"
+                else
+                    printf '%b\n' "${YELLOW}⚠${NC} sudo is needed to install build tools (base-devel, libffi, python)"
+                    printf '%b\n' "${YELLOW}⚠${NC} Without these, Python packages like cffi/cryptography will fail to build."
+                    printf '%b\n' "${YELLOW}⚠${NC} Install manually: sudo pacman -S base-devel libffi python"
+                fi
+            fi
+        fi
+    fi
 
     # Check for cargo/rust
     if ! command -v cargo &>/dev/null; then
@@ -291,26 +342,99 @@ setup_venv
 install_deps() {
     printf '%b\n' "${CYAN}→${NC} Installing dependencies..."
 
-    # Linux gets the full stack including voice tools
-    EXTRAS="[all]"
-    printf '%b\n' "${CYAN}→${NC} Installing full stack (includes voice/pty)"
+    # Build the extras list. Start with [all] but exclude extras that are
+    # known to fail on this architecture.
+    #
+    # armv7l (32-bit ARM): PyTorch has no armv7l wheels, so chatterbox-tts
+    # (which depends on torch) is unresolvable. Skip it to avoid a hard
+    # install failure. The user can still use other TTS backends (Edge TTS,
+    # ElevenLabs, Mistral) via lazy-install at first use.
+    local _BROKEN_EXTRAS=()
+    if [[ "$ARCH" == "armv7l" || "$ARCH" == "arm" || "$ARCH" == "aarch32" ]]; then
+        _BROKEN_EXTRAS=("chatterbox")
+        printf '%b\n' "${YELLOW}⚠${NC} Architecture ${ARCH} detected — excluding unsupported extras: ${_BROKEN_EXTRAS[*]}"
+        printf '%b\n' "${YELLOW}⚠${NC} (chatterbox-tts requires PyTorch which has no armv7l wheels)"
+    fi
 
-    # Prefer uv sync with lockfile
+    # Parse [all] contents from pyproject.toml so we can filter out broken extras.
+    # Use the uv-managed Python (guaranteed 3.11+ with tomllib stdlib).
+    local _ALL_EXTRAS_CSV=""
+    if [[ "${#_BROKEN_EXTRAS[@]}" -gt 0 ]]; then
+        _ALL_EXTRAS_CSV="$(
+            "$PYTHON_PATH" -c "
+import re, tomllib
+with open('pyproject.toml', 'rb') as f:
+    data = tomllib.load(f)
+specs = data['project']['optional-dependencies']['all']
+extras = []
+for s in specs:
+    m = re.search(r'lycus-agent\[([\w-]+)\]', s)
+    if m:
+        extras.append(m.group(1))
+print(','.join(extras))
+" 2>/dev/null || echo ""
+        )"
+    fi
+
+    # Build the filtered extras spec
+    local EXTRAS="[all]"
+    if [[ -n "$_ALL_EXTRAS_CSV" && "${#_BROKEN_EXTRAS[@]}" -gt 0 ]]; then
+        # Filter out broken extras
+        local _SAFE_EXTRAS=()
+        IFS=',' read -ra _ALL_EXTRAS_ARR <<< "$_ALL_EXTRAS_CSV"
+        for _e in "${_ALL_EXTRAS_ARR[@]}"; do
+            local _skip=false
+            for _b in "${_BROKEN_EXTRAS[@]}"; do
+                [[ "$_e" == "$_b" ]] && _skip=true && break
+            done
+            [[ "$_skip" == false ]] && _SAFE_EXTRAS+=("$_e")
+        done
+        EXTRAS="[$(IFS=','; echo "${_SAFE_EXTRAS[*]}")]"
+        printf '%b\n' "${CYAN}→${NC} Installing curated stack (filtered for ${ARCH}): ${EXTRAS}"
+    elif [[ "${#_BROKEN_EXTRAS[@]}" -gt 0 ]]; then
+        # Parse failed — use hardcoded safe list (all [all] extras minus broken ones).
+        # This matches the current pyproject.toml [all] minus chatterbox.
+        EXTRAS="[cron,cli,pty,mcp,homeassistant,sms,acp,temporal,google,web,youtube]"
+        printf '%b\n' "${YELLOW}⚠${NC} Could not parse pyproject.toml, using hardcoded safe extras for ${ARCH}"
+        printf '%b\n' "${CYAN}→${NC} Installing: ${EXTRAS}"
+    else
+        printf '%b\n' "${CYAN}→${NC} Installing full stack (includes voice/pty)"
+    fi
+
+    # Tiered install: try lockfile first, then pip with filtered extras, then core only.
     if [[ -f "$_INSTALL_REPO_DIR/uv.lock" ]]; then
         printf '%b\n' "${CYAN}→${NC} Using uv.lock for hash-verified installation..."
         if UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD sync --all-extras --locked 2>/dev/null; then
             printf '%b\n' "${GREEN}✓${NC} Dependencies installed (lockfile verified)"
-        else
-            printf '%b\n' "${YELLOW}⚠${NC} Lockfile install failed, falling back to pip..."
-            UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e ".${EXTRAS}" || \
-            UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e "."
-            printf '%b\n' "${GREEN}✓${NC} Dependencies installed"
+            return 0
         fi
+        printf '%b\n' "${YELLOW}⚠${NC} Lockfile install failed, falling back to pip..."
     else
-        UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e ".${EXTRAS}" || \
-        UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e "."
-        printf '%b\n' "${GREEN}✓${NC} Dependencies installed"
+        printf '%b\n' "${CYAN}→${NC} uv.lock not found, resolving from PyPI..."
     fi
+
+    # Tier 1: install with filtered extras
+    if UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e ".${EXTRAS}" 2>/dev/null; then
+        printf '%b\n' "${GREEN}✓${NC} Dependencies installed"
+        return 0
+    fi
+
+    # Tier 2: core only — last resort so at least the CLI launches
+    printf '%b\n' "${YELLOW}⚠${NC} Extras install failed, installing core only..."
+    if UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD pip install -e "." 2>/dev/null; then
+        printf '%b\n' "${GREEN}✓${NC} Core dependencies installed (some features may be limited)"
+        printf '%b\n' "${YELLOW}⚠${NC} To install missing extras later: cd $_INSTALL_REPO_DIR && uv pip install -e '.${EXTRAS}'"
+        return 0
+    fi
+
+    printf '%b\n' "${RED}✗${NC} Failed to install even core dependencies."
+    echo ""
+    echo "Possible causes:"
+    echo "  - Missing build tools: sudo apt install build-essential python3-dev libffi-dev"
+    echo "  - Network issues"
+    echo ""
+    echo "Try: cd $_INSTALL_REPO_DIR && uv pip install -e '.'"
+    exit 1
 }
 
 install_deps

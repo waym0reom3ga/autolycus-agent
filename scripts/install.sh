@@ -77,6 +77,8 @@ else
     INSTALL_DIR_EXPLICIT=false
 fi
 PYTHON_VERSION="3.11"
+# Detect CPU architecture for platform-specific exclusions
+ARCH="$(uname -m)"
 NODE_VERSION="22"
 
 # FHS-style root install layout (set by resolve_install_layout when applicable):
@@ -1370,9 +1372,9 @@ install_deps() {
         export VIRTUAL_ENV="$INSTALL_DIR/venv"
     fi
 
-    # On Debian/Ubuntu (including WSL), some Python packages need build tools.
-    # Check and offer to install them if missing.
-    if [ "$DISTRO" = "ubuntu" ] || [ "$DISTRO" = "debian" ]; then
+    # On Debian/Ubuntu (including Armbian) and Arch/Manjaro, some Python packages
+    # need build tools. Check and offer to install them if missing.
+    if [ "$DISTRO" = "ubuntu" ] || [ "$DISTRO" = "debian" ] || [ "$DISTRO" = "armbian" ]; then
         local need_build_tools=false
         for pkg in gcc python3-dev libffi-dev; do
             if ! dpkg -s "$pkg" &>/dev/null; then
@@ -1391,6 +1393,25 @@ install_deps() {
                     log_info "Lycus Agent itself does not require or retain root access."
                     if prompt_yes_no "Install build tools?" "yes"; then
                         sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y -qq build-essential python3-dev libffi-dev >/dev/null 2>&1 || true
+                        log_success "Build tools installed"
+                    fi
+                fi
+            fi
+        fi
+    elif [ "$DISTRO" = "arch" ] || [ "$DISTRO" = "manjaro" ] || [ "$DISTRO" = "endeavouros" ] || [ "$DISTRO" = "garuda" ]; then
+        # On Arch/Manjaro, check for base-devel (gcc, make) and libffi.
+        # These are needed for cffi, cryptography, and other C-extension packages.
+        if ! pacman -Qe base-devel &>/dev/null || ! pacman -Qe libffi &>/dev/null || ! pacman -Qe python &>/dev/null; then
+            log_info "Some build tools may be needed for Python packages..."
+            if command -v sudo &> /dev/null; then
+                if sudo -n true 2>/dev/null; then
+                    sudo pacman -S --noconfirm --needed base-devel libffi python >/dev/null 2>&1 || true
+                    log_success "Build tools installed"
+                else
+                    log_info "sudo is needed ONLY to install build tools (base-devel, libffi, python) via pacman."
+                    log_info "Lycus Agent itself does not require or retain root access."
+                    if prompt_yes_no "Install build tools?" "yes"; then
+                        sudo pacman -S --noconfirm --needed base-devel libffi python >/dev/null 2>&1 || true
                         log_success "Build tools installed"
                     fi
                 fi
@@ -1464,7 +1485,14 @@ install_deps() {
     #         exist to dodge [rl] / [matrix] git+sdist deps; those are no
     #         longer in [all] post-2026-05-12 lazy-install migration, so
     #         a separate PyPI-only tier had no remaining content.
-    local _BROKEN_EXTRAS=()  # populate when an extra becomes unresolvable
+    # armv7l (32-bit ARM): PyTorch has no armv7l wheels, so chatterbox-tts
+    # (which depends on torch) is unresolvable. Exclude it from [all].
+    local _BROKEN_EXTRAS=()
+    if [ "$ARCH" = "armv7l" ] || [ "$ARCH" = "arm" ] || [ "$ARCH" = "aarch32" ]; then
+        _BROKEN_EXTRAS=("chatterbox")
+        log_warn "Architecture ${ARCH} detected — excluding unsupported extras: ${_BROKEN_EXTRAS[*]}"
+        log_warn "(chatterbox-tts requires PyTorch which has no armv7l wheels)"
+    fi
 
     # Parse [project.optional-dependencies].all from pyproject.toml.
     # tomllib is stdlib on Python 3.11+ which uv's bootstrap guarantees.
