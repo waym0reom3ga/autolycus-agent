@@ -77,7 +77,10 @@ check_prerequisites() {
     # obscure compiler errors (e.g. "fatal error: ffi.h: No such file or directory").
     if [[ "$PKG_MANAGER" == "apt" ]]; then
         local need_build_tools=false
-        for pkg in gcc python3-dev libffi-dev; do
+        # zlib1g-dev: required for Pillow (no armv7l wheels, must build from source)
+        # libffi-dev: required for cffi/cryptography
+        # python3-dev: required headers for C extensions
+        for pkg in gcc python3-dev libffi-dev zlib1g-dev; do
             if ! dpkg -s "$pkg" &>/dev/null; then
                 need_build_tools=true
                 break
@@ -402,7 +405,10 @@ print(','.join(extras))
     fi
 
     # Tiered install: try lockfile first, then pip with filtered extras, then core only.
-    if [[ -f "$_INSTALL_REPO_DIR/uv.lock" ]]; then
+    # Skip lockfile sync when we have broken extras — the lockfile was generated for
+    # x86_64 and includes packages (torch) that have no armv7l wheels, so it will
+    # always fail on constrained architectures.
+    if [[ -f "$_INSTALL_REPO_DIR/uv.lock" && "${#_BROKEN_EXTRAS[@]}" -eq 0 ]]; then
         printf '%b\n' "${CYAN}→${NC} Using uv.lock for hash-verified installation..."
         if UV_PROJECT_ENVIRONMENT="$_INSTALL_REPO_DIR/venv" $UV_CMD sync --all-extras --locked 2>/dev/null; then
             printf '%b\n' "${GREEN}✓${NC} Dependencies installed (lockfile verified)"
@@ -410,7 +416,7 @@ print(','.join(extras))
         fi
         printf '%b\n' "${YELLOW}⚠${NC} Lockfile install failed, falling back to pip..."
     else
-        printf '%b\n' "${CYAN}→${NC} uv.lock not found, resolving from PyPI..."
+        printf '%b\n' "${CYAN}→${NC} Resolving from PyPI..."
     fi
 
     # Tier 1: install with filtered extras
