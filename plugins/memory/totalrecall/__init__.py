@@ -304,7 +304,10 @@ class TotalRecallMemoryProvider(MemoryProvider):
             tags = _extract_tags(query)
             if not tags:
                 return ""
-            result = self._tr.recall(tags, max_tokens=200_000, query_text=query)
+            # Cap prefetch to 8K tokens to avoid overflowing the context window
+            # on the first prompt (200K was the old value, which alone exceeds
+            # many model context windows when combined with system prompt + tools)
+            result = self._tr.recall(tags, max_tokens=8_000, query_text=query)
             if not result or not result.strip():
                 return ""
             return f"## TotalRecall Memory\n{result}"

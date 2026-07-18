@@ -2834,6 +2834,30 @@ def run_conversation(
                             f"{old_ctx:,} → {_reduced_ctx:,} tokens"
                         )
 
+                    # Guard: if there are too few messages to compress,
+                    # compression cannot help — bail out instead of looping.
+                    if len(messages) <= compressor.protect_first_n + compressor.protect_last_n + 3:
+                        agent._flush_status_buffer()
+                        agent._vprint(
+                            f"{agent.log_prefix}❌ Context overflow with only {len(messages)} messages "
+                            f"(need > {compressor.protect_first_n + compressor.protect_last_n + 3} to compress).",
+                            force=True,
+                        )
+                        logger.error(
+                            f"{agent.log_prefix}Long-context tier overflow with {len(messages)} messages — "
+                            "below compressible threshold, aborting."
+                        )
+                        agent._persist_session(messages, conversation_history)
+                        return {
+                            "messages": messages,
+                            "completed": False,
+                            "api_calls": api_call_count,
+                            "error": f"Context overflow with only {len(messages)} messages (cannot compress).",
+                            "partial": True,
+                            "failed": True,
+                            "compression_exhausted": True,
+                        }
+
                     compression_attempts += 1
                     if compression_attempts <= max_compression_attempts:
                         original_len = len(messages)
@@ -3034,6 +3058,34 @@ def run_conversation(
                             "compression_exhausted": True,
                         }
 
+                    # Guard: if there are too few messages to compress,
+                    # compression cannot help — all messages are protected.
+                    # Bail out immediately instead of looping uselessly.
+                    _compressible_413 = len(messages) > (
+                        compressor.protect_first_n + compressor.protect_last_n + 3
+                    )
+                    if not _compressible_413:
+                        agent._flush_status_buffer()
+                        agent._vprint(
+                            f"{agent.log_prefix}❌ Payload too large with only {len(messages)} messages "
+                            f"(need > {compressor.protect_first_n + compressor.protect_last_n + 3} to compress). "
+                            "Cannot compress further.",
+                            force=True,
+                        )
+                        logger.error(
+                            f"{agent.log_prefix}413 payload too large with {len(messages)} messages — "
+                            "below compressible threshold, aborting."
+                        )
+                        agent._persist_session(messages, conversation_history)
+                        return {
+                            "messages": messages,
+                            "completed": False,
+                            "api_calls": api_call_count,
+                            "error": f"Payload too large with only {len(messages)} messages (cannot compress).",
+                            "partial": True,
+                            "failed": True,
+                            "compression_exhausted": True,
+                        }
                     compression_attempts += 1
                     if compression_attempts > max_compression_attempts:
                         # Terminal — surface the buffered retry trace.
@@ -3245,6 +3297,39 @@ def run_conversation(
                                 f"keeping context_length at {old_ctx:,} tokens and compressing."
                             )
 
+                    # Guard: if there are too few messages to compress,
+                    # compression cannot help — all messages are protected.
+                    # Bail out immediately instead of looping uselessly.
+                    _compressible_ctx = len(messages) > (
+                        compressor.protect_first_n + compressor.protect_last_n + 3
+                    )
+                    if not _compressible_ctx:
+                        agent._flush_status_buffer()
+                        agent._vprint(
+                            f"{agent.log_prefix}❌ Context overflow with only {len(messages)} messages "
+                            f"(need > {compressor.protect_first_n + compressor.protect_last_n + 3} to compress). "
+                            "Cannot compress further.",
+                            force=True,
+                        )
+                        agent._vprint(
+                            f"{agent.log_prefix}   Tip: the memory backend may be injecting too much context. "
+                            "Try /new to start a fresh conversation.",
+                            force=True,
+                        )
+                        logger.error(
+                            f"{agent.log_prefix}Context overflow with {len(messages)} messages — "
+                            "below compressible threshold, aborting."
+                        )
+                        agent._persist_session(messages, conversation_history)
+                        return {
+                            "messages": messages,
+                            "completed": False,
+                            "api_calls": api_call_count,
+                            "error": f"Context overflow with only {len(messages)} messages (cannot compress).",
+                            "partial": True,
+                            "failed": True,
+                            "compression_exhausted": True,
+                        }
                     compression_attempts += 1
                     if compression_attempts > max_compression_attempts:
                         agent._flush_status_buffer()
