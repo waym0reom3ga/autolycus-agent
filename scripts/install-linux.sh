@@ -343,11 +343,20 @@ setup_venv() {
         rm -rf "$_INSTALL_REPO_DIR/venv"
     fi
 
-    # Create the venv
-    $UV_CMD venv "$_INSTALL_REPO_DIR/venv" --python "$PYTHON_PATH" 2>/dev/null || \
-    $UV_CMD venv "$_INSTALL_REPO_DIR/venv" --python "$PYTHON_VERSION"
+    # Create the venv using the detected Python
+    # uv venv --python expects a Python interpreter path or version specifier.
+    # When we detected a system Python, PYTHON_PATH holds the actual binary path.
+    # When we installed via uv, PYTHON_VERSION holds the version string.
+    if [[ -n "$PYTHON_PATH" && -x "$PYTHON_PATH" ]]; then
+        $UV_CMD venv "$_INSTALL_REPO_DIR/venv" --python "$PYTHON_PATH"
+    else
+        $UV_CMD venv "$_INSTALL_REPO_DIR/venv" --python "$PYTHON_VERSION"
+    fi
 
-    printf '%b\n' "${GREEN}✓${NC} venv created (Python ${PYTHON_VERSION})"
+    # Report the actual Python version in the venv (not the hardcoded default)
+    local venv_py_version
+    venv_py_version=$("$_INSTALL_REPO_DIR/venv/bin/python" --version 2>/dev/null)
+    printf '%b\n' "${GREEN}✓${NC} venv created (${venv_py_version})"
     export VIRTUAL_ENV="$_INSTALL_REPO_DIR/venv"
 }
 

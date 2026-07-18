@@ -1299,7 +1299,12 @@ setup_venv() {
     fi
 
     # uv creates the venv and pins the Python version in one step
-    $UV_CMD venv venv --python "$PYTHON_VERSION"
+    # Prefer the detected Python path; fall back to version string
+    if [ -n "$PYTHON_PATH" ] && [ -x "$PYTHON_PATH" ]; then
+        $UV_CMD venv venv --python "$PYTHON_PATH"
+    else
+        $UV_CMD venv venv --python "$PYTHON_VERSION"
+    fi
 
     # Neutralize any inherited UV_PYTHON (e.g. UV_PYTHON=3.14 left in the
     # user's shell env). uv honours UV_PYTHON over an existing venv for the
@@ -1312,7 +1317,7 @@ setup_venv() {
         export UV_PYTHON="$INSTALL_DIR/venv/bin/python"
     fi
 
-    log_success "Virtual environment ready (Python $PYTHON_VERSION)"
+    log_success "Virtual environment ready ($(.venv/bin/python --version 2>/dev/null))"
 }
 
 install_deps() {
