@@ -1,0 +1,5 @@
+name: totalrecall
+version: 1.0.0
+description: "TotalRecall — recursive memory compression with LLM distillation. Replaces OpenViking as the default memory backend."
+hooks:
+  - on_session_end
