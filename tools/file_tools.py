@@ -27,8 +27,7 @@ _EXPECTED_WRITE_ERRNOS = {errno.EACCES, errno.EPERM, errno.EROFS}
 # Read-size guard: cap the character count returned to the model.
 # We're model-agnostic so we can't count tokens; characters are a safe proxy.
 # 100K chars ≈ 25–35K tokens across typical tokenisers.  Files larger than
-# this in a single read are a context-window hazard — the model should use
-# offset+limit to read the relevant section.
+# this in a single read are a context-window hazard.
 #
 # Configurable via config.yaml:  file_read_max_chars: 200000
 # ---------------------------------------------------------------------------
@@ -58,8 +57,7 @@ def _get_max_read_chars() -> int:
     _max_read_chars_cached = _DEFAULT_MAX_READ_CHARS
     return _max_read_chars_cached
 
-# If the total file size exceeds this AND the caller didn't specify a narrow
-# range (limit <= 200), we include a hint encouraging targeted reads.
+# If the total file size exceeds this, we include a hint encouraging targeted reads.
 _LARGE_FILE_HINT_BYTES = 512_000  # 512 KB
 
 # ---------------------------------------------------------------------------
@@ -490,8 +488,8 @@ _file_ops_cache: dict = {}
 # Per task_id we store:
 #   "last_key":     the key of the most recent read/search call (or None)
 #   "consecutive":  how many times that exact call has been repeated in a row
-#   "read_history": set of (path, offset, limit) tuples for get_read_files_summary
-#   "dedup":        dict mapping (resolved_path, offset, limit) → mtime float
+#   "read_history": set of paths for get_read_files_summary
+#   "dedup":        dict mapping resolved_path → mtime float
 #                   Used to skip re-reads of unchanged files.  Reset on
 #                   context compression (the original content is summarised
 #                   away so the model needs the full content again).
@@ -781,11 +779,9 @@ def clear_file_ops_cache(task_id: str = None):
             _file_ops_cache.clear()
 
 
-def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = "default") -> str:
-    """Read a file with pagination and line numbers."""
+def read_file_tool(path: str, task_id: str = "default") -> str:
+    """Read a file with line numbers."""
     try:
-        offset, limit = normalize_read_pagination(offset, limit)
-
         # ── Device path guard ─────────────────────────────────────────
         # Block paths that would hang the process (infinite output,
         # blocking on input).  Pure path check — no I/O.
@@ -813,20 +809,13 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
                 file_ops = _get_file_ops(task_id)
                 lines = extracted_text.splitlines()
                 total_lines = len(lines)
-                end_line = offset + limit - 1
-                page_text = "\n".join(lines[offset - 1:end_line])
                 result_dict = {
-                    "content": file_ops._add_line_numbers(page_text, offset) if page_text else "",
+                    "content": file_ops._add_line_numbers(extracted_text, 1) if extracted_text else "",
                     "total_lines": total_lines,
                     "file_size": os.path.getsize(_resolved),
-                    "truncated": total_lines > end_line,
+                    "truncated": False,
                     "extracted_document": True,
                 }
-                if result_dict["truncated"]:
-                    result_dict["hint"] = (
-                        f"Use offset={end_line + 1} to continue reading "
-                        f"(showing {offset}-{min(end_line, total_lines)} of {total_lines} lines)"
-                    )
                 content_len = len(result_dict["content"])
                 max_chars = _get_max_read_chars()
                 if content_len > max_chars:
@@ -834,7 +823,6 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
                         "error": (
                             f"Read produced {content_len:,} characters which exceeds "
                             f"the safety limit ({max_chars:,} chars). "
-                            "Use offset and limit to read a smaller range. "
                             f"The document has {total_lines} lines of extracted text."
                         ),
                         "path": path,
@@ -868,20 +856,17 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
             return json.dumps({"error": block_error})
 
         # ── Dedup check ───────────────────────────────────────────────
-        # If we already read this exact (path, offset, limit) and the
-        # file hasn't been modified since, return a lightweight stub
-        # instead of re-sending the same content.  Saves context tokens.
+        # If we already read this path and the file hasn't been modified
+        # since, return a lightweight stub instead of re-sending the same
+        # content.  Saves context tokens.
         resolved_str = str(_resolved)
-        dedup_key = (resolved_str, offset, limit)
+        dedup_key = resolved_str
         with _read_tracker_lock:
             task_data = _read_tracker.setdefault(task_id, {
                 "last_key": None, "consecutive": 0,
                 "read_history": set(), "dedup": {},
                 "dedup_hits": {}, "read_timestamps": {},
             })
-            # Backward-compat for pre-existing tracker entries that predate
-            # dedup_hits/read_timestamps (long-lived task or crossed an
-            # upgrade boundary).
             if "dedup_hits" not in task_data:
                 task_data["dedup_hits"] = {}
             if "read_timestamps" not in task_data:
@@ -906,7 +891,7 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
                         return json.dumps({
                             "error": (
                                 f"BLOCKED: You have called read_file on this "
-                                f"exact region {hits + 1} times and the file "
+                                f"file {hits + 1} times and the file "
                                 "has NOT changed. STOP calling read_file for "
                                 "this path — the content from your earlier "
                                 "read_file result in this conversation is "
@@ -929,13 +914,13 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
 
         # ── Perform the read ──────────────────────────────────────────
         file_ops = _get_file_ops(task_id)
-        result = file_ops.read_file(path, offset, limit)
+        result = file_ops.read_file(path)
         result_dict = result.to_dict()
 
         # ── Character-count guard ─────────────────────────────────────
         # We're model-agnostic so we can't count tokens; characters are
         # the best proxy we have.  If the read produced an unreasonable
-        # amount of content, reject it and tell the model to narrow down.
+        # amount of content, reject it.
         # Note: we check the formatted content (with line-number prefixes),
         # not the raw file size, because that's what actually enters context.
         # Check BEFORE redaction to avoid expensive regex on huge content.
@@ -948,7 +933,6 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
                 "error": (
                     f"Read produced {content_len:,} characters which exceeds "
                     f"the safety limit ({max_chars:,} chars). "
-                    "Use offset and limit to read a smaller range. "
                     f"The file has {total_lines} lines total."
                 ),
                 "path": path,
@@ -961,31 +945,15 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
             result.content = redact_sensitive_text(result.content, code_file=True)
             result_dict["content"] = result.content
 
-        # Large-file hint: if the file is big and the caller didn't ask
-        # for a narrow window, nudge toward targeted reads.
-        if (file_size and file_size > _LARGE_FILE_HINT_BYTES
-                and limit > 200
-                and result_dict.get("truncated")):
-            result_dict.setdefault("_hint", (
-                f"This file is large ({file_size:,} bytes). "
-                "Consider reading only the section you need with offset and limit "
-                "to keep context usage efficient."
-            ))
-
         # ── Track for consecutive-loop detection ──────────────────────
-        read_key = ("read", path, offset, limit)
+        read_key = ("read", path)
         with _read_tracker_lock:
-            # Ensure "dedup" / "dedup_hits" keys exist (backward compat with
-            # old tracker state from pre-dedup-guard sessions).
             if "dedup" not in task_data:
                 task_data["dedup"] = {}
             if "dedup_hits" not in task_data:
                 task_data["dedup_hits"] = {}
-            # Real read succeeded — this key is no longer in a stub-loop, so
-            # reset its hit counter.  (File either changed or stat failed
-            # earlier and we fell through.)
             task_data["dedup_hits"].pop(dedup_key, None)
-            task_data["read_history"].add((path, offset, limit))
+            task_data["read_history"].add(path)
             if task_data["last_key"] == read_key:
                 task_data["consecutive"] += 1
             else:
@@ -993,39 +961,26 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
                 task_data["consecutive"] = 1
             count = task_data["consecutive"]
 
-            # Store mtime at read time for two purposes:
-            # 1. Dedup: skip identical re-reads of unchanged files.
-            # 2. Staleness: warn on write/patch if the file changed since
-            #    the agent last read it (external edit, concurrent agent, etc.).
             try:
                 _mtime_now = os.path.getmtime(resolved_str)
                 task_data["dedup"][dedup_key] = _mtime_now
                 task_data.setdefault("read_timestamps", {})[resolved_str] = _mtime_now
             except OSError:
-                pass  # Can't stat — skip tracking for this entry
+                pass
 
-            # Bound the per-task containers so a long CLI session doesn't
-            # accumulate megabytes of dict/set state.  See _cap_read_tracker_data.
             _cap_read_tracker_data(task_data)
 
-        # Cross-agent file-state registry (separate from per-task read
-        # tracker above): records that THIS agent has read this path so
-        # write/patch can detect sibling-subagent writes that happened
-        # after our read.  Partial read when offset>1 or the read was
-        # truncated (large file with more content than limit covered).
-        # Outside the _read_tracker_lock so the registry's own locking
-        # isn't nested under ours.
+        # Cross-agent file-state registry
         try:
-            _partial = (offset > 1) or bool(result_dict.get("truncated"))
+            _partial = bool(result_dict.get("truncated"))
             file_state.record_read(task_id, resolved_str, partial=_partial)
         except Exception:
             logger.debug("file_state.record_read failed", exc_info=True)
 
         if count >= 4:
-            # Hard block: stop returning content to break the loop
             return json.dumps({
                 "error": (
-                    f"BLOCKED: You have read this exact file region {count} times in a row. "
+                    f"BLOCKED: You have read this file {count} times in a row. "
                     "The content has NOT changed. You already have this information. "
                     "STOP re-reading and proceed with your task."
                 ),
@@ -1034,7 +989,7 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
             }, ensure_ascii=False)
         elif count >= 3:
             result_dict["_warning"] = (
-                f"You have read this exact file region {count} times consecutively. "
+                f"You have read this file {count} times consecutively. "
                 "The content has not changed since your last read. Use the information you already have. "
                 "If you are stuck in a loop, stop reading and proceed with writing or responding."
             )
@@ -1098,10 +1053,7 @@ def _invalidate_dedup_for_path(filepath: str, task_id: str) -> None:
 
     Called after write_file and patch so that a subsequent read_file on
     the same path always returns fresh content instead of a stale
-    "File unchanged" stub.  The dedup cache keys are tuples of
-    ``(resolved_path, offset, limit)``; we must evict **all** offset/limit
-    combinations for the written path because any cached range could now
-    be stale.
+    "File unchanged" stub.
 
     Must be called with ``_read_tracker_lock`` **not** held — acquires it
     internally.
@@ -1117,10 +1069,7 @@ def _invalidate_dedup_for_path(filepath: str, task_id: str) -> None:
         dedup = task_data.get("dedup")
         if not dedup:
             return
-        # Collect keys to remove (can't mutate dict during iteration).
-        stale_keys = [k for k in dedup if k[0] == resolved]
-        for k in stale_keys:
-            del dedup[k]
+        dedup.pop(resolved, None)
 
 
 def _update_read_timestamp(filepath: str, task_id: str) -> None:
@@ -1512,13 +1461,11 @@ def _check_file_reqs():
 
 READ_FILE_SCHEMA = {
     "name": "read_file",
-    "description": "Read a text file with line numbers and pagination. Use this instead of cat/head/tail in terminal. Output format: 'LINE_NUM|CONTENT'. Suggests similar filenames if not found. Use offset and limit for large files. Reads exceeding ~100K characters are rejected; use offset and limit to read specific sections of large files. Jupyter notebooks (.ipynb), Word documents (.docx), and Excel workbooks (.xlsx) are auto-extracted to readable text. NOTE: Cannot read images or other binary files — images can be viewed directly by the model.",
+    "description": "Read a text file with line numbers. Use this instead of cat/head/tail in terminal. Output format: 'LINE_NUM|CONTENT'. Suggests similar filenames if not found. Reads exceeding ~100K characters are rejected. Jupyter notebooks (.ipynb), Word documents (.docx), and Excel workbooks (.xlsx) are auto-extracted to readable text. NOTE: Cannot read images or other binary files — images can be viewed directly by the model.",
     "parameters": {
         "type": "object",
         "properties": {
-            "path": {"type": "string", "description": "Path to the file to read (absolute, relative, or ~/path)"},
-            "offset": {"type": "integer", "description": "Line number to start reading from (1-indexed, default: 1)", "default": 1, "minimum": 1},
-            "limit": {"type": "integer", "description": "Maximum number of lines to read (default: 500, max: 2000)", "default": 500, "maximum": 2000}
+            "path": {"type": "string", "description": "Path to the file to read (absolute, relative, or ~/path)"}
         },
         "required": ["path"]
     }
@@ -1614,8 +1561,8 @@ SEARCH_FILES_SCHEMA = {
 
 
 def _handle_read_file(args, **kw):
-    tid = kw.get("task_id") or "default"
-    return read_file_tool(path=args.get("path", ""), offset=args.get("offset", 1), limit=args.get("limit", 500), task_id=tid)
+    tid = kw.get("task_id", "default")
+    return read_file_tool(path=args.get("path", ""), task_id=tid)
 
 
 def _handle_write_file(args, **kw):

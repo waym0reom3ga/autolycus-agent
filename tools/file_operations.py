@@ -388,8 +388,8 @@ class FileOperations(ABC):
     """Abstract interface for file operations across terminal backends."""
     
     @abstractmethod
-    def read_file(self, path: str, offset: int = 1, limit: int = 500) -> ReadResult:
-        """Read a file with pagination support."""
+    def read_file(self, path: str) -> ReadResult:
+        """Read a file with line numbers."""
         ...
 
     @abstractmethod
@@ -956,22 +956,18 @@ class ShellFileOperations(FileOperations):
     # READ Implementation
     # =========================================================================
     
-    def read_file(self, path: str, offset: int = 1, limit: int = 500) -> ReadResult:
+    def read_file(self, path: str) -> ReadResult:
         """
-        Read a file with pagination, binary detection, and line numbers.
+        Read a file with binary detection and line numbers.
         
         Args:
             path: File path (absolute or relative to cwd)
-            offset: Line number to start from (1-indexed, default 1)
-            limit: Maximum lines to return (default 500, max 2000)
         
         Returns:
             ReadResult with content, metadata, or error info
         """
         # Expand ~ and other shell paths
         path = self._expand_path(path)
-        
-        offset, limit = normalize_read_pagination(offset, limit)
         
         # Check if file exists and get size (wc -c is POSIX, works on Linux + macOS)
         stat_cmd = f"wc -c < {self._escape_shell_arg(path)} 2>/dev/null"
@@ -1015,19 +1011,16 @@ class ShellFileOperations(FileOperations):
                 error="Binary file - cannot display as text. Use appropriate tools to handle this file type."
             )
         
-        # Read with pagination using sed
-        end_line = offset + limit - 1
-        read_cmd = f"sed -n '{offset},{end_line}p' {self._escape_shell_arg(path)}"
+        # Read entire file
+        read_cmd = f"cat {self._escape_shell_arg(path)}"
         read_result = self._exec(read_cmd)
         
         if read_result.exit_code != 0:
             return ReadResult(error=f"Failed to read file: {read_result.stdout}")
         read_output = _strip_terminal_fence_leaks(read_result.stdout)
         # Strip a leading UTF-8 BOM so the model never sees a phantom U+FEFF
-        # before the first real character. Only meaningful on the first
-        # chunk (the marker lives at byte 0); later pages can't carry it.
-        if offset == 1:
-            read_output, _ = _strip_bom(read_output)
+        # before the first real character.
+        read_output, _ = _strip_bom(read_output)
         
         # Get total line count
         wc_cmd = f"wc -l < {self._escape_shell_arg(path)}"
@@ -1038,18 +1031,12 @@ class ShellFileOperations(FileOperations):
         except ValueError:
             total_lines = 0
         
-        # Check if truncated
-        truncated = total_lines > end_line
-        hint = None
-        if truncated:
-            hint = f"Use offset={end_line + 1} to continue reading (showing {offset}-{end_line} of {total_lines} lines)"
-        
         return ReadResult(
-            content=self._add_line_numbers(read_output, offset),
+            content=self._add_line_numbers(read_output, 1),
             total_lines=total_lines,
             file_size=file_size,
-            truncated=truncated,
-            hint=hint
+            truncated=False,
+            hint=None
         )
     
     def _suggest_similar_files(self, path: str) -> ReadResult:
